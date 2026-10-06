@@ -3,11 +3,12 @@ import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import { z } from 'zod';
 import { appendAudit, createThread, getThread, insertChatMessage, isUuid, listChatMessages, listThreads, publishEvent, renameThread } from '@videogen/db';
+import { CHAT_MODES } from '@videogen/shared';
 import { sendCommand } from './notify.ts';
 
 const DEFAULT_TITLE = 'Yeni sohbet';
 const NewThread = z.object({ title: z.string().trim().min(1).max(120).optional() });
-const NewMessage = z.object({ text: z.string().trim().min(1).max(20_000) });
+const NewMessage = z.object({ text: z.string().trim().min(1).max(20_000), mode: z.enum(CHAT_MODES).default('ask') });
 
 export function registerChatRoutes(app: FastifyInstance, deps: { pool: pg.Pool }): void {
   const { pool } = deps;
@@ -34,7 +35,7 @@ export function registerChatRoutes(app: FastifyInstance, deps: { pool: pg.Pool }
     if (!th) return reply.code(404).send({ error: 'not found' });
     const b = NewMessage.safeParse(req.body ?? {});
     if (!b.success) return reply.code(400).send({ error: 'mesaj 1–20.000 karakter olmalı' });
-    const m = await insertChatMessage(pool, { id: randomUUID(), threadId: th.id, role: 'user', text: b.data.text, status: 'queued' });
+    const m = await insertChatMessage(pool, { id: randomUUID(), threadId: th.id, role: 'user', text: b.data.text, status: 'queued', mode: b.data.mode });
     if (th.title === DEFAULT_TITLE) await renameThread(pool, th.id, b.data.text.slice(0, 60));
     await appendAudit(pool, { actorType: 'user', action: 'chat.message_sent', subjectType: 'chat_thread', subjectId: th.id, data: { messageId: m.id, chars: m.text.length, preview: m.text.slice(0, 200) } });
     await publishEvent(pool, { topic: `chat:${th.id}`, type: 'chat.message', payload: m });

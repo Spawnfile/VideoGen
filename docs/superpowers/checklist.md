@@ -9,8 +9,8 @@
 | M0 Doğrulama | `plans/2026-10-06-m0-verification.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m0/report.md` |
 | M1 Ses | `plans/2026-10-06-m1-audio-listening.md` | Tamamlandı (K17 kullanıcı onayı bekliyor) | 2026-10-06 | 2026-10-06 | `docs/m1/decision.md` |
 | M2 İskelet | `plans/2026-10-06-m2-skeleton.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m2/report.md` |
-| M3 Canlı agent katmanı | `plans/2026-10-06-m3a-agent-runtime.md` (M3a) + M3b (M3a sonrası) | Devam ediyor (M3a tamam, M3b sırada) | 2026-10-06 | | |
-| M4 Dikey dilim | M3 sonrası | Plan yok | | | |
+| M3 Canlı agent katmanı | `plans/2026-10-06-m3a-agent-runtime.md` (M3a) + `plans/2026-10-06-m3b-live-ui.md` (M3b) | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m3/report.md` |
+| M4 Dikey dilim | M3 sonrası (plan kullanıcı onayıyla) | Plan yok, sırada | | | |
 | M5 Final ve kalite | M4 sonrası | Plan yok | | | |
 | M6 Yayın | M5 sonrası | Plan yok | | | |
 | M7 Sertleştirme | M6 sonrası | Plan yok | | | |
@@ -53,18 +53,18 @@
 - [x] T9 Playwright smoke S1 (3 test) · commit 38f064b · 2026-10-06 · 3/3
 - [x] T10 README + M2 raporu; `typecheck` + `test` + `test:smoke` yeşil · commit 70bdbd9 · 2026-10-06 · + final review düzeltmeleri 1ecf4a3; 51/51 + smoke 3/3
 
-## M3 — Canlı agent katmanı *(iki plan: M3a `plans/2026-10-06-m3a-agent-runtime.md` — sürücü, roller, MCP, koruma, tablolar, kullanım muhafızı; M3b — kartlar, ThinkingState, chat paneli, smoke; M3a bitince yazılır)*
+## M3 — Canlı agent katmanı *(iki plan: M3a `plans/2026-10-06-m3a-agent-runtime.md` — sürücü, roller, MCP, koruma, tablolar, kullanım muhafızı; M3b `plans/2026-10-06-m3b-live-ui.md` — kartlar, ThinkingState, chat paneli, smoke, taş sonu)*
 
-- [x] `ClaudeDriver` arayüzü: `SdkClaudeDriver` + fixture oynatan `FakeClaudeDriver` · commit 4a0ff5c, 02e891d · 2026-10-06 · M3a T1/T6; elle gerçek doğrulama (haiku): MCP bağlı, guard reddi, interrupt → giriş kapanınca iterator fırlatır
-- [x] Rol tanımları (`claude-plugin/agents/*.md`) ve rol başına model/effort/araç ayarları (spec §6.2) · commit 1d360cf, 853e23a · 2026-10-06 · M3a T3 (+ skill symlink'leri manifestten üretiliyor), ayar uçları T11; Ayarlar arayüzü M3b
-- [x] `videogen` MCP sunucusu (in-process): `report_progress`, `get_context`, `read_spec`/`write_spec`, `register_artifact` · commit bb76c1e · 2026-10-06 · M3a T5; şema içerikleri M4
-- [x] `PreToolUse` koruması: yol sınırı + ağır komut yasağı; gerekçe doğru MCP aracını gösteriyor · commit 1d360cf · 2026-10-06 · M3a T3; + symlink kaçışı, Bash izin listesi, gizli dosya okuma yasağı
-- [x] `agent_sessions` / `agent_events` tabloları, ham NDJSON, transcript arşivi · commit e41797e, dfda49c, 14973bf · 2026-10-06 · M3a T4/T7/T8; `ui_events` sırası DB'de zorlanıyor
-- [ ] Agent kartları: durum, yüzde ve kaynağı, alt ajanlar, CPU/RAM, "takılmış olabilir"
-- [ ] Canlı ThinkingState (Steps / Reasoning / Search / Coding) + olay→satır eşleyici (fixture testli)
-- [ ] Chat paneli: kalıcı oturum, interrupt, resume, ayrılmış chat slotu
-- [x] Kullanım muhafızı: `rate_limit_event` beslemesi, %80 / %90 eşikleri, `resetsAt`'te devam · commit b9189b5 · 2026-10-06 · M3a T9; footer gösterimi M3b
-- [ ] Smoke S3 (canlılık), S4 (SSE kopması), S5 (chat, kısmi)
+- [x] `ClaudeDriver` arayüzü: `SdkClaudeDriver` + fixture oynatan `FakeClaudeDriver` · commit 4a0ff5c, ad23a5c · 2026-10-06 · M3a T1/T6; elle gerçek doğrulama (haiku): MCP bağlı, guard reddi, interrupt → giriş kapanınca iterator fırlatır
+- [x] Rol tanımları (`claude-plugin/agents/*.md`) ve rol başına model/effort/araç ayarları (spec §6.2) · commit 5149058, b8de497 · 2026-10-06 · M3a T3 (+ skill symlink'leri manifestten üretiliyor), ayar uçları T11; Ayarlar arayüzü M3b
+- [x] `videogen` MCP sunucusu (in-process): `report_progress`, `get_context`, `read_spec`/`write_spec`, `register_artifact` · commit 73e50ea · 2026-10-06 · M3a T5; şema içerikleri M4
+- [x] `PreToolUse` koruması: yol sınırı + ağır komut yasağı; gerekçe doğru MCP aracını gösteriyor · commit 5149058 · 2026-10-06 · M3a T3; + symlink kaçışı, Bash izin listesi, gizli dosya okuma yasağı; son review: Grep/Glob arama kökü run klasörüne sınırlandı, gizli dosya listesi genişledi (5149058)
+- [x] `agent_sessions` / `agent_events` tabloları, ham NDJSON, transcript arşivi · commit cab01a1, 846b123, 58bfe77 · 2026-10-06 · M3a T4/T7/T8; `ui_events` sırası DB'de zorlanıyor
+- [x] Agent kartları: durum, yüzde ve kaynağı, alt ajanlar, CPU/RAM, "takılmış olabilir" · commit 1963d8e · 2026-10-06 · M3b T4; tam iz, Durdur/Yeniden dene; ekran `docs/m3/agents.png`
+- [x] Canlı ThinkingState (Steps / Reasoning / Search / Coding) + olay→satır eşleyici (fixture testli) · commit 49c0bbb · 2026-10-06 · M3b T2 (eşleyici M3a T2); 10 Hz canlı katman 22e8db9 (T1)
+- [x] Chat paneli: kalıcı oturum, interrupt, resume, ayrılmış chat slotu · commit 9089088 · 2026-10-06 · M3b T5 (servis M3a T10); mod çipleri (Soru / Analiz et / Düzelt, migration 0004), Ayarlar'da rol başına model/effort, footer'da muhafız çipi; ekranlar `docs/m3/chat*.png`, `settings-roles.png`
+- [x] Kullanım muhafızı: `rate_limit_event` beslemesi, %80 / %90 eşikleri, `resetsAt`'te devam · commit a1bea90 · 2026-10-06 · M3a T9; footer gösterimi M3b
+- [x] Smoke S3 (canlılık), S4 (SSE kopması), S5 (chat, kısmi) · commit 21952bb · 2026-10-06 · M3b T6 (yığın T3); S4'te worker ölümü de; 7 passed × 3, ~39 sn; RED kanıtı geçici mutasyonlarla
 
 ## M4 — Dikey dilim *(plan M3 sonrası)*
 
@@ -130,3 +130,5 @@
 | 2026-10-06 | M3 plan bölme | M3 → M3a (11 görev) + M3b (~6 görev); M3b planı M3a'nın gerçek arayüzleriyle yazılır | 17 görev > 12 sınırı (handoff §4) |
 | 2026-10-06 | M3 plan öncesi sondaj | In-process MCP, `sessionId`, Bash hook gerekçesi, streaming 2. tur, `resume`, detached spawn: hepsi doğrulandı | `spikes/m3/probe.mjs` (haiku, 2 oturum, 11 sn) |
 | 2026-10-06 | ThinkingState kaynağı | Kullanıcının tasarım oturumunda yapıştırdığı özgün komponent bulundu ve repoya alındı; yeniden kurulmayacak, §13.2'ye göre uyarlanacak | `docs/m3/thinking-state.original.tsx` (kaynak: `~/.claude/paste-cache`, 02:02) |
+| 2026-10-06 | M3 gerçek uçtan uca doğrulama (tek haiku chat oturumu) | Geçti + 1 bulgu düzeltildi (`result.text` yalnızca son metin bloğu → izde önceki metin kayboluyordu) | `docs/m3/real-check.md`, `docs/m3/real-chat.png` |
+| 2026-10-06 | M3 son review (tek bağımsız reviewer, Claude Fable 5.1) | With fixes → 4 Important düzeltildi (Grep/Glob kökü run klasörüne, bayat muhafız durumu, boşta kapanma penceresi, `\u0000`), 1 Important Minor'a indirildi, 11 Minor ertelendi | `docs/m3/report.md` §7 |

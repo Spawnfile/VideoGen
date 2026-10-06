@@ -70,11 +70,34 @@ describe('SessionManager', () => {
     m.events = { onTurnComplete: (_id, r) => { turns.push(r.turn); }, onEnd: (_id, e) => { ended.push(e.status); } };
     const id = await m.start({ kind: 'chat', role: 'chat', prompt: 'merhaba' });
     await vi.waitFor(async () => expect(await status(id)).toBe('idle'));
-    expect(m.sendChat(id, 'devam')).toBe(true);
+    expect(m.sendChat(id, 'devam')).toBe(1);
     await vi.waitFor(() => expect(turns).toEqual([0, 1]));
     await vi.waitFor(async () => expect(await status(id)).toBe('done'), { timeout: 5000 });
     await vi.waitFor(() => expect(ended).toEqual(['done'])); // onEnd runs after the runner stored 'done'
     expect(m.isLive(id)).toBe(false);
+  });
+
+  it('a chat message in the idle-close window is not handed to the closing process (sendChat → null, the caller resumes)', async () => {
+    const fake = new FakeClaudeDriver({ speed: 0, pick: () => ({ fixture: 'basic' }) });
+    // The real CLI takes a while to exit after its input closes; hold the fake's end for 400 ms to open that window.
+    const driver: ClaudeDriver = {
+      kind: 'fake',
+      start: (s) => {
+        const ses = fake.start(s);
+        return new Proxy(ses, {
+          get: (o, k) => (k === 'endInput' ? () => { setTimeout(() => o.endInput(), 400); } : ((v) => (typeof v === 'function' ? v.bind(o) : v))(Reflect.get(o, k))),
+        });
+      },
+    };
+    const m = make({ chatIdleMs: 50, driver });
+    const id = await m.start({ kind: 'chat', role: 'chat', prompt: 'merhaba' });
+    await vi.waitFor(async () => {
+      const { rows } = await t.pool.query("SELECT 1 FROM audit_log WHERE session_id = $1 AND action = 'agent.session.idle_closed'", [id]);
+      expect(rows).toHaveLength(1);
+    });
+    expect(m.isLive(id)).toBe(true);
+    expect(m.sendChat(id, 'devam')).toBeNull();
+    await vi.waitFor(async () => expect(await status(id)).toBe('done'));
   });
 
   it('publishes liveness samples: active → quiet_alive → maybe_stuck, and audits the stuck transition once', async () => {

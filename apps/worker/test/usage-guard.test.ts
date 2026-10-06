@@ -71,6 +71,26 @@ describe('UsageGuard', () => {
     await vi.waitFor(() => expect(seen).toHaveBeenCalledTimes(1));
     expect(seen.mock.calls[0]![0]).toMatchObject({ source: 'get_usage', fiveHour: { utilization: 0.35 } });
   });
+  it('a fresh guard overwrites a stale stored state on its first evaluation (worker restarted after the reset)', async () => {
+    const stale = { blocked: true, reason: 'five_hour', resumeAt: new Date(Date.now() - 60_000).toISOString(), fiveHour: 0.85, sevenDay: 0.1 };
+    await t.pool.query("INSERT INTO settings (key, value) VALUES ('usage.guard', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", [JSON.stringify(stale)]);
+    const before = Number((await t.pool.query('SELECT coalesce(max(id), 0) AS m FROM ui_events')).rows[0].m);
+    const g = new UsageGuard({ pool: t.pool });
+    cleanups.push(() => g.stop());
+    await g.update({ source: 'get_usage', fiveHour: W(0.1), sevenDay: W(0.1), status: null, subscriptionType: null, at: new Date().toISOString() });
+    const { rows } = await t.pool.query("SELECT value FROM settings WHERE key = 'usage.guard'");
+    expect(rows[0].value).toMatchObject({ blocked: false, reason: null });
+    const ev = await t.pool.query("SELECT payload FROM ui_events WHERE type = 'usage.guard' AND id > $1", [before]);
+    expect(ev.rows.map((r) => r.payload.blocked)).toEqual([false]);
+  });
+
+  it('stores every transition in settings for the API', async () => {
+    const g = new UsageGuard({ pool: t.pool });
+    cleanups.push(() => g.stop());
+    await g.update({ source: 'get_usage', fiveHour: W(0.81), sevenDay: W(0.1), status: null, subscriptionType: null, at: new Date().toISOString() });
+    const { rows } = await t.pool.query("SELECT value FROM settings WHERE key = 'usage.guard'");
+    expect(rows[0].value).toMatchObject({ blocked: true, reason: 'five_hour', fiveHour: 0.81 });
+  });
 });
 
 describe('guard and SessionManager', () => {

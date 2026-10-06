@@ -126,6 +126,7 @@ export const chatMessages = pgTable(
     role: text('role').notNull(),
     text: text('text').notNull(),
     status: text('status').notNull(),
+    mode: text('mode').notNull().default('ask'),
     sessionId: uuid('session_id'),
     turn: integer('turn'),
     createdAt: timestamp('created_at', { withTimezone: true, precision: 6 }).notNull().defaultNow(),

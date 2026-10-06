@@ -101,6 +101,12 @@ describe('chat endpoints', () => {
     await settle();
     expect(commands).toEqual([{ type: 'chat.interrupt', threadId: th.id }]);
   });
+  it('stores the chat mode and rejects an unknown one', async () => {
+    const th = (await app.inject({ method: 'POST', url: '/api/chat/threads', headers: H, payload: {} })).json();
+    const r = await app.inject({ method: 'POST', url: `/api/chat/threads/${th.id}/messages`, headers: H, payload: { text: 'incele', mode: 'analyze' } });
+    expect(r.json().mode).toBe('analyze');
+    expect((await app.inject({ method: 'POST', url: `/api/chat/threads/${th.id}/messages`, headers: H, payload: { text: 'x', mode: 'yolo' } })).statusCode).toBe(400);
+  });
 });
 
 describe('roles, dev endpoint and freshness header', () => {
@@ -134,5 +140,14 @@ describe('roles, dev endpoint and freshness header', () => {
     const r = await app.inject({ url: '/api/usage', headers: H });
     expect(Number(r.headers['x-vg-event-id'])).toBe(await maxEventId(t.pool));
     expect((await app.inject({ url: '/api/health', headers: H })).headers['x-vg-event-id']).toBeUndefined();
+  });
+});
+
+describe('usage guard endpoint', () => {
+  it('reports the open state until the worker stores one', async () => {
+    expect((await app.inject({ url: '/api/usage/guard', headers: H })).json()).toEqual({ blocked: false, reason: null, resumeAt: null, fiveHour: null, sevenDay: null });
+    const g = { blocked: true, reason: 'five_hour', resumeAt: '2026-10-06T14:00:00.000Z', fiveHour: 0.82, sevenDay: 0.2 };
+    await t.pool.query("INSERT INTO settings (key, value) VALUES ('usage.guard', $1)", [JSON.stringify(g)]);
+    expect((await app.inject({ url: '/api/usage/guard', headers: H })).json()).toEqual(g);
   });
 });

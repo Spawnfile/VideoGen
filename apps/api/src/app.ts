@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type pg from 'pg';
-import type { ClaudeAuth, Config, UsageSnapshot } from '@videogen/shared';
+import type { ClaudeAuth, Config, GuardState, UsageSnapshot } from '@videogen/shared';
 import { appendAudit, maxEventId, verifyAudit } from '@videogen/db';
 import type { EventHub } from './event-hub.ts';
 import { registerGuard } from './guard.ts';
@@ -47,6 +47,10 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
       at: r.ts.toISOString(),
     };
     return snap;
+  });
+  app.get('/api/usage/guard', async () => {
+    const { rows } = await deps.pool.query("SELECT value FROM settings WHERE key = 'usage.guard'");
+    return (rows[0]?.value ?? { blocked: false, reason: null, resumeAt: null, fiveHour: null, sevenDay: null }) as GuardState;
   });
 
   app.post('/api/claude/refresh', async (_req, reply) => {

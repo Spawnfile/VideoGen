@@ -28,6 +28,8 @@ export class UsageGuard implements UsageGate {
   private w: { fiveHour: UsageWindow | null; sevenDay: UsageWindow | null } = { fiveHour: null, sevenDay: null };
   private rejectedUntil: string | null = null;
   private st: GuardState = OPEN;
+  /** The stored state may be stale from a previous worker: the first evaluation always rewrites and republishes it. */
+  private stored = false;
   private listeners = new Set<() => void>();
   private timer: NodeJS.Timeout | null = null;
   private chain: Promise<void> = Promise.resolve();
@@ -61,13 +63,22 @@ export class UsageGuard implements UsageGate {
       const prev = this.st;
       this.st = next;
       this.schedule(next);
-      if (prev.blocked === next.blocked && prev.reason === next.reason) return;
-      await appendAudit(this.d.pool, {
-        actorType: 'orchestrator', action: next.blocked ? 'usage.guard.blocked' : 'usage.guard.cleared',
-        data: { reason: next.reason ?? prev.reason, fiveHour: next.fiveHour, sevenDay: next.sevenDay, resumeAt: next.resumeAt },
-      });
+      const changed = prev.blocked !== next.blocked || prev.reason !== next.reason;
+      if (!changed && this.stored) return;
+      this.stored = true;
+      await this.d.pool.query(
+        `INSERT INTO settings (key, value, updated_at) VALUES ('usage.guard', $1, now())
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+        [JSON.stringify(next)],
+      );
+      if (changed) {
+        await appendAudit(this.d.pool, {
+          actorType: 'orchestrator', action: next.blocked ? 'usage.guard.blocked' : 'usage.guard.cleared',
+          data: { reason: next.reason ?? prev.reason, fiveHour: next.fiveHour, sevenDay: next.sevenDay, resumeAt: next.resumeAt },
+        });
+      }
       await publishEvent(this.d.pool, { topic: 'system', type: 'usage.guard', payload: next });
-      if (!next.blocked) for (const f of this.listeners) f();
+      if (changed && !next.blocked) for (const f of this.listeners) f();
     }).catch((e) => { process.stderr.write(`usage guard: ${String((e as Error)?.name)}\n`); });
     return this.chain;
   }

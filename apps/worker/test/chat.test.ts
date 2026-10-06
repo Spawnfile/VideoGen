@@ -69,4 +69,14 @@ describe('ChatService', () => {
     await vi.waitFor(async () => expect(await statuses(th.id)).toEqual(['user:failed', 'user:done', 'assistant:done']));
     expect((await listSessions(t.pool, { kind: 'chat' })).length).toBeGreaterThan(0);
   });
+  it('prefixes the prompt by mode (stored text unchanged) and records the turn of a running message', async () => {
+    const { chat, specs, manager } = setup({ stallFirst: true });
+    const th = await createThread(t.pool, { id: randomUUID(), title: 'Mod' });
+    const id = (await insertChatMessage(t.pool, { id: randomUUID(), threadId: th.id, role: 'user', text: 'kalemi incele', status: 'queued', mode: 'analyze' })).id;
+    await chat.handleSend(id);
+    await vi.waitFor(() => expect(specs).toHaveLength(1));
+    expect(specs[0]!.prompt).toMatch(/^Analiz modu: .*\n\nkalemi incele$/s);
+    await vi.waitFor(async () => expect((await listChatMessages(t.pool, th.id))[0]).toMatchObject({ status: 'running', turn: 0, text: 'kalemi incele' }));
+    expect(typeof manager.sendChat).toBe('function');
+  });
 });

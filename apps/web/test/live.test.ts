@@ -21,6 +21,8 @@ class FakeEventSource {
   /** Non-200 response (proxy 5xx, guard 403): EventSource gives up for good. */
   fail() { this.readyState = FakeEventSource.CLOSED; this.onerror?.(); }
   emit(type: string, data: string) { for (const fn of this.listeners.get(type) ?? []) fn({ data }); }
+  hb(): void { this.emit('hb', '{"ts":0}'); }
+  live(type: string, payload: unknown) { this.emit('live', JSON.stringify({ topic: 't', type, payload })); }
   ui(id: number) { this.emit('ui', JSON.stringify({ id, ts: '', topic: 'system', type: 't', payload: null } satisfies UiEvent)); }
 }
 
@@ -117,7 +119,7 @@ describe('ui event dedupe and robustness', () => {
     last().drop();
     last().open(); // reconnected to a reset database whose ids restart
     last().ui(3); last().ui(4); last().ui(4);
-    vi.advanceTimersByTime(20);
+    vi.advanceTimersByTime(120);
     expect(seen).toEqual([10, 11, 3, 4]);
   });
 
@@ -131,5 +133,44 @@ describe('ui event dedupe and robustness', () => {
     last().ui(1); last().ui(2);
     expect(() => vi.advanceTimersByTime(20)).not.toThrow();
     expect(seen).toEqual([1, 2]);
+  });
+});
+describe('flush cap, live events and the half-open watchdog', () => {
+  it('caps dispatch at ~10 Hz and still delivers every event', () => {
+    const flushes: number[][] = [];
+    let batch: number[] = [];
+    live.onUiEvent((e) => batch.push(e.id));
+    live.connectLive('/events');
+    last().open();
+    const tick = () => { if (batch.length) { flushes.push(batch); batch = []; } };
+    for (let i = 1; i <= 50; i++) { last().ui(i); vi.advanceTimersByTime(2); tick(); }
+    vi.advanceTimersByTime(300);
+    tick();
+    expect(flushes.flat()).toEqual(Array.from({ length: 50 }, (_, i) => i + 1));
+    expect(flushes.length).toBeLessThanOrEqual(3); // 100 ms window: ≤ 2 flushes during the 100 ms burst + 1 tail
+  });
+
+  it('dispatches live events to onLiveEvent in the same flush and keeps the worker heartbeat', () => {
+    const got: string[] = [];
+    live.onLiveEvent((e) => got.push(e.type));
+    live.connectLive('/events');
+    last().open();
+    last().live('trace.delta', { sessionId: 's', d: [] });
+    last().live('worker.heartbeat', { rssMb: 50 });
+    vi.advanceTimersByTime(120);
+    expect(got).toEqual(['trace.delta', 'worker.heartbeat']);
+  });
+
+  it('reconnects a silent (half-open) stream after staleMs, while heartbeats keep a quiet stream alive', () => {
+    live.connectLive('/events', { staleMs: 35_000 });
+    last().open();
+    last().ui(7);
+    for (let s = 0; s < 6; s++) { vi.advanceTimersByTime(10_000); last().hb(); }
+    expect(FakeEventSource.all).toHaveLength(1);
+    vi.advanceTimersByTime(40_000);
+    expect(FakeEventSource.all[0]!.readyState).toBe(FakeEventSource.CLOSED);
+    vi.advanceTimersByTime(1_000);
+    expect(FakeEventSource.all).toHaveLength(2);
+    expect(last().url).toBe('/events?after=7');
   });
 });

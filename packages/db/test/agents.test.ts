@@ -90,4 +90,10 @@ describe('chat and blobs', () => {
     expect(await insertBlob(t.pool, b)).toBe(true);
     expect(await insertBlob(t.pool, b)).toBe(false);
   });
+  it('chat messages default to ask mode and keep the given mode', async () => {
+    const th = await createThread(t.pool, { id: randomUUID(), title: 'Mod' });
+    const a = await insertChatMessage(t.pool, { id: randomUUID(), threadId: th.id, role: 'user', text: 'x', status: 'queued' });
+    const b = await insertChatMessage(t.pool, { id: randomUUID(), threadId: th.id, role: 'user', text: 'y', status: 'queued', mode: 'analyze' });
+    expect([a.mode, b.mode]).toEqual(['ask', 'analyze']);
+  });
 });

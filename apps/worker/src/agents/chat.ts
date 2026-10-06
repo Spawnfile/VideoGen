@@ -1,9 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import type { ChatMessage, ChatMessageStatus } from '@videogen/shared';
+import type { ChatMessage, ChatMessageStatus, ChatMode } from '@videogen/shared';
 import { chatMessagesByStatus, getChatMessage, getThread, insertChatMessage, publishEvent, setThreadClaudeSession, updateChatMessage } from '@videogen/db';
 import type { SessionManager } from './manager.ts';
 import type { RunEnd } from './runner.ts';
+
+const MODE_PREFIX: Record<ChatMode, string> = {
+  ask: '',
+  analyze: 'Analiz modu: yalnızca incele ve bulgularını kanıtıyla açıkla; değişiklik önerme ya da yapma.\n\n',
+  fix: 'Düzeltme isteği: bu sürümde dosya değiştiremezsin; neyin nasıl değişmesi gerektiğini adım adım öner.\n\n',
+};
+const promptOf = (m: ChatMessage) => MODE_PREFIX[m.mode] + m.text;
 
 interface Active { sessionId: string; current: string | null; queue: string[] }
 
@@ -56,9 +63,10 @@ export class ChatService {
     const a = this.active.get(thread.id);
     if (a) {
       if (a.current) { if (!a.queue.includes(msg.id)) a.queue.push(msg.id); return; }
-      if (this.d.manager.sendChat(a.sessionId, msg.text)) {
+      const turn = this.d.manager.sendChat(a.sessionId, promptOf(msg));
+      if (turn !== null) {
         a.current = msg.id;
-        await this.mark(msg.id, { status: 'running', sessionId: a.sessionId });
+        await this.mark(msg.id, { status: 'running', sessionId: a.sessionId, turn });
         return;
       }
       this.forget(thread.id);
@@ -69,8 +77,8 @@ export class ChatService {
     this.active.set(thread.id, { sessionId, current: msg.id, queue: [] });
     this.threadOf.set(sessionId, thread.id);
     if (!resume) await setThreadClaudeSession(this.d.pool, thread.id, claudeSessionId);
-    await this.mark(msg.id, { status: 'running', sessionId });
-    await this.d.manager.start({ id: sessionId, kind: 'chat', role: 'chat', prompt: msg.text, threadId: thread.id, claudeSessionId, resume });
+    await this.mark(msg.id, { status: 'running', sessionId, turn: 0 });
+    await this.d.manager.start({ id: sessionId, kind: 'chat', role: 'chat', prompt: promptOf(msg), threadId: thread.id, claudeSessionId, resume });
   }
 
   private async onTurn(sessionId: string, r: { turn: number; text: string | null }): Promise<void> {
