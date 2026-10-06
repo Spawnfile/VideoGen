@@ -8,3 +8,5 @@ export * from './parent-watch.ts';
 export * from './artifacts.ts';
 export * from './pipeline.ts';
 export * from './progress.ts';
+export * from './scene.ts';
+export * from './styles.ts';

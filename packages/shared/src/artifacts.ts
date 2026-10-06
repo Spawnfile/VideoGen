@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SceneSpecSchema, type SceneSpec } from './scene.ts';
 
 /** Spec §8.1 D1: the hook uses one of five patterns. Names are derived (the spec lists none); M5 calibration may revise them. */
 export const HOOK_PATTERNS = ['question', 'number', 'misconception', 'reveal', 'contrast'] as const;
@@ -140,8 +141,10 @@ export function storyboardRefErrors(s: Storyboard, r: ProductResearch): string[]
   return out;
 }
 
-export const ARTIFACT_SCHEMAS = { ProductResearch: ProductResearchSchema, Storyboard: StoryboardSchema } as const;
+export const ARTIFACT_SCHEMAS = { ProductResearch: ProductResearchSchema, Storyboard: StoryboardSchema, SceneSpec: SceneSpecSchema } as const;
 export type ArtifactSchemaName = keyof typeof ARTIFACT_SCHEMAS;
+export interface ArtifactValues { ProductResearch: ProductResearch; Storyboard: Storyboard; SceneSpec: SceneSpec }
+export type ArtifactValue<N extends ArtifactSchemaName> = ArtifactValues[N];
 
 /** JSON Schema for the SDK's outputFormat. Refinements are not expressible there; validateArtifact re-checks them. */
 export function outputJsonSchema(name: ArtifactSchemaName): Record<string, unknown> {
@@ -149,10 +152,8 @@ export function outputJsonSchema(name: ArtifactSchemaName): Record<string, unkno
   return schema;
 }
 
-export function validateArtifact<N extends ArtifactSchemaName>(name: N, value: unknown):
-  | { ok: true; value: N extends 'ProductResearch' ? ProductResearch : Storyboard }
-  | { ok: false; errors: string[] } {
+export function validateArtifact<N extends ArtifactSchemaName>(name: N, value: unknown): { ok: true; value: ArtifactValue<N> } | { ok: false; errors: string[] } {
   const r = ARTIFACT_SCHEMAS[name].safeParse(value);
-  if (r.success) return { ok: true, value: r.data as N extends 'ProductResearch' ? ProductResearch : Storyboard };
+  if (r.success) return { ok: true, value: r.data as ArtifactValue<N> };
   return { ok: false, errors: r.error.issues.map((i) => `${i.path.join('.') || '$'}: ${i.message}`) };
 }
