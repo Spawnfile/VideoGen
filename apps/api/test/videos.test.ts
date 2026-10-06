@@ -41,7 +41,7 @@ describe('produce', () => {
     const v = (await app.inject({ url: `/api/videos/${videoId}`, headers: H })).json();
     expect(v.video).toMatchObject({ id: videoId, productName: 'Tükenmez kalem', status: 'queued', audioMode: 'silent' });
     expect(v.runs[0]).toMatchObject({ id: runId, status: 'queued' });
-    expect(v.runs[0].steps.map((s: { key: string }) => s.key)).toEqual(['research', 'storyboard']);
+    expect(v.runs[0].steps.map((s: { key: string }) => s.key)).toEqual(['research', 'storyboard', 'build']);
     expect((await app.inject({ url: '/api/videos', headers: H })).json()[0].id).toBe(videoId);
   });
 

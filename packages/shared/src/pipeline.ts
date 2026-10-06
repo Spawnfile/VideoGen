@@ -15,8 +15,8 @@ export const STEP_LABELS: Record<StepKey, string> = {
 export const STEP_DEFAULT_S: Record<StepKey, number> = {
   research: 300, storyboard: 180, voice: 270, build: 1500, draft_render: 60, draft_review: 180, final_render: 1380, compose: 300, qc: 5, review: 300, finalize: 30,
 };
-/** Steps with an executor in this build. M4a: research → storyboard; M4b extends the list. */
-export const IMPLEMENTED_STEPS: readonly StepKey[] = ['research', 'storyboard'];
+/** Steps with an executor in this build. M4a: research → storyboard; M4b: + build; M4c extends the list. */
+export const IMPLEMENTED_STEPS: readonly StepKey[] = ['research', 'storyboard', 'build'];
 
 export type VideoStatus = 'queued' | 'running' | 'ready' | 'needs_human' | 'failed' | 'cancelled' | 'published';
 export type RunStatus = 'queued' | 'running' | 'done' | 'needs_human' | 'failed' | 'cancelled';

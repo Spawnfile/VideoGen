@@ -55,7 +55,10 @@ const manager = new SessionManager({
 });
 const orchestrator = new Orchestrator({
   pool, dataDir: config.dataDir, probe,
-  executors: pipelineExecutors({ pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined }),
+  executors: pipelineExecutors({
+    pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined,
+    scene: { pool, render, locks, probe, ffmpeg: config.render.ffmpeg, capability: () => renderCapability },
+  }),
 });
 const chat = new ChatService({ pool, manager });
 chat.bind();

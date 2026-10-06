@@ -37,7 +37,13 @@ const CAPACITY: Record<Resource, number> = { claude: 3, gpu: 1, heavy_cpu: 1 };
 const TERMINAL: RunStatus[] = ['done', 'needs_human', 'failed', 'cancelled'];
 const LAUNCHABLE = new Set(['queued', 'waiting_gpu', 'waiting_disk']);
 
-export const PIPELINE_INCOMPLETE_NOTE = (last: StepKey) => `${STEP_LABELS[last]} hazır. Sahne kurulumu ve taslak render bu sürümde henüz yok.`;
+/** K13: a plan that ends before finalize leaves the video needs_human with a positive note about what exists and what is next. */
+const NOT_YET: Partial<Record<StepKey, string>> = {
+  research: 'Storyboard, sahne kurulumu ve taslak render bu sürümde henüz yok.',
+  storyboard: 'Sahne kurulumu ve taslak render bu sürümde henüz yok.',
+  build: 'Taslak render bu sürümde henüz yok.',
+};
+export const PIPELINE_INCOMPLETE_NOTE = (last: StepKey) => `${STEP_LABELS[last]} hazır. ${NOT_YET[last] ?? 'Sonraki adımlar bu sürümde henüz yok.'}`;
 
 interface Running { jobId: number; stepId: string; runId: string; resource: Resource; abort: AbortController }
 

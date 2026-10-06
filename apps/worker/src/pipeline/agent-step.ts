@@ -54,6 +54,11 @@ export interface StructuredRequest<T> {
   schema: ArtifactSchemaName;
   /** Cross-artifact rules after the schema. */
   check?: (value: T) => string[];
+  /** Expensive checks after `check` passed (M4b: the trusted scene build). Errors go back to the same session like schema errors;
+   *  `fatal` ends the step without asking the agent (not its fault, e.g. no sandbox). */
+  checkAsync?: (value: T) => Promise<{ errors: string[]; fatal?: string }>;
+  /** Continue an earlier Claude session of this step (worker restart mid-step, plan B15) instead of opening a fresh one. */
+  initialResume?: { claudeSessionId: string; parent: string; prompt: string };
   /** Fake driver only. */
   fakeScript?: (attempt: number) => FakeScript | undefined;
   maxFixes?: number;
@@ -66,9 +71,9 @@ export type StructuredResult<T> =
 export async function runStructured<T>(r: StructuredRequest<T>): Promise<StructuredResult<T>> {
   const outputFormat = { type: 'json_schema' as const, schema: outputJsonSchema(r.schema) };
   const ids: string[] = [];
-  let prompt = r.prompt;
+  let prompt = r.initialResume?.prompt ?? r.prompt;
   type Resume = { claudeSessionId: string; parent: string };
-  let resume: Resume | null = null;
+  let resume: Resume | null = r.initialResume ? { claudeSessionId: r.initialResume.claudeSessionId, parent: r.initialResume.parent } : null;
   let fixes = 0;
   let limits = 0;
   let crashed = false;
@@ -96,7 +101,13 @@ export async function runStructured<T>(r: StructuredRequest<T>): Promise<Structu
       continue;
     }
     const v = validateArtifact(r.schema, run.structured);
-    const errors = run.structured === null ? ['yapılandırılmış çıktı yok'] : v.ok ? (r.check?.(v.value as T) ?? []) : v.errors;
+    let errors = run.structured === null ? ['yapılandırılmış çıktı yok'] : v.ok ? (r.check?.(v.value as T) ?? []) : v.errors;
+    if (v.ok && !errors.length && r.checkAsync) {
+      const deep = await r.checkAsync(v.value as T);
+      if (r.ctx.signal.aborted) return { ok: false, cancelled: true, error: 'durduruldu', sessionIds: ids };
+      if (deep.fatal) return { ok: false, cancelled: false, error: deep.fatal, sessionIds: ids };
+      errors = deep.errors;
+    }
     if (v.ok && !errors.length) return { ok: true, value: v.value as T, sessionIds: ids };
     if (fixes >= (r.maxFixes ?? 2)) return { ok: false, cancelled: false, error: `şema hatası: ${errors.slice(0, 5).join('; ')}`, sessionIds: ids };
     fixes++;

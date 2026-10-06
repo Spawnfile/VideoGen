@@ -1,18 +1,30 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { normalizeProductName } from '@videogen/shared';
+import { CHANNEL_STYLES, DEFAULT_CHANNEL_STYLE, normalizeProductName, type ChannelStyleId } from '@videogen/shared';
 import type { FakeScript } from '@videogen/claude';
+import type { PipelineRole } from './steps.ts';
 import type { StepContext } from './types.ts';
 
 const DIR = resolve(import.meta.dirname, '../../../../tests/fixtures/artifacts');
+const PRODUCT = resolve(import.meta.dirname, '../../../../python/vg_blender/examples/kalem/product.py');
 const load = (name: string) => JSON.parse(readFileSync(resolve(DIR, `${name}.json`), 'utf8')) as Record<string, unknown>;
 
-/** Fake driver only: recorded streams with scripted structured output. A product named "imkansız …" exercises the difficulty gate. */
-export function fakePipelineScript(role: 'researcher' | 'storyboarder', ctx: StepContext, _attempt: number): FakeScript {
-  if (role === 'researcher') {
-    // Lower-case the Turkish way first: /i does not fold 'İ' to 'i'.
-    const hard = /[iı]mk[aâ]ns[ıi]z/.test(normalizeProductName(ctx.productName));
-    return { fixture: 'websearch', structured: load(hard ? 'research-too-hard' : 'research-kalem') };
+/**
+ * Fake driver only: recorded streams with scripted structured output (and, for the builder, the files it "writes").
+ * "imkansız …" exercises the difficulty gate; "bozuk sahne …" makes the first build fail once (the same-session fix loop).
+ */
+export function fakePipelineScript(role: PipelineRole, ctx: StepContext, attempt: number, extra?: { styleId: ChannelStyleId }): FakeScript {
+  // Lower-case the Turkish way first: /i does not fold 'İ' to 'i'.
+  const name = normalizeProductName(ctx.productName);
+  if (role === 'researcher') return { fixture: 'websearch', structured: load(/[iı]mk[aâ]ns[ıi]z/.test(name) ? 'research-too-hard' : 'research-kalem') };
+  if (role === 'builder') {
+    const styleId = extra?.styleId ?? DEFAULT_CHANNEL_STYLE;
+    const broken = attempt === 0 && /bozuk sahne/.test(name) ? "# vg-fake-error: product.py satır 7: NameError: name 'gövde' is not defined\n" : '';
+    return {
+      fixture: 'coding',
+      files: { 'scene/product.py': broken + readFileSync(PRODUCT, 'utf8') },
+      structured: { ...load('scene-kalem'), style_id: styleId, lighting_preset: CHANNEL_STYLES[styleId].lighting },
+    };
   }
   const board = load('storyboard-kalem') as { beats: { onscreen_text: { tr: string } }[] };
   if (ctx.audioMode !== 'vo') return { fixture: 'basic', structured: board };

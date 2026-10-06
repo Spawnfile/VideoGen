@@ -9,3 +9,4 @@ export * from './blobs.ts';
 export * from './pipeline.ts';
 export * from './jobs.ts';
 export * from './channel.ts';
+export * from './steps-sessions.ts';

@@ -10,7 +10,7 @@ import { SessionManager } from '../src/agents/manager.ts';
 import { UsageGuard } from '../src/agents/usage-guard.ts';
 import { fakePipelineScript } from '../src/pipeline/fake-scripts.ts';
 import { Orchestrator } from '../src/pipeline/orchestrator.ts';
-import { pipelineExecutors, researchExecutor, storyboardExecutor, type StepDeps } from '../src/pipeline/steps.ts';
+import { pipelineExecutors, researchExecutor, storyboardExecutor, type PipelineRole, type StepDeps } from '../src/pipeline/steps.ts';
 import type { StepContext } from '../src/pipeline/types.ts';
 
 let t: Awaited<ReturnType<typeof createTestDb>>;
@@ -22,7 +22,7 @@ afterEach(async () => { for (const c of cleanups.splice(0)) await c(); });
 const fx = (name: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${name}.json`), 'utf8'));
 const plan = [{ key: 'research' as const, weight: 53.33 }, { key: 'storyboard' as const, weight: 46.67 }];
 
-function setup(o: { script?: (role: 'researcher' | 'storyboarder', ctx: StepContext, attempt: number) => FakeScript; gate?: UsageGuard } = {}) {
+function setup(o: { script?: (role: PipelineRole, ctx: StepContext, attempt: number) => FakeScript; gate?: UsageGuard } = {}) {
   const dataDir = mkdtempSync(join(tmpdir(), 'vg-steps-'));
   const specs: SessionSpec[] = [];
   const fake = new FakeClaudeDriver({ speed: 0 });
