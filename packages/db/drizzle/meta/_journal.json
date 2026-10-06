@@ -36,6 +36,13 @@
       "when": 1791272632329,
       "tag": "0004_chat_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791279576085,
+      "tag": "0005_pipeline",
+      "breakpoints": true
     }
   ]
 }
