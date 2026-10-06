@@ -1,0 +1,43 @@
+@import "tailwindcss";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-canvas: #faf8f5;
+  --color-paper: #fdfbfa;
+  --color-ink: #27251e;
+  --color-ink-2: #72706b;
+  --color-ink-3: #92918b;
+  --color-line: #d1d1cd;
+  --color-line-strong: #b8b6af;
+  --color-hover: rgb(39 37 30 / 0.04);
+  --color-hover-2: rgb(39 37 30 / 0.07);
+  --color-inset: #f3f0eb;
+  --color-accent: #016a71;
+  --color-green: #3d7a5a;
+  --color-red: #a3412f;
+  --radius-control: 6px;
+  --radius-input: 12px;
+  --radius-card: 16px;
+  --shadow-subtle: 0 1px 2px 0 rgb(0 0 0 / 0.08);
+}
+
+@keyframes shimmer-text { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.43;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
