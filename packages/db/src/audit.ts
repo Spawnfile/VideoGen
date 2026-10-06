@@ -13,10 +13,10 @@ export interface AuditEntry {
   data?: unknown;
 }
 
-// Keys are normalized (lowercase, alphanumerics only) so accessToken, access_token, x-api-key and
-// ANTHROPIC_API_KEY all match. Anchored at the end: input_tokens / tokenCount normalize to
-// ...tokens / tokencount and stay allowed.
-const SECRET_KEY = /(token|secret|password|passwd|apikey|authorization|cookie|privatekey)$/;
+// Keys are normalized (lowercase, alphanumerics only) so accessToken, access_token, x-api-key and ANTHROPIC_API_KEY all
+// match. Anchored at the end: input_tokens / tokenCount normalize to ...tokens / tokencount and stay allowed, and so do
+// neutral *_key names (cache_key, sort_key); only credential-like *_key suffixes and plural secret nouns are flagged.
+const SECRET_KEY = /(token|secret|secrets|password|passwords|passwd|apikey|authorization|cookie|cookies|privatekey|credential|credentials|(access|secret|signing|client|session|encryption|master)key)$/;
 
 function isSecretKey(k: string): boolean {
   return SECRET_KEY.test(k.toLowerCase().replace(/[^a-z0-9]/g, ''));
@@ -30,6 +30,24 @@ export function findSecretKeys(value: unknown, path = '$'): string[] {
     );
   }
   return [];
+}
+
+/** Deep copy with every secret-like key replaced by `redacted_<n>: '[redacted]'` (for agent tool inputs in audit). */
+export function redactSecretKeys<T>(value: T): T {
+  let n = 0;
+  const walk = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const [k, x] of Object.entries(v)) {
+        if (isSecretKey(k)) out[`redacted_${++n}`] = '[redacted]';
+        else out[k] = walk(x);
+      }
+      return out;
+    }
+    return v;
+  };
+  return walk(value) as T;
 }
 
 export async function appendAudit(db: Queryable, e: AuditEntry): Promise<{ seq: number; hash: string }> {
