@@ -9,3 +9,5 @@ export * from './roles.ts';
 export * from './role-prompts.ts';
 export * from './guard.ts';
 export * from './skill-links.ts';
+export * from './spec-store.ts';
+export * from './mcp.ts';
