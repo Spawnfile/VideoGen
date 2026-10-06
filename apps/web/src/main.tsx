@@ -6,6 +6,7 @@ import { AppShell } from './components/AppShell.tsx';
 import { connectLive, onLiveEvent, onUiEvent } from './lib/live.ts';
 import { applyDelta, applyMessage, applyRow, applyRun, applySample, applySession, applyVideo } from './lib/stores.ts';
 import { useRoute } from './lib/router.ts';
+import { Library } from './routes/Library.tsx';
 import { Settings } from './routes/Settings.tsx';
 import { Studio } from './routes/Studio.tsx';
 import './styles/theme.css';
@@ -40,7 +41,8 @@ function App() {
     });
     return () => { offUi(); offLive(); stop(); };
   }, []);
-  return <AppShell path={path} go={go}>{path === '/settings' ? <Settings /> : <Studio />}</AppShell>;
+  const page = path === '/settings' ? <Settings /> : path === '/library' ? <Library go={go} /> : <Studio />;
+  return <AppShell path={path} go={go}>{page}</AppShell>;
 }
 
 createRoot(document.getElementById('root')!).render(

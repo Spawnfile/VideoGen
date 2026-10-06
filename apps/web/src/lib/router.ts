@@ -7,5 +7,5 @@ export function useRoute(): [string, (path: string) => void] {
     addEventListener('popstate', on);
     return () => removeEventListener('popstate', on);
   }, []);
-  return [path, (p) => { history.pushState(null, '', p); setPath(p); }];
+  return [path, (p) => { history.pushState(null, '', p); setPath(new URL(p, location.origin).pathname); }];
 }

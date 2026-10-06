@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RunView, StepView, VideoView } from '@videogen/shared/browser';
-import { activeStep, formatEta, formatUsage, isRunActive, pickVideoId, sourceLabel, stepDuration, videoTone } from '../src/lib/production-view.ts';
+import { activeStep, formatDay, formatEta, formatUsage, isRunActive, pickVideoId, sourceLabel, stepDuration, videoTone } from '../src/lib/production-view.ts';
 
 const step = (over: Partial<StepView>): StepView => ({
   id: 's', runId: 'r', key: 'research', ordinal: 0, weight: 50, status: 'pending', progress: 0, progressSource: null, attempt: 0,
@@ -36,5 +36,12 @@ describe('production view helpers', () => {
     expect(pickVideoId('a', vids)).toBe('a');
     expect(pickVideoId('zzz', vids)).toBe('b');
     expect(pickVideoId(null, [])).toBeNull();
+  });
+});
+describe('formatDay', () => {
+  it('says "bugün" for today and a short Turkish date otherwise (local time)', () => {
+    const now = new Date(2026, 9, 6, 18, 0).getTime();
+    expect(formatDay(new Date(2026, 9, 6, 14, 5).toISOString(), now)).toBe('bugün 14:05');
+    expect(formatDay(new Date(2026, 9, 1, 9, 30).toISOString(), now)).toBe('1 Eki 09:30');
   });
 });

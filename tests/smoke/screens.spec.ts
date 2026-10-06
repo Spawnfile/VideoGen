@@ -65,3 +65,13 @@ test('M4 screen: studio production', async ({ page }) => {
   await page.waitForTimeout(600);
   await page.screenshot({ path: shot('studio-done.png', 'm4'), fullPage: true });
 });
+
+test('M4 screen: library', async ({ page, request }) => {
+  await request.post('/api/videos', { data: { productName: 'Zımba', audioMode: 'silent' } });
+  await page.goto('/library');
+  await expect(page.getByTestId('library-item').first()).toBeVisible();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: shot('library.png', 'm4') });
+  await page.getByTestId('library-item').first().click();
+  await expect(page.getByTestId('video-header')).toBeVisible();
+});

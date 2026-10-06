@@ -40,3 +40,10 @@ export function formatUsage(u: VideoUsage): string {
   const parts = [u.tokens ? `${formatTokens(u.tokens)} token` : '', u.fiveHourDelta !== null ? `5 sa %${Math.round(u.fiveHourDelta * 100)}` : ''];
   return parts.filter(Boolean).join(' · ');
 }
+
+export function formatDay(iso: string, now = Date.now()): string {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === new Date(now).toDateString()) return `bugün ${time}`;
+  return `${d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })} ${time}`;
+}
