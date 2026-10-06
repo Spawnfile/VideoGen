@@ -212,6 +212,7 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 
 - Model ve effort ayarları Ayarlar ekranından rol bazında değiştirilebilir. Değişiklik audit'e yazılır.
 - **M4b:** GPU ve ağır CPU işleri için tek kapı, worker'daki süreç içi `ResourceLocks` (K22; MCP araçları ondan geçer, orchestrator'ın GPU adımları M4c'de aynı kilide bağlanır). `render_preview_stills`'in `scale` parametresi yok: önizleme sabit %50, 16 örnek. Builder'ın MCP listesinden `render_draft` çıkarıldı. Taslak videoyu `draft_render` pipeline adımı üretir; builder kareleri `render_preview_stills` ile görür. `build_scene` ve `render_preview_stills` uygulandı. Sonuç, run klasörüne göre yollarla `{ok, errors, warnings, report, equivalence, files}` olarak döner. GPU beklemesi kartta "GPU bekliyor · sırada N" diye görünür; araç sürerken oturum "takılmış" sayılmaz.
+- **M4c (kanıt `docs/m4/report.md`):** orchestrator'ın GPU adımları (`draft_render`) MCP araçlarıyla aynı `ResourceLocks` kilidinden ve §6.4 ön kontrolünden geçer (tek kapı; adım notu "GPU sırası bekleniyor (sırada N)" ya da ön kontrol gerekçesi). Run başlatma kullanım kapısına uyar: muhafız kapalıyken run `queued` kalır, video notu "Kullanım sınırı yakın: …", muhafız açılınca kendiliğinden başlar. `extract_frames({times[1–12], crop?})` uygulandı: yalnızca reviewer_visual ve kayıtlı taslağı olan bir `draft_review` adımının oturumu; bütçe adım+tur başına 12 kare; kırpma 2× büyütülür. Taslak incelemesinde reviewer_visual tek reviewer'dır: 4×3 kontakt sayfası + `extract_frames`.
 - Reviewer'lar **builder'ın akıl yürütmesini görmez**. Sadece artefaktları (kareler, manifestler, spec) görürler.
 
 ### 6.3 `videogen` MCP sunucusu (in-process, `createSdkMcpServer`)
@@ -381,11 +382,17 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
   - `build.json`: sert hatalar (eksik ya da fazla parça, üçgen > 400 bin, `product.py` hatası) ve uyarılar (kahraman < %35, ön plan kapatma > %25, iç içe geçme).
 - Önizleme kareleri şeffaftır; kontakt sayfası stilin tam renkli arka planına bindirilir (AgX tonlaması dünya rengini kaydırıyordu).
 
+**M4c uygulama notları (`packages/shared/src/review.ts`):**
+- Taslak `Review`'u `rubric_version 'draft@1'`, `reviewer_role 'reviewer_visual'`, 8 kontrol (`hero_frame0` blocker; `mechanism_shot`, `parts_visible`, `labels_correct` major; `no_intersection`, `text_readable`, `motion_flow`, `no_slop` minor), `dimension_scores{D2,D3,D5,D9}`, `gate_results{G3,G5}` taşır. Her kontrol tam bir kez; `pass:false` kanıt (kare, zaman kodu) ve `fix_hint` ister; kare taslağın ffprobe kare sayısının içinde ve `|kare/30 − zaman| ≤ 0,5` olmalıdır.
+- Önem derecesi kontrol kimliğine bağlıdır (`DRAFT_CHECKS`), reviewer belirlemez. Karar `draftDecision`'ın işidir: başarısız blocker/major ya da kapı → `revise`; minor yalnızca notta. Puan karara girmez (kalibrasyon M5).
+- `reviews/findings` tabloları M5'te; M4c'de Review `artifacts` satırıdır (`kind 'draft_review'`, meta `{round, verdict, draftArtifactId}`).
+
 ### 7.5 Render
 
 - **Blender önizleme:** 8 kare, %50 ölçek, 16 örnek, kontakt sayfası ve güvenli alan katmanı (~20 sn).
 - **Blender final:** EEVEE, raytracing, 64 örnek, AgX "Punchy". Çıktı RGBA PNG. `Fra:` satırları ayrıştırılarak gerçek kare ilerlemesi alınır. Her işten önce `gpu.platform.renderer_get()` çıktısında "NVIDIA" yazdığı doğrulanır.
 - **Remotion:** Tek bir paylaşılan çalışma alanı kullanılır; şablon değişmedikçe bundle tekrar alınmaz. `renderMedia` için `inputProps`, `concurrency: 2`, `onProgress` ve `cancelSignal` kullanılır. `chromiumOptions.gl='angle'` sadece ThreeCanvas'ta. Remotion Studio asla gömülmez (sürükleme kaynak koda `translate` yazıyor).
+- **M4c taslağı:** 540×960, 30 fps, h264 CRF 18 `veryfast`, `yuv420p` + tv + bt709, sessiz; kapak 0. kare 270×480. Render worker'da değil `packages/remotion/src/render-cli.ts` çocuk sürecinde (süreç grubu + `render` PID dosyası; iptal, zaman aşımı 600 sn ve yeniden başlatma Chrome'u da öldürür); Chrome/WebGL hatası bir kez `concurrency 1` ile yeniden denenir. GLB tek seferlik jetonlu bir 127.0.0.1 yolundan sunulur. Bundle `<dataDir>/cache/remotion/<bundleHash>` altında önbelleğe alınır. Çıktı ffprobe ile doğrulanır; uymayan taslak kaydedilmez (`render.draft_rejected`). GL `VG_REMOTION_GL` ile seçilebilir (varsayılan `angle`).
 - **Kodlama:** H.264 High, CRF 16–18, preset slow, `yuv420p`, `color_range tv`, bt709, GOP ≤ 2 sn, `faststart`, AAC 48 kHz. `yuvj420p` veya pc range çıktıları **otomatik reddedilir**.
 
 ### 7.6 Ses ve iki varyant
@@ -530,6 +537,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | `settings` | key, value (rol başına model ve effort, eşikler, kanal kimliği) |
 
 **M4a uygulama notları (migration `0005_pipeline`):** `videos.status_note` (kullanıcıya gösterilen gerekçe: `needs_human`/`failed`/"Storyboard hazır…"), `runs.error`, `runs.usage_start/usage_end` (run başı/sonu kullanım izi, §18), `steps.session_id` ve `steps.note` eklendi. Kısmi benzersiz indeksler: bir videoda tek aktif run (`runs(video_id) WHERE status IN ('queued','running')`), bir adımda tek aktif iş (`jobs(step_id) WHERE status IN ('queued','leased')`). Kimlikler `uuid`, `jobs.id` `bigserial`. Olay konuları `run:<id>`/`video:<id>` yerine `runs` / `videos` (`run.updated` → `RunView`, `video.updated` → `VideoView`), M3'ün `agents` konusu gibi; SSE konuya göre filtrelemez.
+
+**M4c uygulama notları (migration `0006_step_round`):** `steps.round integer NOT NULL DEFAULT 0`. Taslak incelemesi `rewind` dönerse orchestrator `rewindForReview` ile tek transaction'da (inceleme adımı hâlâ `running` ve aynı turdaysa, run `running`'se) build…draft_review aralığını `pending`, `round+1`, `attempt 0` yapar ve işi kapatır; tekrar oynatma çift tur üretmez, iptal edilmiş run yeni tura geçmez. Yeni artefakt türleri: `draft_video` (`duration_ms/width/height/codec` dolu), `draft_cover`, `review_sheet`, `draft_review`. `VideoView.draft = {videoSha, coverSha, durationS}`.
 | `audit_log` | §11.2 |
 
 ### 11.2 Audit
@@ -616,7 +625,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
   - **Üst bar:** ürün giriş alanı (Perplexity'deki ana arama kutusu gibi; teal halo), ses modu çipleri (Seslendirmeli / Seslendirmesiz), "Üret".
   - **Sol üretim paneli** (~%44):
     - başlık: ürün, durum rozeti, genel yüzde çubuğu ve ETA
-    - player sekmeleri: **Taslak** (`@remotion/player`, spec'ten canlı) · **Final** (HTML5 video, Range) · **Karşılaştır** (sürümleri yan yana veya A/B oynatma)
+    - player sekmeleri: **Taslak** (`@remotion/player`, spec'ten canlı) · **Final** (HTML5 video, Range) · **Karşılaştır** (sürümleri yan yana veya A/B oynatma) — M4c: "Taslak MP4" (HTML5 + Range, **varsayılan**) ve "Taslak" (`@remotion/player`, lazy parça, yalnızca sekme açıkken mount) uygulandı; Final ve Karşılaştır M5/M7
     - adım listesi (ThinkingState "Steps" diliyle)
     - agent kartları
   - **Sağ chat paneli:**
@@ -624,7 +633,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
     - mod çipleri (Analiz et / Düzelt / Soru)
     - mesajlar ve canlı ThinkingState izleri
   - **Footer:** Claude bağlantı noktası ve plan rozeti · 5 sa ve 7 gün kullanım çubukları (sıfırlanma saatiyle) · GPU kuyruğu · boş disk.
-- **Kütüphane:** Video kartları (kapak, puan, durum, süre, kullanım maliyeti). Video detayının sekmeleri: Sürümler · Storyboard · Araştırma ve kaynaklar · Review'lar (boyut çubukları, kapı rozetleri, kareli bulgular) · Audit · Yayın.
+- **Kütüphane:** Video kartları (kapak, puan, durum, süre, kullanım maliyeti). Video detayının sekmeleri: Sürümler · Storyboard · Araştırma ve kaynaklar · Review'lar (boyut çubukları, kapı rozetleri, kareli bulgular) · Audit · Yayın. M4c: satırda taslak kapağı (9:16) ve süre; satır videoyu Stüdyo'da açar.
 - **Audit gezgini:** Filtreler: run, video, agent, olay türü, tarih. Her satırdan ham transcript'e, diff'e ve artefakta inilir. Zincir doğrulama durumu gösterilir.
 - **Varlıklar:** Müzik, SFX ve 3D defteri; lisans alanları; ekleme ve onay.
 - **Ayarlar:**
@@ -673,7 +682,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
 ### 13.4 Etkileşim
 
-- **Kısayollar:** Space oynat/durdur · J/K/L sarma · N yeni üretim · `/` chat'e odaklan · Esc kapat · `?` yardım paneli.
+- **Kısayollar:** Space oynat/durdur · J/K/L sarma · N yeni üretim · `/` chat'e odaklan · Esc kapat · `?` yardım paneli. M4c: Space, J (−5 sn), K (durdur), L (+5 sn), N uygulandı (görünen oynatıcıya; yazı alanında ve değiştirici tuşla devre dışı); `?` M7.
 - Silme her zaman onay ister ve kaç öğe silineceğini gösterir.
 - Arayüzdeki tüm metinler Türkçe.
 - **Durum yönetimi:** TanStack Query + SSE olay deposu (normalize, `seq` korumalı). Komutlarda iyimser güncelleme.
@@ -726,6 +735,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | S6 | Yayın | Bitirme penceresi → mock TikTok'a taslak gönderilir → `SEND_TO_USER_INBOX` → audit satırı oluşur. 24 saatteki 6. taslak engellenir |
 | S7 | Audit | Run'a göre filtre; zincir doğrulaması "geçerli"; satırdan ham olaya inilir |
 | S8 | Performans | 4× CPU yavaşlatmasında adım listesi ve iz kaydırma p95 ≤ 16,8 ms; boştayken CPU bütçesi |
+
+**M4 biçimi (M4c):** S2 final yerine taslakla koşar (`tests/smoke/s2c-draft.spec.ts`): ürün → research → storyboard → build → taslak → inceleme; taslak MP4 Range ile akar; kütüphanede kapak ve süre görünür, satır Stüdyo'da açılır ve Space ile oynar; "kusurlu" ürün bir kez build'e döner ("Taslak turu 1/2"), ilerleme geri gitmez. Tam smoke 17 geçti / 9 atlandı, 1,8 dk.
 
 **İzolasyon:**
 - Aynı container'da ayrı bir `videogen_smoke` veritabanı kullanılır; her koşuda oluşturulup silinir (M3: Playwright `webServer.gracefulShutdown` SIGTERM; verilmezse süreç grubu SIGKILL'lenir ve temizlik hiç çalışmaz).
@@ -782,7 +793,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | `get_usage` sıfır token harcıyor. SDK'da bu çağrı `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET` adıyla geçiyor ve "her sürümde değişebilir" uyarısı taşıyor | M0: doğrulandı (docs/m0/report.md): 0 mesaj, `total_cost_usd` 0, ~0,6–0,9 sn. Birim: yüzde 0..100 + ISO `resets_at` (`rate_limit_event`: 0..1 + epoch sn). Çağrı tek bir adaptörün arkasında tutulur, SDK yükseltmesinde gerçek smoke ile kontrol edilir | Son `rate_limit_event`, "x dk önce" damgasıyla |
 | `auth login` TTY olmadan çalışıyor | M0: kısmen doğrulandı (docs/m0/report.md): URL basıyor, stdin'den kod bekliyor, 127.0.0.1 callback dinliyor; kod yapıştırma test edilmedi → v1'de yedek plan, URL + kod v1.1 | Ekranda talimat: terminalde `! claude auth login`; ekran durumu yoklar |
 | Chatterbox 5,67 GB VRAM'e sığıyor | M1: doğrulandı — tepe 3611 MB (nvidia-smi) / 3251 MB (torch) (docs/m1/decision.md) | FreyaTTS (M1 tepesi 1811 MB; Türkçe adil CER %17,9, §7.6 kapısını geçmiyor) |
-| Video başına kullanım (token, 5 saatlik pencere payı) bilinmiyor | M4'te ölçülür. **M4a:** ölçüm altyapısı hazır (oturum token/maliyet toplamı + run başı/sonu 5 sa izi; aynı pencere `get_usage` ms ve `rate_limit_event` saniye ile farklı yazıldığından 60 sn tolerans). İlk ölçüm (haiku/low, yalnızca research + storyboard, `docs/m4/real-check.md`): 2 oturum, 671 697 token, 5 sa payı ≈ %2, 5 dk 57 sn. Gerçek rol modelleriyle tam ürün ölçümü M4b | Rol modelleri ve reviewer sayısı ayarlanır |
+| Video başına kullanım (token, 5 saatlik pencere payı) bilinmiyor | M4'te ölçülür. **M4a:** ölçüm altyapısı hazır (oturum token/maliyet toplamı + run başı/sonu 5 sa izi; aynı pencere `get_usage` ms ve `rate_limit_event` saniye ile farklı yazıldığından 60 sn tolerans). İlk ölçüm (haiku/low, yalnızca research + storyboard, `docs/m4/real-check.md`): 2 oturum, 671 697 token, 5 sa payı ≈ %2, 5 dk 57 sn. Gerçek rol modelleriyle tam ürün ölçümü M4c'ye kaldı; M4c bulut ortamında uygulandı (gerçek Claude oturumu, Blender ve GPU yok), ölçüm GPU'lu makinede `docs/m4/report.md` §4 tarifiyle yapılacak | Rol modelleri ve reviewer sayısı ayarlanır |
 | Claude yapılandırılmış çıktısı (`outputFormat` JSON Schema) zod sözleşmesine uyar | M4a gerçek koşu: haiku/low `ProductResearch` ve `Storyboard`'a ilk denemede uydu (düzeltme 0); Fake testleri düzeltme (≤ 2), çökme (1 `resume`) ve limit yolunu kapsar | Aynı oturumda hata listesiyle ≤ 2 düzeltme, sonra adım `failed` |
 | Güvenli alan pikselleri resmi değil (üçüncü taraf değerler çelişiyor) | Kullanıcının telefonundan ekran görüntüleriyle kalibrasyon (M5) | Pilot kılavuzundaki değerler (150–1510 dikey, sağ 130 px) |
 | −14 LUFS resmi bir TikTok değeri değil | Kanal konvansiyonu; ilk 10 yayından sonra gözden geçirilir | — |
@@ -790,7 +801,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | SDK veya CLI protokol değişikliği | Tam sürüm sabitleme; yükseltmeden önce gerçek smoke | — |
 | İzolasyon: `settingSources: []` + `strictMcpConfig` ile kullanıcı hook/plugin/MCP/skill'leri yüklenmez; plugin skill'leri symlink'le yüklenir | M0: doğrulandı (docs/m0/report.md): hook olayı 0, MCP 0; skill'ler `videogen:*` adıyla | — |
 | `dontAsk` altında `PreToolUse` hook'u run klasörü dışına yazmayı engelliyor | M0: doğrulandı (docs/m0/report.md): run dışına Write reddedildi (matcher `Write\|Edit`, `file_path`), `permission_denials`'a yazıldı. M3: Bash (yalnızca run klasöründe izinli okuma komutları; ağır komut, zincirleme, boru, yönlendirme, komut ikamesi ve glob yasağı), NotebookEdit `notebook_path`, `..` ve symlink kaçışı birim testli; gerçek koşuda ağır Bash komutu reddedildi ve gerekçe doğru MCP aracını gösterdi (`docs/m3/real-check.md`) | Bash izin listesi daraltılır; NotebookEdit `allowedTools` dışında kalır |
-| Blender GLB → Three.js anchor eşdeğerliği ≤ 8 px | M0: doğrulandı (docs/m0/report.md): 0,00 px; mixer `LoopOnce` + clamp şart; birimler 1:1. M4b: kare başına anahtar + son kare tutma + `camera_track` ile kalem örneğinde 0,01 px; bitmiş `LoopOnce` eylemi `setTime`'da 0'a dönüyordu (16.611 px) → geçmişten bağımsız `seek`. Her build'de ölçülür; gerçek agent ürünlerindeki sonuç M4c'de | — |
+| Blender GLB → Three.js anchor eşdeğerliği ≤ 8 px | M0: doğrulandı (docs/m0/report.md): 0,00 px; mixer `LoopOnce` + clamp şart; birimler 1:1. M4b: kare başına anahtar + son kare tutma + `camera_track` ile kalem örneğinde 0,01 px; bitmiş `LoopOnce` eylemi `setTime`'da 0'a dönüyordu (16.611 px) → geçmişten bağımsız `seek`. Her build'de ölçülür; gerçek agent ürünlerindeki sonuç M4c'de. M4c: Blender'ın kalem GLB'si Remotion'da (`Draft3D`, `SceneClock.seek` + `applyFrameFov` + `projectAnchor`) 1351 karelik taslak olarak render edildi (`npm run test:render`); gerçek agent ürünü GPU'lu makinede bekliyor | — |
 | Agent'ın yazdığı `product.py` güvenle çalıştırılabilir | M4b: bubblewrap 0.11.1 bu makinede çalışıyor; gerçek araç testinde ağ engelli, ev klasörü ve repo görünmez, kök salt okunur; zaman aşımı ve RSS sınırı süreç grubunu öldürür (`npm run test:render`) | bwrap çalışmazsa build reddedilir (korumasız çalışma yok) |
 | SDK alt ajanı kendiliğinden arka plana alabiliyor → tek sorguda birden fazla `result` ve ikinci `system/init` | M0: bayraksız 3 koşunun 2'sinde gözlendi; `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` (temizlikten sonra eklenir) ile 1/1 koşuda tek `result` | Sürücü son `result`'u esas alır, `background_tasks_changed` boşalana ve iterator bitene kadar bekler M3: tur bitişi = arka plan görev kümesi boş **ve** `result` sayısı ≥ 1 + arka plana alınmış görevlerin `task_notification` sayısı (`subagent.ndjson`'da küme ilk `result`'tan önce boşalıyor) |
 | In-process MCP (`createSdkMcpServer`) gömülü CLI'da çalışıyor, ayrı süreç gerekmiyor | M3: doğrulandı — plan öncesi sondaj (`spikes/m3/probe.mjs`) ve M3a T6 gerçek koşusu: `videogen` sunucusu `connected`, araçlar `mcp__videogen__*`, `report_progress` kaydedildi | — |

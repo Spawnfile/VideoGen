@@ -35,9 +35,9 @@ If you run `npm run build` while the API is running (for example next to `npm ru
 | `npm start` | Single-command launcher with supervised restarts |
 | `npm test` | Unit and integration tests (Vitest; needs the Postgres container) |
 | `npm run test:blender` | vg_blender unit tests inside Blender 5.2 on the NVIDIA GPU (`bin/blender-gpu`) |
-| `npm run test:render` | Real-tool integration: sandboxed (bubblewrap) two-phase build of the example pen, Blender ↔ three.js anchor equivalence, GPU preview stills, sandbox boundary, timeout |
+| `npm run test:render` | Real-tool integration: sandboxed (bubblewrap) two-phase build of the example pen, Blender ↔ three.js anchor equivalence, GPU preview stills, sandbox boundary, timeout; M4c: the Remotion draft in system Chrome (frames, §7.5 probe, bundle cache, cancel kills Chrome) and the draft_render + draft_review steps on the full 45 s pen draft. On a GPU-less machine set `VG_REMOTION_GL=swangle` |
 | `bin/scene-fixtures.sh` / `bin/k19-options.sh` | Regenerate the committed pen build fixtures / the three channel-identity option images (real Blender) |
-| `npm run test:smoke` | Playwright smoke tests (S1 boot, S2a product → research → storyboard → build / difficulty gate / cancel, S2b build card + media Range / same-session build fix / cancel during build / channel identity, S3 liveness, S4 reconnect + worker death, S5 chat) against a throwaway stack on port 5190 with the fake Claude driver (system Chrome); the `videogen_smoke` database and `/tmp/videogen-smoke` are removed afterwards |
+| `npm run test:smoke` | Playwright smoke tests (S1 boot, S2a product → research → storyboard → build / difficulty gate / cancel, S2b build card + media Range / same-session build fix / cancel during build / channel identity, S3 liveness, S4 reconnect + worker death, S5 chat, M4c S2 with the draft: review, Range playback from the library, one fix round) against a throwaway stack on port 5190 with the fake Claude driver (system Chrome); the `videogen_smoke` database and `/tmp/videogen-smoke` are removed afterwards |
 | `VG_SCREENSHOTS=1 npx playwright test -c tests/smoke/playwright.config.ts screens` | Regenerate the UI screenshots in `docs/m3/` and `docs/m4/` |
 | `node bin/link-skills.mjs` | Regenerate `claude-plugin/skills/*` symlinks from `claude-plugin/skills.manifest.json` (the launcher does this on every start) |
 | `npm run typecheck` | `tsc -p tsconfig.json` (TypeScript 7) |
@@ -71,4 +71,5 @@ Runtime data lives in `~/videogen-data`. Today only `logs/` exists (`api.log`, `
 - M3 (live agent layer): done, see [docs/m3/report.md](docs/m3/report.md).
 - M4a (pipeline core: product name → research → storyboard, Studio production panel, Library, smoke S2a): done, see [docs/m4/m4a-summary.md](docs/m4/m4a-summary.md).
 - M4b (scene core: vg_blender, sandboxed two-phase build, anchor equivalence, GPU previews, build step, build card, channel identity options, smoke S2b): done and merged, see [docs/m4/m4b-summary.md](docs/m4/m4b-summary.md).
-- Next: M4c (Remotion draft render, draft review loop, player, first real product with the K12 models).
+- M4c (Remotion draft render in a guarded child process, draft review with at most two returns to build, GPU and usage gates, Studio player with "Taslak MP4" / live "Taslak" tabs, library cover and length, Space/J/K/L/N shortcuts, smoke S2 with the draft): done and merged, see [docs/m4/report.md](docs/m4/report.md). Still open for the M4 exit: the first real product with the K12 role models and its per-video usage (needs the GPU machine and the Claude subscription; recipe in the report §4).
+- Next: M5 (final render and quality).
