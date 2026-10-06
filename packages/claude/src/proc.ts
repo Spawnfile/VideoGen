@@ -24,6 +24,26 @@ export function readGroupPids(pgid: number, procDir = '/proc'): number[] {
   return out;
 }
 
+/**
+ * The group plus every descendant, also those that left it: a child spawned `detached` (Remotion starts Chrome so) gets its own
+ * process group, so a pgrp scan alone neither sees its memory nor kills it. `groups`: those other process groups.
+ */
+export function readTree(pgid: number, procDir = '/proc'): { pids: number[]; groups: number[] } {
+  const all = new Map<number, { ppid: number; pgrp: number }>();
+  for (const name of readdirSync(procDir)) {
+    if (!/^\d+$/.test(name)) continue;
+    const f = statFields(Number(name), procDir);
+    if (f) all.set(Number(name), { ppid: Number(f[1]), pgrp: Number(f[2]) });
+  }
+  const set = new Set([...all].filter(([, v]) => v.pgrp === pgid).map(([k]) => k));
+  for (let grown = true; grown;) {
+    grown = false;
+    for (const [pid, v] of all) if (!set.has(pid) && set.has(v.ppid)) { set.add(pid); grown = true; }
+  }
+  const groups = new Set([...set].map((p) => all.get(p)!.pgrp).filter((g) => g !== pgid));
+  return { pids: [...set], groups: [...groups] };
+}
+
 export function groupAlive(pgid: number): boolean {
   try { process.kill(-pgid, 0); return true; } catch { return false; }
 }
@@ -40,10 +60,14 @@ export function memAvailableMb(): number {
 /** CPU% (of one core) and RSS of every process in a group, from /proc deltas between calls. */
 export class GroupSampler {
   private last: { ticks: number; at: number } | null = null;
-  constructor(private readonly pgid: number, private readonly procDir = '/proc') {}
+  /** With `tree`: process groups of descendants outside the group, as of the last sample. */
+  groups: number[] = [];
+  constructor(private readonly pgid: number, private readonly procDir = '/proc', private readonly o: { tree?: boolean } = {}) {}
 
   async sample(): Promise<ProcSample | null> {
-    const pids = readGroupPids(this.pgid, this.procDir);
+    let pids: number[];
+    if (this.o.tree) ({ pids, groups: this.groups } = readTree(this.pgid, this.procDir));
+    else pids = readGroupPids(this.pgid, this.procDir);
     if (!pids.length) return null;
     let ticks = 0;
     let pages = 0;

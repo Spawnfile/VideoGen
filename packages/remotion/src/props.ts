@@ -88,7 +88,8 @@ export function placeLabels(anchors: { id: string; text: string; at: [number, nu
   const visible = anchors.filter((x) => x.at && x.at[0] >= 0 && x.at[0] <= width && x.at[1] >= 0 && x.at[1] <= height);
   for (const a of visible.slice(0, MAX_LABELS).sort((p, q) => p.at![1] - q.at![1])) {
     const [ax, ay] = a.at!;
-    const w = Math.min(area.right - area.left, Math.round(a.text.length * font * 0.56 + 2 * pad));
+    // Generous per-character width (Inter / DejaVu with Turkish diacritics ≈ 0.6 em); a tighter guess ellipsised "Gövde" in the first real draft.
+    const w = Math.min(area.right - area.left, Math.round(a.text.length * font * 0.66 + 2 * pad));
     const x = Math.max(area.left, Math.min(ax + reach + w <= area.right ? ax + reach : ax - reach - w, area.right - w));
     const y = Math.max(floor, Math.round(ay - h / 2));
     boxes.push({ id: a.id, text: a.text, ax, ay, x, y, w, h, font });
