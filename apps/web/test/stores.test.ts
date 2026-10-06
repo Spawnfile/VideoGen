@@ -7,7 +7,7 @@ beforeEach(async () => { vi.resetModules(); st = await import('../src/lib/stores
 
 const view = (status: AgentSessionView['status']): AgentSessionView => ({
   id: 's1', kind: 'pipeline', role: 'researcher', model: 'sonnet', effort: 'high', status, claudeSessionId: 's1', parentSessionId: null, threadId: null,
-  runId: null, progress: null, progressSource: null, progressMessage: null, tokens: 0, costUsd: null, numTurns: 0, terminalReason: null, error: null,
+  runId: null, stepId: null, progress: null, progressSource: null, progressMessage: null, tokens: 0, costUsd: null, numTurns: 0, terminalReason: null, error: null,
   waitingUntil: null, createdAt: '2026-10-06T00:00:00.000Z', startedAt: null, endedAt: null, lastEventAt: null,
 });
 const row = (over: Partial<TraceRow> = {}): TraceRow => ({ id: 'r1', sessionId: 's1', turn: 0, seq: 1, parentToolUseId: null, variant: 'reasoning', kind: 'thinking', title: 'Düşünce', status: 'running', startedAt: 0, ...over });

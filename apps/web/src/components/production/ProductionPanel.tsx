@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { api } from '../../lib/api.ts';
 import { latestRunOf, pipeline, seedRuns, seedVideos, useStore } from '../../lib/stores.ts';
-import { ResearchCard, StoryboardCard } from './ArtifactCards.tsx';
+import { BuildCard, ResearchCard, StoryboardCard } from './ArtifactCards.tsx';
 import { StepList } from './StepList.tsx';
 import { VideoHeader } from './VideoHeader.tsx';
 
@@ -19,12 +19,13 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
   });
   const latest = useMemo(() => {
     const list = detail.data ?? [];
-    const pick = (kind: string) => list.find((a) => a.kind === kind && (!run || a.runId === run.id))?.id ?? null;
-    return { research: pick('research'), storyboard: pick('storyboard') };
+    const find = (kind: string) => list.find((a) => a.kind === kind && (!run || a.runId === run.id)) ?? null;
+    const pick = (kind: string) => find(kind)?.id ?? null;
+    return { research: pick('research'), storyboard: pick('storyboard'), report: pick('build_report'), scene: pick('scene'), sheet: find('preview_sheet')?.blobSha ?? null };
   }, [detail.data, run]);
 
   if (!videoId) {
-    return <p className="text-[13px] leading-relaxed text-ink-2">Üstteki alana bir ürün adı yazıp Üret'e basın. Araştırma ve storyboard adımları burada canlı ilerler.</p>;
+    return <p className="text-[13px] leading-relaxed text-ink-2">Üstteki alana bir ürün adı yazıp Üret'e basın. Araştırma, storyboard ve sahne kurulumu burada canlı ilerler.</p>;
   }
   if (!video) return null;
   return (
@@ -33,6 +34,7 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
       {run && <StepList run={run} />}
       <ResearchCard artifactId={latest.research} />
       <StoryboardCard artifactId={latest.storyboard} />
+      <BuildCard reportId={latest.report} sceneId={latest.scene} sheetSha={latest.sheet} />
     </div>
   );
 }

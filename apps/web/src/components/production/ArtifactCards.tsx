@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { HOOK_PATTERN_LABELS, type ProductResearch, type Storyboard } from '@videogen/shared/browser';
-import { api } from '../../lib/api.ts';
+import { HOOK_PATTERN_LABELS, type BuildReport, type ProductResearch, type SceneSpec, type Storyboard } from '@videogen/shared/browser';
+import { api, blobUrl } from '../../lib/api.ts';
+import { buildFacts } from '../../lib/production-view.ts';
 
 const DIFFICULTY: Record<ProductResearch['difficulty'], string> = { procedural: 'prosedürel modellenebilir', needs_asset: 'hazır 3D varlık gerekir', too_hard: 'modellenemiyor' };
 const card = 'rounded-card border border-line/60 bg-paper px-4 py-3 shadow-subtle';
@@ -48,6 +49,34 @@ export function StoryboardCard({ artifactId }: { artifactId: string | null }) {
           </li>
         ))}
       </ol>
+    </section>
+  );
+}
+
+export function BuildCard({ reportId, sceneId, sheetSha }: { reportId: string | null; sceneId: string | null; sheetSha: string | null }) {
+  const { data: report } = useContent<BuildReport>(reportId);
+  const { data: scene } = useContent<SceneSpec>(sceneId);
+  if (!report) return null;
+  const f = buildFacts(report, scene);
+  return (
+    <section data-testid="build-card" aria-label="Sahne" className={card}>
+      <div className="flex items-baseline gap-2">
+        <h3 className="text-[14px] font-medium">Sahne</h3>
+        <span className="text-[12px] text-ink-3">{f.line}</span>
+      </div>
+      {sheetSha && (
+        <img
+          src={blobUrl(sheetSha)}
+          alt="Önizleme kareleri: ilk kare ve vuruş ortaları; kırmızı bölgeler TikTok arayüzünün kapattığı alan"
+          loading="lazy"
+          className="mt-3 w-full rounded-input border border-line/60 bg-inset"
+        />
+      )}
+      {f.warnings.length > 0 && (
+        <ul aria-label="Build uyarıları" className="mt-2 flex flex-col gap-1 text-[12.5px] text-ink-2">
+          {f.warnings.map((w) => <li key={w}>· {w}</li>)}
+        </ul>
+      )}
     </section>
   );
 }

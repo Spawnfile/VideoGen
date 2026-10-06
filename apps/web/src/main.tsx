@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { AgentSample, AgentSessionView, ChatMessage, ClaudeAuth, GuardState, LiveTraceItem, RunView, TraceRow, UsageSnapshot, VideoView } from '@videogen/shared/browser';
+import type { AgentSample, AgentSessionView, ChatMessage, ClaudeAuth, GpuWait, GuardState, LiveTraceItem, RunView, TraceRow, UsageSnapshot, VideoView } from '@videogen/shared/browser';
 import { AppShell } from './components/AppShell.tsx';
 import { connectLive, onLiveEvent, onUiEvent } from './lib/live.ts';
-import { applyDelta, applyMessage, applyRow, applyRun, applySample, applySession, applyVideo } from './lib/stores.ts';
+import { applyDelta, applyGpuWait, applyMessage, applyRow, applyRun, applySample, applySession, applyVideo } from './lib/stores.ts';
 import { useRoute } from './lib/router.ts';
 import { Library } from './routes/Library.tsx';
 import { Settings } from './routes/Settings.tsx';
@@ -38,6 +38,7 @@ function App() {
         applyDelta(p.sessionId, p.d);
       }
       if (e.type === 'agent.sample') applySample(e.payload as AgentSample);
+      if (e.type === 'agent.gpu_wait') applyGpuWait(e.payload as GpuWait);
     });
     return () => { offUi(); offLive(); stop(); };
   }, []);

@@ -51,6 +51,9 @@ export const api = {
   artifact: (id: string) => get<ArtifactMeta & { content: unknown }>(`/api/artifacts/${id}`),
 };
 
+/** Content-addressed media (HTTP Range, immutable). */
+export const blobUrl = (sha: string) => `/api/blobs/${sha}`;
+
 /** 'loading' also covers a null status (worker has not checked yet); only a loaded status may say connected or not. */
 export type ClaudePhase = 'loading' | 'error' | 'in' | 'out';
 

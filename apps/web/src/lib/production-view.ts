@@ -1,4 +1,4 @@
-import type { ProgressSource, RunView, StepView, VideoStatus, VideoUsage, VideoView } from '@videogen/shared/browser';
+import { CHANNEL_STYLES, type BuildReport, type ProgressSource, type RunView, type SceneSpec, type StepView, type VideoStatus, type VideoUsage, type VideoView } from '@videogen/shared/browser';
 import { formatElapsed, formatTokens } from './trace-view.ts';
 
 const ACTIVE = new Set(['queued', 'running', 'waiting_gpu', 'waiting_limit', 'waiting_disk']);
@@ -46,4 +46,15 @@ export function formatDay(iso: string, now = Date.now()): string {
   const time = d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
   if (d.toDateString() === new Date(now).toDateString()) return `bugün ${time}`;
   return `${d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })} ${time}`;
+}
+
+/** Build card summary: parts, triangles, hero size at frame 0, channel style; up to five warnings. */
+export function buildFacts(report: BuildReport, scene?: SceneSpec): { line: string; warnings: string[] } {
+  const line = [
+    `${report.parts.length} parça`,
+    `${report.triangles.toLocaleString('tr-TR')} üçgen`,
+    `kahraman %${Math.round(report.hero_ratio * 100)}`,
+    scene ? CHANNEL_STYLES[scene.style_id].name_tr : '',
+  ].filter(Boolean).join(' · ');
+  return { line, warnings: report.warnings.slice(0, 5) };
 }

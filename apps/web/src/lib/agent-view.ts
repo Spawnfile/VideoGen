@@ -1,6 +1,16 @@
-import type { AgentSessionView, SessionStatus } from '@videogen/shared/browser';
+import type { AgentSessionView, GpuWait, SessionStatus } from '@videogen/shared/browser';
 import type { SampleView } from './stores.ts';
-import { formatAgo, formatTokens } from './trace-view.ts';
+import { formatAgo, formatTokens, STATUS_LABEL } from './trace-view.ts';
+
+const clock = (iso: string) => new Date(iso).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
+/** Spec §12.2: "limit bekleniyor (açılma saati)", "GPU bekliyor (sıradaki yeriyle)" or the pre-check reason. */
+export function cardStatusLabel(session: AgentSessionView, gpu?: GpuWait): string {
+  if (session.status === 'waiting_limit' && session.waitingUntil) return `${STATUS_LABEL.waiting_limit} (${clock(session.waitingUntil)})`;
+  if (session.status === 'waiting_gpu' && gpu?.position) return `${STATUS_LABEL.waiting_gpu} · sırada ${gpu.position}`;
+  if (session.status === 'waiting_gpu' && gpu?.reason) return `${STATUS_LABEL.waiting_gpu} · ${gpu.reason}`;
+  return STATUS_LABEL[session.status];
+}
 
 const LIVE: readonly SessionStatus[] = ['starting', 'thinking', 'tool', 'idle'];
 export const isLiveStatus = (s: SessionStatus): boolean => LIVE.includes(s);

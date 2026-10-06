@@ -9,6 +9,7 @@ import type { EventHub } from './event-hub.ts';
 import { registerGuard } from './guard.ts';
 import { registerAgentRoutes } from './routes/agents.ts';
 import { registerChatRoutes } from './routes/chat.ts';
+import { registerMediaRoutes } from './routes/media.ts';
 import { registerRoleRoutes } from './routes/roles.ts';
 import { registerVideoRoutes } from './routes/videos.ts';
 import { registerSse } from './sse.ts';
@@ -65,13 +66,16 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
   registerAgentRoutes(app, deps);
   registerChatRoutes(app, deps);
   registerVideoRoutes(app, deps);
+  // One @fastify/static instance owns reply.sendFile (Range, ETag); it serves no route of its own. The SPA instance below adds none.
+  await app.register(fastifyStatic, { root: deps.config.dataDir, serve: false });
+  registerMediaRoutes(app, { pool: deps.pool, dataDir: deps.config.dataDir });
   registerRoleRoutes(app, { pool: deps.pool, devEndpoints: deps.config.devEndpoints });
   registerSse(app, deps);
 
   if (existsSync(join(deps.config.webDist, 'index.html'))) {
-    await app.register(fastifyStatic, { root: deps.config.webDist, wildcard: false });
+    await app.register(fastifyStatic, { root: deps.config.webDist, wildcard: false, decorateReply: false });
     app.setNotFoundHandler((req, reply) =>
-      req.url.startsWith('/api') || req.url.startsWith('/events') ? reply.code(404).send({ error: 'not found' }) : reply.sendFile('index.html'),
+      req.url.startsWith('/api') || req.url.startsWith('/events') ? reply.code(404).send({ error: 'not found' }) : reply.sendFile('index.html', deps.config.webDist),
     );
   }
   return app;

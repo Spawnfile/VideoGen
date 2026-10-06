@@ -65,7 +65,7 @@ const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 function toRecord(r: Record<string, any>): SessionRecord {
   return {
     id: r.id, kind: r.kind, role: r.role, model: r.model, effort: r.effort, status: r.status,
-    claudeSessionId: r.claude_session_id, parentSessionId: r.parent_session_id, threadId: r.thread_id, runId: r.run_id,
+    claudeSessionId: r.claude_session_id, parentSessionId: r.parent_session_id, threadId: r.thread_id, runId: r.run_id, stepId: r.step_id,
     progress: r.progress, progressSource: r.progress_source, progressMessage: r.progress_message,
     tokens: Number(r.tokens), costUsd: r.cost_usd, numTurns: r.num_turns, terminalReason: r.terminal_reason, error: r.error,
     waitingUntil: iso(r.waiting_until), createdAt: iso(r.created_at)!, startedAt: iso(r.started_at), endedAt: iso(r.ended_at),

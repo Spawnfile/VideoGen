@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RunView, StepView, VideoView } from '@videogen/shared/browser';
-import { activeStep, formatDay, formatEta, formatUsage, isRunActive, pickVideoId, sourceLabel, stepDuration, videoTone } from '../src/lib/production-view.ts';
+import { activeStep, buildFacts, formatDay, formatEta, formatUsage, isRunActive, pickVideoId, sourceLabel, stepDuration, videoTone } from '../src/lib/production-view.ts';
 
 const step = (over: Partial<StepView>): StepView => ({
   id: 's', runId: 'r', key: 'research', ordinal: 0, weight: 50, status: 'pending', progress: 0, progressSource: null, attempt: 0,
@@ -43,5 +43,13 @@ describe('formatDay', () => {
     const now = new Date(2026, 9, 6, 18, 0).getTime();
     expect(formatDay(new Date(2026, 9, 6, 14, 5).toISOString(), now)).toBe('bugün 14:05');
     expect(formatDay(new Date(2026, 9, 1, 9, 30).toISOString(), now)).toBe('1 Eki 09:30');
+  });
+
+  it('summarizes a build: parts, triangles, hero size, channel style and at most five warnings', () => {
+    const report = { ok: true, errors: [], parts: ['a', 'b', 'c'], missing_parts: [], extra_parts: [], overlaps: [], hero_ratio: 0.7995, occlusion: [], triangles: 7526, frames: 1350, warnings: ['1', '2', '3', '4', '5', '6'] };
+    const f = buildFacts(report, { style_id: 'gece_mavisi' } as never);
+    expect(f.line).toBe('3 parça · 7.526 üçgen · kahraman %80 · Gece mavisi');
+    expect(f.warnings).toEqual(['1', '2', '3', '4', '5']);
+    expect(buildFacts({ ...report, warnings: [] }).line).toBe('3 parça · 7.526 üçgen · kahraman %80');
   });
 });

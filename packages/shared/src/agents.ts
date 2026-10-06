@@ -37,6 +37,8 @@ export interface AgentSessionView {
   parentSessionId: string | null;
   threadId: string | null;
   runId: string | null;
+  /** Set for pipeline step sessions: the step owns retries (the card offers no "Yeniden dene"). */
+  stepId: string | null;
   progress: number | null;
   progressSource: 'agent' | 'time' | null;
   progressMessage: string | null;
@@ -53,6 +55,8 @@ export interface AgentSessionView {
 }
 
 export type Liveness = 'active' | 'quiet_alive' | 'maybe_stuck';
+/** Live `agent.gpu_wait`: queue position (1 = next) or the spec §6.4 pre-check reason; both null when the job runs. */
+export interface GpuWait { sessionId: string; position: number | null; reason: string | null }
 export interface AgentSample { sessionId: string; cpuPct: number | null; rssMb: number | null; silentMs: number; liveness: Liveness }
 
 export type TraceVariant = 'steps' | 'reasoning' | 'search' | 'coding' | 'text';

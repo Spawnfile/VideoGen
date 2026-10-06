@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { AgentSample, AgentSessionView, ChatMessage, LiveTraceItem, RunView, TraceRow, VideoView } from '@videogen/shared/browser';
+import type { AgentSample, AgentSessionView, ChatMessage, GpuWait, LiveTraceItem, RunView, TraceRow, VideoView } from '@videogen/shared/browser';
 
 export interface Store<S> { get(): S; set(fn: (s: S) => S): void; subscribe(l: () => void): () => void }
 
@@ -22,8 +22,8 @@ interface Versioned<T> { value: T; eventId: number }
 const fresher = <T>(cur: Versioned<T> | undefined, eventId: number) => !cur || eventId >= cur.eventId;
 
 export type SampleView = AgentSample & { receivedAt: number };
-export interface AgentsState { sessions: Record<string, Versioned<AgentSessionView>>; samples: Record<string, SampleView> }
-export const agents = createStore<AgentsState>({ sessions: {}, samples: {} });
+export interface AgentsState { sessions: Record<string, Versioned<AgentSessionView>>; samples: Record<string, SampleView>; gpu: Record<string, GpuWait> }
+export const agents = createStore<AgentsState>({ sessions: {}, samples: {}, gpu: {} });
 
 export function seedSessions(list: AgentSessionView[], eventId: number): void {
   agents.set((s) => {
@@ -34,6 +34,10 @@ export function seedSessions(list: AgentSessionView[], eventId: number): void {
 }
 export function applySession(v: AgentSessionView, eventId: number): void {
   agents.set((s) => (fresher(s.sessions[v.id], eventId) ? { ...s, sessions: { ...s.sessions, [v.id]: { value: v, eventId } } } : s));
+}
+/** Live and transient (not replayed): the card falls back to the plain "GPU bekliyor" status without it. */
+export function applyGpuWait(x: GpuWait): void {
+  agents.set((s) => ({ ...s, gpu: { ...s.gpu, [x.sessionId]: x } }));
 }
 export function applySample(x: AgentSample): void {
   agents.set((s) => ({ ...s, samples: { ...s.samples, [x.sessionId]: { ...x, receivedAt: Date.now() } } }));

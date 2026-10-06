@@ -75,3 +75,18 @@ test('M4 screen: library', async ({ page, request }) => {
   await page.getByTestId('library-item').first().click();
   await expect(page.getByTestId('video-header')).toBeVisible();
 });
+
+test('M4b screen: studio build card', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto('/');
+  const bar = page.getByRole('region', { name: 'Yeni üretim' });
+  await bar.getByRole('textbox', { name: 'Ürün adı' }).fill('Tükenmez kalem');
+  await bar.getByRole('radio', { name: 'Seslendirmesiz' }).click();
+  await bar.getByRole('button', { name: 'Üret' }).click();
+  const card = page.getByTestId('build-card');
+  await expect(card).toBeVisible({ timeout: 60_000 });
+  await expect.poll(() => card.getByRole('img').evaluate((i) => (i as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  await card.scrollIntoViewIfNeeded(); // the production panel scrolls on its own; a full-page shot would miss the card
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: shot('studio-build.png', 'm4') });
+});

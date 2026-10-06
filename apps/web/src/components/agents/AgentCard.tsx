@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { ROLE_LABELS, type AgentSessionView } from '@videogen/shared/browser';
-import { cardMeta, isLiveStatus } from '../../lib/agent-view.ts';
+import { ROLE_LABELS, type AgentSessionView, type GpuWait } from '@videogen/shared/browser';
+import { cardMeta, cardStatusLabel, isLiveStatus } from '../../lib/agent-view.ts';
 import { api } from '../../lib/api.ts';
 import { seedTrace, traceRows, traces, useStore, type SampleView } from '../../lib/stores.ts';
-import { formatElapsed, lastActivity, modelLabel, STATUS_LABEL, statusTone, subagents } from '../../lib/trace-view.ts';
+import { formatElapsed, lastActivity, modelLabel, statusTone, subagents } from '../../lib/trace-view.ts';
 import { useNow } from '../../lib/use-now.ts';
 import { TraceView } from '../thinking/TraceView.tsx';
 
@@ -15,9 +15,7 @@ const DOT: Record<ReturnType<typeof statusTone>, string> = {
   error: 'bg-red/80',
   muted: 'bg-line-strong',
 };
-const clock = (iso: string) => new Date(iso).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-
-export function AgentCard({ session, sample }: { session: AgentSessionView; sample: SampleView | undefined }) {
+export function AgentCard({ session, sample, gpu }: { session: AgentSessionView; sample: SampleView | undefined; gpu?: GpuWait }) {
   const now = useNow(1000);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -42,7 +40,7 @@ export function AgentCard({ session, sample }: { session: AgentSessionView; samp
   const elapsed = started === null ? null : formatElapsed((session.endedAt ? Date.parse(session.endedAt) : now) - started);
   const activity = lastActivity(rows);
   const subs = subagents(rows);
-  const label = session.status === 'waiting_limit' && session.waitingUntil ? `${STATUS_LABEL.waiting_limit} (${clock(session.waitingUntil)})` : STATUS_LABEL[session.status];
+  const label = cardStatusLabel(session, gpu);
   const act = (fn: () => Promise<unknown>) => { if (busy) return; setBusy(true); fn().catch(() => undefined).finally(() => setBusy(false)); };
   const stats = live
     ? [meta.ago && `son olay ${meta.ago}`, meta.alive && 'süreç canlı', meta.cpu, meta.ram, meta.tokens]
@@ -106,7 +104,10 @@ export function AgentCard({ session, sample }: { session: AgentSessionView; samp
           <span><span className="font-medium">Takılmış olabilir.</span> <span className="text-ink-2">Uzun süredir olay yok ve süreç boşta.</span></span>
           <span className="ml-auto flex gap-2">
             <button type="button" disabled={busy} onClick={() => act(() => api.cancelSession(session.id))} className="rounded-control border border-line-strong px-2.5 py-1 hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-ink disabled:opacity-50">Durdur</button>
-            <button type="button" disabled={busy} onClick={() => act(() => api.retrySession(session.id))} className="rounded-control px-2.5 py-1 text-ink-2 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-ink disabled:opacity-50">Yeniden dene</button>
+            {/* A pipeline step retries its own session (M4a minor 11): only stop is offered there. */}
+            {!session.stepId && (
+              <button type="button" disabled={busy} onClick={() => act(() => api.retrySession(session.id))} className="rounded-control px-2.5 py-1 text-ink-2 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-ink disabled:opacity-50">Yeniden dene</button>
+            )}
           </span>
         </div>
       )}
