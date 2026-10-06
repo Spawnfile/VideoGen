@@ -5,7 +5,7 @@ const RULES = [
   [/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, 'user@example.com'],
   [/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, (m) => (redactUuid.get(m) ?? setUuid(m))],
   [new RegExp(homedir().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '/home/user'],
-  // Streaming deltas split paths across chunks ("/alper/gpu"), so the homedir rule misses them: mask the bare username too
+  // Streaming deltas split paths across chunks ("/<user>/gpu"), so the homedir rule misses them: mask the bare username too
   [new RegExp(userInfo().username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), 'user'],
   // Claude project-dir slug: Claude replaces every non-alphanumeric char of the path with '-'
   [new RegExp(homedir().replace(/[^A-Za-z0-9]/g, '-'), 'g'), '-home-user'],

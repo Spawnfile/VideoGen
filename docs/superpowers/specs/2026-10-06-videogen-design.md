@@ -128,7 +128,7 @@ Bu doküman; kullanıcı gereksinimlerini, brainstorming ve grilling turlarında
 ### 5.2 Depo düzeni
 
 ```
-/home/alper/gpu-server/VideoGen/            (git deposu)
+~/gpu-server/VideoGen/            (git deposu)
   apps/web/            React 19 + Vite 8 + Tailwind v4 + TanStack Query
   apps/api/            Fastify 5
   apps/worker/         orchestrator, scheduler, drivers
@@ -159,7 +159,7 @@ Bu doküman; kullanıcı gereksinimlerini, brainstorming ve grilling turlarında
 | Bileşen | Sürüm | Not |
 |---|---|---|
 | Node | 24.18 (`.nvmrc`) | |
-| `@anthropic-ai/claude-agent-sdk` | M0'daki güncel 0.3.x, **tam sürüm** (bugün 0.3.290) | Gömülü linux-x64 binary'si (246 MB) kullanılır |
+| `@anthropic-ai/claude-agent-sdk` | M0'daki güncel 0.3.x, **tam sürüm** (bugün 0.3.290) | Gömülü linux-x64 binary'si (≈ 250 MB; ölçülen 249.687.224 bayt) kullanılır |
 | `remotion` + `@remotion/*` | **4.0.533 tam** | Pilotla aynı; tüm `@remotion/*` paketleri aynı sürümde |
 | three / @react-three/fiber | 0.186.1 / 9.8.1 | jet-engine'de çalıştı |
 | Fastify / drizzle-orm / TanStack Query | 5.12 / 0.45 / 5.104 | npm'de doğrulandı |
@@ -178,7 +178,7 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 - Her oturum `query()` ile ve streaming input modunda açılır.
 - Oturum kimliği spawn'dan önce bir UUID olarak üretilir ve audit'e yazılır.
 - Kimlik doğrulama: kullanıcının Claude.ai OAuth girişi (`apiKeySource: none`; M0'da gömülü CLI 2.1.290 ile doğrulandı). **`--bare` asla kullanılmaz**, çünkü OAuth'u kapatır.
-- **Sonuç mesajları (M0):** Tek sorgu birden fazla `result` üretebilir (arka plana alınan alt ajan; `result_index` 0, 1, …). Sürücü son `result`'u esas alır ve iterator bitene kadar bekler. `outputFormat` ile model sentetik `StructuredOutput` aracını çağırır; veri `result.structured_output`'tadır.
+- **Sonuç mesajları (M0):** Tek sorgu birden fazla `result` üretebilir (arka plana alınan alt ajan; `result_index` 0, 1, …). Sürücü son `result`'u esas alır ve iterator bitene kadar bekler. Kullanım için esas alınan değerler son `result`'un kümülatif `modelUsage` / `total_cost_usd` alanlarıdır; result başına `usage` / `num_turns` segment farkıdır, ikisi karıştırılmaz (ayrıntı §6.5). `outputFormat` ile model sentetik `StructuredOutput` aracını çağırır; veri `result.structured_output`'tadır.
 
 **Her oturumun ortak yapılandırması:**
 
@@ -242,7 +242,7 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
   - boş disk ≥ 3 GB + kare tahmini
   - `nvidia-smi` boş VRAM ≥ 4 GB
   - `ollama ps` boş
-- **Kullanım muhafızı:** Kullanım bilgisi boştayken 5 dakikada bir `get_usage` kontrol çağrısından (sıfır token; birincil kaynak) ve `rate_limit_event`'ten (her oturumda bir kez gelir; canlı tazeleme ve yedek) okunur. **Birimler kaynağa göre farklıdır (M0):** `get_usage` → `rate_limits.{five_hour,seven_day}.utilization` yüzde 0..100, `resets_at` ISO 8601 metin; `rate_limit_event` → `rate_limit_info.unifiedWindows.*.utilization` kesir 0..1, `resetsAt` epoch saniye. Eşleyici büyüklüğe göre değil, kaynağa göre normalize eder. Davranış:
+- **Kullanım muhafızı:** Kullanım bilgisi boştayken 5 dakikada bir `get_usage` kontrol çağrısından (sıfır token; birincil kaynak) ve `rate_limit_event`'ten (en az bir kez, ilk API yanıtından sonra gelir; tekrarlanabilir, her biri bir güncelleme olarak işlenir; canlı tazeleme ve yedek) okunur. **Birimler kaynağa göre farklıdır (M0):** `get_usage` → `rate_limits.{five_hour,seven_day}.utilization` yüzde 0..100, `resets_at` ISO 8601 metin; `rate_limit_event` → `rate_limit_info.unifiedWindows.*.utilization` kesir 0..1, `resetsAt` epoch saniye. Eşleyici büyüklüğe göre değil, kaynağa göre normalize eder. Davranış:
   - 5 saatlik pencere ≥ %80 veya haftalık ≥ %90 olursa yeni run ve reviewer fan-out'u başlamaz.
   - Limit aşılırsa (`status: rejected`), çalışan adım "limit bekleniyor" durumuna geçer ve `resetsAt` anında kendiliğinden devam eder.
   - Her geçiş audit'e yazılır.
@@ -252,6 +252,7 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 ### 6.5 Transcript ve kullanım muhasebesi
 
 - Her oturum için şunlar kaydedilir: `result.usage`, `modelUsage`, `num_turns`, `terminal_reason`, `permission_denials`, süre ve alt ajan istatistikleri. Bunlar video başına toplanır; kullanım maliyeti kütüphanede görünür.
+- **Kullanım muhasebesi (M0, `subagent.ndjson`):** Arka plana alınan koşularda her `result`'ın `usage`, `num_turns` ve `duration_ms` alanları yalnızca kendi bölümünü kapsar (segment farkı); `modelUsage` ve `total_cost_usd` ise kümülatiftir (result 0: `usage` cache_read 91.393 / cache_creation 998, 4 tur; result 1: `usage` 31.200 / 1.697, 2 tur, `modelUsage` 122.593 / 2.695 = toplam; maliyet 0,02514 → 0,03520). Muhasebe **son `result`'un** `modelUsage` ve `total_cost_usd` değerini esas alır; `modelUsage` result'lar arasında toplanmaz, tek başına son `usage` alınmaz; ikisi asla karıştırılmaz.
 - İş bitince `~/.claude/projects/<slug>/<sid>.jsonl` dosyası ve `subagents/` klasörü sıkıştırılıp arşive kopyalanır. Sebep: `~/.claude/projects` 30 günde temizleniyor.
 
 ### 6.6 Güvenlik (agent'lar)
@@ -664,7 +665,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
 - **Ağ:** API sadece 127.0.0.1'e bağlanır. Yazma uçlarında Host/Origin kontrolü ile CSRF ve DNS-rebinding koruması vardır (dag-wireboard `server/app.py:25-90` modeli). CORS kapalıdır.
 - **Gizli bilgiler:** `~/videogen-data/secrets/` (0600) altında durur. Loglara, audit'e, agent env'ine ve UI'ya asla çıkmaz; UI'da sadece var/yok ve son kullanma tarihi gösterilir.
-- **Agent izinleri:** `bypassPermissions` asla kullanılmaz. `PreToolUse` hook'u yazma yollarını run klasörüyle sınırlar (M0'da `dontAsk` altında Write `file_path` kaçışıyla doğrulandı). Hook her yazma vektörünü kapsar: Bash komutları ve NotebookEdit `notebook_path` de denetlenir. Kısıtlı Bash ve ağır komut yasağı uygulanır (§6.3).
+- **Agent izinleri:** `bypassPermissions` asla kullanılmaz. `PreToolUse` hook'u yazma yollarını run klasörüyle sınırlar (M0'da `dontAsk` altında Write `file_path` kaçışıyla doğrulandı). Hook her yazma vektörünü kapsamalıdır (M3): Bash komutları ve NotebookEdit `notebook_path` de denetlenir (M0 spike'ı yalnızca Write `file_path`'i doğruladı). Kısıtlı Bash ve ağır komut yasağı uygulanır (§6.3).
 - Ücretli API muhafızı ve bağımlılık kilidi (§6.6, §5.3).
 
 ## 16. Test stratejisi

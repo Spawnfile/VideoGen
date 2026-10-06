@@ -4,7 +4,7 @@
 |---|---|
 | Tarih | 2026-10-06 |
 | Dal | `m0-verification` (main `896983c`'den) |
-| Durum | Tamamlandı. (a), (a2), (b), (d) geçti; (c) kısmen (v1'de yedek plan). Çürütülen varsayım yok. Yeni bir risk bulundu (SDK alt ajanı arka plana alabiliyor) ve ek bir sondajla (e) kapatıldı |
+| Durum | Tamamlandı. (a), (a2), (b), (d) geçti; (c) kısmen (v1'de yedek plan). Çürütülen varsayım yok. Yeni bir risk bulundu (SDK alt ajanı arka plana alabiliyor); ek sondajla (e) ilk kanıt alındı (n=1; M3 gerçek smoke'ta tekrarlanacak) |
 | Kanıt kaynakları | `.superpowers/sdd/2026-10-06-m0-verification/task-*-report.md`, `docs/m0/disk-cleanup.md`, `tests/fixtures/claude-streams/`, `spikes/m0/` |
 
 Bu rapor spec §18'deki varsayımları kanıtla kapatır. Her spike için: **Varsayım · Sonuç · Kanıt · Spec'e etkisi.** Spec ve runbook bu rapora göre güncellendi.
@@ -18,7 +18,7 @@ Bu rapor spec §18'deki varsayımları kanıtla kapatır. Her spike için: **Var
 | (b) | `get_usage` sıfır token harcar | **geçti** (birimler `rate_limit_event`'ten farklı) |
 | (c) | `auth login` TTY olmadan çalışır | **kısmen** (URL ve kod istemi var; kod yapıştırma yolu test edilmedi) → v1'de (ii) |
 | (d) | Blender GLB → Three.js anchor eşdeğerliği ≤ 8 px | **geçti** (0,00 px; LoopOnce + clamp şart) |
-| (e) ek | `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` alt ajanı ön planda tutar | **geçti** (1/1 koşu + SDK tipleri) |
+| (e) ek | `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` alt ajanı ön planda tutar | **geçti** (n=1; M3 gerçek smoke'ta tekrarlanacak; bayraksız taban ~2/3 arka plan) |
 
 🚦 Kapılar: minillm-lab temiz (silindi) · `apiKeySource: none` · `PreToolUse` kaçışı engelledi. Üçü de geçti.
 
@@ -41,7 +41,7 @@ Bu rapor spec §18'deki varsayımları kanıtla kapatır. Her spike için: **Var
 | SDK | `@anthropic-ai/claude-agent-sdk` 0.3.290 |
 | Gömülü CLI | `spikes/m0/node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/claude` → `2.1.290 (Claude Code)`, 249.687.224 bayt |
 | `basic` oturumu (haiku, "Reply with exactly: OK", soğuk önbellek) | `input_tokens` 10 · `cache_creation_input_tokens` **29.962** (tamamı `ephemeral_1h`) · `cache_read` 0 · `output_tokens` 51 (44'ü thinking) |
-| Alt ajanlı oturum (haiku) | 31.353 cache_creation + 30.202 cache_read (a2); 30.596 + 29.311 (e) |
+| Alt ajanlı oturum (haiku) | Kayıtlı `subagent.ndjson`: result 0 `usage` 998 cache_creation + 91.393 cache_read (segment; kümülatif `modelUsage` için bkz. §12). Önceki koşular (spike günlüğü; kayıtlı fixture değil): 31.353 + 30.202 (a2); 30.596 + 29.311 (e) |
 
 Taban maliyet ~30K token. Spec §3'teki ~21K tasarım ölçümüydü; yeni değer spec'e işlendi.
 
@@ -64,7 +64,7 @@ Taban maliyet ~30K token. Spec §3'teki ~21K tasarım ölçümüydü; yeni değe
 ```
 - Kullanıcının skill'leri (grilling, last30days, telegram, video-vision…) yok. Agent'lar sadece yerleşikler: claude, Explore, general-purpose, Plan, statusline-setup.
 - Plugin skill'leri **`videogen:<ad>`** adıyla gelir. CLI'ın gömülü skill'leri ve 3 `cc-plugin-*` (yol `builtin`) her zaman listededir.
-- `rate_limit_event` her oturumda bir kez, `system/status`'tan hemen sonra gelir: `{status:"allowed", resetsAt:1791252000, rateLimitType:"five_hour", unifiedWindows:{five_hour:{utilization:0.58,…}, seven_day:{utilization:0.15,…}}}`.
+- `rate_limit_event` en az bir kez, ilk API yanıtından sonra gelir; tekrarlanabilir (`subagent-nobg`'de 3 kez, konumu değişir), her biri bir güncelleme olarak işlenir. Tek olay örneği: `{status:"allowed", resetsAt:1791252000, rateLimitType:"five_hour", unifiedWindows:{five_hour:{utilization:0.58,…}, seven_day:{utilization:0.15,…}}}`.
 
 **Spec'e etkisi.** §6.1 kimlik doğrulama ve `plugins` satırı "doğrulandı" oldu; skill adları `videogen:*`. §3 taban maliyet ~30K. §18 satır 1 güncellendi. Kullanıcı CLI'sıyla **eşzamanlı token yenilemesi** ayrıca zorlanmadı. M0 boyunca kullanıcının oturumu ve spike'lar aynı girişle sorunsuz çalıştı; risk M3'te izlenir.
 
@@ -84,7 +84,7 @@ denied: [ '<home>/gpu-server/VideoGen/spikes/m0/work/OUTSIDE.txt' ]
 
 | Alt spike | Gözlem (M3 için) |
 |---|---|
-| subagent | Araç adı `Agent` (init `tools`'ta `Task` da var). `system/task_started{subagent_type:"storyboarder", is_backgrounded, task_type:"local_agent"}` → `task_updated` → `task_notification` → ebeveyne `user` tool_result. Alt ajan mesajları `parent_tool_use_id` taşır; alt ajanın `stream_event`'leri iletilmez. **`task_progress` hiç gelmedi.** Yapılandırılmış çıktı: model sentetik `StructuredOutput` aracını çağırır; `result.structured_output` (nesne) ve `result.result` (aynı JSON metin) birlikte gelir |
+| subagent | `tool_use` bloğunun adı `Agent`; `init.tools` listesinde ise `Task` yer alır (`Agent` yok). `system/task_started{subagent_type:"storyboarder", is_backgrounded, task_type:"local_agent"}` → `task_updated` → `task_notification` → ebeveyne `user` tool_result. Alt ajan mesajları `parent_tool_use_id` taşır; alt ajanın `stream_event`'leri iletilmez. **`task_progress` hiç gelmedi.** Yapılandırılmış çıktı: model sentetik `StructuredOutput` aracını çağırır; `result.structured_output` (nesne) ve `result.result` (aynı JSON metin) birlikte gelir |
 | websearch | `tool_use{name:"WebSearch", input:{query, mode}}`. `tool_use_result.results` bir grup dizisidir: `{tool_use_id, content:[{title,url}]}`. `result.usage.server_tool_use.web_search_requests` arama yapılmasına rağmen **0** kaldı; sayaç olarak `searchCount` kullanılır |
 | coding | Write (create): `structuredPatch: []` boş → "+N satır" `content`'ten sayılır. Edit: `structuredPatch[].lines` içindeki `+`/`-` satırları |
 | guard | Model önce dışarıya yazmayı denedi; hook reddetti, `OUTSIDE.txt` yok, `./inside.txt` yazıldı. Model görür: `tool_result{is_error:true, content:"PreToolUse:Write hook error: Writes are confined to the run directory …"}`. `result.permission_denials` red kaydını taşır. `includeHookEvents: true` olsa da callback hook'lar için `system/hook_*` olayı **gelmedi** |
@@ -101,7 +101,7 @@ Bayraksız üç koşunun ikisinde arka plana alındı, birinde ön planda kaldı
 
 **Spec'e etkisi.** §6.1 (`env` satırı: bayrak temizlikten sonra yeniden eklenir; `permissionMode` ve `outputFormat` ayrıntıları), §6.4 (iptal sırası: iterator'ın fırlattığı hata yakalanır), §12.2 (`task_progress`'e dayanılmaz), §13.2 (Write create ve arama sayacı), §15 (korumanın kapsamı), §16.1 (fixture listesi), §18 yeni satırlar.
 
-**Fixture'lar** (`tests/fixtures/claude-streams/`, satır): basic 48 · coding 266 · guard 312 · interrupt 177 · subagent 1152 · subagent-background 880 · subagent-nobg 459 · websearch 347 · usage-response.json 1. Hepsinin her satırı `JSON.parse` ediliyor; `grep -lE 'alper|@gmail' … | wc -l` → `0`.
+**Fixture'lar** (`tests/fixtures/claude-streams/`, satır): basic 48 · coding 266 · guard 312 · interrupt 177 · subagent 1152 · subagent-background 880 · subagent-nobg 459 · websearch 347 · usage-response.json 1. Hepsinin her satırı `JSON.parse` ediliyor; kullanıcı adı/e-posta deseni için `grep -lE '<user>|@gmail' … | wc -l` → `0`.
 
 ## 6. Spike (b): sıfır token kullanım okuma
 
@@ -112,14 +112,14 @@ Bayraksız üç koşunun ikisinde arka plana alındı, birinde ön planda kaldı
 **Kanıt** (`env -u CLAUDECODE node spikes/m0/b-usage.mjs` → `PASS`, ~1,9 sn duvar saati):
 - SDK yöntemi planlandığı adla var: `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({skipBehaviors:true})` (`sdk.d.ts:3056`, kontrol isteği `get_usage`).
 - Sıfır token: iterator **0 mesaj** üretti; `session.total_cost_usd = 0`, `total_api_duration_ms = 0`, `model_usage = {}`.
-- Yanıt: `subscription_type: "max"`, `rate_limits_available: true`, `rate_limits.five_hour = {utilization: 61, resets_at: "2026-10-06T02:00:00.356002+00:00", …}`, `seven_day = {utilization: 16, …}`.
+- Yanıt: `subscription_type: "max"`, `rate_limits_available: true`, `rate_limits.five_hour = {utilization: 62, resets_at: "2026-10-06T01:59:59.987392+00:00", …}`, `seven_day = {utilization: 16, …}` (kayıtlı `usage-response.json` değerleri; ilk koşuda 61 / `02:00:00.356` görülmüştü, önceki koşu).
 - Gecikme (usage + accountInfo): 917 / 595 / 911 ms. Kapatma: giriş üreteci bitince CLI temiz çıktı.
 
 **Birimler (M2 için kritik):**
 
 | Kaynak | `utilization` | Sıfırlanma |
 |---|---|---|
-| `get_usage` → `rate_limits.{five_hour,seven_day}` | **yüzde 0..100** (61) | `resets_at`: ISO 8601 metin |
+| `get_usage` → `rate_limits.{five_hour,seven_day}` | **yüzde 0..100** (62) | `resets_at`: ISO 8601 metin |
 | `rate_limit_event` → `rate_limit_info.unifiedWindows.*` | **kesir 0..1** (0.58) | `resetsAt`: epoch saniye |
 
 **M2 footer kararı:** Birincil kaynak **`get_usage`** yoklaması (canlı tur olmadan da çalışır). `rate_limit_event` canlı tazeleme ve deneysel API bozulursa yedek. M2 eşleyicisi **kaynağa göre** normalize eder (`get_usage`: her zaman `/100` ve `Date.parse`; `rate_limit_event`: olduğu gibi ve `×1000`). Büyüklüğe göre tahmin (`v > 1 ? v/100 : v`) yanlıştır: `get_usage`'taki %1 değeri %100 gösterilir.
@@ -194,7 +194,7 @@ exit=0
 "inits": 1
 ```
 - Akış: `tool_use Agent` (6933 ms) → `task_started false` → `task_updated` / `task_notification` (15264) → `StructuredOutput` → tek `result` (18905).
-- Sızıntı kontrolü: `grep -cE 'alper|@gmail'` → `0`; org-id / `sk-ant` → `0`; 459 satırın hepsi `JSON.parse` ediliyor; betiğin kendi kontrolü (kullanıcı adı, host, ev klasörü, imza, e-posta) geçti.
+- Sızıntı kontrolü: kullanıcı adı/e-posta deseni (`<user>|@gmail`) → `0`; org-id / `sk-ant` → `0`; 459 satırın hepsi `JSON.parse` ediliyor; betiğin kendi kontrolü (kullanıcı adı, host, ev klasörü, imza, e-posta) geçti.
 - Destekleyici kanıt: `sdk.d.ts` `backgroundTasks()` için "@throws when background tasks are disabled for the session (`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS`) — nothing is backgrounded" der. Gömülü binary'de `backgroundAgentLaunchDisabled` dizgisi var.
 
 **Hüküm.** Bayrak alt ajanı ön planda tutuyor: tek `result`, ikinci `init` yok. Bayraksız davranış deterministik olmadığı için (3 koşunun 2'si arka plan) tek koşu istatistiksel kanıt değildir; SDK tipleriyle birlikte yeterli sayıldı. Savunma olarak sürücü yine **son `result`'u** esas alır ve iterator bitene kadar bekler.
@@ -208,11 +208,11 @@ exit=0
 | T1 | Görevi controller doğrudan yürüttü | Kullanıcı verisi silme bir alt ajanın yargısına bırakılmadı |
 | T1 | `~/.cache/google-chrome` atlandı | Chrome açıktı; planın kendi koşulu. Eşik yine tuttu (32 GB) |
 | T2 | Yok | — |
-| T3 | `redact.mjs`'e proje slug kuralı (`-home-alper-…` → `-home-user`) | `init.memory_paths.auto` planın grep'ini 1 yaptı; sonra 0 |
+| T3 | `redact.mjs`'e proje slug kuralı (`-home-<user>-…` → `-home-user`) | `init.memory_paths.auto` planın grep'ini 1 yaptı; sonra 0 |
 | T4 | Slug kuralı genelleştirildi; her kayıttan hemen sonra redaksiyon; otomatik sızıntı öz-kontrolü | Controller kararı: çökme kişisel veriyi redaksiyonsuz bırakmasın |
 | T4 | `lib.mjs record()`: try/catch/finally, NDJSON `finally`'de yazılır, `tolerateError` RegExp | `interrupt()` sonrası iterator fırlatıyor ve kaydı kaybettiriyordu |
 | T4 | Interrupt kuyruk tipleri yazdırılıyor; kontrol `error_during_execution` + `aborted_streaming` istiyor | İlk sürüm her hatayı yutuyordu (boş test) |
-| T4 | Kullanıcı adı kuralı + delta'lar arası maskeleme, `blockTexts` dışa aktarımı | Akış delta'ları yolu parçalara bölüyor (`/home/al` + `per/gpu`); ev klasörü kuralı yakalayamıyordu |
+| T4 | Kullanıcı adı kuralı + delta'lar arası maskeleme, `blockTexts` dışa aktarımı | Akış delta'ları yolu parçalara bölüyor (`/home/<us` + `er>/gpu`); ev klasörü kuralı yakalayamıyordu |
 | T4 | Thinking `signature` → `"redacted"` | base64 çözülünce düz metin hesap/org UUID'si içeriyor |
 | T4 | Alt ajan kontrolü `find` → `findLast` (son `result`) | Arka plan alt ajanı birden fazla `result` üretti |
 | T4 | Fazladan fixture `subagent-background.ndjson` | Erken, `structured_output`'suz `result` vakasının tek kaydı |
@@ -225,19 +225,21 @@ exit=0
 | T6 | `ss -ltnp` örneklemesi, sorgu değeri maskeleme, klasör listesi ve silme, `os.tmpdir()` koruması; önce/sonra güvenlik anlık görüntüsü; `rawHead` 600 → 800 | Kanıt ve güvenlik |
 | T7 | `AnimationMixer` eylemleri `LoopOnce` + `clampWhenFinished` | `LoopRepeat` son kareyi 0'a sarıyordu (14,77 px → 0,00 px) |
 | T8 | Ek sondaj `spikes/m0/e-no-background.mjs` + fixture `subagent-nobg.ndjson` | Controller kararı: spec §6.1'in dayandığı bayrak hiç denenmemişti |
+| T8 | Ek olarak spec §3, §6.4, §12.2, §13.2, §15, §16.1 ve `docs/superpowers/runbook.md` güncellendi; ardından nihai gözden geçirme düzeltme dalgası (kullanım semantiği, M2 errata, gizlilik, `rate_limit_event` sıklığı) | Bayrak bulgusunun ve M0 gerçeklerinin spec/runbook'a işlenmesi; final review bulguları |
 
 Commit sonu satırı: tüm commit'lerde `constraints.md`'ye uygun olarak `Co-Authored-By: Claude Opus 5.5`.
 
 ## 12. M3/M4'e devredilenler
 
 **M3 (canlı agent katmanı):**
+- **Kullanım muhasebesi (`subagent.ndjson` ile doğrulandı):** Birden fazla `result` olduğunda result başına `usage`, `num_turns`, `duration_ms` yalnızca o bölümü kapsar (result 0: cache_read 91.393 / cache_creation 998, 4 tur; result 1: 31.200 / 1.697, 2 tur); `modelUsage` ve `total_cost_usd` kümülatiftir (result 1 `modelUsage`: 122.593 / 2.695 = iki bölümün toplamı; maliyet 0,02514 → 0,03520). Muhasebe **son `result`'un** `modelUsage` / `total_cost_usd` değerini kullanır; `modelUsage` result'lar arasında toplanmaz, tek başına son `usage` alınmaz; ikisi karıştırılmaz.
 - **Birden fazla `result`:** Arka plan görevleri açıkken alt ajan bir `result` erken, biri sonra gelir; araya ikinci `system/init` girer. Bayrak (`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`) env **temizlendikten sonra** eklenir. Sürücü yine de son `result`'u esas alır; `background_tasks_changed` boşalana ve iterator bitene kadar bekler. FakeClaudeDriver `subagent-background.ndjson`'u da oynatır.
 - **İptal:** `result{error_during_execution, aborted_streaming}` sonrası iterator `Claude Code returned an error result` fırlatır. İptal yolu bunu yakalar ve adımı `cancelled` sayar. Fixture bu hatayı içermez; FakeClaudeDriver gerekirse açıkça fırlatır.
 - **`task_progress` hiç gözlenmedi.** Agent kartı ve eşleyici `task_started`, `task_notification` ve `parent_tool_use_id`'den çalışır.
 - **Thinking:** `thinking` delta'ları ve `system/thinking_tokens` olayları her oturumda var; eşleyici ikisini de işler.
 - **Plugin skill adları** `videogen:*`. Yerleşik skill'ler ve `cc-plugin-*` her zaman listede; daraltma gerekirse `skills` seçeneğiyle yapılır.
 - **Koruma kapsamı:** Spike hook'u yalnızca Write/Edit `file_path`'ini denetledi. Bash ve NotebookEdit (`notebook_path`) vektörleri M3'ün `PreToolUse`'unda ayrıca kapsanır. Red tespiti `tool_result.is_error` + `PreToolUse:<Araç> hook error:` öneki veya `result.permission_denials` ile yapılır (hook olayı gelmez).
-- **Symlink'ler mutlak yol** (`/home/alper/...`). Kurulumda üretilir ya da vendor edilir.
+- **Symlink'ler mutlak yol** (`/home/<user>/...`). Kurulumda üretilir ya da vendor edilir.
 - **`redact.mjs` akış fixture'larında idempotent değil:** yer tutucu UUID'leri yeniden numaralar. Commit edilmiş fixture'larda **asla yeniden çalıştırılmaz**; sadece yeni kayıtta bir kez.
 - `lib.mjs record()` seçenekleri sığ birleştirir: `options.env` verilirse `cleanEnv()` atlanır; env her zaman `cleanEnv()` üzerine kurulur.
 - WebSearch sayacı için `server_tool_use.web_search_requests` değil `searchCount`; Write create'te `structuredPatch` boş.

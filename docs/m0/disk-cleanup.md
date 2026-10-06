@@ -9,13 +9,13 @@ gemma4:e4b       c6eb396dbd59    9.6 GB    2 months ago
 qwen3.5:4b       2a654d98e6fb    3.4 GB    2 months ago    
 bge-m3:latest    790764642607    1.2 GB    2 months ago    
 qwen3:4b         359d7dd4bcda    2.5 GB    2 months ago    
-1.8G	/home/alper/.npm
-695M	/home/alper/.cache/go-build
-1.1G	/home/alper/.cache/google-chrome
-762M	/home/alper/.cache/uv
-718M	/home/alper/gpu-server/jet-engine/node_modules
-635M	/home/alper/gpu-server/remotion-test/node_modules
-8.7G	/home/alper/gpu-server/minillm-lab
+1.8G	~/.npm
+695M	~/.cache/go-build
+1.1G	~/.cache/google-chrome
+762M	~/.cache/uv
+718M	~/gpu-server/jet-engine/node_modules
+635M	~/gpu-server/remotion-test/node_modules
+8.7G	~/gpu-server/minillm-lab
 ```
 
 Not: Chrome açıktı → `~/.cache/google-chrome` atlandı. minillm-lab kapı kontrolü temiz (status/unpushed/stash boş; HEAD = origin/main eae3905; yok sayılanlar yalnızca .venv'ler).
