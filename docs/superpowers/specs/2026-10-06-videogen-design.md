@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Tarih | 2026-10-06 |
-| Durum | Tasarım onaylandı (brainstorming + grilling), uygulama planı bekleniyor |
+| Durum | Tasarım onaylandı (brainstorming + grilling). M0 doğrulaması tamamlandı (`docs/m0/report.md`); sırada M2 ve M1 |
 | Sahibi | Alper (tek kullanıcı) |
 | Kapsam | v1: ürün adından yayına hazır TikTok "içinde ne var" videosuna kadar ajanlı üretim platformu |
 
@@ -43,8 +43,8 @@ Bu doküman; kullanıcı gereksinimlerini, brainstorming ve grilling turlarında
 |---|---|---|
 | GPU | RTX 3060 Laptop, 5,67 GB kullanılabilir VRAM, hibrit (Intel iGPU) | Aynı anda tek GPU işi; Blender her zaman `blender-gpu` PRIME sarmalayıcısıyla (düz `blender` iGPU'ya düşer, ~3× yavaş) |
 | RAM | 14 GB, swap 3,1–3,4/4 GB dolu; Docker yığını ~2,2 GB (Langfuse ~1,9 GB) | Claude süreci başına ~280–300 MB (ölçüldü); süreç sınırı ve RAM ön kontrolü |
-| Disk | 7,7 GB boş; onaylı temizlik sonrası ~34 GB | 45 sn video ≈ 1,6 GB geçici PNG kare dizisi; kareler render sonrası silinir |
-| Claude | Claude Code, **Max** abonelik (`claude auth status`), API key yok | 5 saatlik ve haftalık kullanım pencereleri; boş bir oturumun taban maliyeti ~21K token |
+| Disk | M0 temizliği: 8,1 → 32 GB boş (Chrome önbelleği açık olduğu için atlandı) | 45 sn video ≈ 1,6 GB geçici PNG kare dizisi; kareler render sonrası silinir |
+| Claude | Claude Code, **Max** abonelik (`claude auth status`), API key yok | 5 saatlik ve haftalık kullanım pencereleri; boş bir oturumun taban maliyeti ~30K token (M0: haiku, soğuk önbellek, `cache_creation_input_tokens` 29.962 + 10 girdi + 51 çıktı) |
 | Ücretli API | **Kesinlikle yok** | TTS, müzik, SFX ve 3D yerel ya da lisanslı ücretsiz kaynaklardan gelir |
 | Ağ | Sadece localhost, şifresiz | 127.0.0.1'e bağlanma + Host/Origin koruması |
 | Diğer | Node 24.18 (nvm), npm 12 (install script'lerini engeller), sistem Python 3.14 (torch desteklemez → uv ile 3.12 venv'leri) | Kurulum adımlarında `npm approve-scripts` ve ayrı venv |
@@ -128,7 +128,7 @@ Bu doküman; kullanıcı gereksinimlerini, brainstorming ve grilling turlarında
 ### 5.2 Depo düzeni
 
 ```
-/home/alper/gpu-server/VideoGen/            (git deposu)
+~/gpu-server/VideoGen/            (git deposu)
   apps/web/            React 19 + Vite 8 + Tailwind v4 + TanStack Query
   apps/api/            Fastify 5
   apps/worker/         orchestrator, scheduler, drivers
@@ -159,7 +159,7 @@ Bu doküman; kullanıcı gereksinimlerini, brainstorming ve grilling turlarında
 | Bileşen | Sürüm | Not |
 |---|---|---|
 | Node | 24.18 (`.nvmrc`) | |
-| `@anthropic-ai/claude-agent-sdk` | M0'daki güncel 0.3.x, **tam sürüm** (bugün 0.3.290) | Gömülü linux-x64 binary'si (246 MB) kullanılır |
+| `@anthropic-ai/claude-agent-sdk` | M0'daki güncel 0.3.x, **tam sürüm** (bugün 0.3.290) | Gömülü linux-x64 binary'si (≈ 250 MB; ölçülen 249.687.224 bayt) kullanılır |
 | `remotion` + `@remotion/*` | **4.0.533 tam** | Pilotla aynı; tüm `@remotion/*` paketleri aynı sürümde |
 | three / @react-three/fiber | 0.186.1 / 9.8.1 | jet-engine'de çalıştı |
 | Fastify / drizzle-orm / TanStack Query | 5.12 / 0.45 / 5.104 | npm'de doğrulandı |
@@ -177,7 +177,8 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 - `ClaudeDriver` arayüzünün iki gerçekleştirimi var: `SdkClaudeDriver` ve testler için `FakeClaudeDriver` (§16).
 - Her oturum `query()` ile ve streaming input modunda açılır.
 - Oturum kimliği spawn'dan önce bir UUID olarak üretilir ve audit'e yazılır.
-- Kimlik doğrulama: kullanıcının Claude.ai OAuth girişi (`apiKeySource: none`). **`--bare` asla kullanılmaz**, çünkü OAuth'u kapatır.
+- Kimlik doğrulama: kullanıcının Claude.ai OAuth girişi (`apiKeySource: none`; M0'da gömülü CLI 2.1.290 ile doğrulandı). **`--bare` asla kullanılmaz**, çünkü OAuth'u kapatır.
+- **Sonuç mesajları (M0):** Tek sorgu birden fazla `result` üretebilir (arka plana alınan alt ajan; `result_index` 0, 1, …). Sürücü son `result`'u esas alır ve iterator bitene kadar bekler. Kullanım için esas alınan değerler son `result`'un kümülatif `modelUsage` / `total_cost_usd` alanlarıdır; result başına `usage` / `num_turns` segment farkıdır, ikisi karıştırılmaz (ayrıntı §6.5). `outputFormat` ile model sentetik `StructuredOutput` aracını çağırır; veri `result.structured_output`'tadır.
 
 **Her oturumun ortak yapılandırması:**
 
@@ -185,9 +186,9 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 |---|---|---|
 | `settingSources` | `[]` | Kullanıcının global hook'ları (superpowers, last30days), plugin'leri ve MCP'leri yüklenmez (canlı denemede kanıtlandı) |
 | `strictMcpConfig` | `true`; sadece `videogen` (in-process) | Pipeline, üçüncü taraf MCP'lere bağımlı değil. claude-video-vision `npx @latest` ile her açılışta ağdan iniyor (tedarik zinciri ve tekrarlanabilirlik riski). Kare inceleme bizim `extract_frames` aracımız + Read ile yapılır |
-| `plugins` | `[{type:'local', path:'claude-plugin/'}]` | Skill'ler: remotion-\*, ffmpeg, video-use, manim-video (symlink); rol agent'ları; uyarlanmış kılavuzlar. Plugin üzerinden skill yüklemesi M0'da doğrulanır |
-| `env` | Temizlenmiş: `CLAUDECODE` ve `CLAUDE_CODE_*` çıkarılır; `ENABLE_TOOL_SEARCH=false`; pipeline rollerinde `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` | Ertelenmiş araçlar ekstra bir tur maliyeti getirir; arka plan alt görevleri birden fazla `result` olayı üretir |
-| `permissionMode` | `dontAsk` + `permissionPrompts:'none'` + rol bazlı `allowedTools` (ön onay) + **`PreToolUse` hook callback'i** (yol ve komut koruması) | Gözetimsiz çalışma. `dontAsk` modunda önceden onaylanmamış araçlar `canUseTool` çağrılmadan reddedilir (SDK tipleri, 0.3.290). Bu yüzden koruma `canUseTool`'da değil, her araç çağrısından önce çalışan `PreToolUse`'ta durur; `permissionDecision:'deny'` ile birlikte modele gidecek gerekçeyi döndürür. **`bypassPermissions` asla** (ev klasöründe gerçek projeler ve kimlik bilgileri var) |
+| `plugins` | `[{type:'local', path:'claude-plugin/'}]` | Skill'ler: remotion-\*, ffmpeg, video-use, manim-video (symlink); rol agent'ları; uyarlanmış kılavuzlar. M0'da doğrulandı: symlink'li skill'ler `videogen:<ad>` adıyla yüklenir (ör. `videogen:remotion-render`); CLI'ın yerleşik skill'leri ve `cc-plugin-*` plugin'leri de her zaman listededir. Symlink hedefleri mutlak yol olduğu için kurulumda üretilir |
+| `env` | Temizlenmiş: `CLAUDECODE` ve `CLAUDE_CODE_*` çıkarılır; `ENABLE_TOOL_SEARCH=false`; pipeline rollerinde `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` **temizlikten sonra yeniden eklenir** (temizleyici tüm `CLAUDE_CODE_*` değişkenlerini siler) | Ertelenmiş araçlar ekstra bir tur maliyeti getirir. Arka plan alt görevleri birden fazla `result` olayı üretir: M0'da bayraksız 3 koşunun 2'sinde `Agent` çağrısı arka plana alındı; bayrakla 1/1 koşuda ön planda kaldı ve tek `result` geldi |
+| `permissionMode` | `dontAsk` + `permissionPrompts:'none'` + rol bazlı `allowedTools` (ön onay) + **`PreToolUse` hook callback'i** (yol ve komut koruması) | Gözetimsiz çalışma. `dontAsk` modunda önceden onaylanmamış araçlar `canUseTool` çağrılmadan reddedilir (SDK tipleri, 0.3.290). Bu yüzden koruma `canUseTool`'da değil, her araç çağrısından önce çalışan `PreToolUse`'ta durur; `permissionDecision:'deny'` ile birlikte modele gidecek gerekçeyi döndürür. M0'da doğrulandı: red, modele `tool_result{is_error:true}` + `PreToolUse:<Araç> hook error:` önekiyle gider ve `result.permission_denials`'a yazılır; callback hook'lar için `system/hook_*` olayı gelmez. **`bypassPermissions` asla** (ev klasöründe gerçek projeler ve kimlik bilgileri var) |
 | `includePartialMessages`, `forwardSubagentText`, `agentProgressSummaries` | `true` | Canlı iz ve alt ajan görünürlüğü |
 | `thinking` | `{type:'adaptive', display:'summarized'}` | Reasoning satırları için düşünme metni |
 | `cwd` | `~/videogen-data/runs/<runId>/` | Yazma sınırı |
@@ -241,15 +242,17 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
   - boş disk ≥ 3 GB + kare tahmini
   - `nvidia-smi` boş VRAM ≥ 4 GB
   - `ollama ps` boş
-- **Kullanım muhafızı:** Kullanım bilgisi `rate_limit_event`'ten (her oturumda gelir) ve boştayken 5 dakikada bir `get_usage` kontrol çağrısından (sıfır token) okunur. Davranış:
+- **Kullanım muhafızı:** Kullanım bilgisi boştayken 5 dakikada bir `get_usage` kontrol çağrısından (sıfır token; birincil kaynak) ve `rate_limit_event`'ten (en az bir kez, ilk API yanıtından sonra gelir; tekrarlanabilir, her biri bir güncelleme olarak işlenir; canlı tazeleme ve yedek) okunur. **Birimler kaynağa göre farklıdır (M0):** `get_usage` → `rate_limits.{five_hour,seven_day}.utilization` yüzde 0..100, `resets_at` ISO 8601 metin; `rate_limit_event` → `rate_limit_info.unifiedWindows.*.utilization` kesir 0..1, `resetsAt` epoch saniye. Eşleyici büyüklüğe göre değil, kaynağa göre normalize eder. Davranış:
   - 5 saatlik pencere ≥ %80 veya haftalık ≥ %90 olursa yeni run ve reviewer fan-out'u başlamaz.
   - Limit aşılırsa (`status: rejected`), çalışan adım "limit bekleniyor" durumuna geçer ve `resetsAt` anında kendiliğinden devam eder.
   - Her geçiş audit'e yazılır.
 - **İptal sırası:** `interrupt()` → sonucun gelmesi beklenir (`aborted_*`) → giriş üreteci kapatılır → 10 sn sonra süreç grubuna SIGTERM, ardından SIGKILL. Adım `cancelled` olur.
+  - M0'da gözlenen sıra: `user` "[Request interrupted by user]" → kalan `stream_event`'ler → `result{subtype:'error_during_execution', terminal_reason:'aborted_streaming', is_error:true}` → ardından SDK iterator'ı `Claude Code returned an error result` hatasını **fırlatır**. İptal yolu bu hatayı yakalar ve iptal olarak sayar. Yakalanmayan hata süreci düşürür (M0'da spike betiği böyle çöktü).
 
 ### 6.5 Transcript ve kullanım muhasebesi
 
 - Her oturum için şunlar kaydedilir: `result.usage`, `modelUsage`, `num_turns`, `terminal_reason`, `permission_denials`, süre ve alt ajan istatistikleri. Bunlar video başına toplanır; kullanım maliyeti kütüphanede görünür.
+- **Kullanım muhasebesi (M0, `subagent.ndjson`):** Arka plana alınan koşularda her `result`'ın `usage`, `num_turns` ve `duration_ms` alanları yalnızca kendi bölümünü kapsar (segment farkı); `modelUsage` ve `total_cost_usd` ise kümülatiftir (result 0: `usage` cache_read 91.393 / cache_creation 998, 4 tur; result 1: `usage` 31.200 / 1.697, 2 tur, `modelUsage` 122.593 / 2.695 = toplam; maliyet 0,02514 → 0,03520). Muhasebe **son `result`'un** `modelUsage` ve `total_cost_usd` değerini esas alır; `modelUsage` result'lar arasında toplanmaz, tek başına son `usage` alınmaz; ikisi asla karıştırılmaz.
 - İş bitince `~/.claude/projects/<slug>/<sid>.jsonl` dosyası ve `subagents/` klasörü sıkıştırılıp arşive kopyalanır. Sebep: `~/.claude/projects` 30 günde temizleniyor.
 
 ### 6.6 Güvenlik (agent'lar)
@@ -316,6 +319,12 @@ Fixer'a **sadece başarısız kontrol kimlikleri, kanıtları ve düzeltme ipuç
 - `build_scene()` Blender'ı headless ve render'sız çalıştırır (CPU, saniyeler). Çıktılar `.blend` ve `scene.glb`.
 - Three.js taslağı `scene.glb`'yi yükler. Patlatma ve kamerayı **aynı SceneSpec anahtar karelerinden** interpolasyonla üretir. Gölgelendirme daha basittir ama düzen, kamera, zamanlama ve etiketler aynıdır.
 - **Eşdeğerlik testi:** Her build'de seçili 5 karede anchor'ların ekran konumları iki taraftan hesaplanır: Blender tarafında `anchors.json`, Three.js tarafında Node içinde `three` matematiğiyle (`Vector3.project`; render yok, GPU yok, milisaniyeler). Fark 8 px'ten fazlaysa build başarısız sayılır. Konvansiyonlar: 1 birim = 1 cm; Blender Z-yukarı, glTF Y-yukarı dönüşümü; kamera FOV'u lens ve sensör genişliğinden türetilir.
+- **M0 sonucu (spike d, Blender 5.2.2 / three 0.186.1):** 5 kare × 3 anchor'da en kötü fark **0,00 px**. Uygulamada uyulacak gerçekler:
+  - `AnimationMixer` eylemleri `LoopOnce` + `clampWhenFinished` ile oynatılır. Varsayılan `LoopRepeat`, klip süresine eşit zamanda (son kare) 0'a sarar; M0'da bu 14,77 px hata verdi.
+  - Dışa aktarıcı kamerayı `yfov = 2·atan(sensör/2 ÷ lens)` ve `aspectRatio` (0,5625) ile yazar; dikey karede `sensor_fit AUTO` için ek düzeltme gerekmez.
+  - Kamera (TRACK_TO dahil) `nla.bake(visual_keying)` ile kare kare pişirilir; her düğüm kendi klibini alır, tek mixer hepsini oynatır. M0'da GLB'nin kendi klipleri kullanıldı.
+  - Z-yukarı → Y-yukarı dönüşümünü dışa aktarıcı yapar: `(x, y, z)` → `(x, z, −y)`.
+  - Birimler 1:1 aktarılır, ölçekleme yoktur. "1 birim = 1 cm" builder tarafında uygulanır.
 - **Pilottan öğrenilenler (kütüphane varsayılanları):**
   - kapalı yay uçları
   - mekanizmanın çalıştığı yeri gösteren zorunlu bir "mekanizma çekimi"
@@ -548,7 +557,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 ```
 
 - **Durumlar:** sırada · başlıyor · düşünüyor · araç çalıştırıyor · GPU bekliyor (sıradaki yeriyle) · limit bekleniyor (sıfırlanma saatiyle) · tamamlandı · başarısız · durduruldu.
-- **Alt ajanlar** `task_started`, `task_progress` ve `task_notification` olaylarından ve `parent_tool_use_id` alanından türetilir. Kartlar iç içe gösterilir.
+- **Alt ajanlar** `task_started`, `task_progress` ve `task_notification` olaylarından ve `parent_tool_use_id` alanından türetilir. Kartlar iç içe gösterilir. M0'da `task_progress` hiç gelmedi ve alt ajanın `stream_event`'leri iletilmedi; kart `task_started` / `task_notification` ve `parent_tool_use_id`'li mesajlarla tek başına çalışmalıdır.
 - Karta tıklanınca tam iz açılır: ThinkingState satırları, araç çağrıları, diff'ler, ham olaylar.
 
 ### 12.3 Canlılık
@@ -587,7 +596,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 - **Audit gezgini:** Filtreler: run, video, agent, olay türü, tarih. Her satırdan ham transcript'e, diff'e ve artefakta inilir. Zincir doğrulama durumu gösterilir.
 - **Varlıklar:** Müzik, SFX ve 3D defteri; lisans alanları; ekleme ve onay.
 - **Ayarlar:**
-  - Claude bağlantısı: `auth status`, giriş akışı, gömülü CLI sürümü
+  - Claude bağlantısı: `auth status`, giriş akışı, gömülü CLI sürümü. **v1 giriş akışı:** ekranda terminal talimatı (`! claude auth login`) + 5 sn'de bir `auth status` yoklaması. TTY'siz `auth login` URL basıp stdin'den kod bekliyor (M0, spike c); ekranda URL + kod yapıştırma v1.1'e kaldı
   - rol başına model ve effort
   - eşikler
   - kanal kimliği
@@ -603,8 +612,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 - **Olay → varyant eşlemesi:**
   - **Steps:** orchestrator adımları ve `task_started` alt görevleri; TodoWrite girdileri.
   - **Reasoning:** `thinking` delta'ları (summarized). Metin boşsa `thinking_tokens` sayacı gösterilir.
-  - **Search:** `WebSearch` sorgusu (`input_json_delta`) ve sonuç `{title, url}` satırları (alan adıyla); WebFetch URL'leri "okundu" olarak.
-  - **Coding:** Read (`file_path`, satır sayısı); Edit/Write (`structuredPatch` üzerinden +eklenen/−silinen); Bash ve MCP çalıştırmaları (komut veya araç adı, durum, süre).
+  - **Search:** `WebSearch` sorgusu (`input_json_delta`) ve sonuç `{title, url}` satırları (alan adıyla); WebFetch URL'leri "okundu" olarak. M0: `tool_use_result.results` gruplar halindedir (`[{tool_use_id, content:[{title,url}]}]`); arama sayısı `searchCount`'tan alınır, `usage.server_tool_use.web_search_requests` 0 kalıyor.
+  - **Coding:** Read (`file_path`, satır sayısı); Edit/Write (`structuredPatch` üzerinden +eklenen/−silinen; M0: Write ile yeni dosyada `structuredPatch` boş gelir, +N `content`'ten sayılır); Bash ve MCP çalıştırmaları (komut veya araç adı, durum, süre).
 - Satırlar `parent_tool_use_id` ile ilgili alt ajanın altına yerleşir.
 
 ### 13.3 Tema (Tailwind v4 `@theme`)
@@ -656,7 +665,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
 - **Ağ:** API sadece 127.0.0.1'e bağlanır. Yazma uçlarında Host/Origin kontrolü ile CSRF ve DNS-rebinding koruması vardır (dag-wireboard `server/app.py:25-90` modeli). CORS kapalıdır.
 - **Gizli bilgiler:** `~/videogen-data/secrets/` (0600) altında durur. Loglara, audit'e, agent env'ine ve UI'ya asla çıkmaz; UI'da sadece var/yok ve son kullanma tarihi gösterilir.
-- **Agent izinleri:** `bypassPermissions` asla kullanılmaz. `PreToolUse` hook'u yazma yollarını run klasörüyle sınırlar. Kısıtlı Bash ve ağır komut yasağı uygulanır (§6.3).
+- **Agent izinleri:** `bypassPermissions` asla kullanılmaz. `PreToolUse` hook'u yazma yollarını run klasörüyle sınırlar (M0'da `dontAsk` altında Write `file_path` kaçışıyla doğrulandı). Hook her yazma vektörünü kapsamalıdır (M3): Bash komutları ve NotebookEdit `notebook_path` de denetlenir (M0 spike'ı yalnızca Write `file_path`'i doğruladı). Kısıtlı Bash ve ağır komut yasağı uygulanır (§6.3).
 - Ücretli API muhafızı ve bağımlılık kilidi (§6.6, §5.3).
 
 ## 16. Test stratejisi
@@ -664,6 +673,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 ### 16.1 Değiştirilebilir sürücüler
 
 - **`FakeClaudeDriver`:** `tests/fixtures/claude-streams/` altındaki **gerçek** stream-json kayıtlarını hızlandırılmış zamanlamayla oynatır. Kayıtlar M0'daki haiku denemelerinden alınır (tasarım sırasında yapılan canlı denemelerin çıktıları başlangıç noktasıdır). Rol bazlı senaryolar: normal akış, alt ajanlı akış, uzun sessizlik, hata, limit.
+  - M0 kayıtları (`{t, m}` satırları): `basic`, `subagent` (arka plana alınmış; iki `result`, ikisinde de `structured_output`), `subagent-background` (erken `structured_output`'suz `result`), `subagent-nobg` (bayrakla tek `result`), `websearch`, `coding`, `guard`, `interrupt`; ayrıca `usage-response.json`. `interrupt` kaydı son `result`'ta biter; iterator'ın ardından fırlattığı hatayı sahte sürücü açıkça taklit eder.
+  - Kayıtlar `spikes/m0/redact.mjs` ile **yalnızca kayıttan hemen sonra bir kez** temizlenir. Betik akış dosyalarında idempotent değildir (yer tutucu UUID'leri yeniden numaralar); commit edilmiş kayıtlarda yeniden çalıştırılmaz.
 - **`FakeRenderDriver`:** ffmpeg `testsrc2` ile 2 sn'lik 270×480 videolar üretir ve gerçekçi kare ilerleme olayları yayar.
 - **TikTok mock sunucusu:** Fastify, rastgele port. `creator_info`, `inbox/video/init`, PUT ve `status/fetch` uçlarını taklit eder.
 
@@ -731,15 +742,19 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
 | Varsayım / risk | Doğrulama | Yedek plan |
 |---|---|---|
-| SDK'nın gömülü binary'si `~/.claude` OAuth bilgilerini kullanıyor; kullanıcının terminaldeki CLI'sıyla aynı anda token yenilemesi sorun çıkarmıyor | M0 spike (a) | `pathToClaudeCodeExecutable` ile kurulu CLI kullanılır ve sürüm her açılışta kontrol edilir |
-| `get_usage` sıfır token harcıyor. SDK'da bu çağrı `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET` adıyla geçiyor ve "her sürümde değişebilir" uyarısı taşıyor | M0 spike (b); çağrı tek bir adaptörün arkasında tutulur, SDK yükseltmesinde gerçek smoke ile kontrol edilir | Son `rate_limit_event`, "x dk önce" damgasıyla |
-| `auth login` TTY olmadan çalışıyor | M0 spike (c) | Ekranda talimat: terminalde `! claude auth login`; ekran durumu yoklar |
+| SDK'nın gömülü binary'si `~/.claude` OAuth bilgilerini kullanıyor; kullanıcının terminaldeki CLI'sıyla aynı anda token yenilemesi sorun çıkarmıyor | M0: doğrulandı (docs/m0/report.md): `apiKeySource: none`, gömülü CLI 2.1.290. Eşzamanlı token yenilemesi ayrıca zorlanmadı; M0 boyunca sorun görülmedi, M3'te izlenir | `pathToClaudeCodeExecutable` ile kurulu CLI kullanılır ve sürüm her açılışta kontrol edilir |
+| `get_usage` sıfır token harcıyor. SDK'da bu çağrı `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET` adıyla geçiyor ve "her sürümde değişebilir" uyarısı taşıyor | M0: doğrulandı (docs/m0/report.md): 0 mesaj, `total_cost_usd` 0, ~0,6–0,9 sn. Birim: yüzde 0..100 + ISO `resets_at` (`rate_limit_event`: 0..1 + epoch sn). Çağrı tek bir adaptörün arkasında tutulur, SDK yükseltmesinde gerçek smoke ile kontrol edilir | Son `rate_limit_event`, "x dk önce" damgasıyla |
+| `auth login` TTY olmadan çalışıyor | M0: kısmen doğrulandı (docs/m0/report.md): URL basıyor, stdin'den kod bekliyor, 127.0.0.1 callback dinliyor; kod yapıştırma test edilmedi → v1'de yedek plan, URL + kod v1.1 | Ekranda talimat: terminalde `! claude auth login`; ekran durumu yoklar |
 | Chatterbox 5,67 GB VRAM'e sığıyor | M1 ölçümü | FreyaTTS (1,5 GB) |
 | Video başına kullanım (token, 5 saatlik pencere payı) bilinmiyor | M4'te ölçülür | Rol modelleri ve reviewer sayısı ayarlanır |
 | Güvenli alan pikselleri resmi değil (üçüncü taraf değerler çelişiyor) | Kullanıcının telefonundan ekran görüntüleriyle kalibrasyon (M5) | Pilot kılavuzundaki değerler (150–1510 dikey, sağ 130 px) |
 | −14 LUFS resmi bir TikTok değeri değil | Kanal konvansiyonu; ilk 10 yayından sonra gözden geçirilir | — |
 | Karmaşık ürünlerde prosedürel model kalitesi | Zorluk kapısı (§7.1) | CC0 varlık kaynakları; olmuyorsa "insan gerekli" |
 | SDK veya CLI protokol değişikliği | Tam sürüm sabitleme; yükseltmeden önce gerçek smoke | — |
+| İzolasyon: `settingSources: []` + `strictMcpConfig` ile kullanıcı hook/plugin/MCP/skill'leri yüklenmez; plugin skill'leri symlink'le yüklenir | M0: doğrulandı (docs/m0/report.md): hook olayı 0, MCP 0; skill'ler `videogen:*` adıyla | — |
+| `dontAsk` altında `PreToolUse` hook'u run klasörü dışına yazmayı engelliyor | M0: doğrulandı (docs/m0/report.md): run dışına Write reddedildi (matcher `Write\|Edit`, `file_path`), `permission_denials`'a yazıldı. Bash ve NotebookEdit vektörleri M3 testlerinde | Bash izin listesi daraltılır; NotebookEdit `allowedTools` dışında kalır |
+| Blender GLB → Three.js anchor eşdeğerliği ≤ 8 px | M0: doğrulandı (docs/m0/report.md): 0,00 px; mixer `LoopOnce` + clamp şart; birimler 1:1 | — |
+| SDK alt ajanı kendiliğinden arka plana alabiliyor → tek sorguda birden fazla `result` ve ikinci `system/init` | M0: bayraksız 3 koşunun 2'sinde gözlendi; `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` (temizlikten sonra eklenir) ile 1/1 koşuda tek `result` | Sürücü son `result`'u esas alır, `background_tasks_changed` boşalana ve iterator bitene kadar bekler |
 
 ## 19. Gelecek (v1 sonrası)
 

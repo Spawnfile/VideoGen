@@ -7,3 +7,5 @@ test-results/
 playwright-report/
 .claude/
 CLAUDE.md
+spikes/m0/node_modules/
+spikes/m0/work/
