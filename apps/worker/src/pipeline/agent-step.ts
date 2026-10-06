@@ -20,6 +20,7 @@ export async function runAgentSession(manager: SessionManager, req: StartRequest
       onStatus: (id, st) => {
         if (id !== req.id) return;
         if (st === 'waiting_limit') ctx.status('waiting_limit', 'kullanım limiti: sıfırlanınca kendiliğinden sürecek');
+        else if (st === 'waiting_gpu') ctx.status('waiting_gpu', 'GPU sırası bekleniyor');
         else if (st === 'starting' || st === 'thinking' || st === 'tool') ctx.status('running', null);
       },
       onEnd: (id, end, info) => { if (id !== req.id) return; off(); offAbort(); resolve({ end, limited: info.limited }); },

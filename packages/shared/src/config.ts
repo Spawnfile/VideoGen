@@ -29,7 +29,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     fixtures: { claudeAuthStatus: env.VG_FIXTURE_CLAUDE_AUTH, usage: env.VG_FIXTURE_USAGE },
     usagePollMs: Number(env.VG_USAGE_POLL_MS ?? 300_000),
     claudeDriver: env.VG_CLAUDE_DRIVER === 'fake' ? 'fake' : 'sdk',
-    devEndpoints: env.VG_DEV_ENDPOINTS === '1',
+    // M3 minor 5: the dev session endpoint must never open real Claude sessions.
+    devEndpoints: env.VG_DEV_ENDPOINTS === '1' && env.VG_CLAUDE_DRIVER === 'fake',
     liveness: { quietAfterMs: Number(env.VG_QUIET_AFTER_MS ?? 10_000), stuckAfterMs: Number(env.VG_STUCK_AFTER_MS ?? 120_000) },
     chatIdleMs: Number(env.VG_CHAT_IDLE_MS ?? 600_000),
     render: {

@@ -9,7 +9,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { getSession, insertSession } from '@videogen/db';
 import { FakeClaudeDriver, groupAlive, type ClaudeDriver, type SessionSpec } from '@videogen/claude';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
-import { SessionManager, type ManagerDeps } from '../src/agents/manager.ts';
+import { SessionManager, type ManagerDeps, type ToolHost, type ToolSession } from '../src/agents/manager.ts';
 import { reapOrphans, recoverOnStartup, writePidFile } from '../src/agents/pids.ts';
 import { archiveTranscript } from '../src/agents/transcripts.ts';
 
@@ -117,6 +117,45 @@ describe('SessionManager', () => {
     await listener.end();
     const { rows } = await t.pool.query("SELECT count(*)::int AS n FROM audit_log WHERE session_id = $1 AND action = 'agent.session.maybe_stuck'", [id]);
     expect(rows[0].n).toBe(1);
+  });
+
+  it('a worker-side tool call (Blender, a GPU queue) keeps a silent session alive and shows the GPU wait (plan B8, B9)', async () => {
+    const specs: SessionSpec[] = [];
+    const fake = new FakeClaudeDriver({ speed: 0 });
+    const driver: ClaudeDriver = { kind: 'fake', start: (s) => { specs.push(s); return fake.start(s); } };
+    let finish = () => {};
+    const tools: ToolHost = {
+      ports: (s) => ({
+        buildScene: async () => {
+          s.gpuWait({ position: 1 });
+          await new Promise<void>((r) => { finish = r; });
+          s.gpuWait(null);
+          return { ok: true, errors: [], warnings: [], report: null, equivalence: null, files: null };
+        },
+      }),
+    };
+    const m = make({ driver, tools, quietAfterMs: 40, stuckAfterMs: 120 });
+    const id = await m.start({ kind: 'pipeline', role: 'builder', prompt: 'p', runId: randomUUID(), fakeScript: { fixture: 'basic', stall: { afterIndex: 2, ms: 60_000, cpuPct: 0, zeroCpuAfterMs: 0 } } });
+    await vi.waitFor(async () => expect(await status(id)).toBe('thinking'));
+    const call = specs[0]!.tools.find((t) => t.name === 'build_scene')!.handler({});
+    await vi.waitFor(async () => expect(await status(id)).toBe('waiting_gpu'));
+    await new Promise((r) => setTimeout(r, 400));
+    const stuck = async () => (await t.pool.query("SELECT count(*)::int AS n FROM audit_log WHERE session_id = $1 AND action = 'agent.session.maybe_stuck'", [id])).rows[0].n;
+    expect(await stuck()).toBe(0);
+    finish();
+    await call;
+    await vi.waitFor(async () => expect(await status(id)).toBe('tool'));
+    await vi.waitFor(async () => expect(await stuck()).toBe(1), { timeout: 3000 }); // silent and idle again: the warning comes back
+  });
+
+  it('cancelling a session aborts the signal its tools received', async () => {
+    let seen: ToolSession | null = null;
+    const m = make({ tools: { ports: (s) => { seen = s; return {}; } } });
+    const id = await m.start({ kind: 'pipeline', role: 'builder', prompt: 'p', runId: randomUUID(), fakeScript: STALL });
+    await vi.waitFor(async () => expect(await status(id)).toBe('thinking'));
+    expect(seen!.signal.aborted).toBe(false);
+    await m.cancel(id);
+    expect(seen!.signal.aborted).toBe(true);
   });
 
   it('retry resumes the same Claude session as a child session and cancels the old one', async () => {

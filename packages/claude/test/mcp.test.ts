@@ -76,4 +76,20 @@ describe('videogen MCP tools', () => {
     ]);
     expect(diffJson({ a: 1 }, { a: 1 })).toEqual([]);
   });
+
+  it('offers build_scene and render_preview_stills only when the worker supplies them; a failed build is a tool error', async () => {
+    const dir = run();
+    const plain = videogenTools({ role: ROLES.builder, runDir: dir, ports: ports(), specs: new SpecStore(join(dir, 'spec')) }).map((t) => t.name);
+    expect(plain).not.toContain('build_scene');
+    const failed = { ok: false, errors: ['product.py satır 3: NameError'], warnings: [], report: null, equivalence: null, files: null };
+    const p = { ...ports(), buildScene: vi.fn(async () => failed), previewStills: vi.fn(async () => { throw new Error('Önce build_scene ile başarılı bir build al.'); }) };
+    const tools = videogenTools({ role: ROLES.builder, runDir: dir, ports: p, specs: new SpecStore(join(dir, 'spec')) });
+    expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['build_scene', 'render_preview_stills']));
+    const b = await call(tools, 'build_scene', {});
+    expect(b.isError).toBe(true);
+    expect(JSON.parse(text(b)).errors).toEqual(['product.py satır 3: NameError']);
+    const s = await call(tools, 'render_preview_stills', { frames: [0] });
+    expect(s).toMatchObject({ isError: true, content: [{ text: 'Önce build_scene ile başarılı bir build al.' }] });
+    expect(videogenTools({ role: ROLES.chat, runDir: dir, ports: p, specs: new SpecStore(join(dir, 'spec')) }).map((t) => t.name)).toContain('build_scene'); // chat owns every tool; the worker never supplies the ports to chat (scene-tools test)
+  });
 });

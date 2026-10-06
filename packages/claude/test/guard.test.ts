@@ -69,6 +69,20 @@ describe('Bash', () => {
     expect(denied(evaluateToolUse(ctx('builder'), 'Bash', { command: 'cat scene/link/x' }))).toMatch(/inside the run directory/);
   });
 
+  it('judges heavy commands by the program name only: a file name that mentions ffmpeg is fine (M3 minor 4)', () => {
+    expect(denied(evaluateToolUse(ctx('builder'), 'Bash', { command: 'cat scene/notes-ffmpeg.md' }))).toBeNull();
+    expect(denied(evaluateToolUse(ctx('builder'), 'Bash', { command: 'env ffmpeg -i a.mp4' }))).toMatch(/mcp__videogen__extract_frames/);
+    expect(denied(evaluateToolUse(ctx('builder'), 'Bash', { command: 'blender -b x.blend; ls' }))).toMatch(/mcp__videogen__build_scene/);
+    expect(denied(evaluateToolUse(ctx('builder'), 'Bash', { command: 'cat scene/a | sh' }))).toMatch(/chaining/);
+  });
+
+  it('allows only output-format jq flags: no second file through -f, --rawfile, --slurpfile, -L (M3 minor 3)', () => {
+    expect(denied(evaluateToolUse(ctx('builder'), 'Bash', { command: "jq -r -c '.parts' scene/spec.json" }))).toBeNull();
+    for (const flag of ['-f', '--from-file', '--rawfile', '--slurpfile', '-L', '--args']) {
+      expect(denied(evaluateToolUse(ctx('builder'), 'Bash', { command: `jq ${flag} x scene/spec.json` })), flag).toMatch(/jq flag/);
+    }
+  });
+
   it('denies Bash entirely to roles without it', () => {
     expect(denied(evaluateToolUse(ctx('researcher'), 'Bash', { command: 'ls' }))).toMatch(/not available to the researcher role/);
   });
@@ -115,7 +129,8 @@ describe('tool allow-list and reads', () => {
     expect(resolveRole('chat', { chat: { model: 'haiku', effort: 'low' } })).toMatchObject({ model: 'haiku', effort: 'low', maxTurns: null });
     expect(resolveRole('builder')).toMatchObject({ model: 'opus', effort: 'high', maxTurns: 60 });
     expect(allowedTools(ROLES.builder)).toEqual(expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash', 'Agent', 'mcp__videogen__write_spec']));
-    expect(allowedTools(ROLES.builder)).not.toContain('mcp__videogen__build_scene'); // not implemented until M4
+    expect(allowedTools(ROLES.builder)).toEqual(expect.arrayContaining(['mcp__videogen__build_scene', 'mcp__videogen__render_preview_stills']));
+    expect(allowedTools(ROLES.builder)).not.toContain('mcp__videogen__render_draft'); // plan B7: the draft is a pipeline step
     expect(disallowedTools(ROLES.researcher)).toEqual(expect.arrayContaining(['Agent', 'Task', 'Bash', 'Edit']));
     expect(disallowedTools(ROLES.builder)).not.toContain('Agent');
     for (const r of ROLE_NAMES) {

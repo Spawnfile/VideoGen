@@ -2,17 +2,18 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type pg from 'pg';
 import {
-  HOOK_PATTERN_LABELS, normalizeProductName, ProductResearchSchema, storyboardRefErrors, StoryboardSchema, validateArtifact,
+  HOOK_PATTERN_LABELS, normalizeProductName, storyboardRefErrors, validateArtifact,
   type AudioMode, type ProductResearch, type StepKey, type Storyboard,
 } from '@videogen/shared';
 import { appendAudit, findArtifact, insertArtifact, latestArtifact, setProductDifficulty } from '@videogen/db';
-import { SpecStore, zodValidator, type FakeScript, type SpecKind } from '@videogen/claude';
+import { SpecStore, type FakeScript, type SpecKind } from '@videogen/claude';
+import { ARTIFACT_VALIDATOR } from './validator.ts';
 import type { SessionManager } from '../agents/manager.ts';
 import { putBlob } from '../media.ts';
 import { runStructured } from './agent-step.ts';
 import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
 
-export const ARTIFACT_VALIDATOR = zodValidator({ research: ProductResearchSchema, storyboard: StoryboardSchema });
+export { ARTIFACT_VALIDATOR } from './validator.ts';
 /** Bump when a contract changes: old outputs stop matching and are not reused. */
 const SCHEMA_VERSION = { research: 'ProductResearch@1', storyboard: 'Storyboard@1' } as const;
 

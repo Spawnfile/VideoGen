@@ -19,6 +19,7 @@ import { Orchestrator } from './pipeline/orchestrator.ts';
 import { SystemProbe } from './pipeline/resources.ts';
 import { BlenderRenderDriver, FakeRenderDriver, type Capability, type RenderDriver } from './render/driver.ts';
 import { ResourceLocks } from './render/locks.ts';
+import { sceneToolHost } from './pipeline/scene-tools.ts';
 import { ARTIFACT_VALIDATOR, pipelineExecutors } from './pipeline/steps.ts';
 import { FixtureUsageSource, SdkUsageSource, startUsagePoller } from './usage.ts';
 
@@ -50,6 +51,7 @@ const manager = new SessionManager({
   quietAfterMs: config.liveness.quietAfterMs, stuckAfterMs: config.liveness.stuckAfterMs,
   archive: (s) => archiveTranscript({ pool, dataDir: config.dataDir, ...s }),
   validator: ARTIFACT_VALIDATOR,
+  tools: sceneToolHost({ pool, render, locks, probe, ffmpeg: config.render.ffmpeg, capability: () => renderCapability }),
 });
 const orchestrator = new Orchestrator({
   pool, dataDir: config.dataDir, probe,

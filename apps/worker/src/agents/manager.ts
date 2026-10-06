@@ -41,6 +41,8 @@ export interface ManagerDeps {
   stuckAfterMs?: number;
   runner?: Pick<RunnerDeps, 'flushMs' | 'resultWaitMs' | 'cancelGraceMs' | 'killGraceMs'>;
   archive?: (s: { sessionId: string; claudeSessionId: string }) => Promise<string | null>;
+  /** M4b: worker-side MCP tools (build_scene, render_preview_stills) for the sessions that may use them. */
+  tools?: ToolHost;
   home?: string;
   log?: (msg: string) => void;
 }
@@ -71,12 +73,25 @@ export interface ManagerEvents {
   onStatus?(sessionId: string, status: SessionStatus): void | Promise<void>;
 }
 
+/** What a tool host knows about the session asking for tools. `signal` aborts when the session is cancelled or ends. */
+export interface ToolSession {
+  sessionId: string;
+  role: RoleName;
+  runId: string | null;
+  stepId: string | null;
+  runDir: string;
+  signal: AbortSignal;
+  /** GPU queue position / pre-check reason while a tool waits; null when it runs (plan B8). */
+  gpuWait(w: { position?: number; reason?: string } | null): void;
+}
+export interface ToolHost { ports(s: ToolSession): Pick<McpPorts, 'buildScene' | 'previewStills'> }
+
 export const RESUME_PROMPT = 'Önceki oturum kesildi. Durumu kontrol et ve göreve kaldığın yerden devam et.';
 
 type Req = StartRequest & { claudeSessionId: string };
 interface Pending { id: string; req: Req; def: RoleDef; runDir: string; deferred?: 'ram' | 'limit' }
 /** inputEnded: idle close or cancel closed the input; the process may still be exiting and must not get another turn. */
-interface Live { id: string; kind: SessionKind; req: Req; session: DriverSession; runner: SessionRunner; idle: NodeJS.Timeout | null; liveness: Liveness | null; pid: number | null; inputEnded: boolean }
+interface Live { id: string; kind: SessionKind; req: Req; session: DriverSession; runner: SessionRunner; idle: NodeJS.Timeout | null; liveness: Liveness | null; pid: number | null; inputEnded: boolean; abort: AbortController }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -88,6 +103,8 @@ export class SessionManager {
   private live = new Map<string, Live>();
   /** Last reported percent per session; kept outside `live` because a tool may report before the slot entry exists. */
   private progress = new Map<string, number>();
+  /** In-flight worker-side MCP calls per session: the CLI is silent while Blender works (plan B9). */
+  private busy = new Map<string, number>();
   /** Pipeline sessions stopped by a rejected rate limit; resumed as child sessions when the gate clears. */
   private limited = new Set<string>();
   private overrides: RoleOverrides = {};
@@ -168,6 +185,7 @@ export class SessionManager {
     const l = this.live.get(id);
     if (!l) return false;
     l.inputEnded = true;
+    l.abort.abort();
     await l.runner.cancel();
     return true;
   }
@@ -186,7 +204,7 @@ export class SessionManager {
     clearInterval(this.sampleTimer);
     if (this.pumpTimer) clearTimeout(this.pumpTimer);
     const lives = [...this.live.values()];
-    for (const l of lives) { if (l.idle) clearTimeout(l.idle); l.session.kill('SIGTERM'); }
+    for (const l of lives) { if (l.idle) clearTimeout(l.idle); l.abort.abort(); l.session.kill('SIGTERM'); }
     await Promise.race([Promise.all(lives.map((l) => l.runner.run())), sleep(3000)]);
     for (const l of this.live.values()) l.session.kill('SIGKILL');
   }
@@ -234,13 +252,14 @@ export class SessionManager {
   private launch(p: Pending): void {
     const { id, req, def, runDir } = p;
     const before = new Map<string, string | null>();
+    const abort = new AbortController();
     const ctx = { role: def, runDir, home: this.d.home ?? homedir(), dataDir: this.d.dataDir };
     const spec: SessionSpec = {
       sessionId: id, claudeSessionId: req.claudeSessionId, resume: !!req.resume, role: def.role, prompt: req.prompt,
       model: def.model, effort: def.effort, maxTurns: def.maxTurns, cwd: runDir,
       appendSystemPrompt: rolePromptFor(def, this.d.pluginDir, { runDir, sessionId: id }),
       allowedTools: allowedTools(def), disallowedTools: disallowedTools(def), outputFormat: req.outputFormat ?? null,
-      tools: videogenTools({ role: def, runDir, specs: new SpecStore(join(runDir, 'spec'), this.d.validator ?? permissiveValidator), ports: this.ports(id, req, runDir) }),
+      tools: videogenTools({ role: def, runDir, specs: new SpecStore(join(runDir, 'spec'), this.d.validator ?? permissiveValidator), ports: this.ports(id, req, runDir, abort.signal) }),
       preToolUse: async (tool, input, toolUseId) => {
         const decision = evaluateToolUse(ctx, tool, input);
         if (decision.allow && FILE_WRITE_TOOLS.has(tool)) {
@@ -258,7 +277,7 @@ export class SessionManager {
       onRateLimit: (info) => this.gate.observeRateLimit(info),
       onStatus: (s) => { void this.emit('onStatus', id, s); },
     });
-    this.live.set(id, { id, kind: req.kind, req, session, runner, idle: null, liveness: null, pid: null, inputEnded: false });
+    this.live.set(id, { id, kind: req.kind, req, session, runner, idle: null, liveness: null, pid: null, inputEnded: false, abort });
     void (async () => {
       await updateSession(this.d.pool, id, { status: 'starting', startedAt: new Date(), waitingUntil: null });
       await appendAudit(this.d.pool, { actorType: 'orchestrator', action: 'agent.session.opened', sessionId: id, data: { role: def.role, model: def.model, effort: def.effort, driver: this.d.driver.kind, resume: !!req.resume } });
@@ -270,8 +289,18 @@ export class SessionManager {
     );
   }
 
-  private ports(id: string, req: Req, runDir: string): McpPorts {
+  private ports(id: string, req: Req, runDir: string, signal: AbortSignal): McpPorts {
+    const host = this.d.tools?.ports({
+      sessionId: id, role: req.role, runId: req.runId ?? null, stepId: req.stepId ?? null, runDir, signal,
+      gpuWait: (w) => { void this.gpuWait(id, w).catch((e) => this.log(`gpu wait ${id} failed (${errorTag(e)})`)); },
+    });
+    const tracked = <A extends unknown[], R>(fn: ((...a: A) => Promise<R>) | undefined) => fn && (async (...a: A): Promise<R> => {
+      this.busy.set(id, (this.busy.get(id) ?? 0) + 1);
+      try { return await fn(...a); } finally { this.busy.set(id, (this.busy.get(id) ?? 1) - 1); }
+    });
     return {
+      buildScene: tracked(host?.buildScene),
+      previewStills: tracked(host?.previewStills),
       reportProgress: async (pct, message) => {
         const v = Math.min(99, Math.max(this.progress.get(id) ?? 0, Math.round(pct)));
         this.progress.set(id, v);
@@ -287,6 +316,14 @@ export class SessionManager {
       },
       context: () => ({ sessionId: id, role: req.role, kind: req.kind, runDir, runId: req.runId ?? null, stepId: req.stepId ?? null, threadId: req.threadId ?? null }),
     };
+  }
+
+  /** Spec §12.2 "GPU bekliyor (sıradaki yeriyle)": status + a live position/reason event; back to `tool` when the job runs. */
+  private async gpuWait(id: string, w: { position?: number; reason?: string } | null): Promise<void> {
+    if (!this.live.has(id)) return;
+    await updateSession(this.d.pool, id, { status: w ? 'waiting_gpu' : 'tool' });
+    await this.publish(id);
+    await publishLive(this.d.pool, { topic: 'agents', type: 'agent.gpu_wait', payload: { sessionId: id, position: w?.position ?? null, reason: w?.reason ?? null } });
   }
 
   private async onTurn(id: string, r: { turn: number; text: string | null; structured: unknown }): Promise<void> {
@@ -307,6 +344,8 @@ export class SessionManager {
     const l = this.live.get(id);
     this.live.delete(id);
     this.progress.delete(id);
+    this.busy.delete(id);
+    l?.abort.abort();
     if (l?.idle) clearTimeout(l.idle);
     const pid = l?.pid ?? l?.session.pid ?? null;
     if (pid) this.reapLater(pid);
@@ -366,7 +405,10 @@ export class SessionManager {
         }
         const s = await l.session.sample().catch(() => null);
         const silentMs = now - l.runner.lastEventAt;
+        // A worker-side tool call (Blender, a GPU queue wait) is work in progress even though the CLI is silent and idle.
+        const inTool = (this.busy.get(l.id) ?? 0) > 0;
         const liveness: Liveness = l.runner.status === 'idle' ? 'active'
+          : inTool ? (silentMs >= (this.d.quietAfterMs ?? 10_000) ? 'quiet_alive' : 'active')
           : classifyLiveness({ silentMs, cpuPct: s?.cpuPct ?? null, quietAfterMs: this.d.quietAfterMs, stuckAfterMs: this.d.stuckAfterMs });
         if (liveness === 'maybe_stuck' && l.liveness !== 'maybe_stuck') {
           await appendAudit(this.d.pool, { actorType: 'orchestrator', action: 'agent.session.maybe_stuck', sessionId: l.id, data: { silentMs, cpuPct: s?.cpuPct ?? null } }).catch(() => {});
