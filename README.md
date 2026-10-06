@@ -34,7 +34,10 @@ If you run `npm run build` while the API is running (for example next to `npm ru
 | `npm run build` | Build the SPA into `apps/web/dist` |
 | `npm start` | Single-command launcher with supervised restarts |
 | `npm test` | Unit and integration tests (Vitest; needs the Postgres container) |
-| `npm run test:smoke` | Playwright smoke tests (S1 boot, S2a product → research → storyboard / difficulty gate / cancel, S3 liveness, S4 reconnect + worker death, S5 chat) against a throwaway stack on port 5190 with the fake Claude driver (system Chrome); the `videogen_smoke` database and `/tmp/videogen-smoke` are removed afterwards |
+| `npm run test:blender` | vg_blender unit tests inside Blender 5.2 on the NVIDIA GPU (`bin/blender-gpu`) |
+| `npm run test:render` | Real-tool integration: sandboxed (bubblewrap) two-phase build of the example pen, Blender ↔ three.js anchor equivalence, GPU preview stills, sandbox boundary, timeout |
+| `bin/scene-fixtures.sh` / `bin/k19-options.sh` | Regenerate the committed pen build fixtures / the three channel-identity option images (real Blender) |
+| `npm run test:smoke` | Playwright smoke tests (S1 boot, S2a product → research → storyboard → build / difficulty gate / cancel, S2b build card + media Range / same-session build fix / cancel during build / channel identity, S3 liveness, S4 reconnect + worker death, S5 chat) against a throwaway stack on port 5190 with the fake Claude driver (system Chrome); the `videogen_smoke` database and `/tmp/videogen-smoke` are removed afterwards |
 | `VG_SCREENSHOTS=1 npx playwright test -c tests/smoke/playwright.config.ts screens` | Regenerate the UI screenshots in `docs/m3/` and `docs/m4/` |
 | `node bin/link-skills.mjs` | Regenerate `claude-plugin/skills/*` symlinks from `claude-plugin/skills.manifest.json` (the launcher does this on every start) |
 | `npm run typecheck` | `tsc -p tsconfig.json` (TypeScript 7) |
@@ -66,5 +69,6 @@ Runtime data lives in `~/videogen-data`. Today only `logs/` exists (`api.log`, `
 - M2 (platform skeleton): done, see [docs/m2/report.md](docs/m2/report.md).
 - M1 (audio listening test): provisional TTS decision, waiting for the user's choice, see [docs/m1/decision.md](docs/m1/decision.md).
 - M3 (live agent layer): done, see [docs/m3/report.md](docs/m3/report.md).
-- M4a (pipeline core: product name → research → storyboard, Studio production panel, Library, smoke S2a): done on branch `m4a-pipeline-core`, not merged yet, see [docs/m4/m4a-summary.md](docs/m4/m4a-summary.md).
-- Next: the M4b plan (vg_blender, build, draft render, player, channel identity, first real product).
+- M4a (pipeline core: product name → research → storyboard, Studio production panel, Library, smoke S2a): done, see [docs/m4/m4a-summary.md](docs/m4/m4a-summary.md).
+- M4b (scene core: vg_blender, sandboxed two-phase build, anchor equivalence, GPU previews, build step, build card, channel identity options, smoke S2b): done and merged, see [docs/m4/m4b-summary.md](docs/m4/m4b-summary.md).
+- Next: M4c (Remotion draft render, draft review loop, player, first real product with the K12 models).

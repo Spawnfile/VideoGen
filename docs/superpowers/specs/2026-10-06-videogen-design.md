@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Tarih | 2026-10-06 |
-| Durum | Tasarım onaylandı (brainstorming + grilling). M0, M1 (K17 geçici, kullanıcı onayı bekliyor), M2 ve M3 tamamlandı (`docs/m0/report.md`, `docs/m1/decision.md`, `docs/m2/report.md`, `docs/m3/report.md`); sırada M4 |
+| Durum | Tasarım onaylandı (brainstorming + grilling). M0, M1 (K17 geçici, kullanıcı onayı bekliyor), M2, M3, M4a ve M4b tamamlandı (`docs/m0/report.md`, `docs/m1/decision.md`, `docs/m2/report.md`, `docs/m3/report.md`, `docs/m4/m4a-summary.md`, `docs/m4/m4b-summary.md`); sırada M4c |
 | Sahibi | Alper (tek kullanıcı) |
 | Kapsam | v1: ürün adından yayına hazır TikTok "içinde ne var" videosuna kadar ajanlı üretim platformu |
 
@@ -211,6 +211,7 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 | **summarizer** | Haiku / low | Yok | Kısa Türkçe özetler (audit ve kart başlıkları) | 3 |
 
 - Model ve effort ayarları Ayarlar ekranından rol bazında değiştirilebilir. Değişiklik audit'e yazılır.
+- **M4b:** builder'ın MCP listesinden `render_draft` çıkarıldı. Taslak videoyu `draft_render` pipeline adımı üretir; builder kareleri `render_preview_stills` ile görür. `build_scene` ve `render_preview_stills` uygulandı. Sonuç, run klasörüne göre yollarla `{ok, errors, warnings, report, equivalence, files}` olarak döner. GPU beklemesi kartta "GPU bekliyor · sırada N" diye görünür; araç sürerken oturum "takılmış" sayılmaz.
 - Reviewer'lar **builder'ın akıl yürütmesini görmez**. Sadece artefaktları (kareler, manifestler, spec) görürler.
 
 ### 6.3 `videogen` MCP sunucusu (in-process, `createSdkMcpServer`)
@@ -327,6 +328,10 @@ Fixer'a **sadece başarısız kontrol kimlikleri, kanıtları ve düzeltme ipuç
   - Kamera (TRACK_TO dahil) `nla.bake(visual_keying)` ile kare kare pişirilir; her düğüm kendi klibini alır, tek mixer hepsini oynatır. M0'da GLB'nin kendi klipleri kullanıldı.
   - Z-yukarı → Y-yukarı dönüşümünü dışa aktarıcı yapar: `(x, y, z)` → `(x, z, −y)`.
   - Birimler 1:1 aktarılır, ölçekleme yoktur. "1 birim = 1 cm" builder tarafında uygulanır.
+- **M4b uygulaması (kanıt `docs/m4/m4b-summary.md`):**
+  - **Hareketin de tek kaynağı bpy'dir.** SceneSpec'in patlatma ve kamera anahtarları Blender'da her kareye anahtarlanır (kısıt ya da NLA bake yok); her animasyonlu nesneye son karede tutma anahtarı eklenir. Three.js GLB kliplerini geçmişten bağımsız bir `seek` ile oynatır. glTF lensi animasyonlamadığı için dikey FOV kare başına `camera_track.json`'dan gelir. Kalem örneğinde 5 karede en kötü fark 0,01 px.
+  - **`product.py` sözleşmesi:** yalnızca `import math` ve `def build(vg)`; parçalar `vg.part(kimlik, …)` ile kurulur.
+  - **İki aşamalı build, bubblewrap içinde:** ağ yok, `$HOME` boş tmpfs, yalnızca run klasörü yazılabilir. Aşama 1 güvenilmeyen kodu çalıştırıp yalnızca geometri `.blend`'ini üretir; aşama 2 worker betiğidir (`--disable-autoexec`) ve manifestleri hesaplar. AST izin listesi agent'a kısa gerekçe veren ilk süzgeçtir, sınır bwrap'tır.
 - **Pilottan öğrenilenler (kütüphane varsayılanları):**
   - kapalı yay uçları
   - mekanizmanın çalıştığı yeri gösteren zorunlu bir "mekanizma çekimi"
@@ -361,6 +366,20 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 - Kanca kalıp adları türetilmiştir (spec ad vermiyor; M5 kalibrasyonunda gözden geçirilir): `question`, `number`, `misconception`, `reveal`, `contrast`. Kamera: `shot ∈ {hero, wide, medium, close, macro}`, `move ∈ {static, orbit, push_in, pull_out, pan, tilt}`, `lens_mm` 50–135.
 - **Sert kurallar** (ihlal → aynı oturumda düzeltme isteği): kimlik tekilliği, vuruşlar 0'dan `duration_s`'ye bitişik, `rehook_at` sürenin %40–60'ı, `payoff_at` ≥ %70, ses moduna göre `vo_text` zorunlu/yasak, parça ve iddia kimlikleri araştırmada var. **Yumuşak kurallar** (yalnızca uyarı; G2 kapısı M5'te): sayısal iddia için 2 bağımsız ya da 1 birincil kaynak.
 - SDK'ya `outputFormat` olarak `z.toJSONSchema` çıktısı (`$schema` olmadan) verilir; incelikler (refine) JSON Schema'da ifade edilemediği için sonuç zod ile yeniden doğrulanır.
+
+**M4b uygulama notları (`packages/shared/src/scene.ts`, `styles.ts`):**
+- `SceneSpec` şu alanları taşır:
+  - `duration_s` (storyboard ile aynı), `frames = round(duration_s × 30)`, `hero_part`;
+  - parçalarda `name_tr` ve `recipe{primitive, note}` (betimleyici; geometrinin kaynağı `product.py`);
+  - kamera anahtarlarında `ease` (lens 50–135).
+- `asset_ref` şemada vardır ama varlık defteri gelene kadar (M5) reddedilir. Araştırma `needs_asset` derse run `needs_human` olur.
+- `style_id` Ayarlar'daki kanal kimliğidir (K19; üç seçenek: `atolye`, `beyaz_lab`, `gece_mavisi`). Renkler yalnızca `styles.ts`'te tutulur; Blender onları build başına `style.json` olarak alır.
+- Manifestler:
+  - `anchors.json`: 5 karede bir + eşdeğerlik kareleri;
+  - `events.json`;
+  - `camera_track.json`: kare başına `yfov`;
+  - `build.json`: sert hatalar (eksik ya da fazla parça, üçgen > 400 bin, `product.py` hatası) ve uyarılar (kahraman < %35, ön plan kapatma > %25, iç içe geçme).
+- Önizleme kareleri şeffaftır; kontakt sayfası stilin tam renkli arka planına bindirilir (AgX tonlaması dünya rengini kaydırıyordu).
 
 ### 7.5 Render
 
@@ -771,7 +790,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | SDK veya CLI protokol değişikliği | Tam sürüm sabitleme; yükseltmeden önce gerçek smoke | — |
 | İzolasyon: `settingSources: []` + `strictMcpConfig` ile kullanıcı hook/plugin/MCP/skill'leri yüklenmez; plugin skill'leri symlink'le yüklenir | M0: doğrulandı (docs/m0/report.md): hook olayı 0, MCP 0; skill'ler `videogen:*` adıyla | — |
 | `dontAsk` altında `PreToolUse` hook'u run klasörü dışına yazmayı engelliyor | M0: doğrulandı (docs/m0/report.md): run dışına Write reddedildi (matcher `Write\|Edit`, `file_path`), `permission_denials`'a yazıldı. M3: Bash (yalnızca run klasöründe izinli okuma komutları; ağır komut, zincirleme, boru, yönlendirme, komut ikamesi ve glob yasağı), NotebookEdit `notebook_path`, `..` ve symlink kaçışı birim testli; gerçek koşuda ağır Bash komutu reddedildi ve gerekçe doğru MCP aracını gösterdi (`docs/m3/real-check.md`) | Bash izin listesi daraltılır; NotebookEdit `allowedTools` dışında kalır |
-| Blender GLB → Three.js anchor eşdeğerliği ≤ 8 px | M0: doğrulandı (docs/m0/report.md): 0,00 px; mixer `LoopOnce` + clamp şart; birimler 1:1 | — |
+| Blender GLB → Three.js anchor eşdeğerliği ≤ 8 px | M0: doğrulandı (docs/m0/report.md): 0,00 px; mixer `LoopOnce` + clamp şart; birimler 1:1. M4b: kare başına anahtar + son kare tutma + `camera_track` ile kalem örneğinde 0,01 px; bitmiş `LoopOnce` eylemi `setTime`'da 0'a dönüyordu (16.611 px) → geçmişten bağımsız `seek`. Her build'de ölçülür; gerçek agent ürünlerindeki sonuç M4c'de | — |
+| Agent'ın yazdığı `product.py` güvenle çalıştırılabilir | M4b: bubblewrap 0.11.1 bu makinede çalışıyor; gerçek araç testinde ağ engelli, ev klasörü ve repo görünmez, kök salt okunur; zaman aşımı ve RSS sınırı süreç grubunu öldürür (`npm run test:render`) | bwrap çalışmazsa build reddedilir (korumasız çalışma yok) |
 | SDK alt ajanı kendiliğinden arka plana alabiliyor → tek sorguda birden fazla `result` ve ikinci `system/init` | M0: bayraksız 3 koşunun 2'sinde gözlendi; `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` (temizlikten sonra eklenir) ile 1/1 koşuda tek `result` | Sürücü son `result`'u esas alır, `background_tasks_changed` boşalana ve iterator bitene kadar bekler M3: tur bitişi = arka plan görev kümesi boş **ve** `result` sayısı ≥ 1 + arka plana alınmış görevlerin `task_notification` sayısı (`subagent.ndjson`'da küme ilk `result`'tan önce boşalıyor) |
 | In-process MCP (`createSdkMcpServer`) gömülü CLI'da çalışıyor, ayrı süreç gerekmiyor | M3: doğrulandı — plan öncesi sondaj (`spikes/m3/probe.mjs`) ve M3a T6 gerçek koşusu: `videogen` sunucusu `connected`, araçlar `mcp__videogen__*`, `report_progress` kaydedildi | — |
 | Chat süreci boşta kapanınca oturum `resume` ile sürer; streaming-input ikinci tur aynı süreçte çalışır | M3: doğrulandı — sondaj (`resume`, `sessionId`, ikinci tur) + Fake/gerçek testler; M3b T7'de gerçek chat turu (haiku, 6 sn, `get_context` çağrısı, transcript arşivi) | — |

@@ -14,9 +14,10 @@ Bu doküman; planların **hangi sırayla, nasıl, hangi kapılardan geçerek** u
 | `docs/superpowers/plans/2026-10-06-m3a-agent-runtime.md` | M3a: agent çalışma katmanı (sürücü, roller, MCP, koruma, olay tabloları, kullanım muhafızı, chat servisi, API). M3b planı ayrı satırda |
 | `docs/superpowers/plans/2026-10-06-m3b-live-ui.md` | M3b: canlı arayüz (10 Hz olay deposu, ThinkingState, agent kartları, chat paneli, rol ayarları), smoke S3/S4/S5, taş sonu |
 | `docs/superpowers/plans/2026-10-06-m4a-pipeline-core.md` | M4a: pipeline omurgası (tablolar, iş kuyruğu, orchestrator, ilerleme, research/storyboard adımları, API, Stüdyo üretim paneli, Kütüphane, smoke S2a). M4b planı M4a sonrası |
+| `docs/superpowers/plans/2026-10-06-m4b-scene-core.md` | M4b: sahne çekirdeği (vg_blender, iki aşamalı sandbox'lı build, Blender↔three.js eşdeğerliği, GPU önizleme, build adımı, medya ucu, K19 seçenekleri, smoke S2b). M4c planı (taslak render, inceleme, player, ilk gerçek ürün) sırada |
 | `docs/superpowers/checklist.md` | Görev bazında ilerleme takibi |
 | `docs/m3/report.md`, `docs/m3/real-check.md` | M3 sonuç raporu ve gerçek Claude doğrulama çıktıları |
-| `docs/m4/m4a-summary.md`, `docs/m4/real-check.md` | M4a özeti (pipeline omurgası) ve gerçek (haiku) doğrulama çıktıları; M4 raporu M4b sonunda |
+| `docs/m4/m4a-summary.md`, `docs/m4/real-check.md`, `docs/m4/m4b-summary.md` | M4a özeti (pipeline omurgası), gerçek (haiku) doğrulama çıktıları ve M4b özeti (sahne çekirdeği); M4 raporu M4c sonunda |
 | `docs/m<N>/report.md` | Her taşın kanıtlı sonuç raporu (uygulama sırasında oluşur) |
 
 ## 2. Uygulama sırası
@@ -32,7 +33,7 @@ M0 Doğrulama ──┬──► M1 Ses (kullanıcı dinleme testine katılır) 
 - **M1 ve M2 birbirinden bağımsızdır.** Önerilen sıra M2 → M1. Önce iskelet ve testler hazır olur; dinleme testi kullanıcının vakti olduğunda yapılır.
 - **M3–M7 planları önceden yazılmaz.** Her biri, bir önceki taşın raporu ve kanıtlarıyla yazılır (§5).
 - **M3 iki plana bölündü** (17 görev): M3a (agent çalışma katmanı) → M3b (arayüz + smoke S3/S4/S5). **M3 tamamlandı** (`docs/m3/report.md`).
-- **M4 iki plana bölündü:** M4a (pipeline omurgası: ürün adı → araştırma → storyboard) **tamamlandı**, dal `m4a-pipeline-core`, `main`'e birleştirilmedi (`docs/m4/m4a-summary.md`); M4b (vg_blender, build, taslak, player, K19, ilk gerçek ürün) M4a'nın gerçek arayüzleriyle yazılır ve taş sonunda birleştirilir.
+- **M4 üç plana bölündü:** M4a (pipeline omurgası) ve M4b (sahne çekirdeği: storyboard → doğrulanmış 3D sahne) **tamamlandı** ve kullanıcı kararıyla `main`'e birleştirildi (`docs/m4/m4a-summary.md`, `docs/m4/m4b-summary.md`); M4c (taslak render, taslak inceleme, player, ilk gerçek ürün, M4 raporu) sırada.
 
 ## 3. Bir planı uygulamak
 
@@ -128,6 +129,10 @@ Taş raporu bittikten sonra yeni bir oturumda:
 | Skill bağlantıları | `claude-plugin/skills/*` git'te değil; `claude-plugin/skills.manifest.json`'dan üretilir. Başlatıcı her açılışta `node bin/link-skills.mjs` çalıştırır; elle de çalıştırılabilir |
 | Elle doğrulama (Fake ya da gerçek) | Gerçek DB'ye yazmamak için `VG_DATABASE_URL` / `VG_ADMIN_DATABASE_URL`'yi geçici bir veritabanına yönelt (smoke yığını gibi). `audit_log` silinemez: varsayılan DB'ye düşen deneme satırları kalıcıdır (M3a T10'un Fake oturumu bu yüzden gerçek Stüdyo'da görünür) |
 | Üretim (Stüdyo) | Üstteki alana ürün adı → ses modu çipi (varsayılan Seslendirmesiz) → "Üret". Adım listesi, genel yüzde, ETA ve kaynak etiketi canlı akar; araştırma ve storyboard kartları adım bitince görünür. M4a'da run storyboard'da biter: video `insan gerekli`, not "Storyboard hazır. Sahne kurulumu ve taslak render bu sürümde henüz yok." "Üretimi durdur" run'ı iptal eder |
+| Blender ve render testleri | `npm run test:blender` (vg_blender birim testleri, Blender 5.2 NVIDIA'da) · `npm run test:render` (gerçek bubblewrap + Blender + eşdeğerlik + GPU önizleme). İkisi de `npm test`'e girmez; vg_blender, sandbox ya da render kodu değişince çalıştır |
+| Sahne fixture'ları ve K19 görselleri | `bin/scene-fixtures.sh` (örnek kalemin build çıktıları → `tests/fixtures/scene/kalem/`; vg_blender değişince yeniden üret, farkı incele) · `bin/k19-options.sh` (üç kanal kimliği görseli → `apps/web/public/k19/`) |
+| Kanal kimliği (K19) | Ayarlar → Kanal kimliği: üç seçenek; seçim audit'e yazılır ve sonraki build'in `style_id`'si olur. Seçilmemişse `gece_mavisi` geçici olarak kullanılır (build notu "kanal kimliği geçici") |
+| Sandbox gereksinimi | Build agent kodunu bubblewrap içinde çalıştırır (`/usr/bin/bwrap`, `VG_BWRAP`). Worker açılışta denetler ve audit'e `render.capabilities` yazar; sandbox yoksa build adımı gerekçeyle düşer, korumasız çalışmaz. Blender `VG_BLENDER` (varsayılan `~/apps/blender-5.2.2-linux-x64/blender`), ffmpeg `VG_FFMPEG`; smoke ve testler `VG_RENDER_DRIVER=fake` ile Blender'sız çalışır |
 | Kütüphane | Sol menü → Kütüphane: videolar (son güncellenen önce), durum, tarih, token ve 5 sa payı; satıra tıklamak videoyu Stüdyo'da açar (`/?video=<id>`) |
 | Fake kipte üretim | Worker ve API `VG_CLAUDE_DRIVER=fake` ile: araştırma kayıtlı `websearch` akışını, storyboard `basic` akışını oynatır ve fixture artefaktlarını yapılandırılmış çıktı olarak verir. Adında "imkansız" geçen ürün zorluk kapısını dener (`needs_human` + gerekçe) |
 | Gerçek uçtan uca doğrulama (geçici DB) | `docs/m4/real-check.md`'deki tarif: `videogen_m4a_check` veritabanı + `/tmp/videogen-m4a-check` veri klasörü, `VG_DATABASE_URL`/`VG_ADMIN_DATABASE_URL`/`VG_DATA_DIR` bunlara yöneltilir, `env -u CLAUDECODE node bin/videogen.mjs`, roller `PUT /api/roles/<rol> {"model":"haiku","effort":"low"}`, `POST /api/videos`; bitince launcher PID'ine SIGINT, DB `DROP … WITH (FORCE)`, klasör silinir. Önce `GET /api/usage/guard`: `blocked: true` ise (5 sa ≥ %80) koşma |
@@ -152,6 +157,13 @@ Taş raporu bittikten sonra yeni bir oturumda:
 | "Worker yanıt vermiyor" | Worker çöktü ya da yeniden başlıyor (6 sn heartbeat yok) | `tail ~/videogen-data/logs/worker.log`; başlatıcı otomatik yeniden başlatır. Açılışta yetim Claude süreçleri PID dosyalarından öldürülür, yarım kalan oturumlar `failed` (`worker_restart`) olur |
 | Video "insan gerekli", not "Storyboard hazır. Sahne kurulumu ve taslak render bu sürümde henüz yok." | M4a'da plan storyboard'da biter (beklenen) | M4b build ve taslak adımlarını ekler; "yayına hazır" yalnızca planda `finalize` varken (K13) |
 | Adım "GPU bekliyor", not "swap %100 ≥ %90" | Spec §6.4 GPU ön kontrolü: swap kullanımı ≥ %90 (bu makinede swap sürekli dolu) | Eşik kullanıcı kararı (M4b öncesi). Geçici çözüm: swap'ı boşalt (`sudo swapoff -a && sudo swapon -a`, yeterli boş RAM varken) |
+| Build adımı "render kullanılamıyor: bubblewrap çalışmıyor" | AppArmor ayrıcalıksız kullanıcı ad alanlarını kısıtlıyor (`kernel.apparmor_restrict_unprivileged_userns`) ya da bwrap kurulu değil | `bwrap --ro-bind / / --dev /dev --unshare-net true` ile dene; çalışana kadar build yapılmaz (güvenlik gereği) |
+| "GPU NVIDIA değil" | Blender PRIME env'i olmadan Intel iGPU'ya düştü | `bin/blender-gpu` ile `nvidia-smi` kontrol; worker sandbox'ı aynı üç değişkeni koyar |
+| "product.py çalıştırması zaman aşımına uğradı" / "bellek sınırını aştı" | Agent'ın `product.py`'si 120 sn ya da 4 GB sınırını aştı | Süreç grubu öldürülür; hata aynı oturuma düzeltme isteği olarak gider |
+| "Blender↔three.js anchor eşdeğerliği geçmedi" | Dışa aktarıcı ya da kamera kurgusu iki tarafta farklı sonuç veriyor | `bin/scene-fixtures.sh` + `npm run test:render` ile ayır; kare başına anahtar ve `camera_track.json` bekleniyor |
+| Adım "GPU sırası bekleniyor" / kartta "GPU bekliyor · sırada N" | Başka bir önizleme GPU'yu tutuyor ya da §6.4 ön kontrolü (RAM, swap, VRAM, ollama) geçmiyor | Bekle; gerekçe kartta ve adım notunda yazar |
+| Video "insan gerekli", not "Hazır 3D varlık gerekiyor…" | Araştırma ürünü `needs_asset` buldu; varlık defteri M5'te | Beklenen (plan B5) |
+| Agent kartında "Yeniden dene" yok | Pipeline adımının oturumu: adım kendi yeniden denemesini yapar | Beklenen; "Durdur" çalışır |
 | Run "sırada"da kaldı | `run.start` komutu worker'a ulaşmadı (worker yeniden başlıyordu) | Worker açılışta `queued` run'ları kendisi başlatır: worker'ı yeniden başlat (başlatıcı yeniden başlatır) |
 | Adım notu "yeniden deneniyor (2/2)" | Yürütücü geçici hatayla döndü; bir kez daha denenir | Bekle; ikinci hatada adım ve run `failed` olur, gerekçe başlıkta |
 | Adım hatası "şema hatası: …" | Agent, yapılandırılmış çıktıyı aynı oturumda 2 düzeltme isteğine rağmen sözleşmeye uyduramadı | Hata listesine bak (`GET /api/runs/<id>`); rol modelini büyüt (Ayarlar → Agent rolleri) ve yeniden üret |
