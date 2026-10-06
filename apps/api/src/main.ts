@@ -1,4 +1,4 @@
-import { assertNoPaidKeys, loadConfig } from '@videogen/shared';
+import { assertNoPaidKeys, loadConfig, watchParent } from '@videogen/shared';
 import { appendAudit, createPool } from '@videogen/db';
 import { buildApp } from './app.ts';
 import { EventHub } from './event-hub.ts';
@@ -25,3 +25,4 @@ const shutdown = async () => {
 };
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
+watchParent(() => { process.stderr.write('api: parent process gone; shutting down\n'); void shutdown(); });
