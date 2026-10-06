@@ -9,7 +9,7 @@
 | M0 Doğrulama | `plans/2026-10-06-m0-verification.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m0/report.md` |
 | M1 Ses | `plans/2026-10-06-m1-audio-listening.md` | Tamamlandı (K17 kullanıcı onayı bekliyor) | 2026-10-06 | 2026-10-06 | `docs/m1/decision.md` |
 | M2 İskelet | `plans/2026-10-06-m2-skeleton.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m2/report.md` |
-| M3 Canlı agent katmanı | M2 sonrası yazılacak | Plan yok | | | |
+| M3 Canlı agent katmanı | `plans/2026-10-06-m3a-agent-runtime.md` (M3a) + M3b (M3a sonrası) | Devam ediyor (M3a) | 2026-10-06 | | |
 | M4 Dikey dilim | M3 sonrası | Plan yok | | | |
 | M5 Final ve kalite | M4 sonrası | Plan yok | | | |
 | M6 Yayın | M5 sonrası | Plan yok | | | |
@@ -53,7 +53,7 @@
 - [x] T9 Playwright smoke S1 (3 test) · commit 38f064b · 2026-10-06 · 3/3
 - [x] T10 README + M2 raporu; `typecheck` + `test` + `test:smoke` yeşil · commit 70bdbd9 · 2026-10-06 · + final review düzeltmeleri 1ecf4a3; 51/51 + smoke 3/3
 
-## M3 — Canlı agent katmanı *(plan M2 sonrası yazılacak)*
+## M3 — Canlı agent katmanı *(iki plan: M3a `plans/2026-10-06-m3a-agent-runtime.md` — sürücü, roller, MCP, koruma, tablolar, kullanım muhafızı; M3b — kartlar, ThinkingState, chat paneli, smoke; M3a bitince yazılır)*
 
 - [ ] `ClaudeDriver` arayüzü: `SdkClaudeDriver` + fixture oynatan `FakeClaudeDriver`
 - [ ] Rol tanımları (`claude-plugin/agents/*.md`) ve rol başına model/effort/araç ayarları (spec §6.2)
@@ -127,3 +127,6 @@
 | 2026-10-06 | 🚦 M1 T4 ses klonu | Atlandı (kayıt yok; `/goal` gereği sorulmadı) | `docs/m1/report.md` |
 | 2026-10-06 | 🚦 M1 T5 TTS ve anlatıcı sesi (K17) | GEÇİCİ: Chatterbox ML V3 + hazır ses (adil CER %0,5, VRAM 3,6 GB, rtf_gen 0,63); Freya yedek (CER %17,9 > %5 kapısı). **Kullanıcı onayı bekliyor** | `docs/m1/decision.md`; `~/videogen-data/m1/listening/results.json` |
 | 2026-10-06 | M0 T1 disk eşiği | 32 GB boş ≥ 30 ✓ | `docs/m0/disk-cleanup.md` |
+| 2026-10-06 | M3 plan bölme | M3 → M3a (11 görev) + M3b (~6 görev); M3b planı M3a'nın gerçek arayüzleriyle yazılır | 17 görev > 12 sınırı (handoff §4) |
+| 2026-10-06 | M3 plan öncesi sondaj | In-process MCP, `sessionId`, Bash hook gerekçesi, streaming 2. tur, `resume`, detached spawn: hepsi doğrulandı | `spikes/m3/probe.mjs` (haiku, 2 oturum, 11 sn) |
+| 2026-10-06 | ThinkingState kaynağı | Kullanıcının tasarım oturumunda yapıştırdığı özgün komponent bulundu ve repoya alındı; yeniden kurulmayacak, §13.2'ye göre uyarlanacak | `docs/m3/thinking-state.original.tsx` (kaynak: `~/.claude/paste-cache`, 02:02) |
