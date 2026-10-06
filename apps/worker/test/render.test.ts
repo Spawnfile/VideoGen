@@ -87,6 +87,9 @@ describe('sandbox and process control', () => {
     const r = await runProcess('bash', ['-c', 'sleep 30 & sleep 30'], { cwd: data, dataDir: data, owner: 'job', timeoutMs: 300, killGraceMs: 200, env: { PATH: process.env.PATH! } });
     expect(r.stopped).toBe('timeout');
     expect(readdirSync(join(data, 'pids')).length).toBe(0);
+    // The caller survives the kill and runs the next job normally (Review Focus 1).
+    const next = await runProcess('bash', ['-c', 'echo ok'], { cwd: data, dataDir: data, owner: 'job', timeoutMs: 5000, env: { PATH: process.env.PATH! } });
+    expect([next.code, next.stopped, next.tail]).toEqual([0, null, ['ok']]);
   });
 
   it('stops a group whose memory grows past the limit, and stops on abort', async () => {

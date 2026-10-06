@@ -77,6 +77,19 @@ describe('build step', () => {
     expect(await ex.reuse!(ctx, hash)).toBe(true);
   });
 
+  it('the channel style is part of the input hash: a style change after the start keeps the build under its own hash (Review Focus 5)', async () => {
+    const { deps } = setup();
+    const { ctx } = await buildContext(deps);
+    const ex = buildExecutor(deps);
+    const before = await ex.inputHash(ctx);
+    expect(await ex.run(ctx, before)).toMatchObject({ status: 'done' });
+    await setChannelStyle(t.pool, 'atolye');
+    const after = await ex.inputHash(ctx);
+    expect(after).not.toBe(before);
+    expect(await ex.reuse!(ctx, before)).toBe(true); // the finished build is recorded under the hash it started with
+    expect(await ex.reuse!(ctx, after)).toBe(false); // the next build uses the new style
+  });
+
   it('a failing trusted build goes back to the same Claude session as a fix request, then the build passes', async () => {
     const { deps, specs } = setup();
     const { ctx } = await buildContext(deps, 'Bozuk sahne kalem');

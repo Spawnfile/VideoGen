@@ -1,12 +1,17 @@
 # M4b — Sahne Çekirdeği (vg_blender, güvenli build, önizleme, eşdeğerlik, build adımı, K19) — Uygulama Planı
 
+> **Uygulama kaydı (errata, 2026-10-06):** Plan uygulandı ve kullanıcı kararıyla M4a ile birlikte `main`'e birleştirildi (`ed2816c`; görev commit'leri `3eed682..63242b3`, özet `docs/m4/m4b-summary.md`).
+> - **Atlananlar:** T11 Step 2 (gerçek Claude doğrulaması) ve Step 3 (bağımsız son review), kullanım limiti için; ikisi M4c'nin ilk gerçek ürününe kaldı.
+> - **Plan incelemesi sonrası eklenenler:** iki test (Review Focus 5 ve 1; sayı zinciri buna göre +1).
+> - Yeniden koşmak için `m4a-pipeline-core`'dan değil `main`'den dal aç; "Başlarken" ve T11'deki "birleştirme yok" yönergeleri bu kayıtla geçersizdir.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Storyboard'u hazır bir üründe builder agent'ı `python/vg_blender` kütüphanesiyle `product.py` ve `SceneSpec` yazsın. Worker bu kodu ağsız ve ev klasörü gizli bir sandbox'ta (bubblewrap) iki aşamada çalıştırıp `.blend`, `scene.glb`, `anchors.json`, `events.json`, `camera_track.json` ve build raporunu üretsin. Blender↔Three.js anchor eşdeğerliği (≤ 8 px) her build'de doğrulansın. GPU önizleme kareleri kontakt sayfası ve güvenli alan katmanıyla çıksın. Stüdyo build kartını ve agent'ın GPU beklemesini canlı göstersin. Kanal görsel kimliğinin (K19) üç seçeneği görselleriyle Ayarlar'da sunulsun. Smoke S2b (storyboard → build) yeşil olsun.
 
 **Architecture:** Geometri ve hareketin tek kaynağı bpy'dir (K23).
 - **Aşama 1 (güvenilmeyen kod):** Agent'ın yazdığı `product.py` yalnızca geometri kurar. AST izin listesi ve kısıtlı builtins'le, bwrap içinde (ağ yok, `$HOME` tmpfs, yalnızca run klasörü yazılabilir) çalışır ve geometri `.blend`'ini kaydeder.
-- **Aşama 2 (worker'ın kendi betiği, `--disable-autoexec`, yine bwrap):** O `.blend`'i açar, yalnızca parça boşluklarını ve mesh'lerini tutar. SceneSpec'ten patlatma ve kamerayı **her kareye** anahtarlar (kısıt ve NLA bake yok), stüdyo ışığını ve dünya gradyanını kanal stilinden kurar. Manifestleri ve kontrolleri hesaplar, GLB'yi dışa aktarır. Böylece `product.py` manifestleri taklit edemez.
+- **Aşama 2 (worker'ın kendi betiği, yine bwrap):** O `.blend`'i açar, yalnızca parça boşluklarını ve mesh'lerini tutar. SceneSpec'ten patlatma ve kamerayı **her kareye** anahtarlar (kısıt ve NLA bake yok), stüdyo ışığını ve dünya gradyanını kanal stilinden kurar. Manifestleri ve kontrolleri hesaplar, GLB'yi dışa aktarır. Böylece `product.py` manifestleri taklit edemez. Bütün Blender çalıştırmaları (iki aşama ve render'lar) `--disable-autoexec` ile yapılır.
 - **Hesaplamanın Node tarafı:** Three.js matematiği yeni `packages/scene3d` paketindedir. GLB kliplerini geçmişten bağımsız `seek` ile oynatır ve kare başına `yfov`'u (`camera_track.json`) uygular; glTF lens animasyonu taşımaz.
 - **GPU ve ağır CPU işleri:** Worker'daki tek bir süreç içi `ResourceLocks` (gpu 1, heavy_cpu 1) üzerinden ve spec §6.4 ön kontrolüyle yürür. MCP araçları (`build_scene`, `render_preview_stills`) aynı kilidi kullanır (K22).
 - **Build adımı:** Agent'ın yapılandırılmış `SceneSpec`'ini kanonik sayar. Son `product.py` ile **kendi** güvenilir build'ini yapar; hata olursa aynı oturuma düzeltme isteği gönderir (≤ 2). Artefaktları içerik adresli depoya ve `artifacts`'a yazar.
@@ -29,7 +34,7 @@ M4b (handoff'taki adıyla: vg_blender, build, taslak render, player, K19, ilk ge
 | Plan | İçerik | Çıkış |
 |---|---|---|
 | **M4b (bu plan)** | Sahne sözleşmeleri, `vg_blender` (kütüphane + iki aşamalı build + önizleme), `packages/scene3d` (Three.js eşdeğerliği), worker render katmanı (kilitler, sandbox, süreç denetimi, Fake sürücü), MCP `build_scene` / `render_preview_stills`, builder adımı, medya ucu, Stüdyo build kartı, K19 seçenekleri ve seçici, smoke S2b | Storyboard'dan doğrulanmış 3D sahneye (Fake ile smoke; gerçek Blender + sonnet builder ile tek doğrulama) |
-| **M4c** (`plans/2026-10-06-m4c-draft-review-player.md`) | `Review` sözleşmesi, `packages/remotion` + Draft3D + `render_draft`, `draft_render` ve `draft_review` adımları (≤ 2 tur), orchestrator GPU kilidi ve kullanım kapısı, player (Remotion Player + HTTP Range), smoke S2, ilk gerçek ürün (K12 modelleri), M4 raporu ve `main`'e birleştirme | S2 (taslakla); ilk gerçek ürün; video başına kullanım |
+| **M4c** (`plans/2026-10-06-m4c-draft-review-player.md`, **yazılacak**) | `Review` sözleşmesi, `packages/remotion` + Draft3D + `render_draft`, `draft_render` ve `draft_review` adımları (≤ 2 tur), orchestrator GPU kilidi ve kullanım kapısı, player (Remotion Player + HTTP Range), smoke S2, ilk gerçek ürün (K12 modelleri), M4 raporu ve `main`'e birleştirme | S2 (taslakla); ilk gerçek ürün; video başına kullanım |
 
 M4b sonunda `main`'e birleştirme **yapılmaz**. Dal `m4b-scene-core` olarak kalır (M4a dalı `m4a-pipeline-core`'un HEAD'inden açılır). M4c onun üstünde açılır; taş sonu ve birleştirme M4c'dedir.
 
@@ -97,10 +102,10 @@ Her karar spec ile tutarlıdır. Spec'teki bir K kararını ya da mimariyi deği
 | B11 | Önizleme: 8 kare (0. kare + vuruş ortaları, eşit seçilmiş), %50 ölçek, 16 örnek; kontakt sayfası 4×2, güvenli alan katmanı ölçeğe göre (üst 150, alt 1510, sağ 130 px → %50'de 75/755/65) | §7.5, §8.1 G6 | — |
 | B12 | Kanal stilleri tek kaynakta: `packages/shared/src/styles.ts`. Worker her build'de stili `scene/style.json` olarak yazar ve Blender onu okur (Python'da renk kopyası yok). Seçenek görselleri `apps/web/public/k19/<id>.png` (SPA sunar). Seçim `settings` `channel.style`'da, audit'li. Seçilmemişse `DEFAULT_CHANNEL_STYLE` (`gece_mavisi`) GEÇİCİ olarak kullanılır ve rapora yazılır (K17 gibi) | K19 kullanıcı kararı (runbook §4) | Kullanıcı başka stil seçerse sonraki build'ler onu kullanır; eski videolar eski stilde kalır |
 | B13 | `SceneSpec.style_id` yürütücü tarafından denetlenir (`sceneRefErrors`): seçili kanal stiliyle aynı olmalı. İstem stili söyler | Tek kanal kimliği (K19) | — |
-| B14 | `IMPLEMENTED_STEPS += build`. M4b sonunda video notu `incompleteNote(son adım)`: "Sahne hazır. Taslak render bu sürümde henüz yok." (K13: `ready` yalnızca `finalize`'la) | M4a deseni; not son adıma göre üretilir | — |
+| B14 | `IMPLEMENTED_STEPS += build`. "M4b sonunda video notu `PIPELINE_INCOMPLETE_NOTE(son adım)`: "Sahne kurulumu hazır. Taslak render bu sürümde henüz yok." (K13: `ready` yalnızca `finalize`'la) | M4a deseni; not son adıma göre üretilir | — |
 | B15 | Worker yeniden başlarsa yarım build, adımın son oturumunu (`steps.session_id` → `claude_session_id`) `RESUME_PROMPT` ile sürdürür (`runStructured` `initialResume`) | 60 turluk opus oturumunu baştan açmak pahalı | — |
 | B16 | PID dosyaları tür taşır (`claude` / `render`). Yeniden başlatmada yetim Blender/bwrap/ffmpeg grupları da öldürülür; render süreci grubu iptal ve zaman aşımında SIGTERM → 5 sn → SIGKILL | §14; M4a reaper yalnız `claude` arıyordu | — |
-| B17 | Güvenlik devirleri (builder Bash alıyor): jq bayrak izin listesi, ağır komut kuralı yalnızca komut adında, dev ucu yalnızca Fake sürücüyle, `SpecStore.write` `wx` + yeniden deneme, istemlerde storyboard/araştırma JSON'u çitli veri, pipeline kartında `stepId` varken "Yeniden dene" gizli | M3 §7 minor 3, 4, 5, 8; M4a minor 6, 11 | — |
+| B17 | Güvenlik devirleri (builder Bash alıyor): jq bayrak izin listesi, ağır komut kuralı yalnızca komut adında, dev ucu yalnızca Fake sürücüyle, `SpecStore.write` `wx` + yeniden deneme, istemlerde storyboard/araştırma JSON'u çitli veri, pipeline kartında `stepId` varken "Yeniden dene" gizli | M3 §7 minor 3, 4, 5, 8, 12; M4a minor 6, 11 | — |
 | B18 | Render audit'i (§11.2): her Blender/ffmpeg çalıştırması `render.<tür>` satırı (aşama, süre ms, çıkış kodu, çıktı sha, ana makine yolu yok) | §11.2 kapsamı | — |
 | B19 | `npm test` Blender/bwrap/Chrome gerektirmez. Gerçek araçlar `npm run test:blender` (Blender içi unittest) ve `npm run test:render` (gerçek sandbox + Blender + eşdeğerlik, vitest ayrı yapılandırma) altında; ilgili görevlerde ve kapanışta zorunlu | Smoke ve birim testleri her makinede koşmalı (§16.1 FakeRenderDriver) | — |
 | B20 | Gerçek doğrulama (kapanış): geçici DB, research/storyboard haiku/low, builder **sonnet/high** (K12 opus tam ürün M4c'de), "tükenmez kalem", gerçek Blender. Başlama koşulu 5 sa < %25 ve 7 gün < %70 | Bağlantılar gerçek araçla kanıtlanır; opus bütçesi M4c'nin ilk gerçek ürününe saklanır | haiku/sonnet kalite sorunu M4c'de opus ile ölçülür |
@@ -114,6 +119,9 @@ Her karar spec ile tutarlıdır. Spec'teki bir K kararını ya da mimariyi deği
 | CC0 varlıklar (`asset_ref`), `search_assets`, lisans kapısı | M5 | Varlık defteri yok (B5) |
 | Final render (`Fra:`), compose, qc, reviewer'lar | M5 | Yol haritası |
 | Chat'ten yeni sürüm ve Karşılaştır (S5 kalanı) | M5 / M7 | Fixer ve sürüm karşılaştırma oralarda |
+| Kamera düzeneğinde DOF ve hareket bulanıklığı (§7.3) | M5 (final render) | Taslak (Three.js) ve önizleme (EEVEE %50/16 örnek) için gereksiz; final EEVEE render'ında açılır |
+| "Mekanizma çekimi" zorunluluğunun otomatik denetimi (§7.3 pilot dersi) | M4c (taslak incelemesi `mechanism_shot` kontrolü) | Geometrik olarak ölçülemez; builder istemi şart koşar, M4c reviewer'ı karelerle denetler |
+| `layout.json`, `provenance.json` manifestleri (§7.4) | M4c / M5 | Metin kutuları Remotion katmanında (M4c), varlık/lisans kaydı varlık defteriyle (M5) gelir |
 
 ## Global Constraints
 
@@ -141,7 +149,7 @@ Her karar spec ile tutarlıdır. Spec'teki bir K kararını ya da mimariyi deği
   - Playwright yalnızca `channel:'chrome'`; `npx playwright install` yok.
 - Arayüz görevleri `frontend-design:frontend-design` yüklü yapılır. Her görünür değişiklikten sonra `VG_SCREENSHOTS=1 npx playwright test -c tests/smoke/playwright.config.ts screens -g M4b` ile ekran alınır ve Read ile incelenir.
 - Elle ve gerçek doğrulamalar gerçek DB'ye yazmaz: `VG_DATABASE_URL` / `VG_ADMIN_DATABASE_URL` / `VG_DATA_DIR` geçici hedefe yöneltilir (runbook §6; `audit_log` silinemez).
-- Disk: işe başlamadan `df -h /` ≥ 10 GB. `spikes/m4b/node_modules` (≈ 240 MB) Task 4 sonunda silinir (sondaj betikleri commit'li kalır).
+- Disk: işe başlamadan `df -h /` ≥ 10 GB. `spikes/m4b/node_modules` (≈ 330 MB) Task 4 sonunda silinir (sondaj betikleri commit'li kalır).
 
 ## Review Focus
 
@@ -180,7 +188,7 @@ df -h / | tail -1 && free -h | sed -n 2,3p && bwrap --version && bin/blender-gpu
 ```
 
 - Ledger: `.superpowers/sdd/2026-10-06-m4b-scene-core/progress.md` (ilk satır plan yolu). `Ruling:` satırları M3/M4a biçiminde tutulur.
-- Test sayısı zinciri (`npm test`): 225 → T1 230 → T2 231 → T3 231 → T4 235 → T5 245 → T6 258 → T7 265 → T8 269 → T9 270 → T10 270 → T11 270 (+ review testleri).
+- Test sayısı zinciri (`npm test`): 225 → T1 230 → T2 231 → T3 231 → T4 235 → T5 245 → T6 258 → T7 266 → T8 270 → T9 271 → T10 271 → T11 271 (+ review testleri).
   - `test:blender`: T2 12 → T3 17.
   - `test:render`: T5 4.
   - Smoke: T7 11 passed / 5 skipped → T8 11/6 → T9 11/7 → T10 15/7.
@@ -870,7 +878,7 @@ Expected: FAIL — `ENOENT: no such file or directory, open '…/python/vg_blend
 `python/vg_blender/vg_blender/safety.py`:
 
 ```python
-"""Static checks for agent-written product.py (spec §6.6, plan D10).
+"""Static checks for agent-written product.py (spec §6.6, plan B3).
 
 The builder agent writes scene/product.py; the worker executes it inside Blender. This allow-list is the first line of
 defence (bubblewrap is the hard boundary): product.py may only import `math`, must define `build(vg)` and must not reach
@@ -1547,12 +1555,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - `vg_blender.build.build_phase(spec, storyboard, style, product_blend, out) -> report` (aşama 2: parça boşlukları ve mesh'leri dışındaki her şeyi siler; malzeme, dünya, ışık, kare başına anahtar, anchor'lar, kamera, kontroller, GLB, `.blend`).
   - `vg_blender.build.main(argv)`.
   - Rapor şekli Task 1 `BuildReportSchema`.
-  - CLI: `blender -b --factory-startup --python-exit-code 1 -P python/vg_blender/build_cli.py -- product --spec S --product P --out-blend B --report R` ve `… --disable-autoexec … -- scene --spec S --storyboard SB --style ST --blend B --out O --report R`. Çıkış kodu 0, sonuç `R` dosyasında (`ok:false` + `errors[]` ürün hatasıdır, çökme değil); stdout'ta `VG_BUILD <aşama> ok|failed`.
+  - CLI (worker iki aşamayı da ve render'ları `--disable-autoexec` ile çalıştırır): `blender -b --factory-startup --disable-autoexec --python-exit-code 1 -P python/vg_blender/build_cli.py -- product --spec S --product P --out-blend B --report R` ve `… -- scene --spec S --storyboard SB --style ST --blend B --out O --report R`. Çıkış kodu 0, sonuç `R` dosyasında (`ok:false` + `errors[]` ürün hatasıdır, çökme değil); stdout'ta `VG_BUILD <aşama> ok|failed`.
   - `vg_blender.render.main(argv)`: `--blend --frames 0,30,… --out --scale 50 --samples 16`. Çıktı `f%05d.png`. stdout'ta ilk kareden sonra `VG_RENDERER <ad>` ve kare başına `VG_PROGRESS i n`. GPU NVIDIA değilse `VG_ERROR …` ve çıkış kodu 3 (sondaj P2: `renderer_get` ilk render'dan önce çağrılamaz).
   - Çıktı dosyaları (`out/`): `scene.glb`, `scene.blend`, `anchors.json` (`SceneAnchors`, 5 karede bir + eşdeğerlik kareleri), `events.json` (`SceneEvents`), `camera_track.json` (`CameraTrack`, `frames+1` `yfov`).
   - `bin/scene-fixtures.sh`.
 
-Kararlar: B3 (iki aşama; aşama 2 sahte manifesti, kamerayı, ışığı ya da sürücüyü yok sayar), B4 (kare başına anahtar, kısıt ya da bake yok; **son karede tutma anahtarı**: bitmiş `LoopOnce` eylemi aksi halde 0'a döner, sondaj P6), D26 (sert hatalar: `product.py` hatası, eksik ya da fazla parça, üçgen > 400 bin; diğerleri uyarı: kahraman < %35, ön plan kapatma > %25, 0. karede iç içe geçme).
+Kararlar: B3 (iki aşama; aşama 2 sahte manifesti, kamerayı, ışığı ya da sürücüyü yok sayar), B4 (kare başına anahtar, kısıt ya da bake yok; **son karede tutma anahtarı**: bitmiş `LoopOnce` eylemi aksi halde 0'a döner, sondaj P6), B3/B10 (sert hatalar: `product.py` hatası, eksik ya da fazla parça, üçgen > 400 bin; diğerleri uyarı: kahraman < %35, ön plan kapatma > %25, 0. karede iç içe geçme).
 
 - [ ] **Step 1: Başarısız testleri yaz**
 
@@ -2306,7 +2314,7 @@ Run: `npm run typecheck && npm test`
 Expected: `Tests  235 passed (235)` (231 + 4).
 
 Run: `rm -rf spikes/m4b/node_modules && df -h / | tail -1`
-Expected: boş disk ≈ 0,3 GB artar.
+Expected: boş disk ≈ 330 MB artar.
 
 - [ ] **Step 5: Commit**
 
@@ -2458,6 +2466,9 @@ describe('sandbox and process control', () => {
     const r = await runProcess('bash', ['-c', 'sleep 30 & sleep 30'], { cwd: data, dataDir: data, owner: 'job', timeoutMs: 300, killGraceMs: 200, env: { PATH: process.env.PATH! } });
     expect(r.stopped).toBe('timeout');
     expect(readdirSync(join(data, 'pids')).length).toBe(0);
+    // The caller survives the kill and runs the next job normally (Review Focus 1).
+    const next = await runProcess('bash', ['-c', 'echo ok'], { cwd: data, dataDir: data, owner: 'job', timeoutMs: 5000, env: { PATH: process.env.PATH! } });
+    expect([next.code, next.stopped, next.tail]).toEqual([0, null, ['ok']]);
   });
 
   it('stops a group whose memory grows past the limit, and stops on abort', async () => {
@@ -4546,6 +4557,19 @@ describe('build step', () => {
     expect(await ex.reuse!(ctx, hash)).toBe(true);
   });
 
+  it('the channel style is part of the input hash: a style change after the start keeps the build under its own hash (Review Focus 5)', async () => {
+    const { deps } = setup();
+    const { ctx } = await buildContext(deps);
+    const ex = buildExecutor(deps);
+    const before = await ex.inputHash(ctx);
+    expect(await ex.run(ctx, before)).toMatchObject({ status: 'done' });
+    await setChannelStyle(t.pool, 'atolye');
+    const after = await ex.inputHash(ctx);
+    expect(after).not.toBe(before);
+    expect(await ex.reuse!(ctx, before)).toBe(true); // the finished build is recorded under the hash it started with
+    expect(await ex.reuse!(ctx, after)).toBe(false); // the next build uses the new style
+  });
+
   it('a failing trusted build goes back to the same Claude session as a fix request, then the build passes', async () => {
     const { deps, specs } = setup();
     const { ctx } = await buildContext(deps, 'Bozuk sahne kalem');
@@ -5178,10 +5202,10 @@ diff --git a/packages/shared/src/pipeline.ts b/packages/shared/src/pipeline.ts
 - [ ] **Step 4: Testlerin ve smoke'un geçtiğini gör**
 
 Run: `npx vitest run apps/worker/test/build-step.test.ts` (2 kez)
-Expected: `Tests  7 passed (7)` her seferinde.
+Expected: `Tests  8 passed (8)` her seferinde.
 
 Run: `npm run typecheck && npm test`
-Expected: `Tests  265 passed (265)` (258 + 7).
+Expected: `Tests  266 passed (266)` (258 + 8).
 
 Run: `npm run test:smoke`
 Expected: `11 passed`, `5 skipped` (S2a artık build adımını da bekler ve Fake render sürücüsüyle geçer; `/tmp/videogen-smoke` kalmaz, portlar boş).
@@ -5227,7 +5251,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - Medya örneği `root: dataDir`, `serve: false`; `reply.sendFile`'ı o sağlar.
   - SPA örneği `decorateReply: false`; bulunamayan rotalarda `reply.sendFile('index.html', webDist)`.
 
-Kararlar: B8 (kartta "GPU bekliyor · sırada N" ya da ön kontrol gerekçesi), B17 (M4a minor 11: adım oturumu adımın kendi yeniden denemesine bırakılır; arayüz yalnızca "Durdur" sunar, API de reddeder). Fake önizleme kareleri sakin bir yer tutucudur (Task 5 `testStill`).
+Kararlar: B8 (kartta "GPU bekliyor · sırada N" ya da ön kontrol gerekçesi), B17 (M4a minor 11 ve M3 §7 minor 12: adım oturumu adımın kendi yeniden denemesine bırakılır; arayüz yalnızca "Durdur" sunar, API de reddeder). Fake önizleme kareleri sakin bir yer tutucudur (Task 5 `testStill`).
 
 - [ ] **Step 0: Arayüz skill'i**
 
@@ -5858,7 +5882,7 @@ diff --git a/packages/shared/src/agents.ts b/packages/shared/src/agents.ts
 - [ ] **Step 4: Testlerin, smoke'un ve ekranın geçtiğini gör**
 
 Run: `npm run typecheck && npm test`
-Expected: `Tests  269 passed (269)` (265 + 4).
+Expected: `Tests  270 passed (270)` (266 + 4).
 
 Run: `npm run test:smoke`
 Expected: `11 passed`, `6 skipped` (yeni ekran testi yalnızca `VG_SCREENSHOTS=1` ile koşar).
@@ -6285,10 +6309,13 @@ Expected: üç satır `k19: …/apps/web/public/k19/<id>.png` (≈ 15 sn, NVIDIA
 - [ ] **Step 4: Testlerin ve ekranın geçtiğini gör**
 
 Run: `npm run typecheck && npm test`
-Expected: `Tests  270 passed (270)` (269 + 1).
+Expected: `Tests  271 passed (271)` (270 + 1).
 
 Run: `npm run test:blender`
 Expected: `Ran 17 tests` … `OK` (şeffaf önizleme).
+
+Run: `npm run test:render && npm run test:smoke`
+Expected: `4 passed` (gerçek önizleme RGBA çıkar); smoke `11 passed`, `7 skipped`.
 
 Run: `VG_SCREENSHOTS=1 npx playwright test -c tests/smoke/playwright.config.ts screens -g K19`
 Expected: `1 passed`; `docs/m4/settings-k19.png`. Read ile incele: üç görselli seçenek ve "Henüz seçilmedi: geçici olarak Gece mavisi kullanılıyor." notu görünür.
@@ -6464,7 +6491,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 Run: `npm run typecheck && npm test && npm run test:blender && npm run test:render && npm run test:smoke`
 Expected:
-- `npm test`: `Tests  270 passed (270)`.
+- `npm test`: `Tests  271 passed (271)`.
 - `test:blender`: `Ran 17 tests … OK`.
 - `test:render`: `4 passed`.
 - `test:smoke`: `15 passed`, `7 skipped`.
@@ -6584,6 +6611,7 @@ Expected: `AĞAÇ AYNI`.
 **Checklist M4 bölümü:**
 - "`vg_blender` çekirdeği + `build_scene` + önizleme kareleri + eşdeğerlik testi" kutusunu işaretle (`· commit <T2>…<T7> · <tarih> · M4b`).
 - K19 satırına seçimi ya da "GEÇİCİ" durumunu yaz.
+- Player, video başına kullanım ölçümü ve "Smoke S2 (taslakla) + ilk gerçek ürün" satırlarındaki "M4b" notlarını "M4c" yap (Kapsam ve bölme tablosu).
 - Genel durum tablosunda M4: "Devam ediyor (M4a, M4b tamam; M4c sırada)".
 - Karar tablosu:
   - M4b gerçek doğrulama;
@@ -6612,7 +6640,8 @@ Expected: `AĞAÇ AYNI`.
 
 **Spec (yalnızca kanıtla):**
 - §6.2: builder satırına "render_draft M4b/M4c'de yok (B7)".
-- §6.3: `build_scene` / `render_preview_stills` uygulandı; sonuç şekli B10; araç başına zaman aşımı; GPU beklemesi kartta.
+- §4 K22 / §5.1: GPU ve ağır CPU için tek kapı worker'daki `ResourceLocks`; MCP araçları ondan geçer, orchestrator GPU adımları M4c'de aynı kilide bağlanır.
+- §6.3: `build_scene` / `render_preview_stills` uygulandı; sonuç şekli B10; araç başına zaman aşımı; GPU beklemesi kartta; `render_preview_stills`'te `scale` parametresi yok (B11: sabit %50).
 - §7.3:
   - hareketin de tek kaynağı bpy (kare başına anahtar + son kare tutma + `camera_track`);
   - `product.py` sözleşmesi ve iki aşamalı sandbox;
@@ -6652,4 +6681,65 @@ Biçim: **Maddeler / Doğrulama** (komut + çıktı alıntısı) **/ Bilmen gere
   - K19 (yanıt gelmediyse GEÇİCİ);
   - K17 (ses, M5);
   - swap eşiği (B2, kural değişmedi).
-- M4c planının (`docs/superpowers/plans/2026-10-06-m4c-draft-review-player.md`) uygulanmasını öner. `main`'e birleştirme yapılmaz.
+- M4c planını `superpowers:writing-plans` ile yazmayı öner (`docs/superpowers/plans/2026-10-06-m4c-draft-review-player.md`, henüz yok). `main`'e birleştirme yapılmaz (errata: kullanıcı kararıyla birleştirildi).
+
+---
+
+## Self-review notları (plan yazarı)
+
+- **Spec kapsamı (M4b dilimi):** Bölümlerin görevlere eşlemesi:
+  - §7.3 kütüphane, iki aşamalı build, eşdeğerlik ve pilot dersleri: T2, T3, T4, T7.
+  - §7.4 `SceneSpec` ve manifestler: T1, T3.
+  - §7.5 önizleme: T3, T6, T9.
+  - §6.2 builder: T6, T7. §6.3 araçlar: T6. §6.4 GPU ön kontrolü ve kilit: T5, T6.
+  - §6.6 / §15 güvenilmeyen kod ve sandbox: T2, T3, T5, T7.
+  - §11.2 render audit'i: T5.
+  - §12.2–12.3 GPU bekliyor ve canlılık: T6, T8.
+  - §13.1 Stüdyo kartı ve Ayarlar → kanal kimliği: T8, T9.
+  - §14 kurtarma: T5, T7. §16 Fake sürücü, smoke ve gerçek araç testleri: T5, T10.
+
+  M4b'ye ait olmayanlar "Kapsam dışı" tablosundadır (M4c, M5).
+- **Yer tutucu taraması:** "TBD/TODO/sonra doldur" yok. Her kod adımı tam dosya ya da `git apply` ile uygulanabilir `diff` içerir.
+- **Tip ve ad tutarlılığı:** Plan yazımında kod ayrık bir worktree'de görev görev çalıştırıldı. Ardından plan metni m4a HEAD'ine temiz bir kopyada yeniden uygulandı; her görevin sonunda typecheck geçti ve test sayısı plandakiyle aynı çıktı (T1–T10).
+- **Review Focus eşlemesi:**
+  - 1: T2 `test_safety`, T3 `test_phase_two_ignores…`, T5 sandbox, zaman aşımı, RSS ve "çağıran ayakta kalır", T5 `test:render`.
+  - 2: T5 süreç grubu ve PID türü, T7 `initialResume`, T10 S2b iptal.
+  - 3: T5 kilitler, T6 sahne araçları ve manager canlılığı.
+  - 4: T7 düzeltme döngüsü ve stil.
+  - 5: T7 stil hash testi, T9, T10 S2b kanal kimliği.
+
+## Plan inceleme geçmişi
+
+- **Plan öncesi grilling (bağımsız agent, Claude Fable 5.1):** 38 kararlık karar ağacı sorgulandı. Alınan CHANGE önerileri:
+  - plan bölme (B1);
+  - iki aşamalı build ve güvenilmeyen kodun manifest üretmemesi (B3);
+  - `needs_asset` → `needs_human` (B5);
+  - `render_draft`'ın builder'dan çıkarılması (B7);
+  - tek kapı `ResourceLocks` ve araç sırasında canlılık (B8, B9);
+  - PID türü (B16);
+  - yürütücünün kendi güvenilir build'i (B6);
+  - araç sonuç şekli ve zaman aşımları (B10).
+
+  D5, D6, D38 (taslak döngüsü, `Review` önem derecesi, `steps.round`) M4c'ye devredildi (`docs/m4/m4b-summary.md` §8).
+- **Plan doğrulaması (yazar):** Planın kodu çalıştırılırken bulunan ve plana işlenen hatalar `docs/m4/m4b-summary.md` §4'te. Başlıcaları:
+  - bitmiş klibin 0'a dönmesi;
+  - `/tmp` bağlama sırası;
+  - `SpecStore` geçici ad yarışı;
+  - AgX'in K19 renklerini kaydırması;
+  - `renderer_get` zamanlaması.
+- **Plan sonrası bağımsız analiz (Claude Fable 5.1, salt okunur; planı spec'e, M4a'ya ve birleştirilmiş koda karşı):** Engelleyici bulgu yok. Important 5, Minor 9; hepsi kapatıldı:
+  - **I1:** Review Focus 5'in stil→hash iddiası testsizdi → T7'ye test eklendi.
+  - **I2:** T9 render katmanını değiştirip `test:render`/smoke koşmuyordu → Step 4'e eklendi.
+  - **I3:** checklist'teki "M4b" notları M4c'ye çevrilmedi → T11 Step 5 ve checklist düzeltildi.
+  - **I4:** M4c plan dosyası yokken var gibi anılıyordu → "yazılacak".
+  - **I5:** Plan "birleştirme yok" diyordu ama birleştirildi → başa uygulama kaydı (errata).
+  - **Minor'lar:**
+    - M1: eski D-etiketleri → B.
+    - M2: B14 not metni.
+    - M3: disk boyutu.
+    - M4: B17'ye M3 minor 12.
+    - M5: DOF/hareket bulanıklığı, mekanizma çekimi denetimi, `layout.json`/`provenance.json` "Kapsam dışı"na.
+    - M6: §6.3 `scale` notu.
+    - M7: K22/§5.1 tek kapı notu.
+    - M8: "çağıran ayakta kalır" testi (T5).
+    - M9: `--disable-autoexec` ifadeleri tek biçim.

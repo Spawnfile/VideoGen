@@ -33,7 +33,7 @@ Ayarlar → Kanal kimliği bölümü üç seçeneği örnek kalemin gerçek rend
 | T4 | `packages/scene3d` (GLB saati, kare başına fov, eşdeğerlik) | `374190f` | 235 |
 | T5 | Render katmanı (kilitler, §6.4 kapısı, bwrap, süreç grubu, Fake sürücü) | `dd119c1` | 245 · render 4 |
 | T6 | MCP `build_scene` / `render_preview_stills`, araç canlılığı, GPU sırası, güvenlik devirleri | `0d3d565` | 258 |
-| T7 | Build adımı (güvenilir build, önizleme, artefaktlar, yeniden başlatmada `resume`, `needs_asset` kapısı) | `52b2186` | 265 · smoke 11 |
+| T7 | Build adımı (güvenilir build, önizleme, artefaktlar, yeniden başlatmada `resume`, `needs_asset` kapısı) | `52b2186` | 265 (+1 plan incelemesi) · smoke 11 |
 | T8 | Medya ucu, build kartı, kartta GPU sırası, adım oturumunda "Yeniden dene" yok | `7ea0145` | 269 |
 | T9 | K19 seçenekleri, stil arka planı, Ayarlar seçicisi | `2eb0dc4` | 270 |
 | T10 | Smoke S2b | `63242b3` | smoke 15 |
@@ -41,7 +41,7 @@ Ayarlar → Kanal kimliği bölümü üç seçeneği örnek kalemin gerçek rend
 ## 3. Doğrulama
 
 ```
-npm run typecheck && npm test   →  Test Files 50 passed · Tests 270 passed (270)
+npm run typecheck && npm test   →  Test Files 50 passed · Tests 271 passed (271)   (270 + plan incelemesinin eklediği stil→hash testi)
 npm run test:blender            →  Ran 17 tests … OK
 npm run test:render             →  Tests 4 passed (4)   (gerçek bwrap + Blender + NVIDIA; sandbox: net:blocked ssh:False repo:False root:readonly)
 npm run test:smoke              →  15 passed · 7 skipped (~1,2 dk); /tmp/videogen-smoke ve portlar temiz

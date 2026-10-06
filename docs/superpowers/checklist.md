@@ -75,10 +75,10 @@
 - [x] storyboard adımı (`Storyboard`, kanca kalıpları, sürümlü kayıt) · commit bc71c3a, 7cb5f0b · 2026-10-06 · M4a T1/T7; Stüdyo kartları T9 (4f76cf2)
 - [x] `vg_blender` çekirdeği + `build_scene` + önizleme kareleri + eşdeğerlik testi · commit dd63e70, 2b6524f, 374190f, dd119c1, 0d3d565, 52b2186 · 2026-10-06 · M4b T2–T7; iki aşamalı bwrap sandbox, kalem eşdeğerliği 0,01 px; gerçek Claude builder koşusu M4c'ye kaldı (kullanıcı kararı)
 - [ ] Paylaşılan Remotion çalışma alanı + Draft3D + `render_draft` + taslak review'u (≤ 2 tur)
-- [ ] Kütüphane ve player (HTML5 Range + `@remotion/player`) · Kütüphane listesi M4a T10 (80f4597); player M4b
+- [ ] Kütüphane ve player (HTML5 Range + `@remotion/player`) · Kütüphane listesi M4a T10 (80f4597); medya ucu (HTTP Range) M4b T8 (7ea0145); player M4c
 - [ ] 🚦 Kanal görsel kimliği: 2–3 seçenek → kullanıcı seçimi (K19) · seçenekler ve seçici commit 2eb0dc4 · 2026-10-06 · M4b T9; **kullanıcı seçimi bekleniyor** (Ayarlar → Kanal kimliği), o zamana kadar `gece_mavisi` GEÇİCİ
-- [ ] Video başına kullanım ölçümü (spec §18) · altyapı M4a T2/T6 (toplam + 5 sa payı; gerçek koşuda pencere karşılaştırma hatası bulundu ve düzeltildi); gerçek ürün ölçümü M4b
-- [ ] Smoke S2 (taslak sürümüyle); ilk gerçek ürün · S2a (taslak öncesi) M4a T11 (8018d5b); taslaklı S2 ve ilk gerçek ürün M4b
+- [ ] Video başına kullanım ölçümü (spec §18) · altyapı M4a T2/T6 (toplam + 5 sa payı; gerçek koşuda pencere karşılaştırma hatası bulundu ve düzeltildi); gerçek ürün ölçümü M4c
+- [ ] Smoke S2 (taslak sürümüyle); ilk gerçek ürün · S2a (taslak öncesi) M4a T11 (8018d5b); S2b (sahne) M4b T10 (63242b3); taslaklı S2 ve ilk gerçek ürün M4c
 
 ## M5 — Final render ve kalite *(plan M4 sonrası)*
 

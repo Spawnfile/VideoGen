@@ -211,7 +211,7 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 | **summarizer** | Haiku / low | Yok | Kısa Türkçe özetler (audit ve kart başlıkları) | 3 |
 
 - Model ve effort ayarları Ayarlar ekranından rol bazında değiştirilebilir. Değişiklik audit'e yazılır.
-- **M4b:** builder'ın MCP listesinden `render_draft` çıkarıldı. Taslak videoyu `draft_render` pipeline adımı üretir; builder kareleri `render_preview_stills` ile görür. `build_scene` ve `render_preview_stills` uygulandı. Sonuç, run klasörüne göre yollarla `{ok, errors, warnings, report, equivalence, files}` olarak döner. GPU beklemesi kartta "GPU bekliyor · sırada N" diye görünür; araç sürerken oturum "takılmış" sayılmaz.
+- **M4b:** GPU ve ağır CPU işleri için tek kapı, worker'daki süreç içi `ResourceLocks` (K22; MCP araçları ondan geçer, orchestrator'ın GPU adımları M4c'de aynı kilide bağlanır). `render_preview_stills`'in `scale` parametresi yok: önizleme sabit %50, 16 örnek. Builder'ın MCP listesinden `render_draft` çıkarıldı. Taslak videoyu `draft_render` pipeline adımı üretir; builder kareleri `render_preview_stills` ile görür. `build_scene` ve `render_preview_stills` uygulandı. Sonuç, run klasörüne göre yollarla `{ok, errors, warnings, report, equivalence, files}` olarak döner. GPU beklemesi kartta "GPU bekliyor · sırada N" diye görünür; araç sürerken oturum "takılmış" sayılmaz.
 - Reviewer'lar **builder'ın akıl yürütmesini görmez**. Sadece artefaktları (kareler, manifestler, spec) görürler.
 
 ### 6.3 `videogen` MCP sunucusu (in-process, `createSdkMcpServer`)
