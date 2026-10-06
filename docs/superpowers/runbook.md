@@ -14,6 +14,7 @@ Bu doküman; planların **hangi sırayla, nasıl, hangi kapılardan geçerek** u
 | `docs/superpowers/plans/2026-10-06-m3a-agent-runtime.md` | M3a: agent çalışma katmanı (sürücü, roller, MCP, koruma, olay tabloları, kullanım muhafızı, chat servisi, API). M3b planı ayrı satırda |
 | `docs/superpowers/plans/2026-10-06-m3b-live-ui.md` | M3b: canlı arayüz (10 Hz olay deposu, ThinkingState, agent kartları, chat paneli, rol ayarları), smoke S3/S4/S5, taş sonu |
 | `docs/superpowers/checklist.md` | Görev bazında ilerleme takibi |
+| `docs/m3/report.md`, `docs/m3/real-check.md` | M3 sonuç raporu ve gerçek Claude doğrulama çıktıları |
 | `docs/m<N>/report.md` | Her taşın kanıtlı sonuç raporu (uygulama sırasında oluşur) |
 
 ## 2. Uygulama sırası
@@ -28,7 +29,7 @@ M0 Doğrulama ──┬──► M1 Ses (kullanıcı dinleme testine katılır) 
 - **M0 tamamlandı** (`docs/m0/report.md`): footer'ın birincil kaynağı `get_usage` (yüzde 0..100), `rate_limit_event` (kesir 0..1) canlı tazeleme ve yedek; giriş akışı v1'de terminal talimatı; M3 ve M4'e devredilen maddeler raporun §12'sinde.
 - **M1 ve M2 birbirinden bağımsızdır.** Önerilen sıra M2 → M1. Önce iskelet ve testler hazır olur; dinleme testi kullanıcının vakti olduğunda yapılır.
 - **M3–M7 planları önceden yazılmaz.** Her biri, bir önceki taşın raporu ve kanıtlarıyla yazılır (§5).
-- **M3 iki plana bölündü** (17 görev): M3a (agent çalışma katmanı) → M3b (arayüz + smoke S3/S4/S5). M3 raporu, son review ve `main`'e birleştirme M3b'nin sonundadır.
+- **M3 iki plana bölündü** (17 görev): M3a (agent çalışma katmanı) → M3b (arayüz + smoke S3/S4/S5). **M3 tamamlandı** (`docs/m3/report.md`); sırada M4 planı.
 
 ## 3. Bir planı uygulamak
 
@@ -116,7 +117,14 @@ Taş raporu bittikten sonra yeni bir oturumda:
 | Geliştirme kipi | `npm run dev:api` + `npm run dev:worker` + `npm run dev:web` (Vite 5173 → 5180). `dev:api` çalışırken `npm run build` yaptıysan `dev:api`'yi yeniden başlat (statik dosyalar API açılışında kaydedilir) |
 | Testler | `npm run typecheck && npm test && npm run test:smoke` |
 | Ses servisi testleri | `cd python/audio_service && .venv/bin/pytest -q` (tüm testler geçmeli, GPU gerekmez). Kurulum/yeniden kurulum: `python/audio_service/PINS.md` (**`uv sync` asla**) |
-| Smoke | `npm run test:smoke`: kendi yığınını port **5190** ve `videogen_smoke` veritabanıyla kurar, her koşuda web'i derler. `videogen_smoke` DB'si ve `/tmp/videogen-smoke-*` bir sonraki koşuya kadar kalır (sonraki koşu DB'yi silip yeniden oluşturur) |
+| Smoke | `npm run test:smoke`: kendi yığınını port **5190**, `videogen_smoke` veritabanı ve `/tmp/videogen-smoke` diziniyle kurar, her koşuda web'i derler; Claude yerine Fake sürücü. Koşu bitince DB ve dizin silinir (M3). ~40 sn, 7 senaryo + 3 atlanan ekran testi |
+| Ekran görüntüleri | `VG_SCREENSHOTS=1 npx playwright test -c tests/smoke/playwright.config.ts screens` → `docs/m3/*.png` |
+| Fake kipte geliştirme (Claude'suz) | Worker ve API'yi `VG_CLAUDE_DRIVER=fake VG_DEV_ENDPOINTS=1` ile başlat (`npm run dev:api`, `npm run dev:worker`). Hız `VG_FAKE_SPEED` (0,3 = 3× hızlı), chat senaryoları `VG_FAKE_CHAT=websearch,coding`, canlılık eşikleri `VG_QUIET_AFTER_MS` / `VG_STUCK_AFTER_MS`, chat boşta kapanma `VG_CHAT_IDLE_MS` |
+| Dev oturumu başlat (yalnızca `VG_DEV_ENDPOINTS=1`) | `curl -s -H 'Host: 127.0.0.1:5180' -H 'Origin: http://127.0.0.1:5180' -H 'content-type: application/json' -X POST -d '{"role":"researcher","script":{"fixture":"websearch"}}' http://127.0.0.1:5180/api/dev/sessions` → 202; kart Stüdyo'da görünür |
+| Rol başına model / düşünme düzeyi | Ayarlar → "Agent rolleri" (ya da `PUT /api/roles/<rol> {"model":"haiku","effort":"low"}`). Bir sonraki oturumda geçerli olur, audit'e yazılır |
+| Skill bağlantıları | `claude-plugin/skills/*` git'te değil; `claude-plugin/skills.manifest.json`'dan üretilir. Başlatıcı her açılışta `node bin/link-skills.mjs` çalıştırır; elle de çalıştırılabilir |
+| Elle doğrulama (Fake ya da gerçek) | Gerçek DB'ye yazmamak için `VG_DATABASE_URL` / `VG_ADMIN_DATABASE_URL`'yi geçici bir veritabanına yönelt (smoke yığını gibi). `audit_log` silinemez: varsayılan DB'ye düşen deneme satırları kalıcıdır (M3a T10'un Fake oturumu bu yüzden gerçek Stüdyo'da görünür) |
+| Başlatıcıyı arka planda çalıştırıp durdurmak | `node bin/videogen.mjs &` → `kill -INT <node PID>`. PID'i başlatıcının kendisinden al: `&` bir `&&` zincirinin içindeyse `$!` alt kabuğun PID'idir ve arka plandaki kabuk SIGINT'i yok sayar |
 
 ## 7. Sorun giderme
 
@@ -134,7 +142,13 @@ Taş raporu bittikten sonra yeni bir oturumda:
 | `PreToolUse` reddi audit'te hook olayı olarak görünmüyor | Callback hook'lar `system/hook_*` olayı üretmez | Reddi `tool_result.is_error` + `PreToolUse:<Araç> hook error:` önekinden ya da `result.permission_denials`'tan oku |
 | Fixture diff'inde bütün UUID'ler değişmiş | `spikes/m0/redact.mjs` commit edilmiş bir fixture'a yeniden çalıştırıldı (akış dosyalarında idempotent değil) | `git checkout -- tests/fixtures/claude-streams/`; redact'ı yalnızca yeni kayda, bir kez çalıştır |
 | Three.js eşdeğerlik testinde son kare ilk kareyle aynı (~15 px fark) | `AnimationMixer` varsayılanı `LoopRepeat`, klip süresinde 0'a sarar | Her eylemde `setLoop(THREE.LoopOnce, 1)` + `clampWhenFinished = true` |
-| "Worker yanıt vermiyor" | Worker çöktü ya da yeniden başlıyor | `tail ~/videogen-data/logs/worker.log`; başlatıcı otomatik yeniden başlatır |
+| "Worker yanıt vermiyor" | Worker çöktü ya da yeniden başlıyor (6 sn heartbeat yok) | `tail ~/videogen-data/logs/worker.log`; başlatıcı otomatik yeniden başlatır. Açılışta yetim Claude süreçleri PID dosyalarından öldürülür, yarım kalan oturumlar `failed` (`worker_restart`) olur |
+| Agent kartında "Takılmış olabilir" | 120 sn olay yok **ve** CPU < %1 (spec §12.3) | "Durdur" oturumu `cancelled` yapar; "Yeniden dene" aynı Claude oturumunu `resume` ile yeni bir alt oturumda sürdürür. Yalnızca "son olay N sn önce · süreç canlı" yazıyorsa agent çalışıyordur, bekle |
+| Chat mesajının altında "Durduruldu" | "Durdur" ile interrupt gönderildi | Beklenen: o turun süreci kapatılır (`cancelled`). Bir sonraki mesaj aynı Claude oturumunu `resume` ile yeni bir süreçte sürdürür (konuşma geçmişi korunur) |
+| Footer'da "Yeni işler bekletiliyor: 5 sa %82, 14:00'de açılır" | Kullanım muhafızı: 5 sa ≥ %80 ya da 7 gün ≥ %90, veya limit reddi | Yeni pipeline oturumu başlamaz, chat çalışır. Belirtilen saatte kendiliğinden açılır; `GET /api/usage/guard` |
+| Başlatıcı "skill hedefi bulunamadı, atlandı" der | `skills.manifest.json`'daki bir hedef dizin yok (ör. `~/Developer/video-use`) | Hedefi kur ya da manifestten çıkar; eksik skill yalnızca o skill'i kullanan role eksik gelir |
+| `ui_events`'e doğrudan `INSERT` "permission denied" ile reddediliyor | Bilinçli: sıra DB'de zorlanır, yazma yalnızca `vg_publish_event()` ile | Kodda `publishEvent()` kullan; elle olay eklemek gerekiyorsa `SELECT vg_publish_event(...)` |
+| API kapanırken "[event-hub] pump failed … Cannot use a pool after calling end on the pool" | Kapanışta havuz kapanırken uçuşta bir olay okuması vardı | Yalnızca kapanış günlüğü; olay kaybı yok (istemci yeniden bağlanınca replay eder) |
 | Üstte "Bağlantı koptu" şeridi | API yeniden başladı | Kendiliğinden yeniden bağlanır; kaçan olaylar tekrar oynatılır |
 | Açılış "Ücretli API anahtarı bulundu" ile reddedildi | Kabukta anahtar export edilmiş | `unset <ANAHTAR>`; `~/.bashrc` / `~/.profile` içinden kaldır |
 | `[videogen] 127.0.0.1:5180 dolu` | Başka bir VideoGen örneği ya da başka bir süreç 5180'i tutuyor | `ss -ltnp | grep 5180` ile PID'i bul, o süreci PID ile durdur (`kill <PID>`); sonra `npm start` |

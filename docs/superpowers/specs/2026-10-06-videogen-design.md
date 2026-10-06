@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Tarih | 2026-10-06 |
-| Durum | Tasarım onaylandı (brainstorming + grilling). M0 doğrulaması tamamlandı (`docs/m0/report.md`); sırada M2 ve M1 |
+| Durum | Tasarım onaylandı (brainstorming + grilling). M0, M1 (K17 geçici, kullanıcı onayı bekliyor), M2 ve M3 tamamlandı (`docs/m0/report.md`, `docs/m1/decision.md`, `docs/m2/report.md`, `docs/m3/report.md`); sırada M4 |
 | Sahibi | Alper (tek kullanıcı) |
 | Kapsam | v1: ürün adından yayına hazır TikTok "içinde ne var" videosuna kadar ajanlı üretim platformu |
 
@@ -248,6 +248,7 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
   - Her geçiş audit'e yazılır.
 - **İptal sırası:** `interrupt()` → sonucun gelmesi beklenir (`aborted_*`) → giriş üreteci kapatılır → 10 sn sonra süreç grubuna SIGTERM, ardından SIGKILL. Adım `cancelled` olur.
   - M0'da gözlenen sıra: `user` "[Request interrupted by user]" → kalan `stream_event`'ler → `result{subtype:'error_during_execution', terminal_reason:'aborted_streaming', is_error:true}` → ardından SDK iterator'ı `Claude Code returned an error result` hatasını **fırlatır**. İptal yolu bu hatayı yakalar ve iptal olarak sayar. Yakalanmayan hata süreci düşürür (M0'da spike betiği böyle çöktü).
+  - **Streaming-input (chat) oturumunda `interrupt()` oturumu bitirmez (M3a, gerçek CLI):** `result{error_during_execution, aborted_streaming}` gelir, ardından CLI yeni girdi bekler; iterator hatayı ancak giriş kapatılınca (`endInput`) fırlatır. Bu yüzden iptal sırasında gelen `result`'ta giriş hemen kapatılır ve tur "tamamlandı" sayılmaz (yanıt mesajı yazılmaz). Ölçüm: toplam 4,7 sn, interrupt'tan sonra ~0,7 sn; chat iptali < 1 sn (`docs/m3/real-check.md`).
 
 ### 6.5 Transcript ve kullanım muhasebesi
 
@@ -560,6 +561,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 - **Durumlar:** sırada · başlıyor · düşünüyor · araç çalıştırıyor · GPU bekliyor (sıradaki yeriyle) · limit bekleniyor (sıfırlanma saatiyle) · tamamlandı · başarısız · durduruldu.
 - **Alt ajanlar** `task_started`, `task_progress` ve `task_notification` olaylarından ve `parent_tool_use_id` alanından türetilir. Kartlar iç içe gösterilir. M0'da `task_progress` hiç gelmedi ve alt ajanın `stream_event`'leri iletilmedi; kart `task_started` / `task_notification` ve `parent_tool_use_id`'li mesajlarla tek başına çalışmalıdır.
 - Karta tıklanınca tam iz açılır: ThinkingState satırları, araç çağrıları, diff'ler, ham olaylar.
+- **Gerçekleşen hali (M3, `docs/m3/agents.png`):** Stüdyo sol panelinde aktif pipeline oturumları + son 6 biten oturum. Başlık: rol · model etiketi · effort, durum noktası + Türkçe durum + geçen süre (`limit bekleniyor`'da açılma saati). `▸` son ana iş parçacığı araç satırı (yol/komut, `+/−`, `reddedildi`). İlerleme çubuğu + `%N` + kaynak (`agent raporu` / `tahmin`) + mesaj. `↳ alt ajan` satırları (durum + süre). Canlılık satırı `son olay N sn önce · süreç canlı · CPU % · MB · K token`; biten oturumda yalnızca token ve toplam süre. "Takılmış olabilir" uyarısı `role=alert` ile "Durdur" ve "Yeniden dene" taşır. "İzi göster" tam izi açar, Esc kapatır. Ham olaylar ve audit gezgini M7'de.
 
 ### 12.3 Canlılık
 
@@ -617,6 +619,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
   - **Search:** `WebSearch` sorgusu (`input_json_delta`) ve sonuç `{title, url}` satırları (alan adıyla); WebFetch URL'leri "okundu" olarak. M0: `tool_use_result.results` gruplar halindedir (`[{tool_use_id, content:[{title,url}]}]`); arama sayısı `searchCount`'tan alınır, `usage.server_tool_use.web_search_requests` 0 kalıyor.
   - **Coding:** Read (`file_path`, satır sayısı); Edit/Write (`structuredPatch` üzerinden +eklenen/−silinen; M0: Write ile yeni dosyada `structuredPatch` boş gelir, +N `content`'ten sayılır); Bash ve MCP çalıştırmaları (komut veya araç adı, durum, süre).
 - Satırlar `parent_tool_use_id` ile ilgili alt ajanın altına yerleşir.
+- **Kaynak ve uyarlama (M3):** Kullanıcının tasarım oturumunda verdiği özgün komponent `docs/m3/thinking-state.original.tsx`'te saklanır; canlı hali `apps/web/src/components/thinking/ThinkingState.tsx` (farklar M3b planında: zamanlayıcı ve örnek içerik kaldırıldı, satır gecikmeleri ve `minHeight` kaldırıldı, arama noktaları mürekkep tonunda). Başlık düğmesinin erişilebilir adı `aria-labelledby` ile durum bölgesinden gelir (`role=status` içerikten ad vermiyor). Ardışık aynı varyant satırları tek blok olur; aradaki metin ayrı metin bloğudur. İz 200 satırı geçince baştaki satırlar "Önceki N satırı göster" arkasına alınır (gerçek sanal kaydırma M7).
+- **Yanıtı gelen chat turu (M3 gerçek koşu bulgusu):** `result.text` yalnızca turun **son** metin bloğudur; model araçtan önce de yazarsa o metin izde kalır, yalnızca son metin bloğu (yanıt mesajının kendisi) izden düşer.
 
 ### 13.3 Tema (Tailwind v4 `@theme`)
 
@@ -687,15 +691,15 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | S1 | Açılış | < 2 sn yüklenme; Claude bağlantı kartı; kullanım footer'ı değerleri; konsolda hata yok |
 | S2 | Üretim | Ürün adı → run oluşur → adımlar ilerler → agent kartları (rol, model, durum) ve iç içe alt ajan kartı görünür → **genel yüzde monoton artar** (örneklenerek) → "Yayına hazır" → kütüphanede video oynar (`currentTime` ilerler) |
 | S3 | Canlılık | Sahte sürücü 10 sn sessiz kalır, süreç canlı → "son olay N sn önce · süreç canlı". CPU sıfıra indirilir → "takılmış olabilir" uyarısı → "Durdur" çalışır ve adım `cancelled` olur |
-| S4 | SSE kopması | Bağlantı kesilir → "yeniden bağlanıyor" şeridi → yeniden bağlanılır → olay sırasında boşluk yok |
+| S4 | SSE kopması | Bağlantı kesilir (API SIGKILL) → "yeniden bağlanıyor" şeridi → yeniden bağlanılır → olay sırasında boşluk yok ve son kimlik sunucunun en büyüğü. Worker öldürülür → footer "Worker yanıt vermiyor" → yeniden başlayınca "Worker canlı" (M3) |
 | S5 | Chat | Mesaj gönderilir → ThinkingState Search ve Coding satırları akar → izi kapanır → yeni sürüm (v2) oluşur → Karşılaştır sekmesi iki sürümü gösterir |
 | S6 | Yayın | Bitirme penceresi → mock TikTok'a taslak gönderilir → `SEND_TO_USER_INBOX` → audit satırı oluşur. 24 saatteki 6. taslak engellenir |
 | S7 | Audit | Run'a göre filtre; zincir doğrulaması "geçerli"; satırdan ham olaya inilir |
 | S8 | Performans | 4× CPU yavaşlatmasında adım listesi ve iz kaydırma p95 ≤ 16,8 ms; boştayken CPU bütçesi |
 
 **İzolasyon:**
-- Aynı container'da ayrı bir `videogen_test` veritabanı kullanılır; her koşuda oluşturulup silinir.
-- Veri klasörü `$TMPDIR/videogen-test-<id>`; test API'si (SPA dahil) 5190, TikTok mock sunucusu rastgele port.
+- Aynı container'da ayrı bir `videogen_smoke` veritabanı kullanılır; her koşuda oluşturulup silinir (M3: Playwright `webServer.gracefulShutdown` SIGTERM; verilmezse süreç grubu SIGKILL'lenir ve temizlik hiç çalışmaz).
+- Veri klasörü sabit `/tmp/videogen-smoke` (açılışta ve kapanışta silinir; `pids.json` ve `hold-<ad>` dosyaları burada); test API'si (SPA dahil) 5190, TikTok mock sunucusu rastgele port. Smoke yığını API ve worker'ı kendisi denetler (beklenmedik çıkışta 300 ms sonra yeniden başlatır); Claude yerine Fake sürücü kayıtlı akışları oynatır.
 - `~/videogen-data`'ya asla dokunulmaz.
 - Testler `channel:'chrome'` ile çalışır. Hata durumunda trace ve ekran görüntüsü alınır.
 
@@ -744,7 +748,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
 | Varsayım / risk | Doğrulama | Yedek plan |
 |---|---|---|
-| SDK'nın gömülü binary'si `~/.claude` OAuth bilgilerini kullanıyor; kullanıcının terminaldeki CLI'sıyla aynı anda token yenilemesi sorun çıkarmıyor | M0: doğrulandı (docs/m0/report.md): `apiKeySource: none`, gömülü CLI 2.1.290. Eşzamanlı token yenilemesi ayrıca zorlanmadı; M0 boyunca sorun görülmedi, M3'te izlenir | `pathToClaudeCodeExecutable` ile kurulu CLI kullanılır ve sürüm her açılışta kontrol edilir |
+| SDK'nın gömülü binary'si `~/.claude` OAuth bilgilerini kullanıyor; kullanıcının terminaldeki CLI'sıyla aynı anda token yenilemesi sorun çıkarmıyor | M0: doğrulandı (docs/m0/report.md): `apiKeySource: none`, gömülü CLI 2.1.290. Eşzamanlı token yenilemesi ayrıca zorlanmadı; M0 boyunca ve M3'te (7 gerçek haiku oturumu, kullanıcının terminal Claude Code oturumu açıkken) sorun görülmedi | `pathToClaudeCodeExecutable` ile kurulu CLI kullanılır ve sürüm her açılışta kontrol edilir |
 | `get_usage` sıfır token harcıyor. SDK'da bu çağrı `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET` adıyla geçiyor ve "her sürümde değişebilir" uyarısı taşıyor | M0: doğrulandı (docs/m0/report.md): 0 mesaj, `total_cost_usd` 0, ~0,6–0,9 sn. Birim: yüzde 0..100 + ISO `resets_at` (`rate_limit_event`: 0..1 + epoch sn). Çağrı tek bir adaptörün arkasında tutulur, SDK yükseltmesinde gerçek smoke ile kontrol edilir | Son `rate_limit_event`, "x dk önce" damgasıyla |
 | `auth login` TTY olmadan çalışıyor | M0: kısmen doğrulandı (docs/m0/report.md): URL basıyor, stdin'den kod bekliyor, 127.0.0.1 callback dinliyor; kod yapıştırma test edilmedi → v1'de yedek plan, URL + kod v1.1 | Ekranda talimat: terminalde `! claude auth login`; ekran durumu yoklar |
 | Chatterbox 5,67 GB VRAM'e sığıyor | M1: doğrulandı — tepe 3611 MB (nvidia-smi) / 3251 MB (torch) (docs/m1/decision.md) | FreyaTTS (M1 tepesi 1811 MB; Türkçe adil CER %17,9, §7.6 kapısını geçmiyor) |
@@ -754,9 +758,12 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | Karmaşık ürünlerde prosedürel model kalitesi | Zorluk kapısı (§7.1) | CC0 varlık kaynakları; olmuyorsa "insan gerekli" |
 | SDK veya CLI protokol değişikliği | Tam sürüm sabitleme; yükseltmeden önce gerçek smoke | — |
 | İzolasyon: `settingSources: []` + `strictMcpConfig` ile kullanıcı hook/plugin/MCP/skill'leri yüklenmez; plugin skill'leri symlink'le yüklenir | M0: doğrulandı (docs/m0/report.md): hook olayı 0, MCP 0; skill'ler `videogen:*` adıyla | — |
-| `dontAsk` altında `PreToolUse` hook'u run klasörü dışına yazmayı engelliyor | M0: doğrulandı (docs/m0/report.md): run dışına Write reddedildi (matcher `Write\|Edit`, `file_path`), `permission_denials`'a yazıldı. Bash ve NotebookEdit vektörleri M3 testlerinde | Bash izin listesi daraltılır; NotebookEdit `allowedTools` dışında kalır |
+| `dontAsk` altında `PreToolUse` hook'u run klasörü dışına yazmayı engelliyor | M0: doğrulandı (docs/m0/report.md): run dışına Write reddedildi (matcher `Write\|Edit`, `file_path`), `permission_denials`'a yazıldı. M3: Bash (yalnızca run klasöründe izinli okuma komutları; ağır komut, zincirleme, boru, yönlendirme, komut ikamesi ve glob yasağı), NotebookEdit `notebook_path`, `..` ve symlink kaçışı birim testli; gerçek koşuda ağır Bash komutu reddedildi ve gerekçe doğru MCP aracını gösterdi (`docs/m3/real-check.md`) | Bash izin listesi daraltılır; NotebookEdit `allowedTools` dışında kalır |
 | Blender GLB → Three.js anchor eşdeğerliği ≤ 8 px | M0: doğrulandı (docs/m0/report.md): 0,00 px; mixer `LoopOnce` + clamp şart; birimler 1:1 | — |
-| SDK alt ajanı kendiliğinden arka plana alabiliyor → tek sorguda birden fazla `result` ve ikinci `system/init` | M0: bayraksız 3 koşunun 2'sinde gözlendi; `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` (temizlikten sonra eklenir) ile 1/1 koşuda tek `result` | Sürücü son `result`'u esas alır, `background_tasks_changed` boşalana ve iterator bitene kadar bekler |
+| SDK alt ajanı kendiliğinden arka plana alabiliyor → tek sorguda birden fazla `result` ve ikinci `system/init` | M0: bayraksız 3 koşunun 2'sinde gözlendi; `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` (temizlikten sonra eklenir) ile 1/1 koşuda tek `result` | Sürücü son `result`'u esas alır, `background_tasks_changed` boşalana ve iterator bitene kadar bekler M3: tur bitişi = arka plan görev kümesi boş **ve** `result` sayısı ≥ 1 + arka plana alınmış görevlerin `task_notification` sayısı (`subagent.ndjson`'da küme ilk `result`'tan önce boşalıyor) |
+| In-process MCP (`createSdkMcpServer`) gömülü CLI'da çalışıyor, ayrı süreç gerekmiyor | M3: doğrulandı — plan öncesi sondaj (`spikes/m3/probe.mjs`) ve M3a T6 gerçek koşusu: `videogen` sunucusu `connected`, araçlar `mcp__videogen__*`, `report_progress` kaydedildi | — |
+| Chat süreci boşta kapanınca oturum `resume` ile sürer; streaming-input ikinci tur aynı süreçte çalışır | M3: doğrulandı — sondaj (`resume`, `sessionId`, ikinci tur) + Fake/gerçek testler; M3b T7'de gerçek chat turu (haiku, 6 sn, `get_context` çağrısı, transcript arşivi) | — |
+| `result.text` turun tüm metnini taşır | M3: **çürütüldü** — yalnızca son metin bloğu; araçtan önceki metin ayrı `text` satırıdır (M3b T7 gerçek koşu). Arayüz yalnızca son metin bloğunu izden düşürür | — |
 
 ## 19. Gelecek (v1 sonrası)
 

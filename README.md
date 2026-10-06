@@ -34,12 +34,14 @@ If you run `npm run build` while the API is running (for example next to `npm ru
 | `npm run build` | Build the SPA into `apps/web/dist` |
 | `npm start` | Single-command launcher with supervised restarts |
 | `npm test` | Unit and integration tests (Vitest; needs the Postgres container) |
-| `npm run test:smoke` | Playwright smoke tests against a throwaway stack on port 5190 (system Chrome) |
+| `npm run test:smoke` | Playwright smoke tests (S1 boot, S3 liveness, S4 reconnect + worker death, S5 chat) against a throwaway stack on port 5190 with the fake Claude driver (system Chrome); the `videogen_smoke` database and `/tmp/videogen-smoke` are removed afterwards |
+| `VG_SCREENSHOTS=1 npx playwright test -c tests/smoke/playwright.config.ts screens` | Regenerate the UI screenshots in `docs/m3/` |
+| `node bin/link-skills.mjs` | Regenerate `claude-plugin/skills/*` symlinks from `claude-plugin/skills.manifest.json` (the launcher does this on every start) |
 | `npm run typecheck` | `tsc -p tsconfig.json` (TypeScript 7) |
 
 ## Architecture
 
-Process model and event channels are specified in [spec section 5.1](docs/superpowers/specs/2026-10-06-videogen-design.md#51-süreçler). What is real after milestone M2:
+Process model and event channels are specified in [spec section 5.1](docs/superpowers/specs/2026-10-06-videogen-design.md#51-süreçler). M3 added the live agent layer: `packages/claude` (driver interface with the Agent SDK and a fixture-replaying fake driver, roles, `PreToolUse` guard, in-process `videogen` MCP tools, stream-to-trace mapper), session runner/manager and usage guard in the worker, session/trace/chat/role endpoints in the API, and in the UI live agent cards, the live ThinkingState trace and a chat panel (see [docs/m3/report.md](docs/m3/report.md)). What was real after milestone M2:
 
 - **`apps/api`** (Fastify 5): REST (`/api/health`, `/api/claude/status`, `/api/usage`, `/api/claude/refresh`, `/api/audit/verify`), an SSE stream (`/events`) with `Last-Event-ID` replay, and the built SPA, all on one origin.
 - **`apps/worker`**: reads Claude auth status and usage through the bundled CLI / Agent SDK (`get_usage`, zero tokens), publishes a heartbeat every 2 s and handles `vg_commands`. It is crash-only: if its LISTEN connection drops it exits and the launcher restarts it.
@@ -62,4 +64,6 @@ Runtime data lives in `~/videogen-data`. Today only `logs/` exists (`api.log`, `
 
 - M0 (assumption verification): done, see [docs/m0/report.md](docs/m0/report.md).
 - M2 (platform skeleton): done, see [docs/m2/report.md](docs/m2/report.md).
-- Next: the M1 listening test, then M3 (live agent layer).
+- M1 (audio listening test): provisional TTS decision, waiting for the user's choice, see [docs/m1/decision.md](docs/m1/decision.md).
+- M3 (live agent layer): done, see [docs/m3/report.md](docs/m3/report.md).
+- Next: the M4 plan (vertical slice).
