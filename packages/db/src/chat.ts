@@ -53,3 +53,7 @@ export async function chatMessagesByStatus(db: Queryable, statuses: ChatMessageS
   const { rows } = await db.query('SELECT * FROM chat_messages WHERE status = ANY($1) ORDER BY created_at, id', [statuses]);
   return rows.map(message);
 }
+
+export async function renameThread(db: Queryable, id: string, title: string): Promise<void> {
+  await db.query('UPDATE chat_threads SET title = $2, updated_at = now() WHERE id = $1', [id, title]);
+}

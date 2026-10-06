@@ -4,9 +4,12 @@ import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import type { ClaudeAuth, Config, UsageSnapshot } from '@videogen/shared';
-import { appendAudit, verifyAudit } from '@videogen/db';
+import { appendAudit, maxEventId, verifyAudit } from '@videogen/db';
 import type { EventHub } from './event-hub.ts';
 import { registerGuard } from './guard.ts';
+import { registerAgentRoutes } from './routes/agents.ts';
+import { registerChatRoutes } from './routes/chat.ts';
+import { registerRoleRoutes } from './routes/roles.ts';
 import { registerSse } from './sse.ts';
 
 const round4 = (n: number | null): number | null => (n === null ? null : Math.round(n * 10_000) / 10_000);
@@ -14,6 +17,12 @@ const round4 = (n: number | null): number | null => (n === null ? null : Math.ro
 export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Config; heartbeatMs?: number }): Promise<FastifyInstance> {
   const app = Fastify({ forceCloseConnections: true, logger: { level: process.env.VG_LOG_LEVEL ?? 'info' } });
   registerGuard(app);
+  // Freshness watermark (M2 §7): read before the handler runs, so a client can drop REST data older than SSE it already applied.
+  app.addHook('preHandler', async (req, reply) => {
+    if (req.method === 'GET' && req.url.startsWith('/api/') && !req.url.startsWith('/api/health')) {
+      reply.header('x-vg-event-id', String(await maxEventId(deps.pool)));
+    }
+  });
 
   app.get('/api/health', async () => {
     await deps.pool.query('SELECT 1');
@@ -48,6 +57,9 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
 
   app.get('/api/audit/verify', async () => verifyAudit(deps.pool));
 
+  registerAgentRoutes(app, deps);
+  registerChatRoutes(app, deps);
+  registerRoleRoutes(app, { pool: deps.pool, devEndpoints: deps.config.devEndpoints });
   registerSse(app, deps);
 
   if (existsSync(join(deps.config.webDist, 'index.html'))) {

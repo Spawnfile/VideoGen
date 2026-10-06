@@ -7,7 +7,7 @@ export function registerSse(app: FastifyInstance, deps: { pool: pg.Pool; hub: Ev
   app.get('/events', async (req, reply) => {
     const q = req.query as { after?: string };
     const raw = req.headers['last-event-id'] ?? q.after;
-    const requested = raw === undefined ? NaN : Number(raw);
+    const requested = raw === undefined || raw === '' ? NaN : Number(raw);
     reply.hijack();
     const res = reply.raw;
     res.writeHead(200, {
@@ -54,6 +54,7 @@ export function registerSse(app: FastifyInstance, deps: { pool: pg.Pool; hub: Ev
     replaying = false;
     for (const m of buffered) send(m);
 
-    if (!closed) hb = setInterval(() => res.write(': hb\n\n'), deps.heartbeatMs ?? 15_000);
+    const beat = () => res.write(`event: hb\ndata: {"ts":${Date.now()}}\n\n`);
+    if (!closed) { beat(); hb = setInterval(beat, deps.heartbeatMs ?? 15_000); }
   });
 }
