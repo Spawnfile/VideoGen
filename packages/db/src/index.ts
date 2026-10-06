@@ -7,3 +7,4 @@ export * from './agents.ts';
 export * from './chat.ts';
 export * from './blobs.ts';
 export * from './pipeline.ts';
+export * from './jobs.ts';
