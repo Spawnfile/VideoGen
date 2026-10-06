@@ -84,7 +84,9 @@ export function placeLabels(anchors: { id: string; text: string; at: [number, nu
   const reach = Math.round(40 * s);
   const boxes: LabelBox[] = [];
   let floor = area.top;
-  for (const a of anchors.filter((x) => x.at).slice(0, MAX_LABELS).sort((p, q) => p.at![1] - q.at![1])) {
+  // Only anchors inside the frame: a label whose line runs off-frame points at a part the viewer cannot see.
+  const visible = anchors.filter((x) => x.at && x.at[0] >= 0 && x.at[0] <= width && x.at[1] >= 0 && x.at[1] <= height);
+  for (const a of visible.slice(0, MAX_LABELS).sort((p, q) => p.at![1] - q.at![1])) {
     const [ax, ay] = a.at!;
     // Generous per-character width (Inter / DejaVu with Turkish diacritics ≈ 0.6 em); a tighter guess ellipsised "Gövde" in the first real draft.
     const w = Math.min(area.right - area.left, Math.round(a.text.length * font * 0.66 + 2 * pad));

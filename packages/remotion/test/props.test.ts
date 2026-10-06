@@ -43,6 +43,14 @@ describe('Draft3D props and layout', () => {
     expect(flipped.x + flipped.w).toBeLessThan(460);
   });
 
+  it('labels only parts whose anchor is inside the frame (a line to an off-frame part is a wrong label, first real draft)', () => {
+    const boxes = placeLabels([
+      { id: 'left', text: 'Uç yuvası', at: [-30, 700] }, { id: 'below', text: 'Bilye', at: [200, 1010] }, { id: 'above', text: 'Yay', at: [300, -5] },
+      { id: 'right', text: 'Gövde', at: [560, 400] }, { id: 'in', text: 'Hazne', at: [300, 400] },
+    ], 540, 960);
+    expect(boxes.map((b) => b.id)).toEqual(['in']);
+  });
+
   it('names the bundle by a stable template hash and pins the draft render parameters', () => {
     expect(bundleHash()).toMatch(/^[0-9a-f]{16}$/);
     expect(bundleHash()).toBe(bundleHash());
