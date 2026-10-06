@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process';
-import { createWriteStream, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import { createWriteStream, mkdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -48,27 +48,11 @@ function run(cmd, args) {
   }
 }
 
-// Newest mtime (ms) under a path; 0 when absent.
-function newestMtime(path) {
-  if (!existsSync(path)) return 0;
-  const st = statSync(path);
-  if (!st.isDirectory()) return st.mtimeMs;
-  let max = st.mtimeMs;
-  for (const name of readdirSync(path)) max = Math.max(max, newestMtime(join(path, name)));
-  return max;
-}
-
-function webBuildStale() {
-  const built = join(ROOT, 'apps/web/dist/index.html');
-  if (!existsSync(built)) return true;
-  const builtAt = statSync(built).mtimeMs;
-  return newestMtime(join(ROOT, 'apps/web/src')) > builtAt || newestMtime(join(ROOT, 'apps/web/index.html')) > builtAt;
-}
-
 run('docker', ['compose', 'up', '-d', '--wait', 'postgres']);
 run('npx', ['tsx', 'packages/db/src/migrate-cli.ts']);
-// The SPA must be built BEFORE the API starts: @fastify/static only serves files present at API start.
-if (webBuildStale()) run('npm', ['run', 'build']);
+// Always build, and BEFORE the API starts: @fastify/static only serves files present at API start.
+// (Unconditional: an mtime heuristic missed changes outside apps/web/src such as shared packages or config.)
+run('npm', ['run', 'build']);
 
 const children = new Map();
 const timers = new Set();
@@ -96,6 +80,8 @@ process.on('exit', () => { for (const c of children.values()) c.kill('SIGKILL');
 function start(name, entry) {
   const logPath = join(LOGS, `${name}.log`);
   const log = createWriteStream(logPath, { flags: 'a' });
+  // A log write failure (disk full, permissions) must not crash the supervisor and orphan the children.
+  log.on('error', (e) => console.error(`[videogen] ${name} log yazılamadı (${e.code ?? e.name}): ${logPath}`));
   const child = spawn(process.execPath, ['--import', 'tsx', entry], { cwd: ROOT, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdout.pipe(log, { end: false });
   child.stderr.pipe(log, { end: false });

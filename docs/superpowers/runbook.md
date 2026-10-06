@@ -101,7 +101,7 @@ Taş raporu bittikten sonra yeni bir oturumda:
 
 | İş | Komut |
 |---|---|
-| Başlat | `npm start` (Postgres → migration → API + Worker → tarayıcı) |
+| Başlat | `npm start` (Postgres → migration → web derlemesi → API + Worker → tarayıcı). Web paketi **her başlatışta** yeniden derlenir (API'den önce) |
 | Tarayıcısız başlat | `VG_NO_BROWSER=1 npm start` |
 | Durdur | Başlatıcının terminalinde `Ctrl+C` (çocuk süreçlere SIGTERM, 10 sn sonra SIGKILL) |
 | Loglar | `tail -f ~/videogen-data/logs/api.log ~/videogen-data/logs/worker.log` |
@@ -110,7 +110,9 @@ Taş raporu bittikten sonra yeni bir oturumda:
 | Elle yedek | `docker exec videogen-pg pg_dump -U videogen -Fc videogen > ~/videogen-data/backups/videogen-$(date +%F).dump` |
 | Geri yükleme (boş veritabanına) | `docker exec -i videogen-pg pg_restore -U videogen -d videogen --clean < ~/videogen-data/backups/<dosya>.dump` |
 | Disk | `df -h / && du -sh ~/videogen-data/*` |
+| Geliştirme kipi | `npm run dev:api` + `npm run dev:worker` + `npm run dev:web` (Vite 5173 → 5180). `dev:api` çalışırken `npm run build` yaptıysan `dev:api`'yi yeniden başlat (statik dosyalar API açılışında kaydedilir) |
 | Testler | `npm run typecheck && npm test && npm run test:smoke` |
+| Smoke | `npm run test:smoke`: kendi yığınını port **5190** ve `videogen_smoke` veritabanıyla kurar, her koşuda web'i derler. `videogen_smoke` DB'si ve `/tmp/videogen-smoke-*` bir sonraki koşuya kadar kalır (sonraki koşu DB'yi silip yeniden oluşturur) |
 
 ## 7. Sorun giderme
 
@@ -131,3 +133,7 @@ Taş raporu bittikten sonra yeni bir oturumda:
 | "Worker yanıt vermiyor" | Worker çöktü ya da yeniden başlıyor | `tail ~/videogen-data/logs/worker.log`; başlatıcı otomatik yeniden başlatır |
 | Üstte "Bağlantı koptu" şeridi | API yeniden başladı | Kendiliğinden yeniden bağlanır; kaçan olaylar tekrar oynatılır |
 | Açılış "Ücretli API anahtarı bulundu" ile reddedildi | Kabukta anahtar export edilmiş | `unset <ANAHTAR>`; `~/.bashrc` / `~/.profile` içinden kaldır |
+| `[videogen] 127.0.0.1:5180 dolu` | Başka bir VideoGen örneği ya da başka bir süreç 5180'i tutuyor | `ss -ltnp | grep 5180` ile PID'i bul, o süreci PID ile durdur (`kill <PID>`); sonra `npm start` |
+| Postgres yeniden başladıktan sonra api/worker günlüklerinde yeniden başlatmalar | Beklenen: worker crash-only (LISTEN bağlantısı kopunca çıkar), başlatıcı backoff ile (1→2→4… 30 sn) yeniden başlatır | Bir şey yapma; birkaç saniye içinde footer yeniden "Worker canlı" olur |
+| Elle `npm run build` sonrası boş sayfa / eksik dosya | API statik dosyaları açılışta kaydeder; derleme dosya adlarını değiştirdi | API'yi yeniden başlat (`npm start` her zaman önce derler) |
+| `başarısız: docker compose … (spawnSync docker ENOENT)` | `docker` PATH'te yok ya da kurulu değil | Docker'ı kur/başlat, `docker ps` çalışıyor mu bak; 127.0.0.1:5433 boş mu kontrol et |

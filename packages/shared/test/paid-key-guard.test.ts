@@ -64,15 +64,24 @@ describe('paid key guard', () => {
     expect(() => assertNoPaidKeys({ PATH: '/bin', HOME: '/home/x' })).not.toThrow();
   });
 
-  it('cleanChildEnv strips Claude nesting vars and paid keys', () => {
+  it('cleanChildEnv strips Claude nesting vars, paid keys and API-routing vars', () => {
     const env = cleanChildEnv({
       CLAUDECODE: '1',
       CLAUDE_CODE_ENTRYPOINT: 'cli',
       OPENAI_API_KEY: 'k',
       MISTRAL_API_KEY: 'm',
       AWS_BEARER_TOKEN_BEDROCK: 'b',
+      // routing: the subscription OAuth token must never be sent to a third-party host
+      ANTHROPIC_BASE_URL: 'https://proxy.example',
+      ANTHROPIC_BEDROCK_BASE_URL: 'https://b.example',
+      ANTHROPIC_VERTEX_BASE_URL: 'https://v.example',
+      ANTHROPIC_VERTEX_PROJECT_ID: 'proj',
+      CLOUD_ML_REGION: 'us-east5',
+      ANTHROPIC_FOUNDRY_BASE_URL: 'https://f.example',
       HOME: '/h',
     });
     expect(env).toEqual({ HOME: '/h', ENABLE_TOOL_SEARCH: 'false' });
+    // routing vars are stripped from children but do not block startup
+    expect(findPaidKeys({ ANTHROPIC_BASE_URL: 'https://proxy.example', CLOUD_ML_REGION: 'us-east5' })).toEqual([]);
   });
 });

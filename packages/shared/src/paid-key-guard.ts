@@ -11,6 +11,17 @@ const FORBIDDEN: RegExp[] = [
   /^CLAUDE_CODE_USE_(BEDROCK|VERTEX|FOUNDRY)$/,
 ];
 
+// API-routing variables: not paid keys (they don't block startup), but a child Claude CLI/SDK must never
+// see them — they would send the subscription OAuth token to a third-party host or a paid cloud route.
+const ROUTING = new Set([
+  'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_BEDROCK_BASE_URL',
+  'ANTHROPIC_VERTEX_BASE_URL',
+  'ANTHROPIC_VERTEX_PROJECT_ID',
+  'CLOUD_ML_REGION',
+  'ANTHROPIC_FOUNDRY_BASE_URL',
+]);
+
 export class PaidKeyError extends Error {
   readonly keys: string[];
   constructor(keys: string[]) {
@@ -35,7 +46,7 @@ export function cleanChildEnv(env: NodeJS.ProcessEnv = process.env): Record<stri
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(env)) {
     if (v === undefined || k === 'CLAUDECODE' || k.startsWith('CLAUDE_CODE_')) continue;
-    if (FORBIDDEN.some((r) => r.test(k))) continue;
+    if (ROUTING.has(k) || FORBIDDEN.some((r) => r.test(k))) continue;
     out[k] = v;
   }
   out.ENABLE_TOOL_SEARCH = 'false';

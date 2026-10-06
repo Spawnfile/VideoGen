@@ -14,9 +14,13 @@ npm install
 npm start          # Postgres -> migrations -> API + Worker -> browser
 ```
 
-`npm start` brings up the Postgres container, applies migrations, builds the SPA if it is missing or stale, starts the API and the worker as supervised child processes and opens http://127.0.0.1:5180. Stop it with `Ctrl+C`. Use `VG_NO_BROWSER=1 npm start` to skip opening the browser.
+`npm start` brings up the Postgres container, applies migrations, always rebuilds the SPA, starts the API and the worker as supervised child processes and opens http://127.0.0.1:5180. Stop it with `Ctrl+C`. Use `VG_NO_BROWSER=1 npm start` to skip opening the browser.
 
 Prerequisites: Docker (for Postgres 17), a logged-in Claude subscription (`claude auth login` once, in a terminal), Google Chrome (only for the smoke tests).
+
+`npm install` may warn that install scripts (esbuild) were blocked; this is harmless for VideoGen.
+
+If you run `npm run build` while the API is running (for example next to `npm run dev:api`), restart the API afterwards: static assets are registered when the API starts. `npm start` always builds first, so it is not affected.
 
 ## Commands
 
@@ -50,9 +54,9 @@ Runtime data lives in `~/videogen-data`. Today only `logs/` exists (`api.log`, `
 ## Security
 
 - **Localhost only.** Everything binds `127.0.0.1`. A guard runs on every request, including static files, 404s and the SSE stream: the `Host` header must be `127.0.0.1`, `localhost` or `[::1]` (strict regex, optional port), and writes additionally require an absent or loopback `Origin`. CORS stays closed (single origin).
-- **Paid-key guard.** If a paid API key is present in the environment (a shared list of exact names plus provider-prefixed patterns, plus Bedrock / Vertex / Foundry routing flags), the launcher, the API and the worker refuse to start. The message names the variables, never their values. The same list strips these variables from every child process environment.
+- **Paid-key guard.** If a paid API key is present in the environment (a shared list of exact names plus provider-prefixed patterns, plus Bedrock / Vertex / Foundry routing flags), the launcher, the API and the worker refuse to start. The message names the variables, never their values. The launcher refuses before anything else runs; the worker additionally strips these variables (plus `CLAUDECODE` / `CLAUDE_CODE_*` and API-routing variables such as `ANTHROPIC_BASE_URL`) from the environment of the Claude CLI / SDK processes it spawns, so the subscription token cannot be routed to another host.
 - **Tamper-evident audit.** `audit_log` is append-only: the app role has no `UPDATE`, `DELETE` or `TRUNCATE`, a trigger blocks them for the owner too, and every row carries a SHA-256 hash chained to the previous row over a canonical JSON form (`jsonb_build_array`, so field boundaries cannot be forged). `GET /api/audit/verify` recomputes the chain.
-- **Secrets are never written.** Audit data with secret-like keys (token, secret, password, api key, authorization, cookie, private key, in any spelling) is rejected. From the Claude account only `loggedIn`, `authMethod` and `subscriptionType` are kept; email and organization are dropped.
+- **Secret-like audit data is rejected.** Audit data with secret-like key names (token, secret, password, api key, authorization, cookie, private key, in any spelling) is rejected; this is a heuristic, see the known limits in [docs/m2/report.md](docs/m2/report.md). From the Claude account only `loggedIn`, `authMethod` and `subscriptionType` are kept; email and organization are dropped.
 
 ## Status
 
