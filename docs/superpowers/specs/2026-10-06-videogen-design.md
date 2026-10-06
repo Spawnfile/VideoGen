@@ -187,7 +187,7 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 | `strictMcpConfig` | `true`; sadece `videogen` (in-process) | Pipeline, üçüncü taraf MCP'lere bağımlı değil. claude-video-vision `npx @latest` ile her açılışta ağdan iniyor (tedarik zinciri ve tekrarlanabilirlik riski). Kare inceleme bizim `extract_frames` aracımız + Read ile yapılır |
 | `plugins` | `[{type:'local', path:'claude-plugin/'}]` | Skill'ler: remotion-\*, ffmpeg, video-use, manim-video (symlink); rol agent'ları; uyarlanmış kılavuzlar. Plugin üzerinden skill yüklemesi M0'da doğrulanır |
 | `env` | Temizlenmiş: `CLAUDECODE` ve `CLAUDE_CODE_*` çıkarılır; `ENABLE_TOOL_SEARCH=false`; pipeline rollerinde `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` | Ertelenmiş araçlar ekstra bir tur maliyeti getirir; arka plan alt görevleri birden fazla `result` olayı üretir |
-| `permissionMode` | `dontAsk` + `permissionPrompts:'none'` + `canUseTool` yol koruması | Gözetimsiz çalışma. **`bypassPermissions` asla** (ev klasöründe gerçek projeler ve kimlik bilgileri var) |
+| `permissionMode` | `dontAsk` + `permissionPrompts:'none'` + rol bazlı `allowedTools` (ön onay) + **`PreToolUse` hook callback'i** (yol ve komut koruması) | Gözetimsiz çalışma. `dontAsk` modunda önceden onaylanmamış araçlar `canUseTool` çağrılmadan reddedilir (SDK tipleri, 0.3.290). Bu yüzden koruma `canUseTool`'da değil, her araç çağrısından önce çalışan `PreToolUse`'ta durur; `permissionDecision:'deny'` ile birlikte modele gidecek gerekçeyi döndürür. **`bypassPermissions` asla** (ev klasöründe gerçek projeler ve kimlik bilgileri var) |
 | `includePartialMessages`, `forwardSubagentText`, `agentProgressSummaries` | `true` | Canlı iz ve alt ajan görünürlüğü |
 | `thinking` | `{type:'adaptive', display:'summarized'}` | Reasoning satırları için düşünme metni |
 | `cwd` | `~/videogen-data/runs/<runId>/` | Yazma sınırı |
@@ -229,7 +229,7 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 | `register_artifact(path, kind)` | İçerik adresli depoya alır | — |
 | `request_rerender(scope)` | Sadece chat rolünde. Orchestrator'dan yeni bir run ister | — |
 
-**Kural:** Agent'lar `blender`, `remotion render`, `npx remotion` veya `ffmpeg` gibi ağır komutları Bash'ten çalıştıramaz. `canUseTool` bu komutları reddeder ve mesajında doğru MCP aracını söyler. Bash izin listesi: `python3 -m py_compile`, `ls`, `cat`, `head`, `jq` ve run klasörüyle sınırlı okuma komutları.
+**Kural:** Agent'lar `blender`, `remotion render`, `npx remotion` veya `ffmpeg` gibi ağır komutları Bash'ten çalıştıramaz. `PreToolUse` hook'u bu komutları reddeder ve gerekçesinde doğru MCP aracını söyler. Bash izin listesi: `python3 -m py_compile`, `ls`, `cat`, `head`, `jq` ve run klasörüyle sınırlı okuma komutları.
 
 ### 6.4 Eşzamanlılık, kullanım ve iptal
 
@@ -656,7 +656,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
 - **Ağ:** API sadece 127.0.0.1'e bağlanır. Yazma uçlarında Host/Origin kontrolü ile CSRF ve DNS-rebinding koruması vardır (dag-wireboard `server/app.py:25-90` modeli). CORS kapalıdır.
 - **Gizli bilgiler:** `~/videogen-data/secrets/` (0600) altında durur. Loglara, audit'e, agent env'ine ve UI'ya asla çıkmaz; UI'da sadece var/yok ve son kullanma tarihi gösterilir.
-- **Agent izinleri:** `bypassPermissions` asla kullanılmaz. `canUseTool` yazma yollarını run klasörüyle sınırlar. Kısıtlı Bash ve ağır komut yasağı uygulanır (§6.3).
+- **Agent izinleri:** `bypassPermissions` asla kullanılmaz. `PreToolUse` hook'u yazma yollarını run klasörüyle sınırlar. Kısıtlı Bash ve ağır komut yasağı uygulanır (§6.3).
 - Ücretli API muhafızı ve bağımlılık kilidi (§6.6, §5.3).
 
 ## 16. Test stratejisi
@@ -732,7 +732,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | Varsayım / risk | Doğrulama | Yedek plan |
 |---|---|---|
 | SDK'nın gömülü binary'si `~/.claude` OAuth bilgilerini kullanıyor; kullanıcının terminaldeki CLI'sıyla aynı anda token yenilemesi sorun çıkarmıyor | M0 spike (a) | `pathToClaudeCodeExecutable` ile kurulu CLI kullanılır ve sürüm her açılışta kontrol edilir |
-| `get_usage` sıfır token harcıyor | M0 spike (b) | Son `rate_limit_event`, "x dk önce" damgasıyla |
+| `get_usage` sıfır token harcıyor. SDK'da bu çağrı `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET` adıyla geçiyor ve "her sürümde değişebilir" uyarısı taşıyor | M0 spike (b); çağrı tek bir adaptörün arkasında tutulur, SDK yükseltmesinde gerçek smoke ile kontrol edilir | Son `rate_limit_event`, "x dk önce" damgasıyla |
 | `auth login` TTY olmadan çalışıyor | M0 spike (c) | Ekranda talimat: terminalde `! claude auth login`; ekran durumu yoklar |
 | Chatterbox 5,67 GB VRAM'e sığıyor | M1 ölçümü | FreyaTTS (1,5 GB) |
 | Video başına kullanım (token, 5 saatlik pencere payı) bilinmiyor | M4'te ölçülür | Rol modelleri ve reviewer sayısı ayarlanır |
