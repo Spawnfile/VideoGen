@@ -34,7 +34,8 @@ function fromFraction(v: number | null | undefined): number | null {
 
 function iso(v: string | number | null | undefined): string | null {
   if (v === null || v === undefined) return null;
-  return new Date(typeof v === 'number' ? v * 1000 : v).toISOString();
+  const d = new Date(typeof v === 'number' ? v * 1000 : v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString(); // experimental API: one bad field must not kill the snapshot
 }
 
 export function fromGetUsage(r: GetUsageLike, at: Date = new Date()): UsageSnapshot {

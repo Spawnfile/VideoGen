@@ -62,6 +62,13 @@ describe('usage mapping', () => {
     expect(s.fiveHour?.utilization).toBeLessThanOrEqual(1);
   });
 
+  it('maps an unparseable date to null instead of throwing', () => {
+    const bad = { utilization: 40, resets_at: 'not-a-date' };
+    const s = fromGetUsage({ subscription_type: 'max', rate_limits_available: true, rate_limits: { five_hour: bad, seven_day: null } }, at);
+    expect(s.fiveHour).toEqual({ utilization: 0.4, resetsAt: null });
+    expect(fromRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.4, resetsAt: Number.NaN }, at).fiveHour?.resetsAt).toBeNull();
+  });
+
   it('classifies levels with statusline thresholds', () => {
     expect([usageLevel(null), usageLevel(0.2), usageLevel(0.5), usageLevel(0.8)]).toEqual(['unknown', 'ok', 'warn', 'high']);
   });
