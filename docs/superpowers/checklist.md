@@ -6,7 +6,7 @@
 
 | Taş | Plan | Durum | Başlangıç | Bitiş | Rapor |
 |---|---|---|---|---|---|
-| M0 Doğrulama | `plans/2026-10-06-m0-verification.md` | Başlamadı | | | `docs/m0/report.md` |
+| M0 Doğrulama | `plans/2026-10-06-m0-verification.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m0/report.md` |
 | M1 Ses | `plans/2026-10-06-m1-audio-listening.md` | Başlamadı | | | `docs/m1/decision.md` |
 | M2 İskelet | `plans/2026-10-06-m2-skeleton.md` | Başlamadı | | | `docs/m2/report.md` |
 | M3 Canlı agent katmanı | M2 sonrası yazılacak | Plan yok | | | |
@@ -19,18 +19,18 @@
 
 ## M0 — Doğrulama ve disk hazırlığı
 
-- [ ] T1 Onaylı disk temizliği (gemma4 ×2, önbellekler, eski node_modules, minillm-lab) → `docs/m0/disk-cleanup.md`
-  - [ ] 🚦 minillm-lab'da kaybolacak iş yok (git status / log @{u}.. / stash boş)
-  - [ ] Boş disk ≥ 30 GB
-- [ ] T2 Spike çalışma alanı + SDK 0.3.290 (gömülü CLI 2.1.290) + `claude-plugin/` iskeleti
-- [ ] T3 Spike (a): abonelik girişi (`apiKeySource: none`), izolasyon (hook sıfır, MCP yok), plugin skill'leri yüklü → `basic.ndjson`
-  - [ ] 🚦 Abonelik yolu çalışıyor
-- [ ] T4 Spike (a2): alt ajan + yapılandırılmış çıktı, WebSearch, Write/Edit (`structuredPatch`), PreToolUse yol koruması, interrupt → 5 fixture
-  - [ ] 🚦 Yol koruması kaçışı engelliyor
-- [ ] T5 Spike (b): sıfır token kullanım okuma → `usage-response.json`
-- [ ] T6 Spike (c): TTY olmadan giriş akışı (izole config); gerçek giriş sağlam
-- [ ] T7 Spike (d): Blender GLB → Three.js anchor eşdeğerliği ≤ 8 px
-- [ ] T8 M0 raporu + spec §18 güncellemesi + kullanıcıya özet
+- [x] T1 Onaylı disk temizliği (gemma4 ×2, önbellekler, eski node_modules, minillm-lab) → `docs/m0/disk-cleanup.md` · commit d6f44b9 · 2026-10-06 · Chrome açıktı → `~/.cache/google-chrome` atlandı
+  - [x] 🚦 minillm-lab'da kaybolacak iş yok (git status / log @{u}.. / stash boş; HEAD = origin/main)
+  - [x] Boş disk ≥ 30 GB (8,1 → 32 GB)
+- [x] T2 Spike çalışma alanı + SDK 0.3.290 (gömülü CLI 2.1.290) + `claude-plugin/` iskeleti · commit e6b25bd · 2026-10-06
+- [x] T3 Spike (a): abonelik girişi (`apiKeySource: none`), izolasyon (hook sıfır, MCP yok), plugin skill'leri yüklü → `basic.ndjson` · commit 277de5e · 2026-10-06 · sapma: proje slug'ı için ek maskeleme kuralı
+  - [x] 🚦 Abonelik yolu çalışıyor
+- [x] T4 Spike (a2): alt ajan + yapılandırılmış çıktı, WebSearch, Write/Edit (`structuredPatch`), PreToolUse yol koruması, interrupt → 5 fixture · commit 10eccfd · 2026-10-06 · +`subagent-background.ndjson`; maskeleme sertleştirildi
+  - [x] 🚦 Yol koruması kaçışı engelliyor
+- [x] T5 Spike (b): sıfır token kullanım okuma → `usage-response.json` · commit cb091d2 · 2026-10-06 · geçti (~0,9 sn, 0 mesaj, maliyet 0); oranlar yüzde (0–100), `resets_at` ISO
+- [x] T6 Spike (c): TTY olmadan giriş akışı (izole config); gerçek giriş sağlam · commit 8cdf9f6 · 2026-10-06 · URL + "Paste code" + 127.0.0.1 callback; M2 kararı (ii) terminal talimatı
+- [x] T7 Spike (d): Blender GLB → Three.js anchor eşdeğerliği ≤ 8 px · commit 79332a6 · 2026-10-06 · en kötü Δ 0,00 px; sapma: mixer `LoopOnce` + clamp
+- [x] T8 M0 raporu + spec §18 güncellemesi + kullanıcıya özet · commit d9370cd · 2026-10-06 · + final review düzeltmeleri 1b3a282 (kullanım semantiği, M2 errata, gizlilik); runbook güncellendi
 
 ## M1 — Ses servisi ve TTS dinleme testi
 
@@ -116,4 +116,10 @@
 
 | Tarih | Kapı / karar | Sonuç | Kanıt |
 |---|---|---|---|
-| | | | |
+| 2026-10-06 | 🚦 M0 T1 minillm-lab kaybolacak iş | Temiz → silindi | status/unpushed/stash boş; `git ls-remote` HEAD = yerel eae3905; yok sayılanlar yalnızca `.venv` (8,7 GB) |
+| 2026-10-06 | 🚦 M0 T3 abonelik yolu | Geçti | init: `apiKeySource:none`, CLI 2.1.290, hook olayı 0, MCP 0, 8 skill `videogen:*` olarak yüklü |
+| 2026-10-06 | 🚦 M0 T4 yol koruması | Geçti | `dontAsk` altında PreToolUse `deny`; OUTSIDE.txt oluşmadı; `permission_denials`'ta kayıtlı; model run klasörüne döndü (`guard.ndjson`) |
+| 2026-10-06 | M0 footer veri kaynağı (M2) | `get_usage` birincil (yüzde 0–100), `rate_limit_event` canlı/yedek (0–1) | `docs/m0/report.md` §6 |
+| 2026-10-06 | M0 giriş akışı (M2) | (ii) terminal `! claude auth login` + 5 sn yoklama; (i) v1.1 | `docs/m0/report.md` §8 |
+| 2026-10-06 | M2 planı errata | `toFraction` kaldırıldı; kaynak başına normalizasyon | M2 planı başındaki errata |
+| 2026-10-06 | M0 T1 disk eşiği | 32 GB boş ≥ 30 ✓ | `docs/m0/disk-cleanup.md` |

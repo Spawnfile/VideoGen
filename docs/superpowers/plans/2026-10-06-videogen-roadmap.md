@@ -6,7 +6,7 @@ Spec birden çok bağımsız alt sistemi kapsıyor. Bu nedenle her kilometre ta�
 
 | Taş | Plan dosyası | Durum | Giriş koşulu | Çıkış ölçütü |
 |---|---|---|---|---|
-| M0 Doğrulama | `2026-10-06-m0-verification.md` | **Yazıldı** | — | `docs/m0/report.md`: dört spike için kanıtlı sonuç; kayıtlı fixture'lar; disk ≥ 30 GB boş |
+| M0 Doğrulama | `2026-10-06-m0-verification.md` | **Tamamlandı** (`docs/m0/report.md`) | — | `docs/m0/report.md`: dört spike için kanıtlı sonuç; kayıtlı fixture'lar; disk ≥ 30 GB boş |
 | M1 Ses | `2026-10-06-m1-audio-listening.md` | **Yazıldı** | M0 disk temizliği | Kullanıcının TTS ve ses kararı (K17), VRAM ölçümü, Whisper hizalaması çalışıyor |
 | M2 İskelet | `2026-10-06-m2-skeleton.md` | **Yazıldı** | M0 spike (b), (c) sonuçları (footer veri kaynağı, giriş akışı) | `npm run test:smoke` içinde S1 yeşil; audit zinciri; SSE tekrar oynatma; ücretli anahtar muhafızı |
 | M3 Canlı agent katmanı | M2 bitince yazılacak | Bekliyor | M0 (a) fixture'ları, M2 | S3, S4, S5 (kısmi) |
