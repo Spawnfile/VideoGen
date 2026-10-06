@@ -14,6 +14,7 @@ const load = (name: string) => JSON.parse(readFileSync(resolve(DIR, `${name}.jso
  * "imkansız …" exercises the difficulty gate; "bozuk sahne …" makes the first build fail once (the same-session fix loop);
  * "yavaş …" keeps the builder busy (silent, CPU alive) so a test can stop a running build.
  * In a draft fix round (ctx.round ≥ 1) the builder changes the first camera lens, except for "inatçı …" (the unchanged-fix rule).
+ * The draft reviewer passes, except: "kusurlu …" fails the first review only, "umutsuz …" and "inatçı …" fail every review.
  */
 export function fakePipelineScript(role: PipelineRole, ctx: StepContext, attempt: number, extra?: { styleId: ChannelStyleId }): FakeScript {
   // Lower-case the Turkish way first: /i does not fold 'İ' to 'i'.
@@ -30,6 +31,10 @@ export function fakePipelineScript(role: PipelineRole, ctx: StepContext, attempt
       files: { 'scene/product.py': broken + readFileSync(PRODUCT, 'utf8') },
       structured: { ...scene, ...fix, style_id: styleId, lighting_preset: CHANNEL_STYLES[styleId].lighting },
     };
+  }
+  if (role === 'reviewer_visual') {
+    const fail = /umutsuz|[iı]nat[çc][ıi]/.test(name) || (/kusurlu/.test(name) && ctx.round === 0);
+    return { fixture: 'basic', structured: load(fail ? 'review-revise' : 'review-pass') };
   }
   const board = load('storyboard-kalem') as { beats: { onscreen_text: { tr: string } }[] };
   if (ctx.audioMode !== 'vo') return { fixture: 'basic', structured: board };

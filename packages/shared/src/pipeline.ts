@@ -16,7 +16,7 @@ export const STEP_DEFAULT_S: Record<StepKey, number> = {
   research: 300, storyboard: 180, voice: 270, build: 1500, draft_render: 60, draft_review: 180, final_render: 1380, compose: 300, qc: 5, review: 300, finalize: 30,
 };
 /** Steps with an executor in this build. M4a: research → storyboard; M4b: + build; M4c: + draft_render (T6), draft_review (T8). */
-export const IMPLEMENTED_STEPS: readonly StepKey[] = ['research', 'storyboard', 'build', 'draft_render'];
+export const IMPLEMENTED_STEPS: readonly StepKey[] = ['research', 'storyboard', 'build', 'draft_render', 'draft_review'];
 
 /** "0:45", "1:02": a video length for cards and notes. */
 export function formatClock(seconds: number): string {

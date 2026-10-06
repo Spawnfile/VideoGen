@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type pg from 'pg';
 import {
-  CHANNEL_STYLES, DRAFT_CHECKS, DRAFT_GATES, formatClock, HOOK_PATTERN_LABELS, normalizeProductName, sceneRefErrors, storyboardRefErrors, validateArtifact,
-  type AudioMode, type ChannelStyleId, type ProductResearch, type Review, type SceneSpec, type StepKey, type Storyboard,
+  CHANNEL_STYLES, DRAFT_CHECK_IDS, DRAFT_CHECKS, DRAFT_GATES, DRAFT_MAX_RETURNS, DRAFT_RUBRIC_VERSION, draftDecision, formatClock, HOOK_PATTERN_LABELS,
+  normalizeProductName, reviewRefErrors, sceneRefErrors, storyboardRefErrors, validateArtifact,
+  type AudioMode, type BuildReport, type ChannelStyleId, type DraftCheckId, type ProductResearch, type Review, type SceneSpec, type StepKey, type Storyboard,
 } from '@videogen/shared';
 import { appendAudit, findArtifact, getBlob, getChannelStyle, insertArtifact, latestArtifact, latestStepSession, setProductDifficulty } from '@videogen/db';
 import { SpecStore, type FakeScript, type SpecKind } from '@videogen/claude';
@@ -15,7 +16,8 @@ import { ARTIFACT_VALIDATOR } from './validator.ts';
 import { RESUME_PROMPT, type SessionManager } from '../agents/manager.ts';
 import { putBlob } from '../media.ts';
 import { RenderError } from '../render/driver.ts';
-import { draftProbeErrors, extractFrame, probeVideo } from '../render/ffmpeg.ts';
+import { contactSheet, draftProbeErrors, extractFrame, probeVideo } from '../render/ffmpeg.ts';
+import type { ReviewTargets } from './review-tools.ts';
 import { runStructured } from './agent-step.ts';
 import { buildScene, previewScene, type SceneBuild, type SceneDeps } from './scene-tools.ts';
 import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
@@ -23,7 +25,7 @@ import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
 export { ARTIFACT_VALIDATOR } from './validator.ts';
 /** Bump when a contract changes: old outputs stop matching and are not reused. */
 const SCHEMA_VERSION = { research: 'ProductResearch@1', storyboard: 'Storyboard@1', scene: 'SceneSpec@1' } as const;
-export type PipelineRole = 'researcher' | 'storyboarder' | 'builder';
+export type PipelineRole = 'researcher' | 'storyboarder' | 'builder' | 'reviewer_visual';
 
 export interface StepDeps {
   pool: pg.Pool;
@@ -33,6 +35,8 @@ export interface StepDeps {
   fakeScript?: (role: PipelineRole, ctx: StepContext, attempt: number, extra?: { styleId: ChannelStyleId }) => FakeScript | undefined;
   /** M4b: render driver, locks and pre-checks for the build step (absent: build fails with a reason). */
   scene?: SceneDeps;
+  /** M4c: where the draft_review step registers the draft for extract_frames (plan C22; absent: the reviewer has the contact sheet only). */
+  reviews?: ReviewTargets;
 }
 
 const sha = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
@@ -337,6 +341,107 @@ export function draftRenderExecutor(deps: StepDeps): StepExecutor {
   };
 }
 
+/** Twelve contact-sheet times spread over the draft (centres of twelfths), in seconds. */
+export const sheetTimes = (durationS: number): number[] => Array.from({ length: 12 }, (_, i) => Math.round((((i + 0.5) * durationS) / 12) * 1000) / 1000);
+
+export function reviewPrompt(o: { name: string; storyboard: Storyboard; scene: SceneSpec; warnings: string[]; durationS: number; frames: number; times: number[]; sheet: string }): string {
+  const bounds = [...new Set(o.storyboard.beats.flatMap((b) => [b.t_start, b.t_end]))];
+  return [
+    `Ürün: "${o.name}". Görev: "içinde ne var" videosunun taslağını görsel olarak incele ve sonucu Review şemasında döndür. Builder'ın gerekçesini görmüyorsun; yalnızca karelere ve aşağıdaki verilere bak.`,
+    `Taslak: 540×960 (%50 ölçek; boyut eşiklerini orana göre yargıla), 30 fps, ${o.frames} kare, ${formatClock(o.durationS)}.`,
+    '',
+    fenced('Storyboard', { hook: o.storyboard.hook, beats: o.storyboard.beats.map((b) => ({ id: b.id, t_start: b.t_start, t_end: b.t_end, parts: b.parts, action: b.action, onscreen_text: b.onscreen_text.tr })) }),
+    '',
+    fenced('Sahne', { hero_part: o.scene.hero_part, parts: o.scene.parts.map((p) => ({ id: p.id, name_tr: p.name_tr })), build_warnings: o.warnings }),
+    '',
+    `Kontakt sayfası: ${o.sheet} (12 kare; soldan sağa, yukarıdan aşağı; zamanlar sn: ${o.times.join(', ')}). Read ile aç. Kırmızı bölgeler TikTok arayüzünün kapattığı alan.`,
+    `Vuruş sınırları (sn): ${bounds.join(', ')}. Gerekirse extract_frames ile en çok 12 tek kare al (kırpma 2× büyütür).`,
+    '',
+    'Kontroller (her biri tam bir kez, bu kimliklerle; önemi kimlik belirler, sen belirlemezsin):',
+    ...DRAFT_CHECK_IDS.map((id) => `- ${id} (${DRAFT_CHECKS[id].severity}): ${DRAFT_CHECKS[id].ask_tr}`),
+    '',
+    `Kurallar: pass:false ise evidence.frame (0–${o.frames - 1}), evidence.timecode (sn; kare/30 ile ±0,5 içinde) ve fix_hint (builder için somut, Türkçe) zorunlu. score 0–1. dimension_scores: D2 0–15, D3 0–12, D5 0–10, D9 0–8. gate_results: G3 (üçüncü taraf logo/filigran yok), G5 (CG gerçek çekim gibi sunulmuyor; taklit edilebilir tehlikeli eylem yok). rubric_version "${DRAFT_RUBRIC_VERSION}", reviewer_role "reviewer_visual", summary_tr kısa Türkçe özet.`,
+  ].join('\n');
+}
+
+/** Inherited D6: the decision is draftDecision's; this only words it and applies the round limit (inherited D5). */
+export function decideDraft(review: Review, round: number): StepOutcome {
+  const d = draftDecision(review);
+  const label = (id: DraftCheckId) => DRAFT_CHECKS[id].label_tr;
+  const minor = d.minor.length ? ` · küçük bulgu: ${d.minor.map(label).join(', ')}` : '';
+  if (d.verdict === 'pass') return { status: 'done', note: `geçti${minor}` };
+  const open = [...d.blocking.map(label), ...d.gates].join(', ');
+  if (round >= DRAFT_MAX_RETURNS) return { status: 'needs_human', reason: `${DRAFT_MAX_RETURNS} taslak turundan sonra açık bulgu: ${open}.` };
+  return { status: 'rewind', to: 'build', reason: `düzeltilecek: ${open}` };
+}
+
+/** One reviewer_visual pass over the draft: 12-frame contact sheet, ≤ 12 single frames (extract_frames), the stored Review. */
+async function reviewDraft(deps: StepDeps, ctx: StepContext, hash: string, d: { video: string; meta: DraftMeta; draftId: string }): Promise<{ review: Review } | { outcome: StepOutcome }> {
+  const scene = deps.scene!;
+  const dir = join(ctx.runDir, 'review', `r${ctx.round}`);
+  const sheetDir = join(dir, 'sheet');
+  await mkdir(sheetDir, { recursive: true });
+  const probe = await probeVideo(scene.ffmpeg, d.video, ctx.signal);
+  const times = sheetTimes(probe.durationS);
+  for (const [i, at] of times.entries()) await extractFrame(scene.ffmpeg, d.video, join(sheetDir, `f${String(i).padStart(5, '0')}.png`), { t: at, signal: ctx.signal });
+  const sheet = join(dir, 'sheet.png');
+  await contactSheet(scene.ffmpeg, sheetDir, sheet, { cols: 4, rows: 3, signal: ctx.signal });
+  await record(deps, ctx, { kind: 'review_sheet', file: sheet, inputHash: hash, meta: { round: ctx.round, times } });
+  const [sb, sc, rep] = await Promise.all(['storyboard', 'scene', 'build_report'].map((k) => latestArtifact(deps.pool, ctx.runId, k)));
+  const storyboard = sb ? validateArtifact('Storyboard', sb.content) : null;
+  const sceneSpec = sc ? validateArtifact('SceneSpec', sc.content) : null;
+  if (!storyboard?.ok || !sceneSpec?.ok) return { outcome: { status: 'failed', error: "storyboard ya da sahne spec'i yok", retry: false } };
+  deps.reviews?.set(ctx.stepId, { video: d.video, frames: d.meta.frames, fps: 30, durationS: probe.durationS, outDir: join(dir, 'frames') });
+  try {
+    // Grilling missing decision 2: a restarted review continues its own reviewer session.
+    const prior = ctx.attempt > 1 ? await latestStepSession(deps.pool, ctx.stepId) : null;
+    const r = await runStructured<Review>({
+      manager: deps.manager, ctx, role: 'reviewer_visual', schema: 'Review',
+      prompt: reviewPrompt({ name: ctx.productName, storyboard: storyboard.value, scene: sceneSpec.value, warnings: (rep?.content as BuildReport | null)?.warnings ?? [], durationS: probe.durationS, frames: d.meta.frames, times, sheet: `review/r${ctx.round}/sheet.png` }),
+      initialResume: prior?.role === 'reviewer_visual' ? { claudeSessionId: prior.claudeSessionId, parent: prior.id, prompt: RESUME_PROMPT } : undefined,
+      check: (v) => reviewRefErrors(v, { frames: d.meta.frames, fps: 30 }),
+      fakeScript: deps.fakeScript ? (n) => deps.fakeScript!('reviewer_visual', ctx, n) : undefined,
+    });
+    if (!r.ok) return { outcome: failure(r) };
+    const file = join(dir, 'review.json');
+    await writeFile(file, JSON.stringify(r.value, null, 2));
+    await record(deps, ctx, { kind: 'draft_review', file, content: r.value, inputHash: hash, meta: { round: ctx.round, verdict: draftDecision(r.value).verdict, draftArtifactId: d.draftId } });
+    return { review: r.value };
+  } finally {
+    deps.reviews?.delete(ctx.stepId);
+  }
+}
+
+/** Spec §7.1 step 6: reviewer_visual reviews the draft; pass → done, revise → back to build (≤ 2 returns), then needs_human. */
+export function draftReviewExecutor(deps: StepDeps): StepExecutor {
+  return {
+    key: 'draft_review',
+    resource: 'claude',
+    async inputHash(ctx) {
+      const d = await latestArtifact(deps.pool, ctx.runId, 'draft_video');
+      return sha({ step: 'draft_review', draft: d?.id ?? null, draftHash: d?.inputHash ?? null, rubric: DRAFT_RUBRIC_VERSION, round: ctx.round });
+    },
+    // No `reuse`: a stored review is replayed in run(), so a "revise" is never turned into "done" (grilling C7).
+    async run(ctx, hash) {
+      if (!deps.scene) return { status: 'failed', error: 'render yapılandırılmadı', retry: false };
+      const draft = await latestArtifact(deps.pool, ctx.runId, 'draft_video');
+      const meta = draft?.meta as DraftMeta | null | undefined;
+      const blob = draft?.blobSha ? await getBlob(deps.pool, draft.blobSha) : null;
+      if (!draft || !meta || !blob) return { status: 'failed', error: 'incelenecek taslak yok', retry: false };
+      // Spec §8.3: a draft whose hash does not match the current GLB, scene spec, style and template is never reviewed.
+      if ((await draftSource(deps, ctx.runId))?.hash !== draft.inputHash) return { status: 'failed', error: 'taslak güncel sahneyle uyuşmuyor (bayat artefakt, §8.3)', retry: false };
+      const stored = await findArtifact(deps.pool, { runId: ctx.runId, kind: 'draft_review', inputHash: hash });
+      const replay = stored ? validateArtifact('Review', stored.content) : null;
+      if (replay?.ok) return decideDraft(replay.value, ctx.round);
+      const r = await reviewDraft(deps, ctx, hash, { video: join(deps.dataDir, blob.path), meta, draftId: draft.id });
+      return 'outcome' in r ? r.outcome : decideDraft(r.review, ctx.round);
+    },
+  };
+}
+
 export function pipelineExecutors(deps: StepDeps): Partial<Record<StepKey, StepExecutor>> {
-  return { research: researchExecutor(deps), storyboard: storyboardExecutor(deps), build: buildExecutor(deps), draft_render: draftRenderExecutor(deps) };
+  return {
+    research: researchExecutor(deps), storyboard: storyboardExecutor(deps), build: buildExecutor(deps),
+    draft_render: draftRenderExecutor(deps), draft_review: draftReviewExecutor(deps),
+  };
 }
