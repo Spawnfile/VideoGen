@@ -14,10 +14,11 @@ Bu doküman; planların **hangi sırayla, nasıl, hangi kapılardan geçerek** u
 | `docs/superpowers/plans/2026-10-06-m3a-agent-runtime.md` | M3a: agent çalışma katmanı (sürücü, roller, MCP, koruma, olay tabloları, kullanım muhafızı, chat servisi, API). M3b planı ayrı satırda |
 | `docs/superpowers/plans/2026-10-06-m3b-live-ui.md` | M3b: canlı arayüz (10 Hz olay deposu, ThinkingState, agent kartları, chat paneli, rol ayarları), smoke S3/S4/S5, taş sonu |
 | `docs/superpowers/plans/2026-10-06-m4a-pipeline-core.md` | M4a: pipeline omurgası (tablolar, iş kuyruğu, orchestrator, ilerleme, research/storyboard adımları, API, Stüdyo üretim paneli, Kütüphane, smoke S2a). M4b planı M4a sonrası |
-| `docs/superpowers/plans/2026-10-06-m4b-scene-core.md` | M4b: sahne çekirdeği (vg_blender, iki aşamalı sandbox'lı build, Blender↔three.js eşdeğerliği, GPU önizleme, build adımı, medya ucu, K19 seçenekleri, smoke S2b). M4c planı (taslak render, inceleme, player, ilk gerçek ürün) sırada |
+| `docs/superpowers/plans/2026-10-06-m4b-scene-core.md` | M4b: sahne çekirdeği (vg_blender, iki aşamalı sandbox'lı build, Blender↔three.js eşdeğerliği, GPU önizleme, build adımı, medya ucu, K19 seçenekleri, smoke S2b). M4c planı ayrı satırda |
+| `docs/superpowers/plans/2026-10-06-m4c-draft-review-player.md` | M4c: `Review` sözleşmesi, `steps.round` (0006), taslak döngüsü, GPU ve kullanım kapıları, `packages/remotion` (Draft3D + çocuk süreçte render), `draft_render`, `extract_frames`, `draft_review` (≤ 2 geri dönüş), player + kütüphane + kısayollar, smoke S2, M4 kapanışı |
 | `docs/superpowers/checklist.md` | Görev bazında ilerleme takibi |
 | `docs/m3/report.md`, `docs/m3/real-check.md` | M3 sonuç raporu ve gerçek Claude doğrulama çıktıları |
-| `docs/m4/m4a-summary.md`, `docs/m4/real-check.md`, `docs/m4/m4b-summary.md` | M4a özeti (pipeline omurgası), gerçek (haiku) doğrulama çıktıları ve M4b özeti (sahne çekirdeği); M4 raporu M4c sonunda |
+| `docs/m4/m4a-summary.md`, `docs/m4/real-check.md`, `docs/m4/m4b-summary.md`, `docs/m4/report.md` | M4a özeti (pipeline omurgası), gerçek (haiku) doğrulama çıktıları, M4b özeti (sahne çekirdeği) ve M4 raporu (M4c dahil) |
 | `docs/m<N>/report.md` | Her taşın kanıtlı sonuç raporu (uygulama sırasında oluşur) |
 
 ## 2. Uygulama sırası
@@ -33,7 +34,7 @@ M0 Doğrulama ──┬──► M1 Ses (kullanıcı dinleme testine katılır) 
 - **M1 ve M2 birbirinden bağımsızdır.** Önerilen sıra M2 → M1. Önce iskelet ve testler hazır olur; dinleme testi kullanıcının vakti olduğunda yapılır.
 - **M3–M7 planları önceden yazılmaz.** Her biri, bir önceki taşın raporu ve kanıtlarıyla yazılır (§5).
 - **M3 iki plana bölündü** (17 görev): M3a (agent çalışma katmanı) → M3b (arayüz + smoke S3/S4/S5). **M3 tamamlandı** (`docs/m3/report.md`).
-- **M4 üç plana bölündü:** M4a (pipeline omurgası) ve M4b (sahne çekirdeği: storyboard → doğrulanmış 3D sahne) **tamamlandı** ve kullanıcı kararıyla `main`'e birleştirildi (`docs/m4/m4a-summary.md`, `docs/m4/m4b-summary.md`); M4c (taslak render, taslak inceleme, player, ilk gerçek ürün, M4 raporu) sırada.
+- **M4 üç plana bölündü:** M4a (pipeline omurgası) ve M4b (sahne çekirdeği: storyboard → doğrulanmış 3D sahne) **tamamlandı** ve kullanıcı kararıyla `main`'e birleştirildi (`docs/m4/m4a-summary.md`, `docs/m4/m4b-summary.md`); M4c (taslak render, taslak inceleme, player, smoke S2) de uygulandı ve `main`'e birleştirildi (`docs/m4/report.md`). **Açık kalan tek M4 çıkış maddesi:** K12 rol modelleriyle ilk gerçek ürün ve video başına kullanım ölçümü; GPU'lu makinede `docs/m4/report.md` §4'teki tarifle koşulur.
 
 ## 3. Bir planı uygulamak
 
@@ -136,6 +137,11 @@ Taş raporu bittikten sonra yeni bir oturumda:
 | Kütüphane | Sol menü → Kütüphane: videolar (son güncellenen önce), durum, tarih, token ve 5 sa payı; satıra tıklamak videoyu Stüdyo'da açar (`/?video=<id>`) |
 | Fake kipte üretim | Worker ve API `VG_CLAUDE_DRIVER=fake` ile: araştırma kayıtlı `websearch` akışını, storyboard `basic` akışını oynatır ve fixture artefaktlarını yapılandırılmış çıktı olarak verir. Adında "imkansız" geçen ürün zorluk kapısını dener (`needs_human` + gerekçe) |
 | Gerçek uçtan uca doğrulama (geçici DB) | `docs/m4/real-check.md`'deki tarif: `videogen_m4a_check` veritabanı + `/tmp/videogen-m4a-check` veri klasörü, `VG_DATABASE_URL`/`VG_ADMIN_DATABASE_URL`/`VG_DATA_DIR` bunlara yöneltilir, `env -u CLAUDECODE node bin/videogen.mjs`, roller `PUT /api/roles/<rol> {"model":"haiku","effort":"low"}`, `POST /api/videos`; bitince launcher PID'ine SIGINT, DB `DROP … WITH (FORCE)`, klasör silinir. Önce `GET /api/usage/guard`: `blocked: true` ise (5 sa ≥ %80) koşma |
+| Taslak ve player (M4c) | Build'den sonra `draft_render` (Remotion, 540×960, sessiz; GPU kilidi + §6.4 ön kontrolü) ve `draft_review` (reviewer_visual: 4×3 kontakt sayfası + `extract_frames` ≤ 12 kare) koşar. İnceleme `revise` derse build…draft_review yeni tura alınır (en çok 2 geri dönüş, başlıkta "Taslak turu k/2 · %N"). Stüdyo'da "Taslak MP4" (varsayılan, HTML5 + Range) ve "Taslak" (canlı `@remotion/player`, yalnızca sekme açıkken) sekmeleri; inceleme kartı bulguları gösterir. Kütüphane satırında kapak ve süre |
+| Kısayollar | Boşluk oynat/durdur · J −5 sn · K durdur · L +5 sn · N yeni üretim (ürün adı kutusu). Yazı alanında ve değiştirici tuşla çalışmaz |
+| Fake taslak tetikleri | Ürün adında "kusurlu" → ilk inceleme `revise`, ikinci geçer · "umutsuz" → her inceleme `revise`, 2 geri dönüşten sonra `needs_human` · "inatçı" → builder sahneyi değiştirmez, düzeltme turu `needs_human` |
+| Chrome ve GL | Taslak render sistem Chrome'unu kullanır: `VG_CHROME` (varsayılan `/usr/bin/google-chrome`), `chrome-for-testing` kipi, `VG_REMOTION_GL` (varsayılan `angle`; GPU'suz makinede `swangle`). Tarayıcı indirilmez. Player'ın h264 oynatması için Google Chrome gerekir (Chromium'da tescilli codec yok) |
+| Bundle önbelleği | `<dataDir>/cache/remotion/<bundleHash>` (~50 MB); şablon değişince yenisi derlenir, en yeni diğeri dışındakiler silinir. Elle silinebilir |
 | Başlatıcıyı arka planda çalıştırıp durdurmak | `node bin/videogen.mjs &` → `kill -INT <node PID>`. PID'i başlatıcının kendisinden al: `&` bir `&&` zincirinin içindeyse `$!` alt kabuğun PID'idir ve arka plandaki kabuk SIGINT'i yok sayar |
 
 ## 7. Sorun giderme
@@ -164,6 +170,15 @@ Taş raporu bittikten sonra yeni bir oturumda:
 | Adım "GPU sırası bekleniyor" / kartta "GPU bekliyor · sırada N" | Başka bir önizleme GPU'yu tutuyor ya da §6.4 ön kontrolü (RAM, swap, VRAM, ollama) geçmiyor | Bekle; gerekçe kartta ve adım notunda yazar |
 | Video "insan gerekli", not "Hazır 3D varlık gerekiyor…" | Araştırma ürünü `needs_asset` buldu; varlık defteri M5'te | Beklenen (plan B5) |
 | Agent kartında "Yeniden dene" yok | Pipeline adımının oturumu: adım kendi yeniden denemesini yapar | Beklenen; "Durdur" çalışır |
+| Adım hatası "taslak render başarısız (kod …)" | Chrome bulunamadı ya da Remotion çocuğu düştü | `ls -l ${VG_CHROME:-/usr/bin/google-chrome}`; `worker.log`'daki `VG_ERROR` satırı. `render-cli`'yi elle dene: `node --import tsx packages/remotion/src/render-cli.ts --props … --glb … --out /tmp/d.mp4 --cache /tmp/rc --frames 0-5` |
+| "taslak render GPU/WebGL hatasıyla iki kez düştü" | Chrome'da WebGL bağlamı açılmadı (ANGLE/GPU) | `chrome://gpu`; GPU'suz makinede `VG_REMOTION_GL=swangle` (yavaş: 45 sn taslak ≈ 3,3 dk, 4 çekirdek) |
+| "taslak MP4 doğrulamadan geçmedi" | ffprobe çıktısı spec §7.5'e uymuyor (yuv420p, tv, bt709, 30/1, boyut, kare sayısı) | Audit `render.draft_rejected` gerekçeyi yazar; Remotion sürümü ya da `pixelFormat/colorSpace` değişmiş olabilir |
+| "taslak güncel sahneyle uyuşmuyor (bayat artefakt, §8.3)" | Render'dan sonra sahne, stil ya da `packages/remotion/src` (bundle hash'i) değişti | Run'ı yeniden üret. Geliştirme sırasında Remotion kodunu değiştirmek çalışan run'ı düşürür (beklenen) |
+| "Düzeltme turu sahneyi değiştirmedi; taslak yeniden incelenmedi" | Builder düzeltme turunda GLB'yi ve sahne spec'ini aynı bıraktı | Açık bulgular notta; elle düzelt ya da modeli büyütüp yeniden üret |
+| "2 taslak turundan sonra açık bulgu: …" | İki geri dönüşten sonraki inceleme de `revise` dedi | İnsan kararı: inceleme kartındaki bulgular ve kareler |
+| Video "sırada", not "Kullanım sınırı yakın: üretim sınır açılınca kendiliğinden başlar (açılış SS:DD)." | Run başlatma kullanım kapısı (§6.4) | Bekle; muhafız açılınca run kendiliğinden başlar |
+| "Taslak" sekmesinde siyah canvas | Tarayıcıda WebGL yok | `chrome://gpu`; "Taslak MP4" sekmesi her zaman çalışır |
+| "Taslak MP4" oynamıyor (`DEMUXER_ERROR_NO_SUPPORTED_STREAMS`) | Tarayıcı Chromium (h264 yok) | Google Chrome kullan |
 | Run "sırada"da kaldı | `run.start` komutu worker'a ulaşmadı (worker yeniden başlıyordu) | Worker açılışta `queued` run'ları kendisi başlatır: worker'ı yeniden başlat (başlatıcı yeniden başlatır) |
 | Adım notu "yeniden deneniyor (2/2)" | Yürütücü geçici hatayla döndü; bir kez daha denenir | Bekle; ikinci hatada adım ve run `failed` olur, gerekçe başlıkta |
 | Adım hatası "şema hatası: …" | Agent, yapılandırılmış çıktıyı aynı oturumda 2 düzeltme isteğine rağmen sözleşmeye uyduramadı | Hata listesine bak (`GET /api/runs/<id>`); rol modelini büyüt (Ayarlar → Agent rolleri) ve yeniden üret |
