@@ -1,0 +1,1 @@
+ALTER TABLE "steps" ADD COLUMN "round" integer DEFAULT 0 NOT NULL;

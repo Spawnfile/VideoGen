@@ -87,7 +87,7 @@ function toRun(r: Record<string, any>): RunRecord {
 function toStep(r: Record<string, any>): StepRecord {
   return {
     id: r.id, runId: r.run_id, key: r.key as StepKey, ordinal: r.ordinal, weight: Number(r.weight), status: r.status, progress: Number(r.progress),
-    progressSource: r.progress_source, attempt: r.attempt, sessionId: r.session_id, error: r.error, note: r.note, inputHash: r.input_hash,
+    progressSource: r.progress_source, attempt: r.attempt, round: r.round, sessionId: r.session_id, error: r.error, note: r.note, inputHash: r.input_hash,
     startedAt: iso(r.started_at), endedAt: iso(r.ended_at),
   };
 }
@@ -278,6 +278,42 @@ const RUN_IS_RUNNING = "EXISTS (SELECT 1 FROM runs r WHERE r.id = steps.run_id A
 export async function queueStepIfRunActive(db: Queryable, stepId: string): Promise<boolean> {
   const { rowCount } = await db.query(`UPDATE steps SET status = 'queued' WHERE id = $1 AND status = 'pending' AND ${RUN_IS_RUNNING}`, [stepId]);
   return (rowCount ?? 0) > 0;
+}
+
+/**
+ * Plan C6 (inherited D5): the draft review sends the run back. One transaction: only while the review step is still running in
+ * `round` and its run is running, steps with ordinals from..to become pending with round + 1 and a fresh attempt counter (the
+ * orchestrator's retry budget is per round), and the review's job is closed. A crash before COMMIT changes nothing (the restarted
+ * review replays its stored decision); a replay after COMMIT finds the step pending and changes nothing (no double round).
+ */
+export async function rewindForReview(pool: pg.Pool, o: { runId: string; stepId: string; jobId: number; round: number; fromOrdinal: number; toOrdinal: number; note: string }): Promise<boolean> {
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    const live = await c.query(
+      `SELECT 1 FROM steps s JOIN runs r ON r.id = s.run_id
+       WHERE s.id = $1 AND s.status = 'running' AND s.round = $2 AND r.status = 'running' FOR UPDATE OF s, r`,
+      [o.stepId, o.round],
+    );
+    if (!live.rowCount) {
+      await c.query('ROLLBACK');
+      return false;
+    }
+    await c.query(
+      `UPDATE steps SET status = 'pending', round = round + 1, attempt = 0, progress = 0, progress_source = NULL, input_hash = NULL, session_id = NULL,
+         error = NULL, note = $4, started_at = NULL, ended_at = NULL
+       WHERE run_id = $1 AND ordinal BETWEEN $2 AND $3`,
+      [o.runId, o.fromOrdinal, o.toOrdinal, o.note],
+    );
+    await c.query("UPDATE jobs SET status = 'done', lease_owner = NULL, lease_expires_at = NULL WHERE id = $1", [o.jobId]);
+    await c.query('COMMIT');
+    return true;
+  } catch (e) {
+    await c.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    c.release();
+  }
 }
 
 /** queued/waiting_* → running only while the run is running: a cancel that lands mid-launch keeps the step from starting. */

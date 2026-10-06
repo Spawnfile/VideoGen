@@ -40,6 +40,8 @@ export interface StepView {
   progress: number;
   progressSource: ProgressSource | null;
   attempt: number;
+  /** Draft review round (0 = first pass; each return to build adds 1 to the steps it reruns). */
+  round: number;
   sessionId: string | null;
   error: string | null;
   note: string | null;

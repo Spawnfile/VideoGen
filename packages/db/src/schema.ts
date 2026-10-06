@@ -223,6 +223,8 @@ export const steps = pgTable(
     progress: real('progress').notNull().default(0),
     progressSource: text('progress_source'),
     attempt: integer('attempt').notNull().default(0),
+    /** Draft review returns (plan C6, inherited D5): bumped for every step the review sends back; `attempt` restarts per round. */
+    round: integer('round').notNull().default(0),
     inputHash: text('input_hash'),
     sessionId: uuid('session_id'),
     error: text('error'),
