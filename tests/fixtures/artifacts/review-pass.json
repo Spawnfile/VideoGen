@@ -1,0 +1,17 @@
+{
+  "rubric_version": "draft@1",
+  "reviewer_role": "reviewer_visual",
+  "checks": [
+    { "id": "hero_frame0", "pass": true, "score": 0.9 },
+    { "id": "mechanism_shot", "pass": true, "score": 0.8 },
+    { "id": "parts_visible", "pass": true, "score": 0.85 },
+    { "id": "no_intersection", "pass": true, "score": 0.9 },
+    { "id": "labels_correct", "pass": true, "score": 0.8 },
+    { "id": "text_readable", "pass": false, "score": 0.5, "evidence": { "frame": 12, "timecode": 0.4 }, "fix_hint": "Alt yazının plakası koyu arka planda zayıf kalıyor; plaka opaklığını artır." },
+    { "id": "motion_flow", "pass": true, "score": 0.8 },
+    { "id": "no_slop", "pass": true, "score": 0.9 }
+  ],
+  "dimension_scores": { "D2": 12.5, "D3": 9.5, "D5": 7, "D9": 7 },
+  "gate_results": { "G3": true, "G5": true },
+  "summary_tr": "Kahraman ilk karede net, patlatma ve mekanizma anlaşılır; yalnızca alt yazı kontrastı zayıf."
+}
