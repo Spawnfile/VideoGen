@@ -79,6 +79,8 @@ export class SessionManager {
   private live = new Map<string, Live>();
   /** Last reported percent per session; kept outside `live` because a tool may report before the slot entry exists. */
   private progress = new Map<string, number>();
+  /** Pipeline sessions stopped by a rejected rate limit; resumed as child sessions when the gate clears. */
+  private limited = new Set<string>();
   private overrides: RoleOverrides = {};
   private pumpTimer: NodeJS.Timeout | null = null;
   private sampleTimer: NodeJS.Timeout;
@@ -92,7 +94,7 @@ export class SessionManager {
     this.gate = d.gate ?? OPEN_GATE;
     this.slots = d.slots ?? { pipeline: 3, chat: 1 };
     this.log = d.log ?? ((m) => process.stderr.write(`manager: ${m}\n`));
-    this.gate.onClear(() => this.pump());
+    this.gate.onClear(() => { void this.resumeLimited(); this.pump(); });
     this.sampleTimer = setInterval(() => { void this.sampleAll(); }, d.sampleEveryMs ?? 2000);
   }
 
@@ -282,8 +284,26 @@ export class SessionManager {
       const sha = await this.d.archive({ sessionId: id, claudeSessionId: l.req.claudeSessionId }).catch(() => null);
       if (sha) await updateSession(this.d.pool, id, { transcriptBlobSha: sha }).catch(() => {});
     }
-    try { await this.events.onEnd?.(id, end, { limited: false }); } catch (e) { this.log(`onEnd ${id} failed (${errorTag(e)})`); }
+    const limited = end.status !== 'cancelled' && end.rateLimit?.status === 'rejected' && (end.status === 'failed' || end.resultIsError);
+    if (limited) {
+      const at = this.gate.resumeAt();
+      await updateSession(this.d.pool, id, { status: 'waiting_limit', waitingUntil: at ? new Date(at) : null }).catch(() => {});
+      await appendAudit(this.d.pool, { actorType: 'orchestrator', action: 'agent.session.waiting_limit', sessionId: id, data: { resumeAt: at } }).catch(() => {});
+      await this.publish(id).catch(() => {});
+      if (l?.kind === 'pipeline') this.limited.add(id);
+      if (this.gate.allowsNewPipeline()) void this.resumeLimited();
+    }
+    try { await this.events.onEnd?.(id, end, { limited }); } catch (e) { this.log(`onEnd ${id} failed (${errorTag(e)})`); }
     this.pump();
+  }
+
+  private async resumeLimited(): Promise<void> {
+    for (const id of [...this.limited]) {
+      this.limited.delete(id);
+      await updateSession(this.d.pool, id, { status: 'failed', terminalReason: 'rate_limited', waitingUntil: null });
+      await this.publish(id);
+      await this.retry(id, 'limit');
+    }
   }
 
   /** The CLI normally exits on its own; a group still alive after 10 s gets SIGTERM, then SIGKILL (spec §6.4). */
