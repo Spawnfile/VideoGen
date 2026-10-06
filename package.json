@@ -1,0 +1,26 @@
+{
+  "name": "videogen",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*"],
+  "engines": { "node": ">=24.18 <25" },
+  "scripts": {
+    "db:up": "docker compose up -d --wait postgres",
+    "db:migrate": "tsx packages/db/src/migrate-cli.ts",
+    "dev:api": "tsx watch apps/api/src/main.ts",
+    "dev:worker": "tsx apps/worker/src/main.ts",
+    "dev:web": "npm run dev -w @videogen/web",
+    "build": "npm run build -w @videogen/web",
+    "start": "node bin/videogen.mjs",
+    "test": "vitest run",
+    "test:smoke": "playwright test -c tests/smoke/playwright.config.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.19.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}

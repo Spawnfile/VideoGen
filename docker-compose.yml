@@ -1,0 +1,20 @@
+name: videogen
+services:
+  postgres:
+    image: postgres:17
+    container_name: videogen-pg
+    environment:
+      POSTGRES_USER: videogen
+      POSTGRES_PASSWORD: videogen
+      POSTGRES_DB: videogen
+    ports: ["127.0.0.1:5433:5432"]
+    volumes: ["videogen-pg:/var/lib/postgresql/data"]
+    mem_limit: 512m
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U videogen -d videogen"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  videogen-pg: {}

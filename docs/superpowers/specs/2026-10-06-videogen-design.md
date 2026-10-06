@@ -260,6 +260,7 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 - **Prompt injection:** Güvenilmeyen web içeriğini sadece `researcher` ve `reviewer_facts` okur. İkisinin de Bash yetkisi yoktur ve sadece kendi klasörlerine yazabilirler. Sonraki agent'lar ham web metnini değil, şemayla doğrulanmış JSON'u alır.
 - **Referans kuralı:** Web kaynakları sadece **gerçek bilgi** için kullanılır: parça adları, sayılar, malzemeler, oranlar, montaj sırası. Üçüncü taraf görseller, video kareleri ve diyagramlar asla indirilmez, gömülmez veya çizilerek kopyalanmaz. Her iddia URL ve erişim tarihiyle birlikte `claims.json`'a girer.
 - **Ücretli API muhafızı:** API ve Worker açılışta env'i tarar. `ANTHROPIC_API_KEY` veya bilinen ücretli anahtar desenleri (ElevenLabs, OpenAI vb.) bulunursa **çalışmayı reddeder** ve bunu audit'e yazar. Agent env'ine anahtar geçirilmez.
+  - *M2 notu:* Başlatıcı, API ve Worker reddeder ama **audit satırı yazmaz**: başlatıcı Postgres ayağa kalkmadan reddeder, API/Worker DB bağlantısından önce. Reddetme stderr'de yalnızca değişken adlarıyla görünür. Audit kaydı M7'de yeniden ele alınacak.
 
 ## 7. Pipeline
 
@@ -507,7 +508,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
 - **Sütunlar:** `id bigserial`, `ts`, `actor_type` (`user`/`orchestrator`/`agent`/`system`), `actor_id` (rol + oturum), `action`, `subject_type`, `subject_id`, `run_id`, `step_id`, `session_id`, `tool_use_id`, `data jsonb`, `prev_hash`, `hash`.
 - **Değiştirilemezlik:** Güncelleme ve silme bir trigger'la engellenir. Uygulama rolünün `UPDATE`/`DELETE` yetkisi yoktur.
-- **Hash zinciri:** `BEFORE INSERT` trigger'ı `pg_advisory_xact_lock` ile satırları sıraya koyar ve `hash = sha256(prev_hash || canonical(row))` hesaplar. API ve Worker aynı yazma fonksiyonunu kullanır. `GET /api/audit/verify` zinciri baştan doğrular.
+- **Hash zinciri:** `BEFORE INSERT` trigger'ı `pg_advisory_xact_lock` ile satırları sıraya koyar ve `hash = sha256(prev_hash || canonical(row))` hesaplar. Kanonik satır biçimi bir **JSON dizisidir** (`jsonb_build_array(...)::text`; alan sınırları taklit edilemez). `ts` istemciden alınmaz, trigger tarafından `clock_timestamp()` ile atanır. API ve Worker aynı yazma fonksiyonunu kullanır. `GET /api/audit/verify` zinciri baştan doğrular.
 - **Kapsam:**
   - kullanıcı komutları
   - adım geçişleri
@@ -571,6 +572,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 - Uzun işlerin hiçbiri istek/yanıt içinde yapılmaz. Komutlar `202` döner, sonuç olaylarla gelir.
 - SSE olayları `requestAnimationFrame` ile toplu çizilir (≤ 10 Hz). İz listeleri 200 satırı geçince sanal kaydırma kullanılır.
 - SSE her 15 sn'de heartbeat gönderir. Bağlantı koparsa üstte "yeniden bağlanıyor…" şeridi çıkar ve `Last-Event-ID` ile kaçan olaylar tekrar oynatılır. Olay sıra numaralarında boşluk olmamalı; bu test edilir.
+- Replay yalnızca **yeniden bağlanmalar** içindir. Taze bir SSE bağlantısı (`Last-Event-ID` yok) o anki en büyük olay id'sinden başlar; istemci her `open`'da REST durumunu yeniden çeker. En büyük id'den büyük bir `Last-Event-ID` sıfırlama sayılır (veritabanı sıfırlanmış) ve akış o anki en büyük id'den başlar.
 - Sonsuz animasyon sadece aktif ilerleme göstergesinde ve canlı ThinkingState başlığında vardır (yalnızca `transform` ve `opacity`).
 
 ## 13. Arayüz

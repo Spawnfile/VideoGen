@@ -8,7 +8,7 @@
 |---|---|---|---|---|---|
 | M0 Doğrulama | `plans/2026-10-06-m0-verification.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m0/report.md` |
 | M1 Ses | `plans/2026-10-06-m1-audio-listening.md` | Başlamadı | | | `docs/m1/decision.md` |
-| M2 İskelet | `plans/2026-10-06-m2-skeleton.md` | Başlamadı | | | `docs/m2/report.md` |
+| M2 İskelet | `plans/2026-10-06-m2-skeleton.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m2/report.md` |
 | M3 Canlı agent katmanı | M2 sonrası yazılacak | Plan yok | | | |
 | M4 Dikey dilim | M3 sonrası | Plan yok | | | |
 | M5 Final ve kalite | M4 sonrası | Plan yok | | | |
@@ -42,16 +42,16 @@
 
 ## M2 — Platform iskeleti
 
-- [ ] T1 Monorepo, config, ücretli anahtar muhafızı (4 test)
-- [ ] T2 Veritabanı paketi, migration'lar, hash zincirli audit (5 test)
-- [ ] T3 `ui_events` outbox + NOTIFY sırası (3 test)
-- [ ] T4 Claude hesap ve kullanım eşleyicileri (8 test)
-- [ ] T5 API: tüm isteklerde localhost guard, tekrar oynatmalı SSE, sistem uçları (5 test)
-- [ ] T6 Worker: auth durumu, sıfır token kullanım yoklaması, heartbeat, komutlar (3 test + elle doğrulama)
-- [ ] T7 Arayüz kabuğu: Perplexity teması, canlı olay deposu, footer, Ayarlar (`frontend-design` skill'i; ekran görüntüsü incelendi)
-- [ ] T8 Tek komutla başlatıcı (`npm start`): denetimli yeniden başlatma, anahtar reddi
-- [ ] T9 Playwright smoke S1 (3 test)
-- [ ] T10 README + M2 raporu; `typecheck` + `test` + `test:smoke` yeşil
+- [x] T1 Monorepo, config, ücretli anahtar muhafızı (4 test) · commit a9b4c2a · 2026-10-06 · sapma: anahtar listesi sağlayıcı desenleriyle genişletildi
+- [x] T2 Veritabanı paketi, migration'lar, hash zincirli audit (5 test) · commit 6a51edd · 2026-10-06 · sapma: 0002 JSON kanonik biçim + `clock_timestamp`, normalize gizli anahtar; 8 test
+- [x] T3 `ui_events` outbox + NOTIFY sırası (3 test) · commit ab5a818 · 2026-10-06 · 5 test (prune, çok baytlı)
+- [x] T4 Claude hesap ve kullanım eşleyicileri (8 test) · commit 15d1ffe · 2026-10-06 · M0 errata: kaynağa göre birim; 9 test
+- [x] T5 API: tüm isteklerde localhost guard, tekrar oynatmalı SSE, sistem uçları (5 test) · commit dfb0221 · 2026-10-06 · yeni bağlantı max'tan başlar; 12 test
+- [x] T6 Worker: auth durumu, sıfır token kullanım yoklaması, heartbeat, komutlar (3 test + elle doğrulama) · commit 506f225 · 2026-10-06 · crash-only LISTEN, 30 sn zaman aşımı; 6 test
+- [x] T7 Arayüz kabuğu: Perplexity teması, canlı olay deposu, footer, Ayarlar (`frontend-design` skill'i; ekran görüntüsü incelendi) · commit e198c71 · 2026-10-06 · açılışta REST tazeleme, CLOSED yeniden bağlanma; 6 test
+- [x] T8 Tek komutla başlatıcı (`npm start`): denetimli yeniden başlatma, anahtar reddi · commit 8757175 · 2026-10-06 · port ön kontrolü, ortak muhafız
+- [x] T9 Playwright smoke S1 (3 test) · commit 38f064b · 2026-10-06 · 3/3
+- [x] T10 README + M2 raporu; `typecheck` + `test` + `test:smoke` yeşil · commit 70bdbd9 · 2026-10-06 · + final review düzeltmeleri 1ecf4a3; 51/51 + smoke 3/3
 
 ## M3 — Canlı agent katmanı *(plan M2 sonrası yazılacak)*
 
@@ -122,4 +122,6 @@
 | 2026-10-06 | M0 footer veri kaynağı (M2) | `get_usage` birincil (yüzde 0–100), `rate_limit_event` canlı/yedek (0–1) | `docs/m0/report.md` §6 |
 | 2026-10-06 | M0 giriş akışı (M2) | (ii) terminal `! claude auth login` + 5 sn yoklama; (i) v1.1 | `docs/m0/report.md` §8 |
 | 2026-10-06 | M2 planı errata | `toFraction` kaldırıldı; kaynak başına normalizasyon | M2 planı başındaki errata |
+| 2026-10-06 | 🚦 M1 öncesi disk eşiği (< 30 GB) | Otonom karar: devam (önceden onaylı `~/.npm` yeniden temizlendi → 29,5 GiB / 31,7 GB). M1 sırasında boş alan < 10 GiB olursa indirmeler durur | M2 sonrası `node_modules` (0,5 GB) + spike (0,3 GB) + npm önbelleği (0,8 GB) alanı tüketti; M1 gerçek ihtiyacı ~8–13 GB (uv hardlink'leri ikinci venv'i ucuzlatır); `df -B1M` 30203 MiB |
+| 2026-10-06 | M2 final review | With fixes → düzeltildi (havuz hata dinleyicisi, idempotent kapanış, smoke her seferinde derler, yönlendirme env'leri temizlenir) | `docs/m2/report.md` §5 |
 | 2026-10-06 | M0 T1 disk eşiği | 32 GB boş ≥ 30 ✓ | `docs/m0/disk-cleanup.md` |
