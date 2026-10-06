@@ -76,6 +76,20 @@ describe('session endpoints', () => {
   });
 });
 
+describe('session retry ownership', () => {
+  it('a step session is retried by its step and a chat session by its next message: the API refuses both (409)', async () => {
+    const step = randomUUID();
+    await insertSession(t.pool, { id: step, kind: 'pipeline', role: 'builder', model: 'opus', effort: 'high', claudeSessionId: step, stepId: randomUUID(), runDir: '/tmp', status: 'thinking' });
+    const chat = randomUUID();
+    await insertSession(t.pool, { id: chat, kind: 'chat', role: 'chat', model: 'opus', effort: 'high', claudeSessionId: chat, runDir: '/tmp', status: 'idle' });
+    const r1 = await app.inject({ method: 'POST', url: `/api/sessions/${step}/retry`, headers: H });
+    expect([r1.statusCode, r1.json().error]).toEqual([409, 'adım oturumunu adım yeniden dener']);
+    expect((await app.inject({ method: 'POST', url: `/api/sessions/${chat}/retry`, headers: H })).statusCode).toBe(409);
+    expect((await app.inject({ method: 'POST', url: `/api/sessions/${step}/cancel`, headers: H })).statusCode).toBe(202);
+    expect((await app.inject({ url: '/api/sessions?scope=recent', headers: H })).json().find((s: { id: string }) => s.id === step).stepId).toBeTruthy();
+  });
+});
+
 describe('chat endpoints', () => {
   it('creates a thread, accepts a message without putting its text into NOTIFY, and renames the thread', async () => {
     const th = (await app.inject({ method: 'POST', url: '/api/chat/threads', headers: H, payload: {} })).json();

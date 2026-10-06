@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import { assertNoPaidKeys, cleanChildEnv, loadConfig, ROLE_NAMES, watchParent, type RoleName } from '@videogen/shared';
 import { appendAudit, createPool, isUuid } from '@videogen/db';
 import { FakeClaudeDriver, PLUGIN_DIR, SdkClaudeDriver, type ClaudeDriver, type FakeScript } from '@videogen/claude';
@@ -13,6 +14,13 @@ import { findBundledClaude, sdkVersion } from './claude-binary.ts';
 import { listenCommands } from './commands.ts';
 import { errorTag } from './errors.ts';
 import { startHeartbeat } from './heartbeat.ts';
+import { fakePipelineScript } from './pipeline/fake-scripts.ts';
+import { Orchestrator } from './pipeline/orchestrator.ts';
+import { SystemProbe } from './pipeline/resources.ts';
+import { BlenderRenderDriver, FakeRenderDriver, type Capability, type RenderDriver } from './render/driver.ts';
+import { ResourceLocks } from './render/locks.ts';
+import { sceneToolHost } from './pipeline/scene-tools.ts';
+import { ARTIFACT_VALIDATOR, pipelineExecutors } from './pipeline/steps.ts';
 import { FixtureUsageSource, SdkUsageSource, startUsagePoller } from './usage.ts';
 
 function die(stage: string, e: unknown): never {
@@ -30,10 +38,27 @@ const driver: ClaudeDriver = config.claudeDriver === 'fake'
   ? new FakeClaudeDriver({ speed: Number(process.env.VG_FAKE_SPEED ?? 0.05), pick: fakePicker(process.env.VG_FAKE_CHAT) })
   : new SdkClaudeDriver({ pluginDir: PLUGIN_DIR, claudeBinary: findBundledClaude(), env: cleanChildEnv(), onStderr: (l) => process.stderr.write(`[claude] ${l.slice(0, 500)}\n`) });
 const guard = new UsageGuard({ pool });
+// M4b: the only owner of Blender/ffmpeg work (K22); one in-process lock per GPU and heavy CPU (single-worker invariant, §14).
+const renderAudit = (action: string, data: Record<string, unknown>) => appendAudit(pool, { actorType: 'orchestrator', action, data }).then(() => {}, () => {});
+const render: RenderDriver = config.render.driver === 'fake'
+  ? new FakeRenderDriver({ ffmpeg: config.render.ffmpeg })
+  : new BlenderRenderDriver({ blender: config.render.blender, bwrap: config.render.bwrap, dataDir: config.dataDir, home: homedir(), audit: renderAudit });
+const locks = new ResourceLocks();
+const probe = new SystemProbe(config.dataDir);
+let renderCapability: Capability = { ok: false, reason: 'denetlenmedi' };
 const manager = new SessionManager({
   pool, dataDir: config.dataDir, driver, pluginDir: PLUGIN_DIR, gate: guard, sdkVersion: sdkVersion(), chatIdleMs: config.chatIdleMs,
   quietAfterMs: config.liveness.quietAfterMs, stuckAfterMs: config.liveness.stuckAfterMs,
   archive: (s) => archiveTranscript({ pool, dataDir: config.dataDir, ...s }),
+  validator: ARTIFACT_VALIDATOR,
+  tools: sceneToolHost({ pool, render, locks, probe, ffmpeg: config.render.ffmpeg, capability: () => renderCapability }),
+});
+const orchestrator = new Orchestrator({
+  pool, dataDir: config.dataDir, probe,
+  executors: pipelineExecutors({
+    pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined,
+    scene: { pool, render, locks, probe, ffmpeg: config.render.ffmpeg, capability: () => renderCapability },
+  }),
 });
 const chat = new ChatService({ pool, manager });
 chat.bind();
@@ -58,6 +83,10 @@ let stopCommands = async () => {};
 try {
   await appendAudit(pool, { actorType: 'system', action: 'worker.started', data: { pid: process.pid, usagePollMs: config.usagePollMs, driver: driver.kind } });
   await recoverOnStartup(pool, config.dataDir);
+  // Never fatal: chat and research still work; build steps fail with this reason (plan B3: no unsandboxed fallback).
+  renderCapability = await render.capabilities();
+  await appendAudit(pool, { actorType: 'system', action: 'render.capabilities', data: { driver: render.kind, ...renderCapability } });
+  if (!renderCapability.ok) process.stderr.write(`worker: render unavailable (${renderCapability.reason})\n`);
   manager.setRoleOverrides(await loadRoleOverrides(pool));
   await refreshAuth(pool, authSrc);
   authTimer = setInterval(() => { void safeRefresh(); }, 60_000);
@@ -71,6 +100,8 @@ try {
       'chat.interrupt': (c) => chat.interrupt(uuidOf(c, 'threadId')),
       'session.cancel': (c) => manager.cancel(uuidOf(c, 'sessionId')),
       'session.retry': (c) => manager.retry(uuidOf(c, 'sessionId'), 'user'),
+      'run.start': (c) => orchestrator.startRun(uuidOf(c, 'runId')),
+      'run.cancel': (c) => orchestrator.cancel(uuidOf(c, 'runId')),
       'roles.changed': async () => { manager.setRoleOverrides(await loadRoleOverrides(pool)); },
       ...(config.devEndpoints ? {
         'dev.session.start': (c: Record<string, unknown>) => manager.start({ kind: 'pipeline', role: roleOf(c.role), prompt: typeof c.prompt === 'string' ? c.prompt.slice(0, 2000) : 'Merhaba', fakeScript: (c.script ?? undefined) as FakeScript | undefined }),
@@ -79,6 +110,8 @@ try {
     { onFailure: (f) => { void audit('command.failed', { reason: f.reason, ...(f.type ? { type: f.type } : {}), ...(f.error ? { error: f.error } : {}) }); } },
   );
   await chat.recover();
+  await orchestrator.recover();
+  orchestrator.start();
 } catch (e) {
   die('init', e);
 }
@@ -91,6 +124,7 @@ const shutdown = async () => {
   stopUsage();
   stopHeartbeat();
   guard.stop();
+  orchestrator.stop();
   await stopCommands().catch(() => {});
   await manager.stop().catch(() => {});
   await audit('worker.stopping', { pid: process.pid });

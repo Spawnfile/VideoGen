@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Runs Blender on the NVIDIA GPU of this hybrid laptop (plain `blender` falls back to the Intel iGPU and is ~3x slower).
+# The worker sets the same three variables inside its sandbox (apps/worker/src/render/sandbox.ts).
+export __NV_PRIME_RENDER_OFFLOAD=1
+export __GLX_VENDOR_LIBRARY_NAME=nvidia
+export __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/10_nvidia.json
+exec "${VG_BLENDER:-$HOME/apps/blender-5.2.2-linux-x64/blender}" "$@"

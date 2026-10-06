@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { ChannelStyleSection } from '../components/settings/ChannelStyleSection.tsx';
 import { RolesSection } from '../components/settings/RolesSection.tsx';
 import { api, useClaudeStatus, type ClaudePhase } from '../lib/api.ts';
 import { ago } from '../lib/format.ts';
@@ -60,6 +61,7 @@ export function Settings() {
           Durumu yenile
         </button>
       </section>
+      <ChannelStyleSection />
       <RolesSection />
     </div>
   );

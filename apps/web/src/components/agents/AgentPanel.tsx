@@ -25,7 +25,7 @@ export function AgentPanel() {
         <p className="text-[13px] text-ink-2">Agent başladığında burada canlı kartıyla görünür: ne yaptığı, ilerlemesi ve süreç durumu.</p>
       ) : (
         <div className="flex flex-col gap-3">
-          {[...active, ...recent].map((s) => <AgentCard key={s.id} session={s} sample={state.samples[s.id]} />)}
+          {[...active, ...recent].map((s) => <AgentCard key={s.id} session={s} sample={state.samples[s.id]} gpu={state.gpu[s.id]} />)}
         </div>
       )}
     </section>

@@ -43,3 +43,9 @@ export async function serverMaxEventId(request: APIRequestContext): Promise<numb
   const r = await request.get('/api/usage');
   return Number(r.headers()['x-vg-event-id']);
 }
+
+export async function produceVia(request: APIRequestContext, productName: string, audioMode: 'vo' | 'silent'): Promise<{ videoId: string; runId: string }> {
+  const r = await request.post('/api/videos', { data: { productName, audioMode } });
+  if (r.status() !== 202) throw new Error(`produce: ${r.status()}`);
+  return (await r.json()) as { videoId: string; runId: string };
+}

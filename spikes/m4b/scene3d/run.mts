@@ -1,0 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { checkEquivalence, parseGlb, SceneClock } from './index.ts';
+const dir = process.argv[2];
+const j = (f: string) => JSON.parse(readFileSync(`${dir}/${f}`, 'utf8'));
+const gltf = await parseGlb(readFileSync(`${dir}/scene.glb`));
+const r = checkEquivalence(gltf, j('anchors.json'), j('camera_track.json'), [0, 337, 675, 1012, 1350]);
+console.log('worst', r.worstPx, 'pass', r.pass, 'missing', r.missing, 'rows', r.rows.length);
+const a = j('anchors.json'); a.frames['675']['yay'][0] += 20;
+const r2 = checkEquivalence(gltf, a, j('camera_track.json'), [0, 337, 675, 1012, 1350]);
+console.log('perturbed worst', r2.worstPx, r2.pass, r2.rows.filter((x) => x.px > 8));
+const c = new SceneClock(gltf); c.seek(45); const p1 = gltf.scene.getObjectByName('yay')!.position.toArray(); c.seek(7); c.seek(45); console.log('seek', p1, gltf.scene.getObjectByName('yay')!.position.toArray());

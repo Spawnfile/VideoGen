@@ -7,26 +7,36 @@ import { groupAlive, killGroup } from '@videogen/claude';
 
 const dirOf = (dataDir: string) => join(dataDir, 'pids');
 
-export async function writePidFile(dataDir: string, pid: number, sessionId: string): Promise<void> {
+export type PidKind = 'claude' | 'render';
+
+/** `owner`: the agent session id (claude) or the render job owner (render: Blender/bwrap/ffmpeg groups, plan B16). */
+export async function writePidFile(dataDir: string, pid: number, owner: string, kind: PidKind = 'claude'): Promise<void> {
   await mkdir(dirOf(dataDir), { recursive: true });
-  await writeFile(join(dirOf(dataDir), `${pid}.json`), JSON.stringify({ pid, sessionId, at: new Date().toISOString() }));
+  await writeFile(join(dirOf(dataDir), `${pid}.json`), JSON.stringify({ pid, sessionId: owner, kind, at: new Date().toISOString() }));
 }
 
 export async function removePidFile(dataDir: string, pid: number): Promise<void> {
   await rm(join(dirOf(dataDir), `${pid}.json`), { force: true });
 }
 
-function cmdlineHasClaude(pid: number): boolean {
-  try { return readFileSync(`/proc/${pid}/cmdline`, 'utf8').includes('claude'); } catch { return false; }
+const LEADER: Record<PidKind, RegExp> = { claude: /claude/, render: /bwrap|blender|ffmpeg|chrome/ };
+
+/** The pid may have been reused by an unrelated process: only a leader that still looks like the recorded kind is killed. */
+function cmdlineMatches(pid: number, kind: PidKind): boolean {
+  try { return LEADER[kind].test(readFileSync(`/proc/${pid}/cmdline`, 'utf8')); } catch { return false; }
 }
 
-/** Spec §14: process groups left behind by a dead worker are killed (only if the leader still looks like a Claude CLI). */
-export async function reapOrphans(dataDir: string, isClaude: (pid: number) => boolean = cmdlineHasClaude): Promise<number[]> {
+function kindOf(dataDir: string, file: string): PidKind {
+  try { return JSON.parse(readFileSync(join(dirOf(dataDir), file), 'utf8')).kind === 'render' ? 'render' : 'claude'; } catch { return 'claude'; }
+}
+
+/** Spec §14: process groups left behind by a dead worker (Claude CLIs and render jobs) are killed. */
+export async function reapOrphans(dataDir: string, matches: (pid: number, kind: PidKind) => boolean = cmdlineMatches): Promise<number[]> {
   const killed: number[] = [];
   for (const f of await readdir(dirOf(dataDir)).catch(() => [] as string[])) {
     const pid = Number(/^(\d+)\.json$/.exec(f)?.[1]);
     if (!pid) continue;
-    if (groupAlive(pid) && isClaude(pid) && killGroup(pid, 'SIGKILL')) killed.push(pid);
+    if (groupAlive(pid) && matches(pid, kindOf(dataDir, f)) && killGroup(pid, 'SIGKILL')) killed.push(pid);
     await rm(join(dirOf(dataDir), f), { force: true });
   }
   return killed;

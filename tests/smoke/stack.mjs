@@ -56,6 +56,9 @@ const env = {
   VG_FAKE_CHAT: 'websearch,coding',
   VG_QUIET_AFTER_MS: '3000',
   VG_STUCK_AFTER_MS: '6000',
+  // M4b: committed pen build outputs and ffmpeg test stills instead of Blender/bubblewrap/GPU (spec §16.1).
+  VG_RENDER_DRIVER: 'fake',
+  VG_FFMPEG: spawnSync('bash', ['-lc', 'command -v ffmpeg']).stdout?.toString().trim() || 'ffmpeg',
 };
 for (const k of ['ANTHROPIC_API_KEY', 'CLAUDECODE']) delete env[k];
 

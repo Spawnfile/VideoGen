@@ -10,10 +10,10 @@ const WRITE_PATH_KEY: Record<string, string> = { Write: 'file_path', Edit: 'file
 export const FILE_WRITE_TOOLS = new Set(Object.keys(WRITE_PATH_KEY));
 const READ_PATH_KEYS = ['file_path', 'notebook_path', 'path'];
 const HEAVY: [RegExp, string][] = [
-  [/\bblender(-gpu)?\b/, 'mcp__videogen__build_scene (or mcp__videogen__render_preview_stills)'],
-  [/\bremotion\b/, 'mcp__videogen__render_draft'],
-  [/\b(ffmpeg|ffprobe)\b/, 'mcp__videogen__extract_frames or mcp__videogen__run_qc'],
-  [/\b(chatterbox|faster_whisper|whisper)\b/, 'mcp__videogen__tts_synthesize or mcp__videogen__align_captions'],
+  [/^blender(-gpu)?$/, 'mcp__videogen__build_scene (or mcp__videogen__render_preview_stills)'],
+  [/^remotion$/, 'mcp__videogen__render_draft'],
+  [/^(ffmpeg|ffprobe)$/, 'mcp__videogen__extract_frames or mcp__videogen__run_qc'],
+  [/^(chatterbox|faster_whisper|whisper)$/, 'mcp__videogen__tts_synthesize or mcp__videogen__align_captions'],
 ];
 const BASH_BINS = new Set(['ls', 'cat', 'head', 'jq', 'python3']);
 const SECRET_HOME_DIRS = ['.ssh', '.aws', '.gnupg', '.config', '.docker', '.kube', '.claude', 'tiktok-poster'];
@@ -112,19 +112,40 @@ function splitCommand(cmd: string): string[] | null {
   return out;
 }
 
+/** Commands that run their argument as the real program (`npx remotion …`, `env ffmpeg …`). */
+const WRAPPERS = new Set(['npx', 'env', 'bash', 'sh', 'xargs', 'nice', 'time', 'timeout', 'nohup', 'exec']);
+/** jq flags that read a second file (a path outside the run dir would be read and echoed in the error). M3 minor 3. */
+const JQ_FLAGS = /^-(?:[nrjacseSC]+|-(?:null-input|raw-output|join-output|ascii-output|compact-output|slurp|sort-keys|tab|exit-status|color-output|monochrome-output|indent))$/;
+
+function heavyTool(word: string | undefined): string | null {
+  const name = basename(word ?? '');
+  for (const [re, tool] of HEAVY) if (re.test(name)) return tool;
+  return null;
+}
+
 function bashDecision(ctx: GuardContext, cmd: string): GuardDecision {
   if (!ctx.role.bash) return deny(`Bash is not available to the ${ctx.role.role} role.`);
-  for (const [re, tool] of HEAVY) if (re.test(cmd)) return deny(`Heavy commands are not allowed in Bash; use ${tool} instead.`);
   const argv = splitCommand(cmd.trim());
-  if (!argv?.length) return deny('Command chaining, pipes, redirects, substitutions and globs are not allowed; run one allow-listed command.');
+  if (!argv?.length) {
+    // Unparseable: still name the right tool when a heavy program is in it (M3: only the program name, not file names).
+    const tool = cmd.split(/[\s;&|()`$<>'"]+/).map(heavyTool).find(Boolean);
+    if (tool) return deny(`Heavy commands are not allowed in Bash; use ${tool} instead.`);
+    return deny('Command chaining, pipes, redirects, substitutions and globs are not allowed; run one allow-listed command.');
+  }
   const [bin, ...args] = argv as [string, ...string[]];
+  const heavy = heavyTool(bin) ?? (WRAPPERS.has(basename(bin)) ? heavyTool(args[0]) : null);
+  if (heavy) return deny(`Heavy commands are not allowed in Bash; use ${heavy} instead.`);
   if (!BASH_BINS.has(bin)) return deny(`Only these commands are allowed: ls, cat, head, jq, python3 -m py_compile ("${bin}" is not).`);
   let paths = args.filter((a, i) => !a.startsWith('-') && !(bin === 'head' && /^-[nc]$/.test(args[i - 1] ?? '')));
   if (bin === 'python3') {
     if (args[0] !== '-m' || args[1] !== 'py_compile' || args.length < 3) return deny('python3 is only allowed as: python3 -m py_compile <file.py> …');
     paths = args.slice(2);
   }
-  if (bin === 'jq') paths = paths.slice(1);
+  if (bin === 'jq') {
+    const bad = args.find((a) => a.startsWith('-') && !JQ_FLAGS.test(a));
+    if (bad) return deny(`jq flag ${bad} is not allowed (only output-format flags such as -r, -c, -S).`);
+    paths = paths.slice(1);
+  }
   const root = realish(ctx.runDir);
   for (const p of paths) if (!inside(realish(resolve(ctx.runDir, p)), root)) return deny('Bash may only read inside the run directory.');
   return ALLOW;

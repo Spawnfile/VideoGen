@@ -29,7 +29,9 @@ export function buildQueryOptions(spec: SessionSpec, o: SdkDriverOptions, onSpaw
       ? { videogen: createSdkMcpServer({ name: 'videogen', version: '1.0.0', tools: spec.tools.map((t) => tool(t.name, t.description, t.shape, t.handler)) }) }
       : {},
     plugins: [{ type: 'local', path: o.pluginDir }],
-    env: { ...o.env, ...(spec.disableBackgroundTasks ? { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1' } : {}) },
+    // Added after cleaning (the cleaner drops every CLAUDE_CODE_*). M4b probe P1: long in-process MCP calls (Blender) must never
+    // be moved to the background either; that is already off for non-interactive sessions, pinned here explicitly.
+    env: { ...o.env, ...(spec.disableBackgroundTasks ? { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1', CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS: '0' } : {}) },
     permissionMode: 'dontAsk',
     permissionPrompts: 'none',
     allowedTools: spec.allowedTools,

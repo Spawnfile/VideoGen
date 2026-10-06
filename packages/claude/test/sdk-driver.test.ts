@@ -27,6 +27,7 @@ describe('buildQueryOptions', () => {
     });
     expect(JSON.stringify({ ...o, mcpServers: null })).not.toMatch(/bypassPermissions|--bare/); // the MCP instance is circular
     expect(o.env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS).toBe('1');
+    expect(o.env.CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS).toBe('0'); // M4b probe P1: long MCP calls stay in the foreground
     expect(o.env.ENABLE_TOOL_SEARCH).toBe('false');
     for (const k of ['ANTHROPIC_API_KEY', 'CLAUDECODE', 'CLAUDE_CODE_FOO', 'ANTHROPIC_BASE_URL']) expect(o.env[k], k).toBeUndefined();
     expect(Object.keys(o.mcpServers)).toEqual(['videogen']);

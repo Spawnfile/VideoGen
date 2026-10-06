@@ -1,4 +1,5 @@
-import { mkdir, open, readdir, readFile, rename } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
+import { link, mkdir, open, readdir, readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { z } from 'zod';
 import type { SpecKind } from './roles.ts';
@@ -53,22 +54,31 @@ export class SpecStore {
     return { version: v, value: JSON.parse(await readFile(join(this.dir, kind, file(v)), 'utf8')) };
   }
 
+  /** Two writers (the agent's write_spec and the build step) may race: the version file is created exclusively and the loser retries. */
   async write(kind: SpecKind, value: unknown): Promise<{ version: number; diff: SpecDiff[] } | { errors: string[] }> {
     const check = this.validate(kind, value);
     if (!check.ok) return { errors: check.errors };
-    const prev = await this.read(kind);
-    const version = (prev?.version ?? 0) + 1;
     const dir = join(this.dir, kind);
     await mkdir(dir, { recursive: true });
-    const tmp = join(dir, `.${file(version)}.tmp`);
-    const fh = await open(tmp, 'w');
-    try {
-      await fh.writeFile(`${JSON.stringify(value, null, 2)}\n`);
-      await fh.sync();
-    } finally {
-      await fh.close();
+    for (let tries = 0; ; tries++) {
+      const prev = await this.read(kind);
+      const version = (prev?.version ?? 0) + 1;
+      const tmp = join(dir, `.${file(version)}.${randomBytes(6).toString('hex')}.tmp`); // unique per writer, even in one process
+      const fh = await open(tmp, 'w');
+      try {
+        await fh.writeFile(`${JSON.stringify(value, null, 2)}\n`);
+        await fh.sync();
+      } finally {
+        await fh.close();
+      }
+      try {
+        await link(tmp, join(dir, file(version))); // atomic and exclusive: fails with EEXIST when the version is taken
+        return { version, diff: diffJson(prev?.value, value) };
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'EEXIST' || tries >= 20) throw e;
+      } finally {
+        await unlink(tmp).catch(() => {});
+      }
     }
-    await rename(tmp, join(dir, file(version)));
-    return { version, diff: diffJson(prev?.value, value) };
   }
 }

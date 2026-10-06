@@ -10,7 +10,7 @@ Spec birden çok bağımsız alt sistemi kapsıyor. Bu nedenle her kilometre ta�
 | M1 Ses | `2026-10-06-m1-audio-listening.md` | **Tamamlandı — K17 kullanıcı onayı bekliyor** (`docs/m1/decision.md`) | M0 disk temizliği | Kullanıcının TTS ve ses kararı (K17), VRAM ölçümü, Whisper hizalaması çalışıyor |
 | M2 İskelet | `2026-10-06-m2-skeleton.md` | **Tamamlandı** (`docs/m2/report.md`) | M0 spike (b), (c) sonuçları (footer veri kaynağı, giriş akışı) | `npm run test:smoke` içinde S1 yeşil; audit zinciri; SSE tekrar oynatma; ücretli anahtar muhafızı |
 | M3 Canlı agent katmanı | `2026-10-06-m3a-agent-runtime.md` (M3a) + `2026-10-06-m3b-live-ui.md` (M3b) | **Tamamlandı** (`docs/m3/report.md`) | M0 (a) fixture'ları, M2 | S3, S4, S5 (kısmi) |
-| M4 Dikey dilim | M3 bitince (plan kullanıcı onayıyla yazılır) | Sırada | M3 | S2 (taslak); ilk gerçek ürün; video başına kullanım ölçümü |
+| M4 Dikey dilim | `2026-10-06-m4a-pipeline-core.md` (M4a) + `2026-10-06-m4b-scene-core.md` (M4b) + M4c | **Devam ediyor** — M4a ve M4b tamam, `main`'e birleştirildi (`docs/m4/m4a-summary.md`, `docs/m4/m4b-summary.md`); M4c (taslak, inceleme, player, ilk gerçek ürün) sırada | M3 | S2 (taslak); ilk gerçek ürün; video başına kullanım ölçümü |
 | M5 Final ve kalite | M4 bitince | Bekliyor | M1 kararı, M4 | Rubrik pilotun 7 hatasını yakalıyor; bir ürün "yayına hazır" |
 | M6 Yayın | M5 bitince | Bekliyor | M5 | S6; gerçek taslak gönderimi |
 | M7 Sertleştirme | M6 bitince | Bekliyor | M6 | S7, S8, `test:smoke:real` |

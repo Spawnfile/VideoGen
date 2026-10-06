@@ -14,6 +14,7 @@ export interface NewSession {
   parentSessionId?: string | null;
   threadId?: string | null;
   runId?: string | null;
+  stepId?: string | null;
   runDir: string;
   status: SessionStatus;
   sdkVersion?: string | null;
@@ -64,7 +65,7 @@ const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 function toRecord(r: Record<string, any>): SessionRecord {
   return {
     id: r.id, kind: r.kind, role: r.role, model: r.model, effort: r.effort, status: r.status,
-    claudeSessionId: r.claude_session_id, parentSessionId: r.parent_session_id, threadId: r.thread_id, runId: r.run_id,
+    claudeSessionId: r.claude_session_id, parentSessionId: r.parent_session_id, threadId: r.thread_id, runId: r.run_id, stepId: r.step_id,
     progress: r.progress, progressSource: r.progress_source, progressMessage: r.progress_message,
     tokens: Number(r.tokens), costUsd: r.cost_usd, numTurns: r.num_turns, terminalReason: r.terminal_reason, error: r.error,
     waitingUntil: iso(r.waiting_until), createdAt: iso(r.created_at)!, startedAt: iso(r.started_at), endedAt: iso(r.ended_at),
@@ -80,9 +81,9 @@ export function toSessionView(r: SessionRecord): AgentSessionView {
 
 export async function insertSession(db: Queryable, s: NewSession): Promise<void> {
   await db.query(
-    `INSERT INTO agent_sessions (id, kind, role, model, effort, claude_session_id, parent_session_id, thread_id, run_id, run_dir, status, sdk_version)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-    [s.id, s.kind, s.role, s.model, s.effort, s.claudeSessionId, s.parentSessionId ?? null, s.threadId ?? null, s.runId ?? null, s.runDir, s.status, s.sdkVersion ?? null],
+    `INSERT INTO agent_sessions (id, kind, role, model, effort, claude_session_id, parent_session_id, thread_id, run_id, step_id, run_dir, status, sdk_version)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+    [s.id, s.kind, s.role, s.model, s.effort, s.claudeSessionId, s.parentSessionId ?? null, s.threadId ?? null, s.runId ?? null, s.stepId ?? null, s.runDir, s.status, s.sdkVersion ?? null],
   );
 }
 

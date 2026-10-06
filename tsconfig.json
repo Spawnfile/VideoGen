@@ -12,5 +12,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["packages/*/src", "packages/*/test", "apps/*/src", "apps/*/test", "tests/smoke"]
+  "include": ["packages/*/src", "packages/*/test", "packages/*/test-render", "apps/*/src", "apps/*/test", "apps/*/test-render", "tests/smoke", "vitest.render.config.ts"]
 }

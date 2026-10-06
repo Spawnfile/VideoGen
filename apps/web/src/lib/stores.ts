@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { AgentSample, AgentSessionView, ChatMessage, LiveTraceItem, TraceRow } from '@videogen/shared/browser';
+import type { AgentSample, AgentSessionView, ChatMessage, GpuWait, LiveTraceItem, RunView, TraceRow, VideoView } from '@videogen/shared/browser';
 
 export interface Store<S> { get(): S; set(fn: (s: S) => S): void; subscribe(l: () => void): () => void }
 
@@ -22,8 +22,8 @@ interface Versioned<T> { value: T; eventId: number }
 const fresher = <T>(cur: Versioned<T> | undefined, eventId: number) => !cur || eventId >= cur.eventId;
 
 export type SampleView = AgentSample & { receivedAt: number };
-export interface AgentsState { sessions: Record<string, Versioned<AgentSessionView>>; samples: Record<string, SampleView> }
-export const agents = createStore<AgentsState>({ sessions: {}, samples: {} });
+export interface AgentsState { sessions: Record<string, Versioned<AgentSessionView>>; samples: Record<string, SampleView>; gpu: Record<string, GpuWait> }
+export const agents = createStore<AgentsState>({ sessions: {}, samples: {}, gpu: {} });
 
 export function seedSessions(list: AgentSessionView[], eventId: number): void {
   agents.set((s) => {
@@ -34,6 +34,10 @@ export function seedSessions(list: AgentSessionView[], eventId: number): void {
 }
 export function applySession(v: AgentSessionView, eventId: number): void {
   agents.set((s) => (fresher(s.sessions[v.id], eventId) ? { ...s, sessions: { ...s.sessions, [v.id]: { value: v, eventId } } } : s));
+}
+/** Live and transient (not replayed): the card falls back to the plain "GPU bekliyor" status without it. */
+export function applyGpuWait(x: GpuWait): void {
+  agents.set((s) => ({ ...s, gpu: { ...s.gpu, [x.sessionId]: x } }));
 }
 export function applySample(x: AgentSample): void {
   agents.set((s) => ({ ...s, samples: { ...s.samples, [x.sessionId]: { ...x, receivedAt: Date.now() } } }));
@@ -116,4 +120,30 @@ export function applyMessage(m: ChatMessage, eventId: number): void {
 }
 export function chatMessages(t: Record<string, Versioned<ChatMessage>> | undefined): ChatMessage[] {
   return Object.values(t ?? {}).map((v) => v.value).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+}
+
+export interface PipelineState { videos: Record<string, Versioned<VideoView>>; runs: Record<string, Versioned<RunView>> }
+export const pipeline = createStore<PipelineState>({ videos: {}, runs: {} });
+
+function put<T extends { id: string }>(map: Record<string, Versioned<T>>, items: T[], eventId: number): Record<string, Versioned<T>> {
+  let out = map;
+  for (const it of items) {
+    if (!fresher(out[it.id], eventId)) continue;
+    if (out === map) out = { ...map };
+    out[it.id] = { value: it, eventId };
+  }
+  return out;
+}
+export const seedVideos = (list: VideoView[], eventId: number) => pipeline.set((s) => { const videos = put(s.videos, list, eventId); return videos === s.videos ? s : { ...s, videos }; });
+export const applyVideo = (v: VideoView, eventId: number) => seedVideos([v], eventId);
+export const seedRuns = (list: RunView[], eventId: number) => pipeline.set((s) => { const runs = put(s.runs, list, eventId); return runs === s.runs ? s : { ...s, runs }; });
+export const applyRun = (r: RunView, eventId: number) => seedRuns([r], eventId);
+
+export function videoList(s: PipelineState): VideoView[] {
+  return Object.values(s.videos).map((x) => x.value).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+export function latestRunOf(s: PipelineState, videoId: string): RunView | null {
+  let best: RunView | null = null;
+  for (const { value } of Object.values(s.runs)) if (value.videoId === videoId && (!best || value.createdAt > best.createdAt)) best = value;
+  return best;
 }

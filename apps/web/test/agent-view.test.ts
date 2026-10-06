@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentSessionView } from '@videogen/shared/browser';
-import { cardMeta, isLiveStatus } from '../src/lib/agent-view.ts';
+import { cardMeta, cardStatusLabel, isLiveStatus } from '../src/lib/agent-view.ts';
 
 const s = (status: AgentSessionView['status'], tokens = 41_234): AgentSessionView => ({
-  id: 's', kind: 'pipeline', role: 'builder', model: 'opus', effort: 'high', status, claudeSessionId: 's', parentSessionId: null, threadId: null, runId: null,
+  id: 's', kind: 'pipeline', role: 'builder', model: 'opus', effort: 'high', status, claudeSessionId: 's', parentSessionId: null, threadId: null, runId: null, stepId: null,
   progress: null, progressSource: null, progressMessage: null, tokens, costUsd: null, numTurns: 0, terminalReason: null, error: null, waitingUntil: null,
   createdAt: '2026-10-06T10:00:00.000Z', startedAt: '2026-10-06T10:00:00.000Z', endedAt: null, lastEventAt: null,
 });
@@ -21,5 +21,13 @@ describe('agent card meta', () => {
     expect(isLiveStatus('idle')).toBe(true);
     expect(isLiveStatus('queued')).toBe(false);
     expect(isLiveStatus('done')).toBe(false);
+  });
+
+  it('labels the GPU queue position or the pre-check reason, and the limit reset time (spec §12.2)', () => {
+    expect(cardStatusLabel(s('waiting_gpu'))).toBe('GPU bekliyor');
+    expect(cardStatusLabel(s('waiting_gpu'), { sessionId: 's', position: 2, reason: null })).toBe('GPU bekliyor · sırada 2');
+    expect(cardStatusLabel(s('waiting_gpu'), { sessionId: 's', position: null, reason: 'swap %95 ≥ %90' })).toBe('GPU bekliyor · swap %95 ≥ %90');
+    expect(cardStatusLabel({ ...s('waiting_limit'), waitingUntil: '2026-10-06T11:00:00.000Z' })).toMatch(/^limit bekleniyor \(\d{2}:\d{2}\)$/);
+    expect(cardStatusLabel(s('tool'))).toBe('araç çalıştırıyor');
   });
 });

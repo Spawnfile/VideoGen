@@ -16,3 +16,5 @@ python/**/__pycache__/
 
 # generated per machine by bin/link-skills.mjs from claude-plugin/skills.manifest.json
 claude-plugin/skills/
+spikes/m4b/node_modules/
+spikes/m4b/out-*

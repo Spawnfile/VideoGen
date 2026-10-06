@@ -81,10 +81,17 @@ export function ChatPanel() {
     if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 160) el.scrollTop = el.scrollHeight;
   });
 
+  /** "Yeni sohbet" in flight: a message sent meanwhile belongs to that thread (not the old one, not a second new one). */
+  const creatingRef = useRef<Promise<string> | null>(null);
   const newThread = async () => {
-    const t = await api.createThread();
-    await qc.invalidateQueries({ queryKey: ['threads'] });
-    select(t.id);
+    const p = (async () => {
+      const t = await api.createThread();
+      await qc.invalidateQueries({ queryKey: ['threads'] }); // select after the list has it, or the effect above resets it
+      select(t.id);
+      return t.id;
+    })();
+    creatingRef.current = p;
+    try { await p; } finally { if (creatingRef.current === p) creatingRef.current = null; }
     boxRef.current?.focus();
   };
   const submit = async () => {
@@ -93,7 +100,7 @@ export function ChatPanel() {
     sendingRef.current = true;
     setSending(true);
     try {
-      let id = threadId;
+      let id = creatingRef.current ? await creatingRef.current : threadId;
       if (!id) { id = (await api.createThread()).id; select(id); }
       await api.sendMessage(id, value, mode);
       setText('');

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentSessionView, ChatMessage, TraceRow } from '@videogen/shared/browser';
+import type { AgentSessionView, ChatMessage, RunView, TraceRow, VideoView } from '@videogen/shared/browser';
 
 type Stores = typeof import('../src/lib/stores.ts');
 let st: Stores;
@@ -7,7 +7,7 @@ beforeEach(async () => { vi.resetModules(); st = await import('../src/lib/stores
 
 const view = (status: AgentSessionView['status']): AgentSessionView => ({
   id: 's1', kind: 'pipeline', role: 'researcher', model: 'sonnet', effort: 'high', status, claudeSessionId: 's1', parentSessionId: null, threadId: null,
-  runId: null, progress: null, progressSource: null, progressMessage: null, tokens: 0, costUsd: null, numTurns: 0, terminalReason: null, error: null,
+  runId: null, stepId: null, progress: null, progressSource: null, progressMessage: null, tokens: 0, costUsd: null, numTurns: 0, terminalReason: null, error: null,
   waitingUntil: null, createdAt: '2026-10-06T00:00:00.000Z', startedAt: null, endedAt: null, lastEventAt: null,
 });
 const row = (over: Partial<TraceRow> = {}): TraceRow => ({ id: 'r1', sessionId: 's1', turn: 0, seq: 1, parentToolUseId: null, variant: 'reasoning', kind: 'thinking', title: 'Düşünce', status: 'running', startedAt: 0, ...over });
@@ -71,5 +71,20 @@ describe('getFresh', () => {
     const { getFresh } = await import('../src/lib/api.ts');
     await expect(getFresh('/api/sessions')).resolves.toEqual({ data: [1], eventId: 77 });
     vi.unstubAllGlobals();
+  });
+});
+describe('pipeline store', () => {
+  it('keeps the freshest video and run, lists videos newest first and finds the latest run', () => {
+    const v = (id: string, updatedAt: string, status: VideoView['status']) => ({ id, updatedAt, status } as VideoView);
+    const r = (id: string, createdAt: string, progress: number) => ({ id, videoId: 'v1', createdAt, progress, steps: [] } as unknown as RunView);
+    st.seedVideos([v('v1', '2026-10-06T10:00:00Z', 'running'), v('v2', '2026-10-06T11:00:00Z', 'queued')], 10);
+    st.applyVideo(v('v1', '2026-10-06T12:00:00Z', 'needs_human'), 12);
+    st.seedVideos([v('v1', '2026-10-06T10:00:00Z', 'running')], 11);
+    expect(st.videoList(st.pipeline.get()).map((x) => `${x.id}:${x.status}`)).toEqual(['v1:needs_human', 'v2:queued']);
+    st.applyRun(r('r1', '2026-10-06T10:00:00Z', 50), 20);
+    st.applyRun(r('r1', '2026-10-06T10:00:00Z', 30), 19);
+    st.seedRuns([r('r2', '2026-10-06T12:00:00Z', 0)], 21);
+    expect(st.latestRunOf(st.pipeline.get(), 'v1')?.id).toBe('r2');
+    expect(st.pipeline.get().runs.r1!.value.progress).toBe(50);
   });
 });

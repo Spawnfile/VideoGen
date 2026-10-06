@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,7 +9,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { getSession, insertSession } from '@videogen/db';
 import { FakeClaudeDriver, groupAlive, type ClaudeDriver, type SessionSpec } from '@videogen/claude';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
-import { SessionManager, type ManagerDeps } from '../src/agents/manager.ts';
+import { SessionManager, type ManagerDeps, type ToolHost, type ToolSession } from '../src/agents/manager.ts';
 import { reapOrphans, recoverOnStartup, writePidFile } from '../src/agents/pids.ts';
 import { archiveTranscript } from '../src/agents/transcripts.ts';
 
@@ -118,6 +119,45 @@ describe('SessionManager', () => {
     expect(rows[0].n).toBe(1);
   });
 
+  it('a worker-side tool call (Blender, a GPU queue) keeps a silent session alive and shows the GPU wait (plan B8, B9)', async () => {
+    const specs: SessionSpec[] = [];
+    const fake = new FakeClaudeDriver({ speed: 0 });
+    const driver: ClaudeDriver = { kind: 'fake', start: (s) => { specs.push(s); return fake.start(s); } };
+    let finish = () => {};
+    const tools: ToolHost = {
+      ports: (s) => ({
+        buildScene: async () => {
+          s.gpuWait({ position: 1 });
+          await new Promise<void>((r) => { finish = r; });
+          s.gpuWait(null);
+          return { ok: true, errors: [], warnings: [], report: null, equivalence: null, files: null };
+        },
+      }),
+    };
+    const m = make({ driver, tools, quietAfterMs: 40, stuckAfterMs: 120 });
+    const id = await m.start({ kind: 'pipeline', role: 'builder', prompt: 'p', runId: randomUUID(), fakeScript: { fixture: 'basic', stall: { afterIndex: 2, ms: 60_000, cpuPct: 0, zeroCpuAfterMs: 0 } } });
+    await vi.waitFor(async () => expect(await status(id)).toBe('thinking'));
+    const call = specs[0]!.tools.find((t) => t.name === 'build_scene')!.handler({});
+    await vi.waitFor(async () => expect(await status(id)).toBe('waiting_gpu'));
+    await new Promise((r) => setTimeout(r, 400));
+    const stuck = async () => (await t.pool.query("SELECT count(*)::int AS n FROM audit_log WHERE session_id = $1 AND action = 'agent.session.maybe_stuck'", [id])).rows[0].n;
+    expect(await stuck()).toBe(0);
+    finish();
+    await call;
+    await vi.waitFor(async () => expect(await status(id)).toBe('tool'));
+    await vi.waitFor(async () => expect(await stuck()).toBe(1), { timeout: 3000 }); // silent and idle again: the warning comes back
+  });
+
+  it('cancelling a session aborts the signal its tools received', async () => {
+    let seen: ToolSession | null = null;
+    const m = make({ tools: { ports: (s) => { seen = s; return {}; } } });
+    const id = await m.start({ kind: 'pipeline', role: 'builder', prompt: 'p', runId: randomUUID(), fakeScript: STALL });
+    await vi.waitFor(async () => expect(await status(id)).toBe('thinking'));
+    expect(seen!.signal.aborted).toBe(false);
+    await m.cancel(id);
+    expect(seen!.signal.aborted).toBe(true);
+  });
+
   it('retry resumes the same Claude session as a child session and cancels the old one', async () => {
     const specs: SessionSpec[] = [];
     const fake = new FakeClaudeDriver({ speed: 0, pick: () => STALL });
@@ -148,6 +188,44 @@ describe('SessionManager', () => {
     const id = await m.start({ kind: 'pipeline', role: 'researcher', prompt: 'p' });
     await vi.waitFor(async () => expect(await getSession(t.pool, id)).toMatchObject({ progress: 99, progressSource: 'agent', progressMessage: 'm150' }));
     await vi.waitFor(() => expect(outs).toEqual(['ok: 40', 'ok: 40', 'ok: 99'])); // the tool returns after the row update and publish
+  });
+
+  it('notifies every subscriber (and the legacy events slot) of turns and ends, and stores runId/stepId', async () => {
+    const m = make({ driver: new FakeClaudeDriver({ speed: 0 }) });
+    const a: string[] = [];
+    const b: string[] = [];
+    m.events = { onEnd: (_id, e) => { a.push(`legacy:${e.status}`); } };
+    const off = m.subscribe({ onTurnComplete: (_id, r) => { b.push(`turn:${String((r.structured as { ok?: number } | null)?.ok)}`); }, onEnd: (_id, e) => { b.push(`end:${e.status}`); } });
+    const runId = randomUUID();
+    const stepId = randomUUID();
+    const id = await m.start({ kind: 'pipeline', role: 'researcher', prompt: 'p', runId, stepId, fakeScript: { fixture: 'basic', structured: { ok: 1 } } });
+    await vi.waitFor(() => expect(b).toEqual(['turn:1', 'end:done']));
+    expect(a).toEqual(['legacy:done']);
+    const { rows } = await t.pool.query('SELECT run_id, step_id FROM agent_sessions WHERE id = $1', [id]);
+    expect(rows[0]).toEqual({ run_id: runId, step_id: stepId });
+    off();
+    await m.start({ kind: 'pipeline', role: 'researcher', prompt: 'p', fakeScript: { fixture: 'basic' } });
+    await vi.waitFor(() => expect(a).toEqual(['legacy:done', 'legacy:done']));
+    expect(b).toHaveLength(2);
+  });
+
+  it('emits progress reports and status changes to subscribers', async () => {
+    const outs: string[] = [];
+    const fake = new FakeClaudeDriver({ speed: 0 });
+    const driver: ClaudeDriver = {
+      kind: 'fake',
+      start: (s) => {
+        const tool = s.tools.find((x) => x.name === 'report_progress')!;
+        void (async () => { await tool.handler({ percent: 30, message: 'kaynaklar' }); })();
+        return fake.start({ ...s, fakeScript: STALL });
+      },
+    };
+    const m = make({ driver });
+    m.subscribe({ onProgress: (_id, pct, msg) => { outs.push(`p:${pct}:${msg}`); }, onStatus: (_id, st) => { if (!outs.includes(`s:${st}`)) outs.push(`s:${st}`); } });
+    const id = await m.start({ kind: 'pipeline', role: 'researcher', prompt: 'p' });
+    await vi.waitFor(() => expect(outs).toEqual(expect.arrayContaining(['s:queued', 's:starting', 'p:30:kaynaklar'])));
+    await m.cancel(id);
+    await vi.waitFor(() => expect(outs).toContain('s:cancelled'));
   });
 });
 

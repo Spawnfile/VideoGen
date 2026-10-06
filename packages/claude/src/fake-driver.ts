@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, relative, resolve } from 'node:path';
 import { AsyncQueue } from './async-queue.ts';
 import type { ClaudeDriver, DriverSession, FakeScript, ProcSample, SessionSpec } from './driver.ts';
 import { loadFixture } from './fixtures.ts';
@@ -82,13 +84,20 @@ class FakeSession implements DriverSession {
     for await (const text of this.inputs) {
       const script = this.o.pick(this.spec, turn++, text);
       const lines = loadFixture(script.fixture, this.o.dir);
+      for (const [rel, body] of Object.entries(script.files ?? {})) {
+        const target = resolve(this.spec.cwd, rel);
+        if (relative(this.spec.cwd, target).startsWith('..')) throw new Error(`fake file outside the run dir: ${rel}`);
+        mkdirSync(dirname(target), { recursive: true });
+        writeFileSync(target, body);
+      }
       this.inTurn = true;
       let prev = lines[0]?.t ?? 0;
       for (let i = 0; i < lines.length; i++) {
         await this.sleep(Math.min((lines[i]!.t - prev) * this.o.speed, this.o.maxGapMs));
         prev = lines[i]!.t;
         yield* this.abortIfNeeded();
-        yield lines[i]!.m;
+        const m = lines[i]!.m;
+        yield script.structured !== undefined && m.type === 'result' ? { ...m, structured_output: script.structured } : m;
         for (const x of script.inject ?? []) if (x.afterIndex === i) yield x.m;
         if (script.failAfter?.index === i) throw new Error(script.failAfter.error);
         if (script.stall?.afterIndex === i) {

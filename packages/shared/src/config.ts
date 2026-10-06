@@ -14,6 +14,8 @@ export interface Config {
   devEndpoints: boolean;
   liveness: { quietAfterMs: number; stuckAfterMs: number };
   chatIdleMs: number;
+  /** M4b: Blender, bubblewrap and ffmpeg ('fake': committed pen outputs and ffmpeg test stills, spec §16.1). */
+  render: { driver: 'real' | 'fake'; blender: string; bwrap: string; ffmpeg: string };
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -27,8 +29,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     fixtures: { claudeAuthStatus: env.VG_FIXTURE_CLAUDE_AUTH, usage: env.VG_FIXTURE_USAGE },
     usagePollMs: Number(env.VG_USAGE_POLL_MS ?? 300_000),
     claudeDriver: env.VG_CLAUDE_DRIVER === 'fake' ? 'fake' : 'sdk',
-    devEndpoints: env.VG_DEV_ENDPOINTS === '1',
+    // M3 minor 5: the dev session endpoint must never open real Claude sessions.
+    devEndpoints: env.VG_DEV_ENDPOINTS === '1' && env.VG_CLAUDE_DRIVER === 'fake',
     liveness: { quietAfterMs: Number(env.VG_QUIET_AFTER_MS ?? 10_000), stuckAfterMs: Number(env.VG_STUCK_AFTER_MS ?? 120_000) },
     chatIdleMs: Number(env.VG_CHAT_IDLE_MS ?? 600_000),
+    render: {
+      driver: env.VG_RENDER_DRIVER === 'fake' ? 'fake' : 'real',
+      blender: env.VG_BLENDER ?? join(homedir(), 'apps/blender-5.2.2-linux-x64/blender'),
+      bwrap: env.VG_BWRAP ?? '/usr/bin/bwrap',
+      ffmpeg: env.VG_FFMPEG ?? 'ffmpeg',
+    },
   };
 }

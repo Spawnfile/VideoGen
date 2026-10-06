@@ -4,8 +4,8 @@ import { startDevSession, STUCK_SCRIPT } from './helpers.ts';
 
 test.skip(!process.env.VG_SCREENSHOTS, 'yalnızca elle: VG_SCREENSHOTS=1 npm run test:smoke -- screens');
 test.use({ viewport: { width: 1440, height: 900 } });
-/** Screens land in docs/m3 whatever the cwd (Playwright resolves a relative path against the cwd, not the spec). */
-const shot = (name: string) => resolve(import.meta.dirname, '../../docs/m3', name);
+/** Screens land in docs/<dir> whatever the cwd (Playwright resolves a relative path against the cwd, not the spec). */
+const shot = (name: string, dir = 'm3') => resolve(import.meta.dirname, '../../docs', dir, name);
 
 test('M3 screen: agent cards', async ({ page, request }) => {
   test.setTimeout(60_000);
@@ -49,4 +49,53 @@ test('M3 screen: settings roles', async ({ page }) => {
   await page.goto('/settings');
   await expect(page.getByRole('heading', { name: 'Agent rolleri' })).toBeVisible();
   await page.screenshot({ path: shot('settings-roles.png'), fullPage: true });
+});
+test('M4 screen: studio production', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto('/');
+  const bar = page.getByRole('region', { name: 'Yeni üretim' });
+  await bar.getByRole('textbox', { name: 'Ürün adı' }).fill('Tükenmez kalem');
+  await bar.getByRole('radio', { name: 'Seslendirmesiz' }).click();
+  await bar.getByRole('button', { name: 'Üret' }).click();
+  const header = page.getByTestId('video-header');
+  await expect(page.locator('[data-testid="step"][data-key="research"]')).toHaveAttribute('data-status', 'running', { timeout: 15_000 });
+  await page.screenshot({ path: shot('studio-running.png', 'm4') });
+  await expect(header).toHaveAttribute('data-status', 'needs_human', { timeout: 30_000 });
+  await expect(page.getByTestId('storyboard-card')).toBeVisible();
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: shot('studio-done.png', 'm4'), fullPage: true });
+});
+
+test('M4 screen: library', async ({ page, request }) => {
+  await request.post('/api/videos', { data: { productName: 'Zımba', audioMode: 'silent' } });
+  await page.goto('/library');
+  await expect(page.getByTestId('library-item').first()).toBeVisible();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: shot('library.png', 'm4') });
+  await page.getByTestId('library-item').first().click();
+  await expect(page.getByTestId('video-header')).toBeVisible();
+});
+
+test('M4b screen: studio build card', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto('/');
+  const bar = page.getByRole('region', { name: 'Yeni üretim' });
+  await bar.getByRole('textbox', { name: 'Ürün adı' }).fill('Tükenmez kalem');
+  await bar.getByRole('radio', { name: 'Seslendirmesiz' }).click();
+  await bar.getByRole('button', { name: 'Üret' }).click();
+  const card = page.getByTestId('build-card');
+  await expect(card).toBeVisible({ timeout: 60_000 });
+  await expect.poll(() => card.getByRole('img').evaluate((i) => (i as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  await card.scrollIntoViewIfNeeded(); // the production panel scrolls on its own; a full-page shot would miss the card
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: shot('studio-build.png', 'm4') });
+});
+
+test('M4b screen: channel identity (K19)', async ({ page }) => {
+  await page.goto('/settings');
+  const group = page.getByRole('radiogroup', { name: 'Kanal kimliği' });
+  await expect(group.getByRole('radio')).toHaveCount(3);
+  await expect.poll(() => group.getByRole('img').first().evaluate((i) => (i as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: shot('settings-k19.png', 'm4'), fullPage: true });
 });

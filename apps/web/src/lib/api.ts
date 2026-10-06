@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { AgentSessionView, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, RoleName, TraceRow, UsageSnapshot } from '@videogen/shared/browser';
+import type { AgentSessionView, ArtifactMeta, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, RoleName, RunView, TraceRow, UsageSnapshot, VideoView } from '@videogen/shared/browser';
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
@@ -39,7 +39,28 @@ export const api = {
   roles: () => get<RoleSetting[]>('/api/roles'),
   setRole: (role: RoleName, patch: { model?: ModelAlias; effort?: Effort }) => send<unknown>('PUT', `/api/roles/${role}`, patch),
   guard: () => get<GuardState>('/api/usage/guard'),
+  produce: async (productName: string, audioMode: AudioMode): Promise<{ ok: true; videoId: string; runId: string } | { ok: false; error: string }> => {
+    const r = await fetch('/api/videos', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ productName, audioMode }) });
+    const body = (await r.json().catch(() => ({}))) as { videoId?: string; runId?: string; error?: string };
+    return r.status === 202 && body.videoId && body.runId ? { ok: true, videoId: body.videoId, runId: body.runId } : { ok: false, error: body.error ?? `Üretim başlatılamadı (${r.status})` };
+  },
+  videos: () => getFresh<VideoView[]>('/api/videos'),
+  video: (id: string) => getFresh<{ video: VideoView; runs: RunView[]; artifacts: ArtifactMeta[] }>(`/api/videos/${id}`),
+  run: (id: string) => getFresh<RunView>(`/api/runs/${id}`),
+  cancelRun: (id: string) => send<{ accepted: boolean }>('POST', `/api/runs/${id}/cancel`),
+  artifact: (id: string) => get<ArtifactMeta & { content: unknown }>(`/api/artifacts/${id}`),
+  channelStyle: () => get<ChannelStyleState>('/api/channel-style'),
+  setChannelStyle: (id: ChannelStyleId) => send<ChannelStyleState>('PUT', '/api/channel-style', { id }),
 };
+
+export interface ChannelStyleState {
+  id: ChannelStyleId;
+  chosen: boolean;
+  options: { id: ChannelStyleId; name_tr: string; description_tr: string; image: string }[];
+}
+
+/** Content-addressed media (HTTP Range, immutable). */
+export const blobUrl = (sha: string) => `/api/blobs/${sha}`;
 
 /** 'loading' also covers a null status (worker has not checked yet); only a loaded status may say connected or not. */
 export type ClaudePhase = 'loading' | 'error' | 'in' | 'out';

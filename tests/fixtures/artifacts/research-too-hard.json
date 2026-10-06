@@ -1,0 +1,10 @@
+{
+  "interpretation": "Akıllı telefonun ana işlemci yongası",
+  "difficulty": "too_hard",
+  "difficulty_reason_tr": "Yonga içi yapı nanometre ölçeğinde; prosedürel olarak anlamlı modellenemiyor ve lisanslı CC0 bir model bulunamadı.",
+  "parts": [],
+  "mechanism": { "summary_tr": "Transistörler anahtarlama yaparak hesaplama yapar.", "steps": ["Saat sinyaliyle transistörler durum değiştirir"] },
+  "claims": [],
+  "fun_facts": [],
+  "engineer_insight": "Görsel anlatım için ölçek sorunu çözülmeden video yanıltıcı olur."
+}

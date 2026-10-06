@@ -22,6 +22,10 @@ export interface FakeScript {
   inject?: { afterIndex: number; m: Msg }[];
   /** Throw `error` right after yielding line `index` (API error, crash). */
   failAfter?: { index: number; error: string };
+  /** Fake mode: files the "agent" writes at the start of the turn (paths relative to the session cwd, e.g. scene/product.py). */
+  files?: Record<string, string>;
+  /** Fake mode for pipeline steps: every `result` of this turn carries this `structured_output`. */
+  structured?: unknown;
 }
 
 export interface SessionSpec {
