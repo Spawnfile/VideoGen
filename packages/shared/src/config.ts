@@ -10,6 +10,10 @@ export interface Config {
   webDist: string;
   fixtures: { claudeAuthStatus?: string; usage?: string };
   usagePollMs: number;
+  claudeDriver: 'sdk' | 'fake';
+  devEndpoints: boolean;
+  liveness: { quietAfterMs: number; stuckAfterMs: number };
+  chatIdleMs: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -22,5 +26,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webDist: env.VG_WEB_DIST ?? resolve(import.meta.dirname, '../../../apps/web/dist'),
     fixtures: { claudeAuthStatus: env.VG_FIXTURE_CLAUDE_AUTH, usage: env.VG_FIXTURE_USAGE },
     usagePollMs: Number(env.VG_USAGE_POLL_MS ?? 300_000),
+    claudeDriver: env.VG_CLAUDE_DRIVER === 'fake' ? 'fake' : 'sdk',
+    devEndpoints: env.VG_DEV_ENDPOINTS === '1',
+    liveness: { quietAfterMs: Number(env.VG_QUIET_AFTER_MS ?? 10_000), stuckAfterMs: Number(env.VG_STUCK_AFTER_MS ?? 120_000) },
+    chatIdleMs: Number(env.VG_CHAT_IDLE_MS ?? 600_000),
   };
 }

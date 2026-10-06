@@ -110,3 +110,10 @@ export interface GuardState {
   fiveHour: number | null;
   sevenDay: number | null;
 }
+/** Spec §12.3: "maybe stuck" needs BOTH long silence and an idle (or unknown) CPU; silence alone means quiet but alive. */
+export function classifyLiveness(x: { silentMs: number; cpuPct: number | null; quietAfterMs?: number; stuckAfterMs?: number }): Liveness {
+  const quiet = x.quietAfterMs ?? 10_000;
+  const stuck = x.stuckAfterMs ?? 120_000;
+  if (x.silentMs >= stuck && (x.cpuPct === null || x.cpuPct < 1)) return 'maybe_stuck';
+  return x.silentMs >= quiet ? 'quiet_alive' : 'active';
+}

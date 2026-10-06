@@ -17,6 +17,10 @@ async function sha256File(p: string): Promise<string> {
   return h.digest('hex');
 }
 
+export async function fileSha256(p: string): Promise<string | null> {
+  try { return await sha256File(p); } catch { return null; }
+}
+
 /** Spec §11.3: copy to a temp file next to the target, fsync, rename; identical content is stored once. */
 export async function putBlob(pool: pg.Pool, dataDir: string, absPath: string): Promise<{ sha256: string; path: string; bytes: number; mime: string; created: boolean }> {
   const sha256 = await sha256File(absPath);
