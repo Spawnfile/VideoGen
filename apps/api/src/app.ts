@@ -10,6 +10,7 @@ import { registerGuard } from './guard.ts';
 import { registerAgentRoutes } from './routes/agents.ts';
 import { registerChatRoutes } from './routes/chat.ts';
 import { registerRoleRoutes } from './routes/roles.ts';
+import { registerVideoRoutes } from './routes/videos.ts';
 import { registerSse } from './sse.ts';
 
 const round4 = (n: number | null): number | null => (n === null ? null : Math.round(n * 10_000) / 10_000);
@@ -63,6 +64,7 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
 
   registerAgentRoutes(app, deps);
   registerChatRoutes(app, deps);
+  registerVideoRoutes(app, deps);
   registerRoleRoutes(app, { pool: deps.pool, devEndpoints: deps.config.devEndpoints });
   registerSse(app, deps);
 
