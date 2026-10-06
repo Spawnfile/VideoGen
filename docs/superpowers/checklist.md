@@ -9,7 +9,7 @@
 | M0 Doğrulama | `plans/2026-10-06-m0-verification.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m0/report.md` |
 | M1 Ses | `plans/2026-10-06-m1-audio-listening.md` | Tamamlandı (K17 kullanıcı onayı bekliyor) | 2026-10-06 | 2026-10-06 | `docs/m1/decision.md` |
 | M2 İskelet | `plans/2026-10-06-m2-skeleton.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m2/report.md` |
-| M3 Canlı agent katmanı | `plans/2026-10-06-m3a-agent-runtime.md` (M3a) + M3b (M3a sonrası) | Devam ediyor (M3a tamam, M3b sırada) | 2026-10-06 | | |
+| M3 Canlı agent katmanı | `plans/2026-10-06-m3a-agent-runtime.md` (M3a) + `plans/2026-10-06-m3b-live-ui.md` (M3b) | Devam ediyor (M3a tamam, M3b uygulanıyor) | 2026-10-06 | | |
 | M4 Dikey dilim | M3 sonrası | Plan yok | | | |
 | M5 Final ve kalite | M4 sonrası | Plan yok | | | |
 | M6 Yayın | M5 sonrası | Plan yok | | | |
@@ -53,7 +53,7 @@
 - [x] T9 Playwright smoke S1 (3 test) · commit 38f064b · 2026-10-06 · 3/3
 - [x] T10 README + M2 raporu; `typecheck` + `test` + `test:smoke` yeşil · commit 70bdbd9 · 2026-10-06 · + final review düzeltmeleri 1ecf4a3; 51/51 + smoke 3/3
 
-## M3 — Canlı agent katmanı *(iki plan: M3a `plans/2026-10-06-m3a-agent-runtime.md` — sürücü, roller, MCP, koruma, tablolar, kullanım muhafızı; M3b — kartlar, ThinkingState, chat paneli, smoke; M3a bitince yazılır)*
+## M3 — Canlı agent katmanı *(iki plan: M3a `plans/2026-10-06-m3a-agent-runtime.md` — sürücü, roller, MCP, koruma, tablolar, kullanım muhafızı; M3b `plans/2026-10-06-m3b-live-ui.md` — kartlar, ThinkingState, chat paneli, smoke, taş sonu)*
 
 - [x] `ClaudeDriver` arayüzü: `SdkClaudeDriver` + fixture oynatan `FakeClaudeDriver` · commit 4a0ff5c, 02e891d · 2026-10-06 · M3a T1/T6; elle gerçek doğrulama (haiku): MCP bağlı, guard reddi, interrupt → giriş kapanınca iterator fırlatır
 - [x] Rol tanımları (`claude-plugin/agents/*.md`) ve rol başına model/effort/araç ayarları (spec §6.2) · commit 1d360cf, 853e23a · 2026-10-06 · M3a T3 (+ skill symlink'leri manifestten üretiliyor), ayar uçları T11; Ayarlar arayüzü M3b

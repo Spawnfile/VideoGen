@@ -11,7 +11,8 @@ Bu doküman; planların **hangi sırayla, nasıl, hangi kapılardan geçerek** u
 | `docs/superpowers/plans/2026-10-06-m0-verification.md` | M0: doğrulama spike'ları, fixture kaydı, disk temizliği |
 | `docs/superpowers/plans/2026-10-06-m1-audio-listening.md` | M1: ses servisi temeli, TTS dinleme testi |
 | `docs/superpowers/plans/2026-10-06-m2-skeleton.md` | M2: platform iskeleti |
-| `docs/superpowers/plans/2026-10-06-m3a-agent-runtime.md` | M3a: agent çalışma katmanı (sürücü, roller, MCP, koruma, olay tabloları, kullanım muhafızı, chat servisi, API). M3b planı (arayüz + smoke) M3a bitince yazılır |
+| `docs/superpowers/plans/2026-10-06-m3a-agent-runtime.md` | M3a: agent çalışma katmanı (sürücü, roller, MCP, koruma, olay tabloları, kullanım muhafızı, chat servisi, API). M3b planı ayrı satırda |
+| `docs/superpowers/plans/2026-10-06-m3b-live-ui.md` | M3b: canlı arayüz (10 Hz olay deposu, ThinkingState, agent kartları, chat paneli, rol ayarları), smoke S3/S4/S5, taş sonu |
 | `docs/superpowers/checklist.md` | Görev bazında ilerleme takibi |
 | `docs/m<N>/report.md` | Her taşın kanıtlı sonuç raporu (uygulama sırasında oluşur) |
 

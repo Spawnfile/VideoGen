@@ -9,7 +9,7 @@ Spec birden çok bağımsız alt sistemi kapsıyor. Bu nedenle her kilometre ta�
 | M0 Doğrulama | `2026-10-06-m0-verification.md` | **Tamamlandı** (`docs/m0/report.md`) | — | `docs/m0/report.md`: dört spike için kanıtlı sonuç; kayıtlı fixture'lar; disk ≥ 30 GB boş |
 | M1 Ses | `2026-10-06-m1-audio-listening.md` | **Tamamlandı — K17 kullanıcı onayı bekliyor** (`docs/m1/decision.md`) | M0 disk temizliği | Kullanıcının TTS ve ses kararı (K17), VRAM ölçümü, Whisper hizalaması çalışıyor |
 | M2 İskelet | `2026-10-06-m2-skeleton.md` | **Tamamlandı** (`docs/m2/report.md`) | M0 spike (b), (c) sonuçları (footer veri kaynağı, giriş akışı) | `npm run test:smoke` içinde S1 yeşil; audit zinciri; SSE tekrar oynatma; ücretli anahtar muhafızı |
-| M3 Canlı agent katmanı | `2026-10-06-m3a-agent-runtime.md` (M3a) + M3b (M3a bitince) | **Devam ediyor** | M0 (a) fixture'ları, M2 | S3, S4, S5 (kısmi) |
+| M3 Canlı agent katmanı | `2026-10-06-m3a-agent-runtime.md` (M3a) + `2026-10-06-m3b-live-ui.md` (M3b) | **Devam ediyor** | M0 (a) fixture'ları, M2 | S3, S4, S5 (kısmi) |
 | M4 Dikey dilim | M3 bitince | Bekliyor | M3 | S2 (taslak); ilk gerçek ürün; video başına kullanım ölçümü |
 | M5 Final ve kalite | M4 bitince | Bekliyor | M1 kararı, M4 | Rubrik pilotun 7 hatasını yakalıyor; bir ürün "yayına hazır" |
 | M6 Yayın | M5 bitince | Bekliyor | M5 | S6; gerçek taslak gönderimi |
