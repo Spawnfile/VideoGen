@@ -48,6 +48,7 @@ function run(cmd, args) {
   }
 }
 
+run('node', ['bin/link-skills.mjs']);
 run('docker', ['compose', 'up', '-d', '--wait', 'postgres']);
 run('npx', ['tsx', 'packages/db/src/migrate-cli.ts']);
 // Always build, and BEFORE the API starts: @fastify/static only serves files present at API start.

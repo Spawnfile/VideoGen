@@ -74,7 +74,7 @@ describe('SSE', () => {
     const e2 = await publishEvent(t.pool, { topic: 'system', type: 'b', payload: 2 });
     const e3 = await publishEvent(t.pool, { topic: 'system', type: 'c', payload: 3 });
     setTimeout(() => { publishEvent(t.pool, { topic: 'system', type: 'd', payload: 4 }); }, 50);
-    const { ids, text } = await readSse(e1.id, (ids, txt) => ids.length >= 3 && txt.includes(': hb'));
+    const { ids, text } = await readSse(e1.id, (ids, txt) => ids.length >= 3 && txt.includes('event: hb'));
     expect(ids.slice(0, 3)).toEqual([e2.id, e3.id, e3.id + 1]);
     expect(new Set(ids).size).toBe(ids.length);
     expect(text).toContain('retry: 2000');
@@ -92,7 +92,7 @@ describe('SSE', () => {
     await publishEvent(t.pool, { topic: 'system', type: 'old1', payload: 1 });
     await publishEvent(t.pool, { topic: 'system', type: 'old2', payload: 2 });
     const c = await openSse();
-    await c.waitFor(() => c.text().includes(': hb')); // replay phase is over once a heartbeat shows up
+    await c.waitFor(() => c.text().includes('event: hb')); // replay phase is over once a heartbeat shows up
     const fresh = await publishEvent(t.pool, { topic: 'system', type: 'new', payload: 3 });
     await c.waitFor(() => c.ids().length >= 1);
     c.close();
@@ -102,7 +102,7 @@ describe('SSE', () => {
   it('treats a Last-Event-ID beyond the current max as a reset (starts at max)', async () => {
     const max = await maxEventId(t.pool);
     const c = await openSse({ 'last-event-id': String(max + 1000) });
-    await c.waitFor(() => c.text().includes(': hb'));
+    await c.waitFor(() => c.text().includes('event: hb'));
     const fresh = await publishEvent(t.pool, { topic: 'system', type: 'after-reset', payload: 1 });
     await c.waitFor(() => c.ids().length >= 1);
     c.close();
@@ -138,7 +138,7 @@ describe('SSE', () => {
 
   it('survives a malformed vg_live payload', async () => {
     const c = await openSse();
-    await c.waitFor(() => c.text().includes(': hb'));
+    await c.waitFor(() => c.text().includes('event: hb'));
     await t.pool.query("SELECT pg_notify('vg_live', 'not json{')");
     await t.pool.query(`SELECT pg_notify('vg_live', '{"kind":"ok"}')`);
     await c.waitFor(() => c.text().includes('event: live'));
@@ -162,5 +162,19 @@ describe('SSE', () => {
     reader.cancel().catch(() => {});
     await hub2.stop();
     expect(outcome).toBe('closed');
+  });
+  it('sends named heartbeat events with a timestamp', async () => {
+    const c = await openSse();
+    await c.waitFor(() => /event: hb\ndata: \{"ts":\d+\}/.test(c.text()));
+    c.close();
+  });
+
+  it('treats an empty ?after= / Last-Event-ID as a fresh connection (no replay)', async () => {
+    await publishEvent(t.pool, { topic: 'system', type: 'old-empty', payload: 1 });
+    for (const c of [await openSse({}, '?after='), await openSse({ 'last-event-id': '' })]) {
+      await c.waitFor(() => c.text().includes('event: hb'));
+      expect(c.text()).not.toContain('old-empty');
+      c.close();
+    }
   });
 });

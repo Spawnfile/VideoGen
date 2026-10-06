@@ -13,3 +13,6 @@ apps/web/dist/
 python/audio_service/.venv/
 python/audio_service/*.egg-info/
 python/**/__pycache__/
+
+# generated per machine by bin/link-skills.mjs from claude-plugin/skills.manifest.json
+claude-plugin/skills/

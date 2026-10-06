@@ -3,3 +3,5 @@ export * from './paid-key-guard.ts';
 export * from './events.ts';
 export * from './usage.ts';
 export * from './claude-auth.ts';
+export * from './agents.ts';
+export * from './parent-watch.ts';

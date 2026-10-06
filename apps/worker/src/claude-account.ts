@@ -18,6 +18,11 @@ export class CliAuthStatus implements AuthStatusSource {
     try {
       ({ stdout } = await execFileP(this.bin, ['auth', 'status'], { env: cleanChildEnv(), timeout: 15_000 }));
     } catch (e) {
+      // `auth status` exits 1 when logged out but may still print JSON (M2 §7): prefer the JSON over a bare failure.
+      const out = (e as { stdout?: unknown }).stdout;
+      if (typeof out === 'string' && out.trim().startsWith('{')) {
+        try { return parseAuthStatus(out); } catch { /* fall through to the fixed-text failure */ }
+      }
       const code = (e as { code?: unknown }).code;
       return fail(`auth status failed (${typeof code === 'number' ? `exit ${code}` : 'could not run'})`);
     }

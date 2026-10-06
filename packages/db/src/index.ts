@@ -3,3 +3,6 @@ export * from './migrate.ts';
 export * from './audit.ts';
 export * from './schema.ts';
 export * from './events.ts';
+export * from './agents.ts';
+export * from './chat.ts';
+export * from './blobs.ts';

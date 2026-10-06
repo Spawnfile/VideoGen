@@ -11,6 +11,7 @@ Bu doküman; planların **hangi sırayla, nasıl, hangi kapılardan geçerek** u
 | `docs/superpowers/plans/2026-10-06-m0-verification.md` | M0: doğrulama spike'ları, fixture kaydı, disk temizliği |
 | `docs/superpowers/plans/2026-10-06-m1-audio-listening.md` | M1: ses servisi temeli, TTS dinleme testi |
 | `docs/superpowers/plans/2026-10-06-m2-skeleton.md` | M2: platform iskeleti |
+| `docs/superpowers/plans/2026-10-06-m3a-agent-runtime.md` | M3a: agent çalışma katmanı (sürücü, roller, MCP, koruma, olay tabloları, kullanım muhafızı, chat servisi, API). M3b planı (arayüz + smoke) M3a bitince yazılır |
 | `docs/superpowers/checklist.md` | Görev bazında ilerleme takibi |
 | `docs/m<N>/report.md` | Her taşın kanıtlı sonuç raporu (uygulama sırasında oluşur) |
 
@@ -26,6 +27,7 @@ M0 Doğrulama ──┬──► M1 Ses (kullanıcı dinleme testine katılır) 
 - **M0 tamamlandı** (`docs/m0/report.md`): footer'ın birincil kaynağı `get_usage` (yüzde 0..100), `rate_limit_event` (kesir 0..1) canlı tazeleme ve yedek; giriş akışı v1'de terminal talimatı; M3 ve M4'e devredilen maddeler raporun §12'sinde.
 - **M1 ve M2 birbirinden bağımsızdır.** Önerilen sıra M2 → M1. Önce iskelet ve testler hazır olur; dinleme testi kullanıcının vakti olduğunda yapılır.
 - **M3–M7 planları önceden yazılmaz.** Her biri, bir önceki taşın raporu ve kanıtlarıyla yazılır (§5).
+- **M3 iki plana bölündü** (17 görev): M3a (agent çalışma katmanı) → M3b (arayüz + smoke S3/S4/S5). M3 raporu, son review ve `main`'e birleştirme M3b'nin sonundadır.
 
 ## 3. Bir planı uygulamak
 

@@ -1,38 +1,19 @@
-import type pg from 'pg';
 import type { LiveEvent, UiEvent } from '@videogen/shared';
 import type { Queryable } from './client.ts';
 
 /*
- * INVARIANT: all writes to ui_events MUST go through publishEvent (advisory lock 72720001
- * serializes nextval+commit); a direct INSERT can commit a smaller id late and break SSE replay.
- * DB-level enforcement is deferred to M3.
+ * INVARIANT: ui_events rows are written only by vg_publish_event (migration 0003, SECURITY DEFINER; the app role has
+ * no INSERT/UPDATE). It takes advisory lock 72720001 so commit order equals id order and SSE replay never skips.
  */
-const UI_EVENTS_LOCK = 72720001;
 
 function toEvent(r: { id: string | number; ts: Date; topic: string; type: string; payload: unknown }): UiEvent {
   return { id: Number(r.id), ts: r.ts.toISOString(), topic: r.topic, type: r.type, payload: r.payload };
 }
 
-/** Insert + NOTIFY in one transaction under an advisory lock, so commit order equals id order
- *  and SSE replay by id can never skip an event committed late with a smaller id. */
-export async function publishEvent(pool: pg.Pool, e: { topic: string; type: string; payload: unknown }): Promise<UiEvent> {
-  const c = await pool.connect();
-  try {
-    await c.query('BEGIN');
-    await c.query('SELECT pg_advisory_xact_lock($1)', [UI_EVENTS_LOCK]);
-    const { rows } = await c.query(
-      'INSERT INTO ui_events (ts, topic, type, payload) VALUES (clock_timestamp(), $1, $2, $3) RETURNING id, ts, topic, type, payload',
-      [e.topic, e.type, JSON.stringify(e.payload ?? null)],
-    );
-    await c.query('SELECT pg_notify($1, $2)', ['vg_events', String(rows[0].id)]);
-    await c.query('COMMIT');
-    return toEvent(rows[0]);
-  } catch (err) {
-    await c.query('ROLLBACK').catch(() => {});
-    throw err;
-  } finally {
-    c.release();
-  }
+/** Insert + NOTIFY through the DB-enforced publisher (works on a pool or inside a caller's transaction). */
+export async function publishEvent(db: Queryable, e: { topic: string; type: string; payload: unknown }): Promise<UiEvent> {
+  const { rows } = await db.query('SELECT id, ts, topic, type, payload FROM vg_publish_event($1, $2, $3)', [e.topic, e.type, JSON.stringify(e.payload ?? null)]);
+  return toEvent(rows[0]);
 }
 
 export async function publishLive(db: Queryable, e: LiveEvent): Promise<void> {

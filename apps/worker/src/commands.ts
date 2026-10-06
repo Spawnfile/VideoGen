@@ -7,6 +7,8 @@ export interface CommandFailure {
   type?: string;
   error?: string;
 }
+export type CommandHandler = (cmd: Record<string, unknown>) => Promise<unknown>;
+
 export interface ListenOptions {
   onFailure?: (f: CommandFailure) => void;
   /** The LISTEN connection died unexpectedly. Default: crash-only (the supervisor restarts the worker). */
@@ -20,7 +22,7 @@ function crash(reason: string): void {
 
 export async function listenCommands(
   url: string,
-  handlers: Record<string, () => Promise<unknown>>,
+  handlers: Record<string, CommandHandler>,
   opts: ListenOptions = {},
 ): Promise<() => Promise<void>> {
   const onFailure = opts.onFailure ?? (() => {});
@@ -31,12 +33,16 @@ export async function listenCommands(
   c.on('end', () => { if (!stopping) onLost('connection ended'); });
   c.on('notification', (n) => {
     if (n.channel !== 'vg_commands' || !n.payload) return;
-    let type: unknown;
-    try { type = (JSON.parse(n.payload) as { type?: unknown } | null)?.type; } catch { type = undefined; }
-    if (typeof type !== 'string') { onFailure({ reason: 'malformed' }); return; }
+    let cmd: Record<string, unknown> | null = null;
+    try {
+      const v = JSON.parse(n.payload) as unknown;
+      cmd = v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+    } catch { cmd = null; }
+    const type = cmd?.type;
+    if (!cmd || typeof type !== 'string') { onFailure({ reason: 'malformed' }); return; }
     if (!Object.hasOwn(handlers, type)) { onFailure({ reason: 'unknown' }); return; }
-    // Promise.resolve().then so a synchronous throw from the handler is caught too.
-    Promise.resolve().then(() => handlers[type]!()).catch((e) => {
+    const command = cmd;
+    Promise.resolve().then(() => handlers[type]!(command)).catch((e) => {
       try { onFailure({ reason: 'handler', type, error: errorTag(e) }); } catch { /* reporting must never crash the worker */ }
     });
   });

@@ -1,6 +1,6 @@
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { appendAudit, findSecretKeys, verifyAudit } from '../src/index.ts';
+import { appendAudit, findSecretKeys, redactSecretKeys, verifyAudit } from '../src/index.ts';
 import { createTestDb } from './helpers.ts';
 
 let t: Awaited<ReturnType<typeof createTestDb>>;
@@ -68,5 +68,20 @@ describe('audit chain', () => {
     expect(findSecretKeys([{ deep: { 'x-api-key': 'v' } }])).toEqual(['$[0].deep.x-api-key']);
     const ok = ['input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens', 'max_tokens', 'thinking_tokens', 'tokenCount', 'num_turns'];
     expect(findSecretKeys(Object.fromEntries(ok.map((k) => [k, 1])))).toEqual([]);
+  });
+  it('flags *_key suffixes and plural secret names, still allows token counters', () => {
+    for (const k of ['secret_key', 'access_key', 'signing_key', 'AWS_SECRET_ACCESS_KEY', 'cookies', 'secrets', 'credentials', 'passwords', 'client_credential']) {
+      expect(findSecretKeys({ [k]: 'v' }), k).toEqual([`$.${k}`]);
+    }
+    expect(findSecretKeys({ input_tokens: 1, outputTokens: 2, cache_key: 'x', sort_key: 'y', tokens: 3 })).toEqual([]);
+  });
+
+  it('redactSecretKeys returns a redacted deep copy that appendAudit accepts', async () => {
+    const input = { tool: 'mcp__x', args: { api_key: 'sk-123', nested: [{ cookies: 'c' }], keep: 'ok' } };
+    const red = redactSecretKeys(input);
+    expect(red).toEqual({ tool: 'mcp__x', args: { redacted_1: '[redacted]', nested: [{ redacted_2: '[redacted]' }], keep: 'ok' } });
+    expect(input.args.api_key).toBe('sk-123');
+    expect(JSON.stringify(red)).not.toContain('sk-123');
+    await expect(appendAudit(t.pool, { actorType: 'agent', action: 'agent.tool', data: red })).resolves.toBeTruthy();
   });
 });

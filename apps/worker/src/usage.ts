@@ -56,7 +56,7 @@ export async function recordUsage(pool: pg.Pool, s: UsageSnapshot): Promise<void
   await publishEvent(pool, { topic: 'system', type: 'usage', payload: s });
 }
 
-export function startUsagePoller(pool: pg.Pool, src: UsageSource, everyMs: number): () => void {
+export function startUsagePoller(pool: pg.Pool, src: UsageSource, everyMs: number, onSnapshot?: (s: UsageSnapshot) => Promise<void>): () => void {
   if (!everyMs) return () => {};
   let running = false;
   const tick = async () => {
@@ -64,7 +64,10 @@ export function startUsagePoller(pool: pg.Pool, src: UsageSource, everyMs: numbe
     running = true;
     try {
       const s = await src.read();
-      if (s) await recordUsage(pool, s);
+      if (s) {
+        await recordUsage(pool, s);
+        await onSnapshot?.(s);
+      }
     } catch (e) {
       await appendAudit(pool, { actorType: 'system', action: 'usage.read_failed', data: { error: errorTag(e) } }).catch(() => {});
     } finally {
