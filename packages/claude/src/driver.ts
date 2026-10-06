@@ -3,7 +3,8 @@ import type { Effort, RoleName } from '@videogen/shared';
 import type { Msg } from './messages.ts';
 
 export interface ProcSample { cpuPct: number; rssMb: number; procs: number }
-export interface ToolResult { content: { type: 'text'; text: string }[]; isError?: boolean }
+/** A type alias, not an interface: the SDK's CallToolResult has an index signature. */
+export type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean };
 export interface VgTool {
   name: string;
   description: string;
