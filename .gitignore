@@ -10,3 +10,5 @@ CLAUDE.md
 spikes/m0/node_modules/
 spikes/m0/work/
 apps/web/dist/
+python/audio_service/.venv/
+python/**/__pycache__/
