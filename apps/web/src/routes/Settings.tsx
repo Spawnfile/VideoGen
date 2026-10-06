@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { RolesSection } from '../components/settings/RolesSection.tsx';
 import { api, useClaudeStatus, type ClaudePhase } from '../lib/api.ts';
 import { ago } from '../lib/format.ts';
 
@@ -59,6 +60,7 @@ export function Settings() {
           Durumu yenile
         </button>
       </section>
+      <RolesSection />
     </div>
   );
 }

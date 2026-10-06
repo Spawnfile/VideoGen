@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { usageLevel, type UsageWindow } from '@videogen/shared/browser';
 import { api, useClaudeStatus, type ClaudePhase } from '../lib/api.ts';
-import { ago, pct, resetTime } from '../lib/format.ts';
+import { ago, guardText, pct, resetTime } from '../lib/format.ts';
 import { useLive } from '../lib/live.ts';
 
 const CLAUDE_LABEL: Record<ClaudePhase, [dot: string, text: string]> = {
@@ -31,6 +31,7 @@ export function UsageFooter() {
   const live = useLive();
   const { c, phase } = useClaudeStatus();
   const usage = useQuery({ queryKey: ['usage'], queryFn: api.usage });
+  const guard = useQuery({ queryKey: ['usage', 'guard'], queryFn: api.guard });
   const [now, setNow] = useState(Date.now());
   const [mountedAt] = useState(now);
   useEffect(() => { const h = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(h); }, []);
@@ -50,6 +51,9 @@ export function UsageFooter() {
       )}
       <Bar label="5 sa" testId="usage-5h" w={usage.data?.fiveHour} />
       <Bar label="7 gün" testId="usage-7d" w={usage.data?.sevenDay} />
+      {guard.data?.blocked && (
+        <span data-testid="usage-guard" className="rounded-full bg-inset px-2.5 py-0.5 text-[11.5px] text-ink">{guardText(guard.data)}</span>
+      )}
       {usage.data && <span className="text-ink-3">{ago(usage.data.at, now)}</span>}
       <span className="ml-auto flex items-center gap-1.5 text-ink-2">
         <span className={`size-2 rounded-full ${workerAlive ? 'bg-green' : workerPending ? 'bg-line-strong' : 'bg-red'}`} />

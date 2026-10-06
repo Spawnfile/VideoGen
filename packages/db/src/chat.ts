@@ -1,10 +1,10 @@
-import type { ChatMessage, ChatMessageStatus, ChatThread } from '@videogen/shared';
+import type { ChatMessage, ChatMessageStatus, ChatMode, ChatThread } from '@videogen/shared';
 import type { Queryable } from './client.ts';
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 const thread = (r: Record<string, any>): ChatThread => ({ id: r.id, title: r.title, videoId: r.video_id, claudeSessionId: r.claude_session_id, createdAt: iso(r.created_at)!, updatedAt: iso(r.updated_at)! });
 const message = (r: Record<string, any>): ChatMessage => ({
-  id: r.id, threadId: r.thread_id, role: r.role, text: r.text, status: r.status, sessionId: r.session_id, turn: r.turn,
+  id: r.id, threadId: r.thread_id, role: r.role, text: r.text, status: r.status, mode: r.mode, sessionId: r.session_id, turn: r.turn,
   createdAt: iso(r.created_at)!, completedAt: iso(r.completed_at),
 });
 
@@ -24,11 +24,11 @@ export async function setThreadClaudeSession(db: Queryable, id: string, claudeSe
   await db.query('UPDATE chat_threads SET claude_session_id = $2, updated_at = now() WHERE id = $1', [id, claudeSessionId]);
 }
 
-export async function insertChatMessage(db: Queryable, m: { id: string; threadId: string; role: 'user' | 'assistant'; text: string; status: ChatMessageStatus; sessionId?: string | null; turn?: number | null }): Promise<ChatMessage> {
+export async function insertChatMessage(db: Queryable, m: { id: string; threadId: string; role: 'user' | 'assistant'; text: string; status: ChatMessageStatus; sessionId?: string | null; turn?: number | null; mode?: ChatMode }): Promise<ChatMessage> {
   const { rows } = await db.query(
-    `INSERT INTO chat_messages (id, thread_id, role, text, status, session_id, turn, created_at, completed_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, clock_timestamp(), CASE WHEN $5 = 'done' THEN now() END) RETURNING *`,
-    [m.id, m.threadId, m.role, m.text, m.status, m.sessionId ?? null, m.turn ?? null],
+    `INSERT INTO chat_messages (id, thread_id, role, text, status, session_id, turn, mode, created_at, completed_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, clock_timestamp(), CASE WHEN $5 = 'done' THEN now() END) RETURNING *`,
+    [m.id, m.threadId, m.role, m.text, m.status, m.sessionId ?? null, m.turn ?? null, m.mode ?? 'ask'],
   );
   await db.query('UPDATE chat_threads SET updated_at = now() WHERE id = $1', [m.threadId]);
   return message(rows[0]);

@@ -68,7 +68,8 @@ export const RESUME_PROMPT = 'Önceki oturum kesildi. Durumu kontrol et ve göre
 
 type Req = StartRequest & { claudeSessionId: string };
 interface Pending { id: string; req: Req; def: RoleDef; runDir: string; deferred?: 'ram' | 'limit' }
-interface Live { id: string; kind: SessionKind; req: Req; session: DriverSession; runner: SessionRunner; idle: NodeJS.Timeout | null; liveness: Liveness | null; pid: number | null }
+/** inputEnded: idle close or cancel closed the input; the process may still be exiting and must not get another turn. */
+interface Live { id: string; kind: SessionKind; req: Req; session: DriverSession; runner: SessionRunner; idle: NodeJS.Timeout | null; liveness: Liveness | null; pid: number | null; inputEnded: boolean }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -121,12 +122,13 @@ export class SessionManager {
     return id;
   }
 
-  sendChat(id: string, text: string): boolean {
+  /** Sends the next turn to a live chat process; returns that turn's number, or null when no process can take it (none, or closing). */
+  sendChat(id: string, text: string): number | null {
     const l = this.live.get(id);
-    if (!l || l.kind !== 'chat') return false;
+    if (!l || l.kind !== 'chat' || l.inputEnded) return null;
     if (l.idle) { clearTimeout(l.idle); l.idle = null; }
     l.runner.send(text);
-    return true;
+    return l.runner.turn;
   }
 
   async cancel(id: string): Promise<boolean> {
@@ -141,6 +143,7 @@ export class SessionManager {
     }
     const l = this.live.get(id);
     if (!l) return false;
+    l.inputEnded = true;
     await l.runner.cancel();
     return true;
   }
@@ -230,7 +233,7 @@ export class SessionManager {
       onTurnComplete: (r) => this.onTurn(id, r),
       onRateLimit: (info) => this.gate.observeRateLimit(info),
     });
-    this.live.set(id, { id, kind: req.kind, req, session, runner, idle: null, liveness: null, pid: null });
+    this.live.set(id, { id, kind: req.kind, req, session, runner, idle: null, liveness: null, pid: null, inputEnded: false });
     void (async () => {
       await updateSession(this.d.pool, id, { status: 'starting', startedAt: new Date(), waitingUntil: null });
       await appendAudit(this.d.pool, { actorType: 'orchestrator', action: 'agent.session.opened', sessionId: id, data: { role: def.role, model: def.model, effort: def.effort, driver: this.d.driver.kind, resume: !!req.resume } });
@@ -266,6 +269,7 @@ export class SessionManager {
       if (l.idle) clearTimeout(l.idle);
       l.idle = setTimeout(() => {
         l.idle = null;
+        l.inputEnded = true;
         void appendAudit(this.d.pool, { actorType: 'orchestrator', action: 'agent.session.idle_closed', sessionId: id }).catch(() => {});
         l.session.endInput();
       }, this.d.chatIdleMs ?? 600_000);

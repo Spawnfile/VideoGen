@@ -22,3 +22,31 @@ test('M3 screen: agent cards', async ({ page, request }) => {
   await page.waitForTimeout(600); // let the trace's fade-in settle
   await page.screenshot({ path: shot('agents.png') });
 });
+
+test('M3 screen: chat with live trace', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto('/');
+  const chat = page.getByRole('region', { name: 'Chat' });
+  await chat.getByRole('button', { name: 'Yeni sohbet' }).click();
+  const box = chat.getByRole('textbox', { name: 'Mesaj' });
+  await box.fill('Tükenmez kalemin içinde hangi parçalar var?');
+  await box.press('Enter');
+  await expect(chat.locator('[data-testid="thinking"][data-variant="search"]')).toHaveAttribute('data-status', 'settled', { timeout: 30_000 });
+  await box.fill('Notları bir dosyaya yaz.');
+  await box.press('Enter');
+  const coding = chat.locator('[data-testid="thinking"][data-variant="coding"]').last();
+  await expect(coding).toHaveAttribute('data-status', 'live', { timeout: 30_000 });
+  await page.screenshot({ path: shot('chat-live.png') });
+  await expect(coding).toHaveAttribute('data-status', 'settled', { timeout: 30_000 });
+  await expect(chat.locator('[data-testid="chat-message"][data-role="assistant"]')).toHaveCount(2, { timeout: 30_000 });
+  await coding.getByRole('button', { name: /araç çalıştırdı/ }).click();
+  await expect(coding.getByText('notes.txt').first()).toBeVisible();
+  await page.waitForTimeout(600); // let the expand transition settle
+  await page.screenshot({ path: shot('chat.png') });
+});
+
+test('M3 screen: settings roles', async ({ page }) => {
+  await page.goto('/settings');
+  await expect(page.getByRole('heading', { name: 'Agent rolleri' })).toBeVisible();
+  await page.screenshot({ path: shot('settings-roles.png'), fullPage: true });
+});

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { AgentSessionView, ChatMessage, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, RoleName, TraceRow, UsageSnapshot } from '@videogen/shared/browser';
+import type { AgentSessionView, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, RoleName, TraceRow, UsageSnapshot } from '@videogen/shared/browser';
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
@@ -20,7 +20,7 @@ async function send<T>(method: 'POST' | 'PUT', path: string, body: unknown = {})
   return (r.status === 204 ? null : await r.json()) as T;
 }
 
-export type ChatMode = 'ask' | 'analyze' | 'fix';
+export type { ChatMode } from '@videogen/shared/browser';
 export interface RoleSetting { role: RoleName; label: string; model: ModelAlias; effort: Effort; defaults: { model: ModelAlias; effort: Effort } }
 
 export const api = {

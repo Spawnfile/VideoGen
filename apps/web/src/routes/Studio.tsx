@@ -1,4 +1,5 @@
 import { AgentPanel } from '../components/agents/AgentPanel.tsx';
+import { ChatPanel } from '../components/chat/ChatPanel.tsx';
 
 export function Studio() {
   return (
@@ -11,7 +12,7 @@ export function Studio() {
         <AgentPanel />
       </section>
       <section aria-label="Chat" className="flex min-h-0 flex-col p-6">
-        <div className="rounded-card bg-paper p-4 text-ink-2 shadow-subtle">Chat paneli bir sonraki adımda etkinleşecek.</div>
+        <ChatPanel />
       </section>
     </div>
   );

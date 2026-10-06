@@ -90,6 +90,8 @@ export type TraceOp =
 export interface LiveTraceItem { rowId: string; text?: string; tokens?: number }
 
 export interface ChatThread { id: string; title: string; videoId: string | null; claudeSessionId: string | null; createdAt: string; updatedAt: string }
+export const CHAT_MODES = ['ask', 'analyze', 'fix'] as const;
+export type ChatMode = (typeof CHAT_MODES)[number];
 export type ChatMessageStatus = 'queued' | 'running' | 'done' | 'interrupted' | 'failed' | 'waiting_limit';
 export interface ChatMessage {
   id: string;
@@ -97,6 +99,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   text: string;
   status: ChatMessageStatus;
+  mode: ChatMode;
   sessionId: string | null;
   turn: number | null;
   createdAt: string;

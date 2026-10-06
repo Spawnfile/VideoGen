@@ -57,7 +57,7 @@ describe('trace deltas', () => {
 
 describe('chat messages', () => {
   it('orders by creation time and replaces a message only with a fresher version', () => {
-    const m = (id: string, createdAt: string, status: ChatMessage['status']): ChatMessage => ({ id, threadId: 't', role: 'user', text: id, status, sessionId: null, turn: null, createdAt, completedAt: null });
+    const m = (id: string, createdAt: string, status: ChatMessage['status']): ChatMessage => ({ id, threadId: 't', role: 'user', text: id, status, mode: 'ask', sessionId: null, turn: null, createdAt, completedAt: null });
     st.seedMessages('t', [m('b', '2026-10-06T10:00:02Z', 'queued'), m('a', '2026-10-06T10:00:01Z', 'done')], 5);
     st.applyMessage(m('b', '2026-10-06T10:00:02Z', 'running'), 6);
     st.applyMessage(m('b', '2026-10-06T10:00:02Z', 'queued'), 4);
