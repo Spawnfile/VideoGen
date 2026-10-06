@@ -10,7 +10,7 @@ export interface ProcOptions {
   env?: NodeJS.ProcessEnv;
   signal?: AbortSignal;
   timeoutMs: number;
-  /** RSS of the whole group; bubblewrap sets no memory limit (plan B3). */
+  /** RSS of the whole group and its descendants (also detached ones, e.g. Chrome); bubblewrap sets no memory limit (plan B3). */
   maxRssMb?: number;
   onLine?: (line: string) => void;
   sampleMs?: number;
@@ -48,28 +48,36 @@ export function runProcess(file: string, args: string[], o: ProcOptions): Promis
     child.stdout!.on('data', onData);
     child.stderr!.on('data', onData);
     const recorded = writePidFile(o.dataDir, pid, o.owner, 'render').catch(() => {});
+    // Descendants that left the group (Remotion spawns Chrome detached): killed with it and recorded for restart reaping.
+    const foreign = new Set<number>();
+    const killAll = (sig: NodeJS.Signals) => { killGroup(pid, sig); for (const g of foreign) killGroup(g, sig); };
     const stop = (why: NonNullable<ProcResult['stopped']>) => {
       if (stopped) return;
       stopped = why;
-      killGroup(pid, 'SIGTERM');
-      setTimeout(() => { if (groupAlive(pid)) killGroup(pid, 'SIGKILL'); }, o.killGraceMs ?? 5000).unref();
+      killAll('SIGTERM');
+      setTimeout(() => { if (groupAlive(pid) || [...foreign].some(groupAlive)) killAll('SIGKILL'); }, o.killGraceMs ?? 5000).unref();
     };
     const timer = setTimeout(() => stop('timeout'), o.timeoutMs);
-    const sampler = new GroupSampler(pid);
-    const watch = o.maxRssMb ? setInterval(() => {
-      void sampler.sample().then((s) => { if (s && s.rssMb > o.maxRssMb!) stop('memory'); }, () => {});
-    }, o.sampleMs ?? 1000) : null;
+    const sampler = new GroupSampler(pid, '/proc', { tree: true });
+    const watch = setInterval(() => {
+      void sampler.sample().then((s) => {
+        for (const g of sampler.groups) if (!foreign.has(g)) { foreign.add(g); void writePidFile(o.dataDir, g, o.owner, 'render').catch(() => {}); }
+        if (stopped) killAll('SIGTERM');
+        if (s && o.maxRssMb && s.rssMb > o.maxRssMb) stop('memory');
+      }, () => {});
+    }, o.sampleMs ?? 1000);
     const onAbort = () => stop('aborted');
     if (o.signal?.aborted) onAbort();
     o.signal?.addEventListener('abort', onAbort, { once: true });
     child.on('close', (code, signal) => {
       clearTimeout(timer);
-      if (watch) clearInterval(watch);
+      clearInterval(watch);
       o.signal?.removeEventListener('abort', onAbort);
       if (buf) { tail.push(buf); o.onLine?.(buf); }
       // The leader is gone; kill whatever it left in the group, then forget the pid file (after it was written).
       if (groupAlive(pid)) killGroup(pid, 'SIGKILL');
-      void recorded.then(() => removePidFile(o.dataDir, pid)).catch(() => {})
+      for (const g of foreign) if (groupAlive(g)) killGroup(g, 'SIGKILL');
+      void recorded.then(() => Promise.all([pid, ...foreign].map((p) => removePidFile(o.dataDir, p)))).catch(() => {})
         .finally(() => resolve({ code, signal, stopped, ms: Date.now() - started, tail: tail.slice(-40) }));
     });
   });

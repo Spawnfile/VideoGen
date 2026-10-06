@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ReviewSchema, type Review } from './review.ts';
 import { SceneSpecSchema, type SceneSpec } from './scene.ts';
 
 /** Spec §8.1 D1: the hook uses one of five patterns. Names are derived (the spec lists none); M5 calibration may revise them. */
@@ -141,9 +142,9 @@ export function storyboardRefErrors(s: Storyboard, r: ProductResearch): string[]
   return out;
 }
 
-export const ARTIFACT_SCHEMAS = { ProductResearch: ProductResearchSchema, Storyboard: StoryboardSchema, SceneSpec: SceneSpecSchema } as const;
+export const ARTIFACT_SCHEMAS = { ProductResearch: ProductResearchSchema, Storyboard: StoryboardSchema, SceneSpec: SceneSpecSchema, Review: ReviewSchema } as const;
 export type ArtifactSchemaName = keyof typeof ARTIFACT_SCHEMAS;
-export interface ArtifactValues { ProductResearch: ProductResearch; Storyboard: Storyboard; SceneSpec: SceneSpec }
+export interface ArtifactValues { ProductResearch: ProductResearch; Storyboard: Storyboard; SceneSpec: SceneSpec; Review: Review }
 export type ArtifactValue<N extends ArtifactSchemaName> = ArtifactValues[N];
 
 /** JSON Schema for the SDK's outputFormat. Refinements are not expressible there; validateArtifact re-checks them. */

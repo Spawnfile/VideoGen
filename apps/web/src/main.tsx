@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StrictMode, useEffect } from 'react';
+import { StrictMode, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { AgentSample, AgentSessionView, ChatMessage, ClaudeAuth, GpuWait, GuardState, LiveTraceItem, RunView, TraceRow, UsageSnapshot, VideoView } from '@videogen/shared/browser';
 import { AppShell } from './components/AppShell.tsx';
 import { connectLive, onLiveEvent, onUiEvent } from './lib/live.ts';
+import { activePlayer, shortcutFor } from './lib/player.ts';
 import { applyDelta, applyGpuWait, applyMessage, applyRow, applyRun, applySample, applySession, applyVideo } from './lib/stores.ts';
 import { useRoute } from './lib/router.ts';
 import { Library } from './routes/Library.tsx';
@@ -41,6 +42,29 @@ function App() {
       if (e.type === 'agent.gpu_wait') applyGpuWait(e.payload as GpuWait);
     });
     return () => { offUi(); offLive(); stop(); };
+  }, []);
+  // Spec §13.4: Space / J / K / L drive the visible draft player; N opens a new production (the product box in the Studio).
+  const goRef = useRef(go);
+  goRef.current = go;
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      const a = shortcutFor({ key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, target: e.target as HTMLElement | null });
+      if (!a) return;
+      if (a === 'new') {
+        e.preventDefault();
+        if (location.pathname !== '/') goRef.current('/');
+        requestAnimationFrame(() => document.getElementById('product-name')?.focus());
+        return;
+      }
+      const p = activePlayer();
+      if (!p) return;
+      e.preventDefault();
+      if (a === 'toggle') p.toggle();
+      else if (a === 'pause') p.pause();
+      else p.seekBy(a === 'back' ? -5 : 5);
+    };
+    addEventListener('keydown', on);
+    return () => removeEventListener('keydown', on);
   }, []);
   const page = path === '/settings' ? <Settings /> : path === '/library' ? <Library go={go} /> : <Studio />;
   return <AppShell path={path} go={go}>{page}</AppShell>;

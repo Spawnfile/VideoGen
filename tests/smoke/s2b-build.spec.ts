@@ -11,8 +11,8 @@ test('S2b: storyboard → build: the builder card, the build card with its previ
   await page.goto(`/?video=${videoId}`);
   const header = page.getByTestId('video-header');
   await expect(page.locator('[data-testid="step"][data-key="build"]')).toHaveAttribute('data-status', 'done', { timeout: 60_000 });
-  await expect(header).toHaveAttribute('data-status', 'needs_human');
-  await expect(header).toContainText('Sahne kurulumu hazır. Taslak render bu sürümde henüz yok.');
+  await expect(header).toHaveAttribute('data-status', 'needs_human', { timeout: 30_000 });
+  await expect(header).toContainText('Taslak hazır ve incelendi. Final render bu sürümde henüz yok.');
   await expect(page.locator('[data-testid="step"][data-key="build"]')).toContainText('5 parça · 7.526 üçgen');
   const card = page.getByTestId('build-card');
   await expect(card).toContainText('5 parça · 7.526 üçgen · kahraman %80');
@@ -22,7 +22,7 @@ test('S2b: storyboard → build: the builder card, the build card with its previ
   const ranged = await request.get(src, { headers: { range: 'bytes=0-7' } });
   expect(ranged.status()).toBe(206);
   expect([...(await ranged.body())]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]); // PNG signature
-  expect((await sessionsOf(request, runId)).map((s) => s.role).sort()).toEqual(['builder', 'researcher', 'storyboarder']);
+  expect((await sessionsOf(request, runId)).map((s) => s.role).sort()).toEqual(['builder', 'researcher', 'reviewer_visual', 'storyboarder']);
   await expect(page.getByTestId('agent-card').filter({ hasText: 'Video üretim' }).first()).toBeVisible();
 });
 

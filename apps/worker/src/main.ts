@@ -19,6 +19,7 @@ import { Orchestrator } from './pipeline/orchestrator.ts';
 import { SystemProbe } from './pipeline/resources.ts';
 import { BlenderRenderDriver, FakeRenderDriver, type Capability, type RenderDriver } from './render/driver.ts';
 import { ResourceLocks } from './render/locks.ts';
+import { ReviewTargets, reviewToolHost, toolHosts } from './pipeline/review-tools.ts';
 import { sceneToolHost } from './pipeline/scene-tools.ts';
 import { ARTIFACT_VALIDATOR, pipelineExecutors } from './pipeline/steps.ts';
 import { FixtureUsageSource, SdkUsageSource, startUsagePoller } from './usage.ts';
@@ -46,23 +47,28 @@ const render: RenderDriver = config.render.driver === 'fake'
 const locks = new ResourceLocks();
 const probe = new SystemProbe(config.dataDir);
 let renderCapability: Capability = { ok: false, reason: 'denetlenmedi' };
+/** M4c: the draft under review per draft_review step (extract_frames reads it; plan C22). */
+const reviews = new ReviewTargets();
 const manager = new SessionManager({
   pool, dataDir: config.dataDir, driver, pluginDir: PLUGIN_DIR, gate: guard, sdkVersion: sdkVersion(), chatIdleMs: config.chatIdleMs,
   quietAfterMs: config.liveness.quietAfterMs, stuckAfterMs: config.liveness.stuckAfterMs,
   archive: (s) => archiveTranscript({ pool, dataDir: config.dataDir, ...s }),
   validator: ARTIFACT_VALIDATOR,
-  tools: sceneToolHost({ pool, render, locks, probe, ffmpeg: config.render.ffmpeg, capability: () => renderCapability }),
+  tools: toolHosts(
+    sceneToolHost({ pool, render, locks, probe, ffmpeg: config.render.ffmpeg, capability: () => renderCapability }),
+    reviewToolHost({ ffmpeg: config.render.ffmpeg, targets: reviews }),
+  ),
 });
 const orchestrator = new Orchestrator({
-  pool, dataDir: config.dataDir, probe,
+  pool, dataDir: config.dataDir, probe, locks, gate: guard,
   executors: pipelineExecutors({
-    pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined,
+    pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined, reviews,
     scene: { pool, render, locks, probe, ffmpeg: config.render.ffmpeg, capability: () => renderCapability },
   }),
 });
 const chat = new ChatService({ pool, manager });
 chat.bind();
-guard.onClear(() => { void chat.resumeWaiting(); });
+guard.onClear(() => { void chat.resumeWaiting(); void orchestrator.startQueued(); });
 
 const audit = (action: string, data: Record<string, unknown>) => appendAudit(pool, { actorType: 'system', action, data }).catch(() => {});
 const safeRefresh = () => refreshAuth(pool, authSrc).catch((e) => audit('claude.refresh_failed', { error: errorTag(e) }));
@@ -110,6 +116,7 @@ try {
     { onFailure: (f) => { void audit('command.failed', { reason: f.reason, ...(f.type ? { type: f.type } : {}), ...(f.error ? { error: f.error } : {}) }); } },
   );
   await chat.recover();
+  await guard.restore(); // before recover(): queued runs must see the stored §6.4 block, not the fresh default (final review I1)
   await orchestrator.recover();
   orchestrator.start();
 } catch (e) {

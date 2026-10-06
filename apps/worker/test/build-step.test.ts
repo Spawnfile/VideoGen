@@ -54,7 +54,7 @@ async function buildContext(deps: StepDeps, name = 'Tükenmez kalem', attempt = 
   const step = (await listRunSteps(t.pool, r.runId)).find((s) => s.key === 'build')!;
   const calls = { status: [] as string[], sessions: [] as string[] };
   const ctx: StepContext = {
-    runId: r.runId, stepId: step.id, key: 'build', attempt, videoId: r.videoId, productId: r.productId, productName: name, audioMode, versionId: r.versionId, runDir,
+    runId: r.runId, stepId: step.id, key: 'build', attempt, round: 0, videoId: r.videoId, productId: r.productId, productName: name, audioMode, versionId: r.versionId, runDir,
     signal: new AbortController().signal, progress: () => {}, status: (s) => { calls.status.push(s); }, session: (id) => { calls.sessions.push(id); },
   };
   return { r, ctx, calls };
@@ -147,7 +147,7 @@ describe('research gate', () => {
 });
 
 describe('pipeline end to end with build (fake Claude and fake render)', () => {
-  it('produce → research → storyboard → build through the orchestrator; the video waits for the draft (K13)', async () => {
+  it('produce → research → storyboard → build → draft → review through the orchestrator; the video waits for the final (K13)', async () => {
     const { deps } = setup();
     const o = new Orchestrator({ pool: t.pool, dataDir: deps.dataDir, executors: pipelineExecutors(deps), tickMs: 20, timeTickMs: 50 });
     o.start();
@@ -156,9 +156,9 @@ describe('pipeline end to end with build (fake Claude and fake render)', () => {
     await o.startRun(r.runId);
     await vi.waitFor(async () => expect((await getRunView(t.pool, r.runId))!.status).toBe('done'), { timeout: 15_000 });
     const run = (await getRunView(t.pool, r.runId))!;
-    expect(run.steps.map((s) => s.key)).toEqual(['research', 'storyboard', 'build']);
+    expect(run.steps.map((s) => s.key)).toEqual(['research', 'storyboard', 'build', 'draft_render', 'draft_review']);
     expect(run.steps[2]!.note).toBe('5 parça · 7.526 üçgen · 2 uyarı · kanal kimliği geçici');
-    expect(await getVideoView(t.pool, r.videoId)).toMatchObject({ status: 'needs_human', statusNote: 'Sahne kurulumu hazır. Taslak render bu sürümde henüz yok.' });
+    expect(await getVideoView(t.pool, r.videoId)).toMatchObject({ status: 'needs_human', statusNote: 'Taslak hazır ve incelendi. Final render bu sürümde henüz yok.' });
     expect(run.progress).toBe(99);
   });
 });

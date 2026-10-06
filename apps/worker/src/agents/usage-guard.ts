@@ -42,6 +42,18 @@ export class UsageGuard implements UsageGate {
   onClear(fn: () => void): void { this.listeners.add(fn); }
   stop(): void { if (this.timer) clearTimeout(this.timer); this.timer = null; }
 
+  /**
+   * Worker start: a block stored by the previous worker that has not reset yet holds until the first poll re-evaluates it (the
+   * first get_usage read takes seconds; without this a restart would start queued runs past the §6.4 gate). Still rewritten then.
+   */
+  async restore(): Promise<void> {
+    const { rows } = await this.d.pool.query("SELECT value FROM settings WHERE key = 'usage.guard'");
+    const v = rows[0]?.value as GuardState | undefined;
+    if (!v?.blocked || (v.resumeAt && Date.parse(v.resumeAt) <= Date.now())) return;
+    this.st = v;
+    this.schedule(v);
+  }
+
   /** Partial snapshots (a rate_limit_event may carry one window) only replace what they contain. */
   update(s: UsageSnapshot): Promise<void> {
     if (s.fiveHour) this.w.fiveHour = s.fiveHour;

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { HOOK_PATTERN_LABELS, type BuildReport, type ProductResearch, type SceneSpec, type Storyboard } from '@videogen/shared/browser';
+import { DRAFT_CHECKS, draftDecision, formatClock, HOOK_PATTERN_LABELS, type BuildReport, type DraftSeverity, type ProductResearch, type Review, type SceneSpec, type Storyboard } from '@videogen/shared/browser';
 import { api, blobUrl } from '../../lib/api.ts';
 import { buildFacts } from '../../lib/production-view.ts';
 
@@ -75,6 +75,36 @@ export function BuildCard({ reportId, sceneId, sheetSha }: { reportId: string | 
       {f.warnings.length > 0 && (
         <ul aria-label="Build uyarıları" className="mt-2 flex flex-col gap-1 text-[12.5px] text-ink-2">
           {f.warnings.map((w) => <li key={w}>· {w}</li>)}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+const SEVERITY: Record<DraftSeverity, string> = { blocker: 'engelleyici', major: 'önemli', minor: 'küçük' };
+
+/** Spec §13.1 review findings with their frame time (M4c: the draft review; reviews/findings tables arrive in M5). */
+export function ReviewCard({ artifactId }: { artifactId: string | null }) {
+  const { data: r } = useContent<Review>(artifactId);
+  if (!r) return null;
+  const pass = draftDecision(r).verdict === 'pass';
+  const failed = r.checks.filter((c) => !c.pass);
+  return (
+    <section data-testid="review-card" aria-label="Taslak incelemesi" className={card}>
+      <div className="flex items-baseline gap-2">
+        <h3 className="text-[14px] font-medium">Taslak incelemesi</h3>
+        <span className={`rounded-full px-2.5 py-0.5 text-[12px] ${pass ? 'bg-green/10 text-green' : 'bg-inset text-ink'}`}>{pass ? 'geçti' : 'düzeltmeye gönderildi'}</span>
+      </div>
+      <p className="mt-1 text-[13px] leading-relaxed text-ink-2">{r.summary_tr}</p>
+      {failed.length > 0 && (
+        <ul aria-label="Bulgular" className="mt-2 flex flex-col gap-1.5 text-[12.5px]">
+          {failed.map((c) => (
+            <li key={c.id}>
+              <span className="font-medium">{DRAFT_CHECKS[c.id].label_tr}</span>
+              <span className="tabular-nums text-ink-3"> · {SEVERITY[DRAFT_CHECKS[c.id].severity]}{c.evidence ? ` · ${formatClock(c.evidence.timecode)}` : ''}</span>
+              {c.fix_hint && <span className="block text-ink-2">{c.fix_hint}</span>}
+            </li>
+          ))}
         </ul>
       )}
     </section>

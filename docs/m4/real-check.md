@@ -68,3 +68,32 @@ Ekran: `docs/m4/real-studio.png` (başlık, adım listesi, araştırma ve storyb
 ## 5. Toplam gerçek Claude kullanımı (M4a)
 
 2 haiku oturumu (bu koşu). İlk denemede kullanım kapısı nedeniyle 0 oturum. Son review alt ajanı (Claude Fable 5.1) ayrı bir Claude Code alt ajanıdır; pipeline oturumu değildir.
+
+---
+
+# M4c — Gerçek doğrulama
+
+## 1. Ne koşuldu, ne koşulamadı
+
+M4c bir bulut konteynerinde uygulandı: GPU yok, Blender ve bubblewrap yok, Claude aboneliğinin oturumu yok. Bu yüzden planın T11 Step 2'si (**K12 rol modelleriyle "tükenmez kalem", gerçek Blender + gerçek Claude**) bu ortamda **koşulmadı**; spec §6.4 ve plan C30 gereği gerçek Claude çağrısı yalnızca kullanıcının makinesinde, kullanım kapısıyla yapılır. Yerine, gerçek araçlarla koşabilen her şey koşuldu:
+
+| Doğrulama | Sonuç |
+|---|---|
+| Remotion taslağı, Blender'ın commit'li kalem GLB'si (`tests/fixtures/scene/kalem`) + `camera_track.json`, sistem Chrome (Chrome for Testing 141), `VG_REMOTION_GL=swangle` | 45 sn, **1351 kare**, 540×960, h264 `yuv420p` tv bt709, `nb_frames` 1351; render **194 sn** (4 CPU, yazılımsal GL). GPU'lu makinede P3 ölçümü ≈ 95 sn |
+| `draft_render` + `draft_review` adımları gerçek sürücüyle (`apps/worker/test-render/draft-step.int.test.ts`) | Adım ilerlemesi monoton; `draft_video` artefaktı 540×960, 45 sn, `meta.frames 1351`; ffprobe §7.5 doğrulaması temiz; 4×3 kontakt sayfası gerçek taslaktan: `docs/m4/real-draft-sheet.png` |
+| Render süreç ağacı belleği (son review I2 sonrası) | 401 kare: ağaç RSS tepe **2.093 MB** (render-cli + iki Chrome grubu); 6 GB sınırı gerçekçi. Üç `render` PID dosyası yazıldı, bitişte hepsi silindi |
+| İptal | Kare aşamasında iptal: Chrome süreç grubuyla öldü, PID dosyası kalmadı (`draft.int.test.ts`) |
+| Launcher (`bin/videogen.mjs`, `npm start` yolu), geçici `videogen_m4c_check` DB + `/tmp/videogen-m4c-check`, Fake Claude + Fake render | Run `done` (research → storyboard → build → draft_render → draft_review), video `needs_human` "Taslak hazır ve incelendi. Final render bu sürümde henüz yok.", `VideoView.draft` dolu, `/api/blobs/<sha>` Range → 206 `video/mp4`, audit zinciri `ok` (48 satır), SIGINT sonrası süreç ve port kalmadı; DB ve klasör silindi |
+
+## 2. Gerçek taslakta gözle bulunan ve düzeltilenler
+
+İlk gerçek taslak (kontakt sayfası ve tek kareler Read ile incelendi):
+- Etiketler "Göv…", "Y…" diye kesiliyordu: genişlik tahmini 0,56 em/karakter Inter için dar → 0,66.
+- Kanca metni kahramanın üstüne biniyordu: plaka eklendi (vuruş metniyle aynı).
+- 5.–6. karelerde etiket çizgileri kadraj **dışındaki** parçalara gidiyordu: `placeLabels` artık yalnızca kadrajdaki çapaları etiketler (birim testiyle).
+
+M5 kalibrasyonuna girdi: 0. karede kalem kadrajın üstünden taşıyor (kahraman büyük ama kırpık; `hero_frame0` sorusu bunu yakalamalı); metaller (uç yuvası, bilye) RoomEnvironment ile okunuyor; mekanizma vuruşunda bilye yakın planı var.
+
+## 3. GPU'lu makinede koşulacak tarif (ilk gerçek ürün, K12)
+
+Plan T11 Step 2'deki betik aynen geçerli (`docs/superpowers/plans/2026-10-06-m4c-draft-review-player.md`). Önkoşullar: `GET /api/usage` 5 sa < %25 ve 7 gün < %70; roller override'sız (researcher sonnet/high, storyboarder opus/high, builder opus/high, reviewer_visual opus/high); koşu sırasında 5 sa > %80 → iptal. Sonuçlar bu dosyaya "M4c §4" olarak eklenir: rol başına tur/token/süre, taslak render süresi, inceleme turları ve kararları, **video başına kullanım** (toplam token, oturum sayısı, `fiveHourDelta`, toplam süre).

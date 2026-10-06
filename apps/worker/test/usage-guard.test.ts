@@ -84,6 +84,28 @@ describe('UsageGuard', () => {
     expect(ev.rows.map((r) => r.payload.blocked)).toEqual([false]);
   });
 
+  it('restores a still-valid stored block before the first poll, so a restarted worker does not start queued runs (final review I1)', async () => {
+    const stored = { blocked: true, reason: 'five_hour', resumeAt: future(1800), fiveHour: 0.85, sevenDay: 0.1 };
+    await t.pool.query("INSERT INTO settings (key, value) VALUES ('usage.guard', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", [JSON.stringify(stored)]);
+    const g = new UsageGuard({ pool: t.pool });
+    cleanups.push(() => g.stop());
+    expect(g.allowsNewPipeline()).toBe(true); // before restore: the fresh default
+    await g.restore();
+    expect(g.allowsNewPipeline()).toBe(false);
+    expect(g.resumeAt()).toBe(stored.resumeAt);
+    const cleared = vi.fn();
+    g.onClear(cleared);
+    await g.update({ source: 'get_usage', fiveHour: W(0.1), sevenDay: W(0.1), status: null, subscriptionType: null, at: new Date().toISOString() });
+    expect(g.allowsNewPipeline()).toBe(true);
+    expect(cleared).toHaveBeenCalledTimes(1);
+    // A stored block whose reset has passed is ignored.
+    await t.pool.query("UPDATE settings SET value = $1 WHERE key = 'usage.guard'", [JSON.stringify({ ...stored, resumeAt: new Date(Date.now() - 1000).toISOString() })]);
+    const g2 = new UsageGuard({ pool: t.pool });
+    cleanups.push(() => g2.stop());
+    await g2.restore();
+    expect(g2.allowsNewPipeline()).toBe(true);
+  });
+
   it('stores every transition in settings for the API', async () => {
     const g = new UsageGuard({ pool: t.pool });
     cleanups.push(() => g.stop());

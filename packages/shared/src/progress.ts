@@ -1,4 +1,4 @@
-import { STEP_DEFAULT_S, type StepKey, type StepStatus } from './pipeline.ts';
+import { STEP_DEFAULT_S, type StepKey, type StepStatus, type StepView } from './pipeline.ts';
 
 export interface ProgressStep {
   key: StepKey;
@@ -52,4 +52,20 @@ export function etaSeconds(steps: ProgressStep[], nowMs: number): number | null 
     left += Math.max(5, remaining);
   }
   return any ? Math.round(left) : null;
+}
+
+/** The steps a draft review sends back (spec §7.1 step 6: "gerekirse 4'e dönüş"). */
+export const DRAFT_LOOP_STEPS: readonly StepKey[] = ['build', 'draft_render', 'draft_review'];
+
+/**
+ * Plan C11 (inherited D5): the header's "Taslak turu k/2 · %N". k is the round of the loop steps, N their own weighted progress
+ * in this round (the run percent stays monotone and does not show the round). Null before the first return.
+ */
+export function draftRound(steps: readonly Pick<StepView, 'key' | 'weight' | 'status' | 'progress' | 'round'>[]): { round: number; percent: number } | null {
+  const loop = steps.filter((s) => DRAFT_LOOP_STEPS.includes(s.key));
+  const round = loop.reduce((m, s) => Math.max(m, s.round), 0);
+  if (!round) return null;
+  const total = loop.reduce((a, s) => a + s.weight, 0);
+  const done = loop.reduce((a, s) => a + s.weight * (s.status === 'done' ? 1 : Math.min(0.99, s.progress / 100)), 0);
+  return { round, percent: total > 0 ? Math.round((done / total) * 100) : 0 };
 }

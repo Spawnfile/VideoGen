@@ -1,0 +1,17 @@
+{
+  "rubric_version": "draft@1",
+  "reviewer_role": "reviewer_visual",
+  "checks": [
+    { "id": "hero_frame0", "pass": true, "score": 0.85 },
+    { "id": "mechanism_shot", "pass": false, "score": 0.3, "evidence": { "frame": 30, "timecode": 1.0, "crop": { "x": 0.3, "y": 0.35, "w": 0.4, "h": 0.25 } }, "fix_hint": "Mekanizma vuruşunda kamera bilyeye yaklaşmıyor; 24–32 sn arasında bilye ve uç yuvasına 120 mm lensle yakın çekim ekle." },
+    { "id": "parts_visible", "pass": true, "score": 0.8 },
+    { "id": "no_intersection", "pass": true, "score": 0.9 },
+    { "id": "labels_correct", "pass": true, "score": 0.75 },
+    { "id": "text_readable", "pass": true, "score": 0.8 },
+    { "id": "motion_flow", "pass": false, "score": 0.5, "evidence": { "frame": 45, "timecode": 1.5 }, "fix_hint": "Hazne vuruşunda 2 sn'den uzun olaysız bölüm var; haznenin dönüşünü erkene al." },
+    { "id": "no_slop", "pass": true, "score": 0.9 }
+  ],
+  "dimension_scores": { "D2": 9, "D3": 7, "D5": 8, "D9": 7 },
+  "gate_results": { "G3": true, "G5": true },
+  "summary_tr": "Patlatma okunuyor ama mekanizma vuruşu uzak kalıyor; hazne vuruşunda hareket duruyor."
+}

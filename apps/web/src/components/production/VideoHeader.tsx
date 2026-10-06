@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { VIDEO_STATUS_LABEL, type RunView, type VideoView } from '@videogen/shared/browser';
 import { api } from '../../lib/api.ts';
-import { activeStep, formatEta, formatUsage, isRunActive, sourceLabel, videoTone } from '../../lib/production-view.ts';
+import { activeStep, draftRoundLabel, formatEta, formatUsage, isRunActive, sourceLabel, videoTone } from '../../lib/production-view.ts';
 
 const BADGE: Record<ReturnType<typeof videoTone>, string> = {
   active: 'bg-accent/10 text-accent',
@@ -16,6 +16,7 @@ export function VideoHeader({ video, run }: { video: VideoView; run: RunView | n
   const active = isRunActive(run);
   const step = activeStep(run);
   const progress = run?.progress ?? 0;
+  const round = draftRoundLabel(run);
   const meta = [active ? formatEta(run!.etaS) : '', step && step.progressSource ? sourceLabel(step.progressSource) : '', formatUsage(video.usage)].filter(Boolean);
   const stop = async () => {
     if (!run || busy) return;
@@ -42,6 +43,7 @@ export function VideoHeader({ video, run }: { video: VideoView; run: RunView | n
         </span>
         <span className="w-12 text-right text-[13px] font-medium tabular-nums">%{Math.round(progress)}</span>
       </div>
+      {round && <p data-testid="draft-round" className="text-[12.5px] tabular-nums text-accent">{round}</p>}
       {meta.length > 0 && <p className="text-[12px] tabular-nums text-ink-3">{meta.join(' · ')}</p>}
     </header>
   );

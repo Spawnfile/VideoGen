@@ -1,4 +1,4 @@
-import { CHANNEL_STYLES, type BuildReport, type ProgressSource, type RunView, type SceneSpec, type StepView, type VideoStatus, type VideoUsage, type VideoView } from '@videogen/shared/browser';
+import { CHANNEL_STYLES, DRAFT_MAX_RETURNS, draftRound, type ArtifactMeta, type BuildReport, type ProgressSource, type RunView, type SceneSpec, type StepView, type VideoStatus, type VideoUsage, type VideoView } from '@videogen/shared/browser';
 import { formatElapsed, formatTokens } from './trace-view.ts';
 
 const ACTIVE = new Set(['queued', 'running', 'waiting_gpu', 'waiting_limit', 'waiting_disk']);
@@ -57,4 +57,21 @@ export function buildFacts(report: BuildReport, scene?: SceneSpec): { line: stri
     scene ? CHANNEL_STYLES[scene.style_id].name_tr : '',
   ].filter(Boolean).join(' · ');
   return { line, warnings: report.warnings.slice(0, 5) };
+}
+
+/** The latest artifacts of a run the draft player needs (ids for JSON content, shas for media). */
+export interface DraftPick { videoSha: string | null; coverSha: string | null; glbSha: string | null; trackId: string | null; sceneId: string | null; storyboardId: string | null; reviewId: string | null }
+export function pickDraft(list: ArtifactMeta[], runId: string | null): DraftPick {
+  const find = (kind: string) => list.find((a) => a.kind === kind && (!runId || a.runId === runId)) ?? null;
+  return {
+    videoSha: find('draft_video')?.blobSha ?? null, coverSha: find('draft_cover')?.blobSha ?? null, glbSha: find('scene_glb')?.blobSha ?? null,
+    trackId: find('camera_track')?.id ?? null, sceneId: find('scene')?.id ?? null, storyboardId: find('storyboard')?.id ?? null, reviewId: find('draft_review')?.id ?? null,
+  };
+}
+
+/** Header line while a draft fix round runs: "Taslak turu 1/2 · %37" (plan C11); empty otherwise. */
+export function draftRoundLabel(run: RunView | null | undefined): string {
+  if (!isRunActive(run)) return '';
+  const d = draftRound(run!.steps);
+  return d ? `Taslak turu ${d.round}/${DRAFT_MAX_RETURNS} · %${d.percent}` : '';
 }

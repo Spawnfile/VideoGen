@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { api } from '../../lib/api.ts';
+import { pickDraft } from '../../lib/production-view.ts';
 import { latestRunOf, pipeline, seedRuns, seedVideos, useStore } from '../../lib/stores.ts';
-import { BuildCard, ResearchCard, StoryboardCard } from './ArtifactCards.tsx';
+import { BuildCard, ResearchCard, ReviewCard, StoryboardCard } from './ArtifactCards.tsx';
+import { DraftTabs } from './DraftTabs.tsx';
 import { StepList } from './StepList.tsx';
 import { VideoHeader } from './VideoHeader.tsx';
 
@@ -21,20 +23,25 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
     const list = detail.data ?? [];
     const find = (kind: string) => list.find((a) => a.kind === kind && (!run || a.runId === run.id)) ?? null;
     const pick = (kind: string) => find(kind)?.id ?? null;
-    return { research: pick('research'), storyboard: pick('storyboard'), report: pick('build_report'), scene: pick('scene'), sheet: find('preview_sheet')?.blobSha ?? null };
+    return {
+      research: pick('research'), storyboard: pick('storyboard'), report: pick('build_report'), scene: pick('scene'), sheet: find('preview_sheet')?.blobSha ?? null,
+      draft: pickDraft(list, run?.id ?? null),
+    };
   }, [detail.data, run]);
 
   if (!videoId) {
-    return <p className="text-[13px] leading-relaxed text-ink-2">Üstteki alana bir ürün adı yazıp Üret'e basın. Araştırma, storyboard ve sahne kurulumu burada canlı ilerler.</p>;
+    return <p className="text-[13px] leading-relaxed text-ink-2">Üstteki alana bir ürün adı yazıp Üret'e basın. Araştırma, storyboard, sahne kurulumu ve taslak burada canlı ilerler.</p>;
   }
   if (!video) return null;
   return (
     <div className="flex flex-col gap-5">
       <VideoHeader video={video} run={run} />
+      <DraftTabs key={latest.draft.videoSha ?? 'none'} pick={latest.draft} />
       {run && <StepList run={run} />}
       <ResearchCard artifactId={latest.research} />
       <StoryboardCard artifactId={latest.storyboard} />
       <BuildCard reportId={latest.report} sceneId={latest.scene} sheetSha={latest.sheet} />
+      <ReviewCard artifactId={latest.draft.reviewId} />
     </div>
   );
 }

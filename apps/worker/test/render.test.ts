@@ -56,7 +56,7 @@ describe('resource locks and the GPU gate', () => {
     const waits: unknown[] = [];
     const r = withResource(locks, 'gpu', { owner: 'x', probe, waitMs: 20, onWait: (w) => { waits.push(w); swap = 10; } }, async () => 'ran');
     expect(await r).toBe('ran');
-    expect(waits).toEqual([{ reason: 'swap %95 ≥ %90' }]);
+    expect(waits).toEqual([{ reason: 'swap %95 ≥ %90', status: 'waiting_gpu' }]);
     swap = 95;
     const ac = new AbortController();
     const stuck = withResource(locks, 'gpu', { owner: 'y', probe, waitMs: 20, signal: ac.signal, onWait: () => ac.abort() }, async () => 'never');
@@ -102,12 +102,30 @@ describe('sandbox and process control', () => {
     expect((await p).stopped).toBe('aborted');
   });
 
+  it('counts and kills a descendant that left the group (Chrome is spawned detached), and records its group for restart reaping (final review I2)', async () => {
+    const data = tmp('vg-proc-');
+    const child = 'import time; time.sleep(1); x = bytearray(400 * 1024 * 1024); time.sleep(30)';
+    let seen: string[] = [];
+    const r = runProcess('bash', ['-c', `setsid python3 -c '${child}' & wait`], {
+      cwd: data, dataDir: data, owner: 'job', timeoutMs: 20_000, maxRssMb: 150, sampleMs: 100, killGraceMs: 200, env: { PATH: process.env.PATH! },
+    });
+    await vi.waitFor(() => { seen = existsSync(join(data, 'pids')) ? readdirSync(join(data, 'pids')) : []; expect(seen.length).toBe(2); }, { timeout: 5000, interval: 20 }).catch(() => {});
+    expect((await r).stopped).toBe('memory');
+    expect(seen).toHaveLength(2);
+    const detached = seen.map((f) => Number(f.split('.')[0])).sort((a, b) => b - a)[0]!;
+    // Dead or a zombie awaiting its (container) init: either way it no longer runs.
+    const running = (p: number) => { try { return !/^\d+ \(.*\) Z/.test(readFileSync(`/proc/${p}/stat`, 'utf8')); } catch { return false; } };
+    await vi.waitFor(() => expect(running(detached)).toBe(false));
+    expect(readdirSync(join(data, 'pids'))).toEqual([]);
+  });
+
   it('startup recovery also reaps orphaned render groups recorded with kind "render"', async () => {
     const data = tmp('vg-reap-');
     const child = spawn('bash', ['-c', 'exec -a blender-fake sleep 30'], { detached: true, stdio: 'ignore' });
     const exited = new Promise((res) => child.once('exit', res));
     // Until exec runs, /proc/<pid>/cmdline is still the forked node process.
-    await vi.waitFor(() => expect(readFileSync(`/proc/${child.pid}/cmdline`, 'utf8')).toContain('blender-fake'));
+    // bash's own command line already contains the name: wait for argv[0] after the exec, or the reap can race execve.
+    await vi.waitFor(() => expect(readFileSync(`/proc/${child.pid}/cmdline`, 'utf8').split('\0')[0]).toBe('blender-fake'));
     await writePidFile(data, child.pid!, 'job-1', 'render');
     expect(JSON.parse(readFileSync(join(data, 'pids', `${child.pid}.json`), 'utf8')).kind).toBe('render');
     expect(await reapOrphans(data)).toEqual([child.pid]);

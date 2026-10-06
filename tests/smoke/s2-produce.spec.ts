@@ -20,11 +20,11 @@ test('S2a: product name → research → storyboard → build, one run for a dou
     await expect(page.getByTestId('research-card')).toContainText('Basmalı, tek kullanımlık', { timeout: 30_000 });
     await expect(page.locator('[data-testid="step"][data-key="storyboard"]')).toHaveAttribute('data-status', 'done', { timeout: 30_000 });
     await expect(page.locator('[data-testid="step"][data-key="build"]')).toHaveAttribute('data-status', 'done', { timeout: 30_000 });
-    await expect(header).toHaveAttribute('data-status', 'needs_human');
+    await expect(header).toHaveAttribute('data-status', 'needs_human', { timeout: 30_000 });
   } finally {
     clearInterval(sampler);
   }
-  await expect(header).toContainText('Sahne kurulumu hazır.');
+  await expect(header).toContainText('Taslak hazır ve incelendi.');
   await expect(page.getByTestId('storyboard-card').locator('li')).toHaveCount(7);
   await expect(bar2).toHaveAttribute('aria-valuenow', '99');
   expect(samples.length).toBeGreaterThan(5);
@@ -54,7 +54,7 @@ test('S2a: Durdur cancels a running production and progress does not go back', a
   const at = Number(await header.getByRole('progressbar', { name: 'Genel ilerleme' }).getAttribute('aria-valuenow'));
   await header.getByRole('button', { name: 'Üretimi durdur' }).click();
   await expect(header).toHaveAttribute('data-status', 'cancelled', { timeout: 15_000 });
-  await expect(page.locator('[data-testid="step"][data-status="cancelled"]')).toHaveCount(3);
+  await expect(page.locator('[data-testid="step"][data-status="cancelled"]')).toHaveCount(5);
   expect(Number(await header.getByRole('progressbar', { name: 'Genel ilerleme' }).getAttribute('aria-valuenow'))).toBeGreaterThanOrEqual(at);
   // The research agent itself is stopped (not left to finish and settle the step afterwards).
   const sessionId = ((await (await request.get(`/api/runs/${runId}`)).json()) as { steps: { sessionId: string | null }[] }).steps[0]!.sessionId;
@@ -63,5 +63,5 @@ test('S2a: Durdur cancels a running production and progress does not go back', a
     .toMatch(/^(cancelled|done|failed)$/);
   expect(((await (await request.get(`/api/sessions/${sessionId}`)).json()) as { status: string }).status).toBe('cancelled');
   await page.waitForTimeout(500);
-  await expect(page.locator('[data-testid="step"][data-status="cancelled"]')).toHaveCount(3);
+  await expect(page.locator('[data-testid="step"][data-status="cancelled"]')).toHaveCount(5);
 });

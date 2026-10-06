@@ -87,7 +87,7 @@ function toRun(r: Record<string, any>): RunRecord {
 function toStep(r: Record<string, any>): StepRecord {
   return {
     id: r.id, runId: r.run_id, key: r.key as StepKey, ordinal: r.ordinal, weight: Number(r.weight), status: r.status, progress: Number(r.progress),
-    progressSource: r.progress_source, attempt: r.attempt, sessionId: r.session_id, error: r.error, note: r.note, inputHash: r.input_hash,
+    progressSource: r.progress_source, attempt: r.attempt, round: r.round, sessionId: r.session_id, error: r.error, note: r.note, inputHash: r.input_hash,
     startedAt: iso(r.started_at), endedAt: iso(r.ended_at),
   };
 }
@@ -142,9 +142,14 @@ const VIDEO_SQL = `
       AND ((usage_start->>'fiveHourResetsAt' IS NULL AND usage_end->>'fiveHourResetsAt' IS NULL)
         OR abs(extract(epoch FROM (usage_end->>'fiveHourResetsAt')::timestamptz - (usage_start->>'fiveHourResetsAt')::timestamptz)) < 60)
     GROUP BY video_id)
-  SELECT v.*, p.name AS product_name, p.difficulty, lr.id AS latest_run_id, u.sessions, u.tokens, u.cost, w.d AS five_hour_delta
+  SELECT v.*, p.name AS product_name, p.difficulty, lr.id AS latest_run_id, u.sessions, u.tokens, u.cost, w.d AS five_hour_delta,
+    dv.blob_sha AS draft_sha, dv.duration_ms AS draft_ms, dc.blob_sha AS cover_sha
   FROM videos v JOIN products p ON p.id = v.product_id
   LEFT JOIN LATERAL (SELECT id FROM runs r WHERE r.video_id = v.id ORDER BY r.created_at DESC LIMIT 1) lr ON true
+  LEFT JOIN LATERAL (SELECT a.blob_sha, a.duration_ms FROM artifacts a JOIN runs r ON r.id = a.run_id
+    WHERE r.video_id = v.id AND a.kind = 'draft_video' ORDER BY a.created_at DESC LIMIT 1) dv ON true
+  LEFT JOIN LATERAL (SELECT a.blob_sha FROM artifacts a JOIN runs r ON r.id = a.run_id
+    WHERE r.video_id = v.id AND a.kind = 'draft_cover' ORDER BY a.created_at DESC LIMIT 1) dc ON true
   LEFT JOIN u ON u.video_id = v.id
   LEFT JOIN w ON w.video_id = v.id`;
 
@@ -153,6 +158,7 @@ function toVideo(r: Record<string, any>): VideoView {
     id: r.id, productId: r.product_id, productName: r.product_name, title: r.title, audioMode: r.audio_mode, status: r.status, statusNote: r.status_note,
     difficulty: r.difficulty, latestRunId: r.latest_run_id, createdAt: iso(r.created_at)!, updatedAt: iso(r.updated_at)!,
     usage: { sessions: r.sessions ?? 0, tokens: Number(r.tokens ?? 0), costUsd: num(r.cost), fiveHourDelta: num(r.five_hour_delta) },
+    draft: r.draft_sha ? { videoSha: r.draft_sha, coverSha: r.cover_sha ?? null, durationS: Math.round(Number(r.draft_ms ?? 0) / 100) / 10 } : null,
   };
 }
 export async function getVideoView(db: Queryable, id: string): Promise<VideoView | null> {
@@ -168,16 +174,21 @@ export async function setProductDifficulty(db: Queryable, productId: string, dif
   await db.query('UPDATE products SET difficulty = $2 WHERE id = $1', [productId, difficulty]);
 }
 
-export interface NewArtifact { runId: string; stepId?: string | null; versionId?: string | null; kind: string; blobSha?: string | null; content?: unknown; inputHash?: string | null; meta?: unknown }
-export type ArtifactRecord = ArtifactMeta & { content: unknown; inputHash: string | null };
+export interface NewArtifact {
+  runId: string; stepId?: string | null; versionId?: string | null; kind: string; blobSha?: string | null; content?: unknown; inputHash?: string | null; meta?: unknown;
+  /** Video artifacts (spec §11.1): length and stream facts from ffprobe. */
+  durationMs?: number | null; width?: number | null; height?: number | null; codec?: string | null;
+}
+export type ArtifactRecord = ArtifactMeta & { content: unknown; inputHash: string | null; meta: unknown };
 const toMeta = (r: Record<string, any>): ArtifactMeta => ({ id: r.id, runId: r.run_id, stepId: r.step_id, versionId: r.version_id, kind: r.kind, blobSha: r.blob_sha, createdAt: iso(r.created_at)! });
-const toArtifact = (r: Record<string, any>): ArtifactRecord => ({ ...toMeta(r), content: r.content, inputHash: r.input_hash });
+const toArtifact = (r: Record<string, any>): ArtifactRecord => ({ ...toMeta(r), content: r.content, inputHash: r.input_hash, meta: r.meta });
 
 export async function insertArtifact(db: Queryable, a: NewArtifact): Promise<ArtifactMeta> {
   const { rows } = await db.query(
-    `INSERT INTO artifacts (id, run_id, step_id, version_id, kind, blob_sha, content, input_hash, meta, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, clock_timestamp()) RETURNING *`,
-    [randomUUID(), a.runId, a.stepId ?? null, a.versionId ?? null, a.kind, a.blobSha ?? null, a.content === undefined ? null : JSON.stringify(a.content), a.inputHash ?? null, a.meta === undefined ? null : JSON.stringify(a.meta)],
+    `INSERT INTO artifacts (id, run_id, step_id, version_id, kind, blob_sha, content, input_hash, meta, duration_ms, width, height, codec, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, clock_timestamp()) RETURNING *`,
+    [randomUUID(), a.runId, a.stepId ?? null, a.versionId ?? null, a.kind, a.blobSha ?? null, a.content === undefined ? null : JSON.stringify(a.content), a.inputHash ?? null,
+      a.meta === undefined ? null : JSON.stringify(a.meta), a.durationMs ?? null, a.width ?? null, a.height ?? null, a.codec ?? null],
   );
   return toMeta(rows[0]);
 }
@@ -277,6 +288,51 @@ const RUN_IS_RUNNING = "EXISTS (SELECT 1 FROM runs r WHERE r.id = steps.run_id A
 /** pending → queued only while the run is running: a cancel that lands mid-advance cannot be undone. */
 export async function queueStepIfRunActive(db: Queryable, stepId: string): Promise<boolean> {
   const { rowCount } = await db.query(`UPDATE steps SET status = 'queued' WHERE id = $1 AND status = 'pending' AND ${RUN_IS_RUNNING}`, [stepId]);
+  return (rowCount ?? 0) > 0;
+}
+
+/**
+ * Plan C6 (inherited D5): the draft review sends the run back. One transaction: only while the review step is still running in
+ * `round` and its run is running, steps with ordinals from..to become pending with round + 1 and a fresh attempt counter (the
+ * orchestrator's retry budget is per round), and the review's job is closed. A crash before COMMIT changes nothing (the restarted
+ * review replays its stored decision); a replay after COMMIT finds the step pending and changes nothing (no double round).
+ */
+export async function rewindForReview(pool: pg.Pool, o: { runId: string; stepId: string; jobId: number; round: number; fromOrdinal: number; toOrdinal: number; note: string }): Promise<boolean> {
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    const live = await c.query(
+      `SELECT 1 FROM steps s JOIN runs r ON r.id = s.run_id
+       WHERE s.id = $1 AND s.status = 'running' AND s.round = $2 AND r.status = 'running' FOR UPDATE OF s, r`,
+      [o.stepId, o.round],
+    );
+    if (!live.rowCount) {
+      await c.query('ROLLBACK');
+      return false;
+    }
+    await c.query(
+      `UPDATE steps SET status = 'pending', round = round + 1, attempt = 0, progress = 0, progress_source = NULL, input_hash = NULL, session_id = NULL,
+         error = NULL, note = $4, started_at = NULL, ended_at = NULL
+       WHERE run_id = $1 AND ordinal BETWEEN $2 AND $3`,
+      [o.runId, o.fromOrdinal, o.toOrdinal, o.note],
+    );
+    await c.query("UPDATE jobs SET status = 'done', lease_owner = NULL, lease_expires_at = NULL WHERE id = $1", [o.jobId]);
+    await c.query('COMMIT');
+    return true;
+  } catch (e) {
+    await c.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    c.release();
+  }
+}
+
+/** queued → running as one conditional write: false when another start won or the run was cancelled since it was read. */
+export async function claimQueuedRun(db: Queryable, runId: string, usageStart: UsageMark | null): Promise<boolean> {
+  const { rowCount } = await db.query(
+    "UPDATE runs SET status = 'running', started_at = now(), usage_start = $2 WHERE id = $1 AND status = 'queued'",
+    [runId, usageStart === null ? null : JSON.stringify(usageStart)],
+  );
   return (rowCount ?? 0) > 0;
 }
 
