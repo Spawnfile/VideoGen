@@ -61,7 +61,16 @@ function maskSplitNames(lines) {
 export function redactFile(path) {
   let s = readFileSync(path, 'utf8');
   for (const [re, rep] of RULES) s = s.replace(re, rep);
-  const lines = s.split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  // Split-delta masking only applies to stream fixtures (every non-empty line is {t, m}); any other text file
+  // (e.g. usage-response.json) only gets the regex rules above
+  let lines;
+  try {
+    lines = s.split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  } catch {
+    lines = null;
+  }
+  const isStream = lines?.length > 0 && lines.every((l) => l && typeof l === 'object' && 't' in l && 'm' in l);
+  if (!isStream) return writeFileSync(path, s);
   maskSplitNames(lines);
   writeFileSync(path, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
 }
