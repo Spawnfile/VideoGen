@@ -8,7 +8,7 @@ import { extractFrame } from '../render/ffmpeg.ts';
 export const FRAME_BUDGET = 12;
 
 /** The draft a draft_review step is looking at: the MP4, its frame count (ffprobe) and where single frames go. */
-export interface ReviewTarget { video: string; frames: number; fps: number; durationS: number; outDir: string; used: number }
+export interface ReviewTarget { round: number; video: string; frames: number; fps: number; durationS: number; outDir: string; used: number }
 
 /**
  * In-process registry stepId → draft under review (single worker, spec §14). The step sets it before the reviewer session and
@@ -16,7 +16,16 @@ export interface ReviewTarget { video: string; frames: number; fps: number; dura
  */
 export class ReviewTargets {
   private m = new Map<string, ReviewTarget>();
-  set(stepId: string, t: Omit<ReviewTarget, 'used'>): void { this.m.set(stepId, { ...t, used: 0 }); }
+  /** Frames used per step and round: a worker-side retry of the same round registers again and keeps its count (final review M3). */
+  private spent = new Map<string, { used: number }>();
+  set(stepId: string, t: Omit<ReviewTarget, 'used'>): void {
+    const key = `${stepId}:${t.round}`;
+    const c = this.spent.get(key) ?? { used: 0 };
+    this.spent.set(key, c);
+    const target = { ...t } as ReviewTarget;
+    Object.defineProperty(target, 'used', { get: () => c.used, set: (v: number) => { c.used = v; }, enumerable: true });
+    this.m.set(stepId, target);
+  }
   get(stepId: string): ReviewTarget | undefined { return this.m.get(stepId); }
   delete(stepId: string): void { this.m.delete(stepId); }
 }

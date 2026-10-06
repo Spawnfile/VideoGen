@@ -16,7 +16,7 @@ async function target() {
   const video = join(runDir, 'draft.mp4');
   await fakeDraft(FFMPEG, video, { width: 540, height: 960, frames: 60 });
   const targets = new ReviewTargets();
-  targets.set('step-review', { video, frames: 60, fps: 30, durationS: 2, outDir: join(runDir, 'review', 'r0', 'frames') });
+  targets.set('step-review', { round: 0, video, frames: 60, fps: 30, durationS: 2, outDir: join(runDir, 'review', 'r0', 'frames') });
   return { runDir, targets };
 }
 
@@ -36,6 +36,13 @@ describe('extract_frames host (draft review)', () => {
     expect(size(join(runDir, crop.frames[0]!.path))).toBe('540,480');
     expect(crop.remaining).toBe(FRAME_BUDGET - 4);
     await expect(ports.extractFrames!({ times: Array.from({ length: 9 }, (_, i) => i / 10) })).rejects.toThrow('Kare bütçesi: bu incelemede en çok 12 tek kare; kalan 8.');
+    // A worker-side retry of the same round registers the draft again: the budget is kept (final review M3); a new round starts fresh.
+    const t = targets.get('step-review')!;
+    targets.delete('step-review');
+    targets.set('step-review', { ...t, round: 0 });
+    expect(targets.get('step-review')!.used).toBe(4);
+    targets.set('step-review', { ...t, round: 1 });
+    expect(targets.get('step-review')!.used).toBe(0);
   });
 
   it('gives the tool only to reviewer_visual inside a step with a registered draft; other hosts keep their ports', async () => {
