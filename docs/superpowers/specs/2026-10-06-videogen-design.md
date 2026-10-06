@@ -77,6 +77,9 @@ Bu doküman; kullanıcı gereksinimlerini, brainstorming ve grilling turlarında
 | K22 | GPU işlerini sadece orchestrator yapar; agent'lar MCP araçlarıyla ister | 6 GB VRAM'de iki GPU işi aynı anda çalışamaz; kuyruk, progress ve audit tek yerde kalır |
 | K23 | Geometrinin tek kaynağı bpy'dir; Blender dışa aktarılan GLB'yi Three.js taslağına verir | Tutarlılık düzeltmesi (§7.3) |
 | K24 | Remotion görüntüyü bir kez ve sessiz render eder; ses ffmpeg'de mastering yapılıp iki varyanta mux'lanır | Tutarlılık ve performans düzeltmesi (§7.6) |
+| K26 | Seslendirme build'den **önce** üretilir; storyboard gerçek TTS sürelerine göre yeniden zamanlanır | Görüntü-anlatım senkronu (rubrik P7); §7.1 |
+| K27 | Pipeline üçüncü taraf MCP'ye bağımlı değil; kare incelemesi kendi `extract_frames` aracımızla yapılır | claude-video-vision her açılışta `npx @latest` ile ağdan iniyor |
+| K28 | Tek origin (5180): API, SPA'yı da sunar; CORS kapalı | Host/Origin koruması tek origin varsayıyor |
 | K25 | Testler Playwright smoke (sistem Chrome) + kayıtlı gerçek stream'leri oynatan sahte Claude sürücüsü | Kullanıcı talebi; dag-wireboard'da kanıtlanmış desen |
 
 ## 5. Mimari
@@ -84,12 +87,12 @@ Bu doküman; kullanıcı gereksinimlerini, brainstorming ve grilling turlarında
 ### 5.1 Süreçler
 
 ```
-                ┌──────────────────────── tarayıcı (127.0.0.1:5180) ─────────────────────────┐
+                ┌──────────────────────── tarayıcı (http://127.0.0.1:5180) ──────────────────┐
                 │ React 19 SPA: Stüdyo · Kütüphane · Audit · Varlıklar · Ayarlar             │
                 └──────────────┬─────────────────────────────────────▲───────────────────────┘
                                │ HTTP (komutlar → 202)               │ SSE (olaylar, Last-Event-ID)
                 ┌──────────────▼─────────────────────────────────────┴───────────────────────┐
-                │ apps/api  (Fastify 5, 127.0.0.1:5181)                                       │
+                │ apps/api  (Fastify 5, 127.0.0.1:5180 — SPA'yı da aynı origin'den sunar)     │
                 │  - REST komutları: üret, iptal, chat mesajı, yayınla, varlık ekle            │
                 │  - SSE yayıncısı: LISTEN vg_events / vg_live → istemcilere                   │
                 │  - Medya sunucusu: HTTP Range ile MP4 / görsel                               │
@@ -113,8 +116,10 @@ Bu doküman; kullanıcı gereksinimlerini, brainstorming ve grilling turlarında
 ```
 
 - **Worker, tüm Claude süreçlerinin ve GPU'nun tek sahibidir.** Chat oturumları da Worker'da çalışır. API sadece mesajı iletir. Böylece süreç ve RAM sınırları tek yerde sayılır.
+- **Tek origin:** Üretimde API, derlenmiş SPA'yı (`apps/web/dist`) ve `/api/*`, `/events` uçlarını **aynı port üzerinden (5180)** sunar. Böylece CORS tamamen kapalı kalır ve Host/Origin koruması tek bir origin'i bekler. Geliştirmede Vite (5173) `/api` ve `/events` isteklerini 5180'e proxy'ler.
+- **Bir videoda tek aktif run:** Bir videonun aynı anda yalnızca bir yazan run'ı olur. Run sürerken chat analiz yapabilir. Chat düzenleme isteği ise kuyruğa girer ve bunu açıkça gösterir.
 - **Olay kanalları:**
-  - `vg_events`: kalıcı olaylar. Önce `INSERT` edilir, sonra `NOTIFY(id)` atılır. SSE tekrar oynatması bunun üzerinden yapılır.
+  - `vg_events`: kalıcı olaylar. Önce `ui_events` outbox tablosuna `INSERT` edilir, sonra `NOTIFY(id)` atılır. SSE'nin `id` alanı bu tablonun global sırasıdır; `Last-Event-ID` ile tekrar oynatma buradan yapılır.
   - `vg_live`: geçici olaylar. Token token metin akışı ve canlılık örnekleri; sadece `NOTIFY` (payload < 8 KB), tabloya yazılmaz.
   - `vg_commands`: API'den Worker'a giden komutlar.
 - **Başlatma:** `bin/videogen` sırayla şunları yapar: Postgres container'ını ayağa kaldırır, migration'ları uygular, API ve Worker'ı çocuk süreç olarak başlatır, çöken süreci artan bekleme süresiyle (backoff) yeniden başlatır, port hazır olunca tarayıcıyı açar.
@@ -179,8 +184,8 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 | Ayar | Değer | Neden |
 |---|---|---|
 | `settingSources` | `[]` | Kullanıcının global hook'ları (superpowers, last30days), plugin'leri ve MCP'leri yüklenmez (canlı denemede kanıtlandı) |
-| `strictMcpConfig` | `true`; sadece `videogen` (in-process) + gerekiyorsa `claude-video-vision` | |
-| `plugins` | `[{type:'local', path:'claude-plugin/'}]` | Skill'ler: remotion-\*, ffmpeg, video-use, manim-video (symlink); rol agent'ları; uyarlanmış kılavuzlar |
+| `strictMcpConfig` | `true`; sadece `videogen` (in-process) | Pipeline, üçüncü taraf MCP'lere bağımlı değil. claude-video-vision `npx @latest` ile her açılışta ağdan iniyor (tedarik zinciri ve tekrarlanabilirlik riski). Kare inceleme bizim `extract_frames` aracımız + Read ile yapılır |
+| `plugins` | `[{type:'local', path:'claude-plugin/'}]` | Skill'ler: remotion-\*, ffmpeg, video-use, manim-video (symlink); rol agent'ları; uyarlanmış kılavuzlar. Plugin üzerinden skill yüklemesi M0'da doğrulanır |
 | `env` | Temizlenmiş: `CLAUDECODE` ve `CLAUDE_CODE_*` çıkarılır; `ENABLE_TOOL_SEARCH=false`; pipeline rollerinde `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` | Ertelenmiş araçlar ekstra bir tur maliyeti getirir; arka plan alt görevleri birden fazla `result` olayı üretir |
 | `permissionMode` | `dontAsk` + `permissionPrompts:'none'` + `canUseTool` yol koruması | Gözetimsiz çalışma. **`bypassPermissions` asla** (ev klasöründe gerçek projeler ve kimlik bilgileri var) |
 | `includePartialMessages`, `forwardSubagentText`, `agentProgressSummaries` | `true` | Canlı iz ve alt ajan görünürlüğü |
@@ -196,8 +201,8 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 | **researcher** | Sonnet / high | WebSearch, WebFetch, Read, Write (`run/research/`); MCP: `report_progress` | `ProductResearch` | 40 |
 | **storyboarder** | Opus / high | Read; MCP: `read_spec`, `report_progress` | `Storyboard` | 20 |
 | **builder** ("video üretim agent'ı") | Opus / high | Read, Write, Edit (`run/scene/`), izin listeli Bash; MCP: `build_scene`, `render_preview_stills`, `render_draft`, `read_spec`, `write_spec(scene)`, `report_progress` | `SceneSpec` + `product.py` | 60 |
-| **audio_director** | Sonnet / medium | Read; MCP: `tts_synthesize`, `align_captions`, `search_assets`, `write_spec(audio)` | `AudioPlan` | 25 |
-| **reviewer_visual** (görsel + anti-slop) | Opus / high | Read; MCP: `extract_frames`, `run_qc`; plugin: video-vision | `Review` | 25 |
+| **audio_director** | Sonnet / medium | Read; MCP: `tts_synthesize`, `align_captions`, `search_assets`, `read_spec`, `write_spec(audio)` | `AudioPlan` | 25 |
+| **reviewer_visual** (görsel + anti-slop) | Opus / high | Read; MCP: `extract_frames`, `run_qc` | `Review` | 25 |
 | **reviewer_facts** (doğruluk + storyboard uygunluğu) | Sonnet / high | Read, WebFetch, WebSearch; MCP: `read_spec`, `extract_frames` | `Review` | 25 |
 | **reviewer_retention** (kanca, tempo, TikTok) | Sonnet / high | Read; MCP: `extract_frames`, `run_qc`, `read_spec` | `Review` | 20 |
 | **fixer** | Görsel/anlatı hatası → Opus/high; teknik hata → Sonnet/high | Read, Write, Edit (run), izin listeli Bash; MCP: `write_spec`, `build_scene`, `render_preview_stills`, `report_progress` | `FixReport` | 40 |
@@ -260,18 +265,21 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 | # | Adım | Ağırlık | Yapan | Girdi → Çıktı | Tahmini süre (45 sn video) | İlerleme kaynağı |
 |---|---|---|---|---|---|---|
 | 1 | research | 8 | researcher | ürün adı → `ProductResearch` (+ zorluk seviyesi) | 4–6 dk | agent |
-| 2 | storyboard | 7 | storyboarder | research → `Storyboard` | 2–4 dk | agent |
-| 3 | build | 18 | builder | storyboard → `SceneSpec`, `product.py`, `.blend`, `scene.glb`, önizleme kareleri | 15–35 dk | agent + build olayları |
-| 4 | draft_render | 4 | orchestrator | GLB + SceneSpec → taslak MP4 | ~1 dk | **render (gerçek kare)** |
-| 5 | draft_review | 5 | reviewer_visual (tek) | taslak kareleri → bulgular; gerekirse 3'e dönüş (**en fazla 2 tur**, final 3 turdan ayrı) | 3 dk | agent |
-| 6 | audio | 8 | audio_director + ses servisi | storyboard + zamanlama → VO, altyazılar, SFX cue listesi, müzik seçimi, stem'ler | 3–6 dk | agent + TTS satır sayısı |
+| 2 | storyboard | 7 | storyboarder | research → `Storyboard` (tahmini vuruş süreleriyle) | 2–4 dk | agent |
+| 3 | voice | 5 | audio_director + ses servisi | **sadece VO modunda.** Storyboard → normalize metin → TTS → Whisper hizalama → gerçek satır süreleri → **storyboard'un yeniden zamanlanmış yeni sürümü** + altyazılar + müzik seçimi | 3–6 dk | agent + TTS satır sayısı |
+| 4 | build | 18 | builder | storyboard (son zamanlama) → `SceneSpec`, `product.py`, `.blend`, `scene.glb`, `events.json`, önizleme kareleri | 15–35 dk | agent + build olayları |
+| 5 | draft_render | 4 | orchestrator | GLB + SceneSpec (+ VO) → taslak MP4 | ~1 dk | **render (gerçek kare)** |
+| 6 | draft_review | 5 | reviewer_visual (tek) | taslak kareleri → bulgular; gerekirse 4'e dönüş (**en fazla 2 tur**, final 3 turdan ayrı) | 3 dk | agent |
 | 7 | final_render | 26 | orchestrator | `.blend` → RGBA PNG kareleri (1350 kare × ~1 sn) | ~23 dk | **render (`Fra:`)** |
-| 8 | compose | 7 | orchestrator | kareler + Remotion katmanı → sessiz video; ffmpeg mastering → müzikli ve müziksiz mux | ~4 dk | **render (`onProgress`)** |
+| 8 | compose | 10 | orchestrator | kareler + Remotion katmanı → sessiz video; `events.json`'dan deterministik SFX cue'ları; ffmpeg mastering → müzikli ve müziksiz mux | ~5 dk | **render (`onProgress`)** |
 | 9 | qc | 2 | orchestrator | iki varyant → otomatik kapı raporu | < 5 sn | deterministik |
 | 10 | review | 12 | 3 reviewer paralel | müzikli varyant + manifestler → puan ve bulgular | 4–6 dk | agent (3 kart) |
 | 11 | finalize | 3 | orchestrator | en iyi sürüm, `cover.png`, bitirme kartı, karelerin silinmesi | < 1 dk | deterministik |
 
+- **Sıralama gerekçesi:** Patlatma animasyonunun zamanlaması build adımında sabitlenir. Seslendirme build'den sonra üretilseydi, gerçek TTS süreleri storyboard tahminlerinden saptığında görüntü ile anlatım kayardı (rubrik P7: anlatılan parça ±0,5 sn içinde ekranda olmalı). Bu yüzden VO önce üretilir ve storyboard gerçek sürelere göre yeniden zamanlanır. SFX ise `events.json`'a bağlı olduğu için compose aşamasında kalır.
+- **Seslendirmesiz modda** `voice` adımı `skipped` olur. Ağırlığı plandan çıkarılır ve kalan ağırlıklar toplam 100 olacak şekilde orantılı olarak ölçeklenir. Müzik seçimi bu modda build'in başında audio_director tarafından kısa bir alt görevle yapılır.
 - **Toplam:** ~60–90 dk, düzeltme turları hariç. Gerçek süreler ölçülür ve sonraki tahminlerde kullanılır; ETA geçmiş ölçümlerden gelir.
+- **Run klasörü tohumlama:** Düzeltme ve chat run'larında `runs/<runId>/` klasörü, ebeveyn sürümün artefaktlarıyla (spec'ler, `product.py`, `.blend`, stem'ler) tohumlanır. Agent'lar sürümler arasında dosya paylaşmaz.
 - **Zorluk kapısı:** Araştırma ürünü "zor" bulursa (prosedürel olarak modellenemiyor ve lisanslı CC0 model de yok), run 1. adımın sonunda **gerekçeli** olarak "insan gerekli" durumuna düşer. Basit görünen bir video üretmektense durmak tercih edilir.
 - **Belirsiz ürün adı:** Agent en yaygın yorumu seçer, seçimini `ProductResearch.interpretation` alanına yazar ve arayüzde gösterir.
 
@@ -286,8 +294,9 @@ Fixer'a **sadece başarısız kontrol kimlikleri, kanıtları ve düzeltme ipuç
 
 | Düzeltme türü | Yeniden çalışanlar |
 |---|---|
-| Metin, etiket, altyazı, zamanlama (Remotion katmanı) | compose → qc → review (~6 dk) |
-| Ses (VO, SFX, müzik, seviye) | audio → compose → qc → review |
+| Metin, etiket, altyazı (Remotion katmanı) | compose → qc → review (~6 dk) |
+| SFX, müzik, seviye | compose → qc → review |
+| VO metni veya telaffuz | voice → (herhangi bir vuruşun süresi ±0,3 sn'den fazla değiştiyse build'den itibaren tamamı, değişmediyse) compose → qc → review |
 | Geometri, malzeme, ışık, kamera | build → draft_render → final_render → compose → qc → review (~35 dk) |
 | Storyboard (yeniden işleme) | storyboard'dan itibaren tamamı |
 
@@ -306,7 +315,7 @@ Fixer'a **sadece başarısız kontrol kimlikleri, kanıtları ve düzeltme ipuç
   - **Dışa aktarımlar:** `anchors.json`, `events.json`, BVH çakışma raporu, `scene.glb`
 - `build_scene()` Blender'ı headless ve render'sız çalıştırır (CPU, saniyeler). Çıktılar `.blend` ve `scene.glb`.
 - Three.js taslağı `scene.glb`'yi yükler. Patlatma ve kamerayı **aynı SceneSpec anahtar karelerinden** interpolasyonla üretir. Gölgelendirme daha basittir ama düzen, kamera, zamanlama ve etiketler aynıdır.
-- **Eşdeğerlik testi:** Her build'de Blender ve Three.js, seçili 5 karede anchor'ların ekran konumlarını üretir. Fark 8 px'ten fazlaysa build başarısız sayılır. Konvansiyonlar: 1 birim = 1 cm; Blender Z-yukarı, glTF Y-yukarı dönüşümü.
+- **Eşdeğerlik testi:** Her build'de seçili 5 karede anchor'ların ekran konumları iki taraftan hesaplanır: Blender tarafında `anchors.json`, Three.js tarafında Node içinde `three` matematiğiyle (`Vector3.project`; render yok, GPU yok, milisaniyeler). Fark 8 px'ten fazlaysa build başarısız sayılır. Konvansiyonlar: 1 birim = 1 cm; Blender Z-yukarı, glTF Y-yukarı dönüşümü; kamera FOV'u lens ve sensör genişliğinden türetilir.
 - **Pilottan öğrenilenler (kütüphane varsayılanları):**
   - kapalı yay uçları
   - mekanizmanın çalıştığı yeri gösteren zorunlu bir "mekanizma çekimi"
@@ -331,7 +340,8 @@ Fixer'a **sadece başarısız kontrol kimlikleri, kanıtları ve düzeltme ipuç
 | `SceneSpec` | `units:'cm'`, `parts[]{id, recipe \| asset_ref, material_preset, explode{vector, t_start, t_end, ease}, anchor_local}`, `camera_keys[]`, `lighting_preset`, `style_id` (kanal kimliği), `fps:30`, `frames` |
 | `AudioPlan` | `mode`, `vo_lines[]{beat_id, text_tr, normalized_tr, wav, start_ms}`, `captions[]` (Remotion `Caption`), `sfx[]{event_id, asset_id, offset_ms, gain_db}`, `music{asset_id, gain_db}?`, `mastering{target_lufs:-14, tp:-1}` |
 | Manifestler | `anchors.json`, `events.json` (`explode_start`, `part_lock`, `label_in`, `zoom`), `layout.json` (metin kutuları, px, renk), `provenance.json` (varlık, araç, model, lisans), `claims.json` |
-| `Review` | `rubric_version`, `checks[]{id, pass, score, evidence{frame, timecode, crop}, fix_hint}`, `dimension_scores`, `gates`, `total`, `verdict` |
+| `Review` | `rubric_version`, `reviewer_role`, `checks[]{id, pass, score, evidence{frame, timecode, crop}, fix_hint}`, `dimension_scores` (sadece rolün sahip olduğu boyutlar, §8.2), `gate_results` |
+| `FixReport` | `round`, `addressed[]{check_id, change_summary_tr, files[]}`, `not_addressed[]{check_id, reason}`, `rerender_scope` (`compose` \| `voice` \| `build` \| `storyboard`), `spec_diffs[]` |
 
 Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` olarak tutulur, böylece sorgulanabilir.
 
@@ -344,7 +354,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
 ### 7.6 Ses ve iki varyant
 
-- **VO modu:**
+- **VO modu (`voice` adımı, build'den önce):**
   1. Türkçe metin normalizasyonu: sayılar, birimler, kısaltmalar, ondalık virgül
   2. Cümle bazında TTS
   3. Whisper ile kelime zamanları; senaryo metniyle eşleştirilir; CER > %5 ise yeni seed ile yeniden üretilir
@@ -352,11 +362,11 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
   5. 48 kHz'e yeniden örnekleme
 - **Seslendirmesiz mod:** Her vuruşu metin ve SFX taşır.
 - **SFX:** `events.json`'dan otomatik cue çıkarılır. Örneğin `explode_start` → whoosh, `part_lock` → click/snap. Başlangıç zamanı ±1 kare doğrulukta; aynı ses 10 sn içinde en fazla 3 kez çalınır.
-- **Mastering (ffmpeg):** Sidechain ducking ile müzik konuşma altında 10–14 dB düşer. İki geçişli `loudnorm` ile −14 LUFS / −1 dBTP hedeflenir; sonuç `ebur128` ile doğrulanır. Not: −14 LUFS resmi bir TikTok değeri değil, kanal konvansiyonudur.
+- **Mastering (ffmpeg, `compose` adımında):** Sidechain ducking ile müzik konuşma altında 10–14 dB düşer. İki geçişli `loudnorm` ile −14 LUFS / −1 dBTP hedeflenir; sonuç `ebur128` ile doğrulanır. Not: −14 LUFS resmi bir TikTok değeri değil, kanal konvansiyonudur.
 - **Varyantlar:** Remotion videoyu **bir kez ve sessiz** render eder. Ses iki varyant için ayrı ayrı mux'lanır (`-c:v copy`):
   - `final_music.mp4` → asıl sürüm; Shorts ve arşiv için
   - `final_tiktok.mp4` → müziksiz; TikTok'a varsayılan olarak bu gider
-- **Disk:** Compose ve QC geçtikten sonra PNG kareleri silinir. Kalıcı olarak tutulanlar:
+- **Disk:** PNG kareleri, run son durumuna (`ready`, `needs_human`, `failed`, `cancelled`) ulaşınca `finalize`/temizlik adımında silinir. QC'den hemen sonra silinmez, çünkü sadece metin düzelten (compose kapsamlı) bir tur bu kareleri yeniden kullanır; silinmiş olsalar ~23 dk'lık Blender render'ı boşa tekrarlanırdı. Disk muhafızı aktif run'ların karelerini hesaba katar. Kalıcı olarak tutulanlar:
   - MP4 varyantları
   - taslak MP4
   - kontakt sayfaları
@@ -400,11 +410,21 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
 ### 8.2 Doğrulayıcı sırası (önce ucuz kontroller)
 
-1. **AUTO (~2 sn):** qc_probe (ffprobe, `ebur128`, `blackdetect`, `freezedetect`, `scdet`, SSIM). Kapılar başarısızsa LLM reviewer'lar hiç çalışmaz; doğrudan fixer'a gidilir.
+1. **AUTO (~2 sn):** qc_probe (ffprobe, `ebur128`, `blackdetect`, `freezedetect`, `scdet`, SSIM). Otomatik doğrulanabilen kapılardan (G1, G6 ve G5'in flaş kontrolü) biri başarısızsa LLM reviewer'lar hiç çalışmaz; doğrudan fixer'a gidilir. Böylece bariz teknik hatalar için kullanım limiti harcanmaz.
 2. **MANIFEST:** `layout.json`, `anchors.json`, `events.json` ve storyboard üzerinden güvenli alan, punto, kalma süresi, olay yoğunluğu ve SFX senkron kontrolleri.
 3. **VISION:** reviewer_visual. Saniyede 1 kare, segment sınırlarında ek kareler, 540×960 ve üstü çözünürlük, 12 karelik kontakt sayfası, 2× kırpmalar, güvenli alan katmanı.
 4. **WEB:** reviewer_facts. Sayısal iddiaların hepsi ve URL'lerin rastgele %30'u yeniden doğrulanır; storyboard uygunluğu kontrol edilir.
 5. **Retention:** reviewer_retention. Kanca, ikinci kanca, ödül, döngü, slop ifadeleri.
+
+**Boyut sahipliği ve toplam puan.** Her boyutun puanını tek bir sahip verir; toplam bu puanların toplamıdır. Bir boyutun hem otomatik hem görsel kontrolleri varsa otomatik kontroller sahibine girdi olarak verilir.
+
+| Sahip | Boyutlar ve kapılar |
+|---|---|
+| orchestrator (AUTO + MANIFEST, LLM yok) | D6 Ses, D7 Teknik cila, G1, G6, G5 (flaş) |
+| reviewer_visual | D2 Görsel zanaat, D3 Hareket/tempo, D5 Tipografi/etiketler, D9 Özgünlük/anti-slop, G3 (görsel kısmı), G5 (gerçek çekim yanılsaması) |
+| reviewer_facts | D4 Bilgi/doğruluk, G2, storyboard uygunluğu (D4 içinde) |
+| reviewer_retention | D1 Kanca, D8 Döngü/izlenme |
+| orchestrator (kural) | G4 (AIGC kararı: ses seçimi ve provenance'tan deterministik) |
 
 ### 8.3 Kendi kendini onaylamaya karşı önlemler
 
@@ -457,8 +477,9 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | `products` | id, name, normalized_name, difficulty, created_at |
 | `videos` | id, product_id, title, audio_mode, language, status (`queued`/`running`/`ready`/`needs_human`/`failed`/`cancelled`/`published`), current_version_id, best_version_id |
 | `runs` | id, video_id, kind (`produce`/`fix`/`chat_edit`/`rerender`), trigger, parent_run_id, plan (jsonb: adımlar + ağırlıklar), progress, eta_s, status, started_at, ended_at |
-| `steps` | id, run_id, key, ordinal, weight, status (`pending`/`queued`/`running`/`waiting_gpu`/`waiting_limit`/`waiting_disk`/`done`/`failed`/`skipped`/`cancelled`), progress, progress_source (`render`/`agent`/`time`/`deterministic`), attempt, input_hash, lease_owner, lease_expires_at, error |
-| `jobs` | id, step_id, resource (`gpu`/`heavy_cpu`/`claude`/`chat`), priority, status, run_after, lease_owner, lease_expires_at, payload |
+| `steps` | id, run_id, key, ordinal, weight, status (`pending`/`queued`/`running`/`waiting_gpu`/`waiting_limit`/`waiting_disk`/`done`/`failed`/`skipped`/`cancelled`), progress, progress_source (`render`/`agent`/`time`/`deterministic`), attempt, input_hash, error, started_at, ended_at |
+| `jobs` | id, step_id, resource (`gpu`/`heavy_cpu`/`claude`/`chat`), priority, status, run_after, lease_owner, lease_expires_at, heartbeat_at, payload. **Kira (lease) yalnızca burada tutulur;** adım durumu `steps`'te |
+| `ui_events` | id (bigserial, SSE `id`), ts, topic (`run:<id>` / `video:<id>` / `session:<id>` / `system`), type, payload. Arayüzün kalıcı olay outbox'ı. Türetilmiş veri olduğu için 30 gün saklanır; asıl kayıt `audit_log` ve `agent_events`'tedir |
 | `versions` | id, video_id, parent_version_id, round, spec_hash, src_hash, reason, created_by_session_id |
 | `blobs` | sha256 (PK), path, bytes, mime, created_at |
 | `artifacts` | id, version_id, run_id, kind, blob_sha, content (jsonb, JSON türleri için), duration_ms, width, height, codec, meta |
@@ -622,7 +643,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
 | Durum | Davranış |
 |---|---|
-| Worker çöktü veya yeniden başladı | Açılışta PID dosyası ve süreç grubu üzerinden yetim süreçler öldürülür. Kirası (lease, 30 sn heartbeat, 2 dk süre) dolan adımlar yeniden kuyruğa girer. Adımlar `input_hash` ile idempotenttir; geçerli çıktısı olan adım yeniden çalışmaz |
+| Worker çöktü veya yeniden başladı | Açılışta PID dosyası ve süreç grubu üzerinden yetim süreçler öldürülür. Kirası (`jobs` tablosunda; 30 sn heartbeat, 2 dk süre) dolan işler yeniden kuyruğa girer ve adımları `queued` durumuna döner. Adımlar `input_hash` ile idempotenttir; geçerli çıktısı olan adım yeniden çalışmaz |
 | Agent hatası | Aynı oturum `resume` ile bir kez yeniden denenir. Şema doğrulama hatasında oturum içinde en fazla 2 kez yeniden istenir. Model aşırı yüklüyse yedek modele geçilir |
 | Kullanım limiti | `waiting_limit` durumuna geçilir; `resetsAt` anında kendiliğinden devam edilir; kartta geri sayım gösterilir |
 | GPU bellek yetmedi | Bir kez daha düşük ayarlarla denenir (EEVEE 64→32 örnek, Remotion concurrency 2→1). Yine olmazsa gerekçeli hata verilir |
@@ -661,7 +682,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
 **İzolasyon:**
 - Aynı container'da ayrı bir `videogen_test` veritabanı kullanılır; her koşuda oluşturulup silinir.
-- Veri klasörü `$TMPDIR/videogen-test-<id>`; portlar 5190/5191.
+- Veri klasörü `$TMPDIR/videogen-test-<id>`; test API'si (SPA dahil) 5190, TikTok mock sunucusu rastgele port.
 - `~/videogen-data`'ya asla dokunulmaz.
 - Testler `channel:'chrome'` ile çalışır. Hata durumunda trace ve ekran görüntüsü alınır.
 
