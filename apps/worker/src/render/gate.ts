@@ -1,7 +1,7 @@
 import { precheck, type Probe } from '../pipeline/resources.ts';
 import { AbortedError, type LockedResource, type ResourceLocks } from './locks.ts';
 
-export interface WaitInfo { position?: number; reason?: string }
+export interface WaitInfo { position?: number; reason?: string; status?: 'waiting_gpu' | 'waiting_disk' }
 export interface GateOptions {
   owner: string;
   signal?: AbortSignal;
@@ -29,7 +29,7 @@ export async function withResource<T>(locks: ResourceLocks, r: LockedResource, o
       for (;;) {
         const pc = precheck(r, await o.probe.snapshot(), o.extraDiskMb ?? 0);
         if (pc.ok) break;
-        o.onWait?.({ reason: pc.reason });
+        o.onWait?.({ reason: pc.reason, status: pc.status });
         await sleep(o.waitMs ?? 15_000, o.signal);
       }
     }

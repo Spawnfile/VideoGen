@@ -54,7 +54,7 @@ async function buildContext(deps: StepDeps, name = 'Tükenmez kalem', attempt = 
   const step = (await listRunSteps(t.pool, r.runId)).find((s) => s.key === 'build')!;
   const calls = { status: [] as string[], sessions: [] as string[] };
   const ctx: StepContext = {
-    runId: r.runId, stepId: step.id, key: 'build', attempt, videoId: r.videoId, productId: r.productId, productName: name, audioMode, versionId: r.versionId, runDir,
+    runId: r.runId, stepId: step.id, key: 'build', attempt, round: 0, videoId: r.videoId, productId: r.productId, productName: name, audioMode, versionId: r.versionId, runDir,
     signal: new AbortController().signal, progress: () => {}, status: (s) => { calls.status.push(s); }, session: (id) => { calls.sessions.push(id); },
   };
   return { r, ctx, calls };
