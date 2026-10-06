@@ -168,16 +168,21 @@ export async function setProductDifficulty(db: Queryable, productId: string, dif
   await db.query('UPDATE products SET difficulty = $2 WHERE id = $1', [productId, difficulty]);
 }
 
-export interface NewArtifact { runId: string; stepId?: string | null; versionId?: string | null; kind: string; blobSha?: string | null; content?: unknown; inputHash?: string | null; meta?: unknown }
-export type ArtifactRecord = ArtifactMeta & { content: unknown; inputHash: string | null };
+export interface NewArtifact {
+  runId: string; stepId?: string | null; versionId?: string | null; kind: string; blobSha?: string | null; content?: unknown; inputHash?: string | null; meta?: unknown;
+  /** Video artifacts (spec §11.1): length and stream facts from ffprobe. */
+  durationMs?: number | null; width?: number | null; height?: number | null; codec?: string | null;
+}
+export type ArtifactRecord = ArtifactMeta & { content: unknown; inputHash: string | null; meta: unknown };
 const toMeta = (r: Record<string, any>): ArtifactMeta => ({ id: r.id, runId: r.run_id, stepId: r.step_id, versionId: r.version_id, kind: r.kind, blobSha: r.blob_sha, createdAt: iso(r.created_at)! });
-const toArtifact = (r: Record<string, any>): ArtifactRecord => ({ ...toMeta(r), content: r.content, inputHash: r.input_hash });
+const toArtifact = (r: Record<string, any>): ArtifactRecord => ({ ...toMeta(r), content: r.content, inputHash: r.input_hash, meta: r.meta });
 
 export async function insertArtifact(db: Queryable, a: NewArtifact): Promise<ArtifactMeta> {
   const { rows } = await db.query(
-    `INSERT INTO artifacts (id, run_id, step_id, version_id, kind, blob_sha, content, input_hash, meta, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, clock_timestamp()) RETURNING *`,
-    [randomUUID(), a.runId, a.stepId ?? null, a.versionId ?? null, a.kind, a.blobSha ?? null, a.content === undefined ? null : JSON.stringify(a.content), a.inputHash ?? null, a.meta === undefined ? null : JSON.stringify(a.meta)],
+    `INSERT INTO artifacts (id, run_id, step_id, version_id, kind, blob_sha, content, input_hash, meta, duration_ms, width, height, codec, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, clock_timestamp()) RETURNING *`,
+    [randomUUID(), a.runId, a.stepId ?? null, a.versionId ?? null, a.kind, a.blobSha ?? null, a.content === undefined ? null : JSON.stringify(a.content), a.inputHash ?? null,
+      a.meta === undefined ? null : JSON.stringify(a.meta), a.durationMs ?? null, a.width ?? null, a.height ?? null, a.codec ?? null],
   );
   return toMeta(rows[0]);
 }
