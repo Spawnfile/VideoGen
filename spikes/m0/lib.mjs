@@ -43,9 +43,20 @@ export async function record(name, prompt, extra = {}) {
   const lines = [];
   const q = query({ prompt, options: { ...baseOptions(extra.cwd), ...(extra.options ?? {}) } });
   if (extra.onQuery) extra.onQuery(q);
-  for await (const m of q) lines.push({ t: Date.now() - t0, m });
-  writeFileSync(resolve(FIXTURES, `${name}.ndjson`), lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
-  return lines.map((l) => l.m);
+  let error;
+  try {
+    for await (const m of q) lines.push({ t: Date.now() - t0, m });
+  } catch (e) {
+    // extra.tolerateError: RegExp for the one expected error (interrupt() makes the SDK iterator throw after the
+    // final result message); anything else (spawn/auth failure, ...) rethrows
+    if (!(extra.tolerateError instanceof RegExp && extra.tolerateError.test(String(e?.message)))) throw e;
+    error = e;
+  } finally {
+    if (lines.length) writeFileSync(resolve(FIXTURES, `${name}.ndjson`), lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+  }
+  const msgs = lines.map((l) => l.m);
+  msgs.error = error;
+  return msgs;
 }
 
 export function fail(errors) {
