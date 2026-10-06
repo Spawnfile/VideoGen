@@ -69,6 +69,8 @@ export interface RunView {
   steps: StepView[];
 }
 export interface VideoUsage { sessions: number; tokens: number; costUsd: number | null; fiveHourDelta: number | null }
+/** The latest draft of a video (library cover and length, spec §13.1). */
+export interface VideoDraft { videoSha: string; coverSha: string | null; durationS: number }
 export interface VideoView {
   id: string;
   productId: string;
@@ -82,6 +84,7 @@ export interface VideoView {
   createdAt: string;
   updatedAt: string;
   usage: VideoUsage;
+  draft: VideoDraft | null;
 }
 export interface ArtifactMeta { id: string; runId: string; stepId: string | null; versionId: string | null; kind: string; blobSha: string | null; createdAt: string }
 

@@ -46,7 +46,10 @@ export const ffprobeOf = (ffmpeg: string) => (/ffmpeg$/.test(ffmpeg) ? ffmpeg.re
 /** Fake render driver (spec §16.1): a test-pattern draft tagged exactly like the real one, so it passes the same probe. */
 export function fakeDraft(ffmpeg: string, out: string, o: { width: number; height: number; frames: number; signal?: AbortSignal }): Promise<void> {
   return run(ffmpeg, [
-    '-f', 'lavfi', '-i', `testsrc2=s=${o.width}x${o.height}:r=30`, '-frames:v', String(o.frames), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+    // The calm stand-in of testStill (night-blue backdrop, a pen-like bar) that drifts, so the player visibly advances; no loud test pattern in the UI.
+    '-f', 'lavfi', '-i', `color=c=0x16203a:s=${o.width}x${o.height}:r=30`,
+    '-vf', `drawbox=x=${Math.round(o.width * 0.45)}+${Math.round(o.width * 0.15)}*sin(t*2):y=${Math.round(o.height * 0.18)}:w=${Math.round(o.width * 0.1)}:h=${Math.round(o.height * 0.62)}:color=0x2f6bd8:t=fill`,
+    '-frames:v', String(o.frames), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
     '-pix_fmt', 'yuv420p', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', '-movflags', '+faststart', out,
   ], o.signal);
 }
