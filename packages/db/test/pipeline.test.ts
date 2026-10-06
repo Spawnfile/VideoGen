@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   createProduceRun, findArtifact, getArtifact, getRunView, getVideoView, insertArtifact, insertSession, latestArtifact, latestUsageMark,
-  listArtifacts, listRunSteps, listVideoViews, stepHistorySeconds, updateRun, updateSession, updateStep,
+  listArtifacts, listRunSteps, listVideoViews, queueStepIfRunActive, startStepIfRunActive, stepHistorySeconds, updateRun, updateSession, updateStep,
 } from '../src/index.ts';
 import { createTestDb } from './helpers.ts';
 
@@ -102,5 +102,24 @@ describe('artifacts and history', () => {
     expect(await latestUsageMark(t.pool)).toBeNull();
     await t.pool.query("INSERT INTO usage_snapshots (source, five_hour_util, five_hour_resets_at, seven_day_util) VALUES ('get_usage', 0.42, '2026-10-06T15:00:00Z', 0.2)");
     expect(await latestUsageMark(t.pool)).toEqual({ fiveHour: 0.42, fiveHourResetsAt: '2026-10-06T15:00:00.000Z', sevenDay: 0.2 });
+  });
+});
+
+describe('conditional step transitions (cancel races)', () => {
+  it('queues or starts a step only while its run is running and the step is still waiting for it', async () => {
+    const a = await produce('Delgeç');
+    const [first, second] = await listRunSteps(t.pool, a.runId);
+    expect(await queueStepIfRunActive(t.pool, first!.id)).toBe(false); // run still queued
+    await updateRun(t.pool, a.runId, { status: 'running' });
+    expect(await queueStepIfRunActive(t.pool, first!.id)).toBe(true);
+    expect(await queueStepIfRunActive(t.pool, first!.id)).toBe(false); // already queued
+    expect(await startStepIfRunActive(t.pool, first!.id, 1)).toBe(true);
+    expect((await listRunSteps(t.pool, a.runId))[0]).toMatchObject({ status: 'running', attempt: 1 });
+    await updateRun(t.pool, a.runId, { status: 'cancelled' });
+    await updateStep(t.pool, second!.id, { status: 'queued' });
+    expect(await startStepIfRunActive(t.pool, second!.id, 1)).toBe(false);
+    await updateStep(t.pool, second!.id, { status: 'pending' });
+    expect(await queueStepIfRunActive(t.pool, second!.id)).toBe(false);
+    expect((await listRunSteps(t.pool, a.runId))[1]!.status).toBe('pending');
   });
 });

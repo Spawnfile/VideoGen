@@ -5,6 +5,7 @@ import {
   type StepKey, type StepStatus, type StepView, type UsageMark, type VideoStatus, type VideoView,
 } from '@videogen/shared';
 import { appendAudit } from './audit.ts';
+import { publishEvent } from './events.ts';
 import type { Queryable } from './client.ts';
 
 const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() : null);
@@ -211,4 +212,80 @@ export async function latestUsageMark(db: Queryable): Promise<UsageMark | null> 
   const { rows } = await db.query('SELECT five_hour_util, five_hour_resets_at, seven_day_util FROM usage_snapshots ORDER BY id DESC LIMIT 1');
   const r = rows[0];
   return r ? { fiveHour: round4(r.five_hour_util), fiveHourResetsAt: iso(r.five_hour_resets_at), sevenDay: round4(r.seven_day_util) } : null;
+}
+
+/**
+ * Both views after any run/step/video change (API and worker publish the same shapes). The read and the inserts share one
+ * transaction that first takes the publisher's advisory lock (72720001, migration 0003): a concurrent update cannot slip
+ * an older snapshot in after a newer one, so the event stream is as monotone as the rows.
+ */
+export async function publishRunAndVideo(pool: pg.Pool, runId: string): Promise<void> {
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    await c.query('SELECT pg_advisory_xact_lock(72720001)');
+    const run = await getRunView(c, runId);
+    if (run) {
+      await publishEvent(c, { topic: 'runs', type: 'run.updated', payload: run });
+      const video = await getVideoView(c, run.videoId);
+      if (video) await publishEvent(c, { topic: 'videos', type: 'video.updated', payload: video });
+    }
+    await c.query('COMMIT');
+  } catch (e) {
+    await c.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    c.release();
+  }
+}
+
+/**
+ * Atomic, monotone step progress (≤ 99 while running). A `time` estimate never overwrites an `agent`/`render` value.
+ * Returns the run id when something changed.
+ */
+export async function bumpStepProgress(db: Queryable, stepId: string, percent: number, source: ProgressSource): Promise<string | null> {
+  const { rows } = await db.query(
+    `UPDATE steps SET progress = GREATEST(progress, LEAST(99, $2::real)), progress_source = $3
+     WHERE id = $1 AND status = 'running'
+       AND NOT ($3 = 'time' AND coalesce(progress_source, '') IN ('agent', 'render')) -- NULL-safe: a fresh step has no source
+       AND (GREATEST(progress, LEAST(99, $2::real)) <> progress OR progress_source IS DISTINCT FROM $3)
+     RETURNING run_id`,
+    [stepId, Math.round(percent * 10) / 10, source],
+  );
+  return rows[0]?.run_id ?? null;
+}
+
+/** Status change only while the step is active (queued/running/waiting_*); returns the run id when it changed. `note` undefined keeps the note. */
+export async function setStepStatusIfActive(db: Queryable, stepId: string, status: StepStatus, note?: string | null): Promise<string | null> {
+  const { rows } = await db.query(
+    `UPDATE steps SET status = $2, note = CASE WHEN $3::boolean THEN $4 ELSE note END
+     WHERE id = $1 AND status IN ('queued', 'running', 'waiting_gpu', 'waiting_limit', 'waiting_disk')
+       AND (status IS DISTINCT FROM $2 OR ($3::boolean AND note IS DISTINCT FROM $4))
+     RETURNING run_id`,
+    [stepId, status, note !== undefined, note ?? null],
+  );
+  return rows[0]?.run_id ?? null;
+}
+
+/** Run progress only rises (spec §12.1). */
+export async function raiseRunProgress(db: Queryable, runId: string, progress: number, etaS: number | null): Promise<void> {
+  await db.query('UPDATE runs SET progress = GREATEST(progress, $2::real), eta_s = $3 WHERE id = $1', [runId, progress, etaS]);
+}
+
+const RUN_IS_RUNNING = "EXISTS (SELECT 1 FROM runs r WHERE r.id = steps.run_id AND r.status = 'running')";
+
+/** pending → queued only while the run is running: a cancel that lands mid-advance cannot be undone. */
+export async function queueStepIfRunActive(db: Queryable, stepId: string): Promise<boolean> {
+  const { rowCount } = await db.query(`UPDATE steps SET status = 'queued' WHERE id = $1 AND status = 'pending' AND ${RUN_IS_RUNNING}`, [stepId]);
+  return (rowCount ?? 0) > 0;
+}
+
+/** queued/waiting_* → running only while the run is running: a cancel that lands mid-launch keeps the step from starting. */
+export async function startStepIfRunActive(db: Queryable, stepId: string, attempt: number): Promise<boolean> {
+  const { rowCount } = await db.query(
+    `UPDATE steps SET status = 'running', attempt = $2, started_at = now(), ended_at = NULL, error = NULL, note = NULL
+     WHERE id = $1 AND status IN ('queued', 'waiting_gpu', 'waiting_disk') AND ${RUN_IS_RUNNING}`,
+    [stepId, attempt],
+  );
+  return (rowCount ?? 0) > 0;
 }
