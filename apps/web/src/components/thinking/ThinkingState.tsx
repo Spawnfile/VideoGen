@@ -29,7 +29,7 @@ function Dot({ tone }: { tone: string }) {
   );
 }
 
-function StepMark({ tone }: { tone: ThinkingRowView['tone'] }) {
+export function StepMark({ tone }: { tone: ThinkingRowView['tone'] }) {
   if (tone === 'running') return <span className="size-3 shrink-0 rounded-full border-[1.5px] border-line-strong border-t-ink-2" style={{ animation: 'spin 700ms linear infinite' }} />;
   if (tone === 'denied' || tone === 'error') {
     return (

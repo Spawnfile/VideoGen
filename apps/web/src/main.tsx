@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { AgentSample, AgentSessionView, ChatMessage, ClaudeAuth, GuardState, LiveTraceItem, TraceRow, UsageSnapshot } from '@videogen/shared/browser';
+import type { AgentSample, AgentSessionView, ChatMessage, ClaudeAuth, GuardState, LiveTraceItem, RunView, TraceRow, UsageSnapshot, VideoView } from '@videogen/shared/browser';
 import { AppShell } from './components/AppShell.tsx';
 import { connectLive, onLiveEvent, onUiEvent } from './lib/live.ts';
-import { applyDelta, applyMessage, applyRow, applySample, applySession } from './lib/stores.ts';
+import { applyDelta, applyMessage, applyRow, applyRun, applySample, applySession, applyVideo } from './lib/stores.ts';
 import { useRoute } from './lib/router.ts';
 import { Settings } from './routes/Settings.tsx';
 import { Studio } from './routes/Studio.tsx';
@@ -18,7 +18,7 @@ function App() {
     // A fresh SSE connect starts at the current max id (no history replay), so REST state is refetched on every open.
     const stop = connectLive('/events', {
       onOpen: () => {
-        for (const key of ['claude', 'usage', 'sessions', 'threads', 'thread', 'trace', 'roles']) void queryClient.invalidateQueries({ queryKey: [key] });
+        for (const key of ['claude', 'usage', 'sessions', 'threads', 'thread', 'trace', 'roles', 'videos', 'video']) void queryClient.invalidateQueries({ queryKey: [key] });
       },
     });
     const offUi = onUiEvent((e) => {
@@ -28,6 +28,8 @@ function App() {
       if (e.type === 'agent.session') applySession(e.payload as AgentSessionView, e.id);
       if (e.type === 'trace.row') applyRow(e.payload as TraceRow, e.id);
       if (e.type === 'chat.message') applyMessage(e.payload as ChatMessage, e.id);
+      if (e.type === 'video.updated') applyVideo(e.payload as VideoView, e.id);
+      if (e.type === 'run.updated') applyRun(e.payload as RunView, e.id);
     });
     const offLive = onLiveEvent((e) => {
       if (e.type === 'trace.delta') {
