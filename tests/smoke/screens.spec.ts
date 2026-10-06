@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { startDevSession, STUCK_SCRIPT } from './helpers.ts';
+import { produceVia, startDevSession, STUCK_SCRIPT } from './helpers.ts';
 
 test.skip(!process.env.VG_SCREENSHOTS, 'yalnızca elle: VG_SCREENSHOTS=1 npm run test:smoke -- screens');
 test.use({ viewport: { width: 1440, height: 900 } });
@@ -98,4 +98,27 @@ test('M4b screen: channel identity (K19)', async ({ page }) => {
   await expect.poll(() => group.getByRole('img').first().evaluate((i) => (i as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
   await page.waitForTimeout(400);
   await page.screenshot({ path: shot('settings-k19.png', 'm4'), fullPage: true });
+});
+
+test('M4c screen: studio draft round, review card and the two player tabs', async ({ page, request }) => {
+  test.setTimeout(120_000);
+  const { videoId } = await produceVia(request, 'Kusurlu kalem', 'silent');
+  await page.goto(`/?video=${videoId}`);
+  await expect(page.getByTestId('draft-round')).toContainText('Taslak turu 1/2', { timeout: 60_000 });
+  await page.screenshot({ path: shot('studio-draft-round.png', 'm4') });
+  await expect(page.getByTestId('video-header')).toHaveAttribute('data-status', 'needs_human', { timeout: 60_000 });
+  await expect(page.getByTestId('review-card')).toContainText('geçti');
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: shot('studio-draft.png', 'm4') });
+  await page.getByRole('tab', { name: 'Taslak', exact: true }).click();
+  await expect(page.getByTestId('draft-live').locator('canvas')).toBeVisible({ timeout: 20_000 });
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: shot('studio-draft-live.png', 'm4') });
+});
+
+test('M4c screen: library with draft covers and lengths', async ({ page }) => {
+  await page.goto('/library');
+  await expect(page.getByTestId('library-cover').first()).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: shot('library-draft.png', 'm4') });
 });
