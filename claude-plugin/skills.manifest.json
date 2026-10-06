@@ -1,0 +1,10 @@
+{
+  "ffmpeg": "~/.claude/skills/ffmpeg",
+  "manim-video": "~/Developer/video-use/skills/manim-video",
+  "remotion-best-practices": "~/.claude/skills/remotion-best-practices",
+  "remotion-captions": "~/.claude/skills/remotion-captions",
+  "remotion-markup": "~/.claude/skills/remotion-markup",
+  "remotion-multimedia": "~/.claude/skills/remotion-multimedia",
+  "remotion-render": "~/.claude/skills/remotion-render",
+  "video-use": "~/Developer/video-use"
+}

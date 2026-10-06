@@ -5,3 +5,7 @@ export * from './fixtures.ts';
 export * from './fake-driver.ts';
 export * from './turns.ts';
 export * from './trace.ts';
+export * from './roles.ts';
+export * from './role-prompts.ts';
+export * from './guard.ts';
+export * from './skill-links.ts';
