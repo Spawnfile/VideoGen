@@ -9,3 +9,4 @@ playwright-report/
 CLAUDE.md
 spikes/m0/node_modules/
 spikes/m0/work/
+apps/web/dist/
