@@ -23,6 +23,7 @@ M0 Doğrulama ──┬──► M1 Ses (kullanıcı dinleme testine katılır) 
 ```
 
 - **M0 her şeyden önce gelir.** Disk temizliği M1'in önkoşuludur. Spike sonuçları M2'nin footer veri kaynağını ve M3'ün sürücü ayrıntılarını belirler.
+- **M0 tamamlandı** (`docs/m0/report.md`): footer'ın birincil kaynağı `get_usage` (yüzde 0..100), `rate_limit_event` (kesir 0..1) canlı tazeleme ve yedek; giriş akışı v1'de terminal talimatı; M3 ve M4'e devredilen maddeler raporun §12'sinde.
 - **M1 ve M2 birbirinden bağımsızdır.** Önerilen sıra M2 → M1. Önce iskelet ve testler hazır olur; dinleme testi kullanıcının vakti olduğunda yapılır.
 - **M3–M7 planları önceden yazılmaz.** Her biri, bir önceki taşın raporu ve kanıtlarıyla yazılır (§5).
 
@@ -39,6 +40,8 @@ docker ps --format '{{.Names}}' | head       # Docker çalışıyor
 claude auth status | grep -E 'loggedIn|subscriptionType'
 env | grep -E 'ANTHROPIC_API_KEY|OPENAI_API_KEY|ELEVENLABS' || echo "ücretli anahtar yok ✓"
 ```
+
+Gerçek Claude oturumu açan işler (spike'lar, `test:smoke:real`) Claude Code içinden `env -u CLAUDECODE ...` ile başlatılır; model haiku, koşu sayısı en az. Gömülü CLI sürümü: `spikes/m0/node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/claude --version` → M0'da `2.1.290`.
 
 ### 3.2 Dal (branch) düzeni
 
@@ -79,9 +82,9 @@ Yeni bir Claude Code oturumu açın (cwd: `~/gpu-server/VideoGen`) ve şunu yaz�
 
 | Durum | Nerede | Ne yapılır |
 |---|---|---|
-| `minillm-lab`'da commit edilmemiş, push edilmemiş ya da stash'lenmiş iş var | M0 Task 1 | Silme atlanır; liste kullanıcıya gösterilip yeniden onay istenir |
-| `apiKeySource` `none` değil (abonelik yolu çalışmıyor) | M0 Task 3 | Dur. Spec §18 yedek planı kullanıcıyla konuşulur |
-| `PreToolUse` yol koruması kaçışı engellemiyor | M0 Task 4 | Dur. Spec §6.1 ve §15 güncellenmeden M3'e geçilmez |
+| `minillm-lab`'da commit edilmemiş, push edilmemiş ya da stash'lenmiş iş var | M0 Task 1 (geçti: temiz) | Silme atlanır; liste kullanıcıya gösterilip yeniden onay istenir |
+| `apiKeySource` `none` değil (abonelik yolu çalışmıyor) | M0 Task 3 (geçti: `none`) | Dur. Spec §18 yedek planı kullanıcıyla konuşulur |
+| `PreToolUse` yol koruması kaçışı engellemiyor | M0 Task 4 (geçti: engelledi) | Dur. Spec §6.1 ve §15 güncellenmeden M3'e geçilmez |
 | Boş disk < 30 GB (M1) veya < 3 GB + kare tahmini (render) | M1, M4+ | Dur. Temizlik önerisi sunulur |
 | TTS motoru ve anlatıcı sesi seçimi | M1 Task 5 | Kullanıcı karar verir (K17) |
 | Kanal görsel kimliği seçimi | M4 | Kullanıcı 2–3 seçenekten birini seçer (K19) |
@@ -118,7 +121,13 @@ Taş raporu bittikten sonra yeni bir oturumda:
 | Spike'ta "cannot be launched inside another Claude Code session" | `CLAUDECODE` env değişkeni | Spike'lar env'i temizler; elle çalıştırırken `env -u CLAUDECODE ...` |
 | Blender yavaş (~3×) | iGPU'ya düşmüş | Daima `blender-gpu`; `gpu.platform.renderer_get()` içinde "NVIDIA" yazmalı |
 | Playwright tarayıcı indirmeye çalışıyor | `channel` eksik | Config'te `channel: 'chrome'`; `npx playwright install` **çalıştırma** (disk) |
-| Footer'da kullanım "—" | M0 (b) başarısız ya da `VG_USAGE_POLL_MS=0` | M3 `rate_limit_event` ile besleyecek; `docs/m0/report.md`'ye bak |
+| Footer'da kullanım "—" | `get_usage` yanıt vermiyor (deneysel API; SDK yükseltmesinde adı ya da şekli değişmiş olabilir) ya da `VG_USAGE_POLL_MS=0` | M0'da `get_usage` çalıştı. Adaptörü yeni SDK'ya göre güncelle; o arada footer `rate_limit_event`'ten beslenir (`docs/m0/report.md` §6) |
+| Footer yüzdesi 100 kat yanlış (ör. %1 yerine %100) | Birim karışıklığı: `get_usage` yüzde 0..100 + ISO, `rate_limit_event` kesir 0..1 + epoch sn | Kaynağa göre normalize et; değerin büyüklüğüne bakarak tahmin etme |
+| Alt ajanlı oturumda iki `result` geliyor ya da ilk `result`'ta `structured_output` yok | SDK `Agent` çağrısını arka plana aldı | `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` env **temizlendikten sonra** ekli mi bak; sürücü son `result`'u almalı ve iterator bitene kadar beklemeli |
+| İptalden sonra süreç `Claude Code returned an error result` ile düşüyor | `interrupt()` sonrası `result/error_during_execution` (`aborted_streaming`) gelir, ardından iterator fırlatır | `for await` döngüsünü try/catch içine al; bu hatayı iptal olarak say |
+| `PreToolUse` reddi audit'te hook olayı olarak görünmüyor | Callback hook'lar `system/hook_*` olayı üretmez | Reddi `tool_result.is_error` + `PreToolUse:<Araç> hook error:` önekinden ya da `result.permission_denials`'tan oku |
+| Fixture diff'inde bütün UUID'ler değişmiş | `spikes/m0/redact.mjs` commit edilmiş bir fixture'a yeniden çalıştırıldı (akış dosyalarında idempotent değil) | `git checkout -- tests/fixtures/claude-streams/`; redact'ı yalnızca yeni kayda, bir kez çalıştır |
+| Three.js eşdeğerlik testinde son kare ilk kareyle aynı (~15 px fark) | `AnimationMixer` varsayılanı `LoopRepeat`, klip süresinde 0'a sarar | Her eylemde `setLoop(THREE.LoopOnce, 1)` + `clampWhenFinished = true` |
 | "Worker yanıt vermiyor" | Worker çöktü ya da yeniden başlıyor | `tail ~/videogen-data/logs/worker.log`; başlatıcı otomatik yeniden başlatır |
 | Üstte "Bağlantı koptu" şeridi | API yeniden başladı | Kendiliğinden yeniden bağlanır; kaçan olaylar tekrar oynatılır |
 | Açılış "Ücretli API anahtarı bulundu" ile reddedildi | Kabukta anahtar export edilmiş | `unset <ANAHTAR>`; `~/.bashrc` / `~/.profile` içinden kaldır |
