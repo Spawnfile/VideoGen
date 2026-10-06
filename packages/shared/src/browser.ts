@@ -4,3 +4,4 @@ export * from './events.ts';
 export * from './agents.ts';
 export * from './artifacts.ts';
 export * from './pipeline.ts';
+export * from './progress.ts';

@@ -7,3 +7,4 @@ export * from './agents.ts';
 export * from './parent-watch.ts';
 export * from './artifacts.ts';
 export * from './pipeline.ts';
+export * from './progress.ts';
