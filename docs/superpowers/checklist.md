@@ -10,7 +10,7 @@
 | M1 Ses | `plans/2026-10-06-m1-audio-listening.md` | Tamamlandı (K17 kullanıcı onayı bekliyor) | 2026-10-06 | 2026-10-06 | `docs/m1/decision.md` |
 | M2 İskelet | `plans/2026-10-06-m2-skeleton.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m2/report.md` |
 | M3 Canlı agent katmanı | `plans/2026-10-06-m3a-agent-runtime.md` (M3a) + `plans/2026-10-06-m3b-live-ui.md` (M3b) | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m3/report.md` |
-| M4 Dikey dilim | M3 sonrası (plan kullanıcı onayıyla) | Plan yok, sırada | | | |
+| M4 Dikey dilim | `plans/2026-10-06-m4a-pipeline-core.md` (M4a) + M4b (M4a sonrası) | Plan hazır (M4a) | | | |
 | M5 Final ve kalite | M4 sonrası | Plan yok | | | |
 | M6 Yayın | M5 sonrası | Plan yok | | | |
 | M7 Sertleştirme | M6 sonrası | Plan yok | | | |
@@ -66,7 +66,7 @@
 - [x] Kullanım muhafızı: `rate_limit_event` beslemesi, %80 / %90 eşikleri, `resetsAt`'te devam · commit a1bea90 · 2026-10-06 · M3a T9; footer gösterimi M3b
 - [x] Smoke S3 (canlılık), S4 (SSE kopması), S5 (chat, kısmi) · commit 21952bb · 2026-10-06 · M3b T6 (yığın T3); S4'te worker ölümü de; 7 passed × 3, ~39 sn; RED kanıtı geçici mutasyonlarla
 
-## M4 — Dikey dilim *(plan M3 sonrası)*
+## M4 — Dikey dilim *(iki plan: M4a `plans/2026-10-06-m4a-pipeline-core.md` — tablolar, orchestrator, ilerleme, research, storyboard, Stüdyo, Kütüphane; M4b — vg_blender, build, taslak, player, K19, ilk ürün)*
 
 - [ ] Tablolar: `products`, `videos`, `runs`, `steps`, `jobs`, `versions`, `blobs`, `artifacts`
 - [ ] Orchestrator + kaynak zamanlayıcı (GPU kilidi, RAM, swap, disk, VRAM, `ollama ps` ön kontrolü), kiralama ve kurtarma

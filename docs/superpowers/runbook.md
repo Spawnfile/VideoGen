@@ -13,6 +13,7 @@ Bu doküman; planların **hangi sırayla, nasıl, hangi kapılardan geçerek** u
 | `docs/superpowers/plans/2026-10-06-m2-skeleton.md` | M2: platform iskeleti |
 | `docs/superpowers/plans/2026-10-06-m3a-agent-runtime.md` | M3a: agent çalışma katmanı (sürücü, roller, MCP, koruma, olay tabloları, kullanım muhafızı, chat servisi, API). M3b planı ayrı satırda |
 | `docs/superpowers/plans/2026-10-06-m3b-live-ui.md` | M3b: canlı arayüz (10 Hz olay deposu, ThinkingState, agent kartları, chat paneli, rol ayarları), smoke S3/S4/S5, taş sonu |
+| `docs/superpowers/plans/2026-10-06-m4a-pipeline-core.md` | M4a: pipeline omurgası (tablolar, iş kuyruğu, orchestrator, ilerleme, research/storyboard adımları, API, Stüdyo üretim paneli, Kütüphane, smoke S2a). M4b planı M4a sonrası |
 | `docs/superpowers/checklist.md` | Görev bazında ilerleme takibi |
 | `docs/m3/report.md`, `docs/m3/real-check.md` | M3 sonuç raporu ve gerçek Claude doğrulama çıktıları |
 | `docs/m<N>/report.md` | Her taşın kanıtlı sonuç raporu (uygulama sırasında oluşur) |
