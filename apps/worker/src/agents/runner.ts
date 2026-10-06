@@ -172,9 +172,11 @@ export class SessionRunner {
       // iterator throws only after the input closes (M3 real check). It is not a completed turn.
       if (this.cancelRequested) { this.session.endInput(); return; }
       const r = this.tracker.lastResult;
+      // Captured before 'idle' is stored: a chat message sent once 'idle' is visible bumps this.turn during the flush.
+      const turn = this.turn;
       if (this.info.kind === 'chat') this.setStatus('idle');
       await this.flush();
-      await this.hooks.onTurnComplete?.({ turn: this.turn, text: str(r?.result) ?? null, structured: r?.structured_output ?? null });
+      await this.hooks.onTurnComplete?.({ turn, text: str(r?.result) ?? null, structured: r?.structured_output ?? null });
       if (this.info.kind === 'pipeline') this.session.endInput();
     }
   }

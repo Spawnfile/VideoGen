@@ -3,7 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import type pg from 'pg';
-import { classifyLiveness, type Liveness, type RateLimitInfoLike, type RoleName, type SessionKind } from '@videogen/shared';
+import { classifyLiveness, type Liveness, type RateLimitInfoLike, type RoleName, type SessionKind, type SessionStatus } from '@videogen/shared';
 import { appendAudit, getSession, insertSession, publishEvent, publishLive, toSessionView, updateSession } from '@videogen/db';
 import {
   allowedTools, disallowedTools, evaluateToolUse, FILE_WRITE_TOOLS, groupAlive, killGroup, memAvailableMb, permissiveValidator,
@@ -51,6 +51,7 @@ export interface StartRequest {
   role: RoleName;
   prompt: string;
   runId?: string | null;
+  stepId?: string | null;
   threadId?: string | null;
   claudeSessionId?: string;
   resume?: boolean;
@@ -62,6 +63,10 @@ export interface ManagerEvents {
   onTurnComplete?(sessionId: string, r: { turn: number; text: string | null; structured: unknown }): void | Promise<void>;
   /** `limited`: the session stopped on a rejected rate limit and waits for the reset (Task 9). */
   onEnd?(sessionId: string, end: RunEnd, info: { limited: boolean }): void | Promise<void>;
+  /** report_progress after clamping to [last, 99]. */
+  onProgress?(sessionId: string, percent: number, message: string): void | Promise<void>;
+  /** Every published status change (queued, starting, thinking, tool, idle, waiting_limit, done, failed, cancelled). */
+  onStatus?(sessionId: string, status: SessionStatus): void | Promise<void>;
 }
 
 export const RESUME_PROMPT = 'Önceki oturum kesildi. Durumu kontrol et ve göreve kaldığın yerden devam et.';
@@ -76,6 +81,7 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /** Sole owner of Claude processes (spec §5.1): slots, RAM pre-check, chat idle close, liveness, cancel/retry. */
 export class SessionManager {
   events: ManagerEvents = {};
+  private listeners = new Set<ManagerEvents>();
   private queue: Pending[] = [];
   private live = new Map<string, Live>();
   /** Last reported percent per session; kept outside `live` because a tool may report before the slot entry exists. */
@@ -102,6 +108,20 @@ export class SessionManager {
   setRoleOverrides(o: RoleOverrides): void { this.overrides = o; }
   isLive(id: string): boolean { return this.live.has(id); }
 
+  /** Several consumers (chat service, orchestrator); `events` stays as one more listener for M3 code and tests. */
+  subscribe(listener: ManagerEvents): () => void {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  }
+
+  private async emit<K extends keyof ManagerEvents>(key: K, ...args: Parameters<NonNullable<ManagerEvents[K]>>): Promise<void> {
+    for (const l of [this.events, ...this.listeners]) {
+      const fn = l[key] as ((...a: unknown[]) => unknown) | undefined;
+      if (!fn) continue;
+      try { await fn.apply(l, args); } catch (e) { this.log(`listener ${String(key)} failed (${errorTag(e)})`); }
+    }
+  }
+
   async start(req: StartRequest): Promise<string> {
     const id = req.id ?? randomUUID();
     const claudeSessionId = req.claudeSessionId ?? id;
@@ -110,7 +130,7 @@ export class SessionManager {
     await mkdir(runDir, { recursive: true });
     await insertSession(this.d.pool, {
       id, kind: req.kind, role: def.role, model: def.model, effort: def.effort, claudeSessionId, parentSessionId: req.parentSessionId ?? null,
-      threadId: req.threadId ?? null, runId: req.runId ?? null, runDir, status: 'queued', sdkVersion: this.d.sdkVersion ?? null,
+      threadId: req.threadId ?? null, runId: req.runId ?? null, stepId: req.stepId ?? null, runDir, status: 'queued', sdkVersion: this.d.sdkVersion ?? null,
     });
     await appendAudit(this.d.pool, {
       actorType: 'orchestrator', action: 'agent.session.queued', sessionId: id, subjectType: 'role', subjectId: def.role,
@@ -138,7 +158,7 @@ export class SessionManager {
       await updateSession(this.d.pool, id, { status: 'cancelled', endedAt: new Date(), terminalReason: 'cancelled' });
       await appendAudit(this.d.pool, { actorType: 'orchestrator', action: 'agent.session.cancelled_queued', sessionId: id });
       await this.publish(id);
-      await this.events.onEnd?.(id, { status: 'cancelled', rateLimit: null, resultIsError: false }, { limited: false });
+      await this.emit('onEnd', id, { status: 'cancelled', rateLimit: null, resultIsError: false }, { limited: false });
       return true;
     }
     const l = this.live.get(id);
@@ -232,6 +252,7 @@ export class SessionManager {
     const runner = new SessionRunner({ pool: this.d.pool, dataDir: this.d.dataDir, ...this.d.runner }, { id, kind: req.kind, role: def.role, cwd: runDir, beforeSha: before }, session, {
       onTurnComplete: (r) => this.onTurn(id, r),
       onRateLimit: (info) => this.gate.observeRateLimit(info),
+      onStatus: (s) => { void this.emit('onStatus', id, s); },
     });
     this.live.set(id, { id, kind: req.kind, req, session, runner, idle: null, liveness: null, pid: null, inputEnded: false });
     void (async () => {
@@ -252,6 +273,7 @@ export class SessionManager {
         this.progress.set(id, v);
         await updateSession(this.d.pool, id, { progress: v, progressSource: 'agent', progressMessage: message.slice(0, 200) });
         await this.publish(id);
+        await this.emit('onProgress', id, v, message.slice(0, 200));
         return v;
       },
       registerArtifact: async (abs, kind) => {
@@ -259,7 +281,7 @@ export class SessionManager {
         await appendAudit(this.d.pool, { actorType: 'agent', actorId: `${req.role}:${id}`, action: 'artifact.registered', sessionId: id, subjectType: 'blob', subjectId: b.sha256, data: { path: relative(runDir, abs), kind, bytes: b.bytes, mime: b.mime } });
         return { sha256: b.sha256, bytes: b.bytes, mime: b.mime };
       },
-      context: () => ({ sessionId: id, role: req.role, kind: req.kind, runDir, runId: req.runId ?? null, threadId: req.threadId ?? null }),
+      context: () => ({ sessionId: id, role: req.role, kind: req.kind, runDir, runId: req.runId ?? null, stepId: req.stepId ?? null, threadId: req.threadId ?? null }),
     };
   }
 
@@ -274,7 +296,7 @@ export class SessionManager {
         l.session.endInput();
       }, this.d.chatIdleMs ?? 600_000);
     }
-    await this.events.onTurnComplete?.(id, r);
+    await this.emit('onTurnComplete', id, r);
   }
 
   private async onEnd(id: string, end: RunEnd): Promise<void> {
@@ -297,7 +319,7 @@ export class SessionManager {
       if (l?.kind === 'pipeline') this.limited.add(id);
       if (this.gate.allowsNewPipeline()) void this.resumeLimited();
     }
-    try { await this.events.onEnd?.(id, end, { limited }); } catch (e) { this.log(`onEnd ${id} failed (${errorTag(e)})`); }
+    await this.emit('onEnd', id, end, { limited });
     this.pump();
   }
 
@@ -352,6 +374,8 @@ export class SessionManager {
 
   private async publish(id: string): Promise<void> {
     const rec = await getSession(this.d.pool, id);
-    if (rec) await publishEvent(this.d.pool, { topic: 'agents', type: 'agent.session', payload: toSessionView(rec) });
+    if (!rec) return;
+    await publishEvent(this.d.pool, { topic: 'agents', type: 'agent.session', payload: toSessionView(rec) });
+    await this.emit('onStatus', id, rec.status);
   }
 }

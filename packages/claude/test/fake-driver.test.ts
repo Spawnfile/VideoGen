@@ -73,4 +73,16 @@ describe('FakeClaudeDriver', () => {
     s.kill('SIGTERM');
     await expect(run).rejects.toThrow(/terminated by signal SIGTERM/);
   });
+
+  it('gives every result of a scripted turn the script\'s structured output (pipeline steps in fake mode)', async () => {
+    const d = new FakeClaudeDriver({ speed: 0 });
+    const s = d.start(spec({ fakeScript: { fixture: 'subagent-background', structured: { ok: 1 } } }));
+    const results: unknown[] = [];
+    for await (const m of s.messages) {
+      if (m.type === 'result') { results.push(m.structured_output); if (results.length === 2) s.endInput(); }
+    }
+    expect(results).toEqual([{ ok: 1 }, { ok: 1 }]);
+    const plain = d.start(spec({ fakeScript: { fixture: 'basic' } }));
+    for await (const m of plain.messages) if (m.type === 'result') { expect(m.structured_output).toBeUndefined(); plain.endInput(); }
+  });
 });

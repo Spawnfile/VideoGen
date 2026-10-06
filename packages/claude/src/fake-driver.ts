@@ -88,7 +88,8 @@ class FakeSession implements DriverSession {
         await this.sleep(Math.min((lines[i]!.t - prev) * this.o.speed, this.o.maxGapMs));
         prev = lines[i]!.t;
         yield* this.abortIfNeeded();
-        yield lines[i]!.m;
+        const m = lines[i]!.m;
+        yield script.structured !== undefined && m.type === 'result' ? { ...m, structured_output: script.structured } : m;
         for (const x of script.inject ?? []) if (x.afterIndex === i) yield x.m;
         if (script.failAfter?.index === i) throw new Error(script.failAfter.error);
         if (script.stall?.afterIndex === i) {
