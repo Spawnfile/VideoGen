@@ -13,6 +13,10 @@ import { findBundledClaude, sdkVersion } from './claude-binary.ts';
 import { listenCommands } from './commands.ts';
 import { errorTag } from './errors.ts';
 import { startHeartbeat } from './heartbeat.ts';
+import { fakePipelineScript } from './pipeline/fake-scripts.ts';
+import { Orchestrator } from './pipeline/orchestrator.ts';
+import { SystemProbe } from './pipeline/resources.ts';
+import { ARTIFACT_VALIDATOR, pipelineExecutors } from './pipeline/steps.ts';
 import { FixtureUsageSource, SdkUsageSource, startUsagePoller } from './usage.ts';
 
 function die(stage: string, e: unknown): never {
@@ -34,6 +38,11 @@ const manager = new SessionManager({
   pool, dataDir: config.dataDir, driver, pluginDir: PLUGIN_DIR, gate: guard, sdkVersion: sdkVersion(), chatIdleMs: config.chatIdleMs,
   quietAfterMs: config.liveness.quietAfterMs, stuckAfterMs: config.liveness.stuckAfterMs,
   archive: (s) => archiveTranscript({ pool, dataDir: config.dataDir, ...s }),
+  validator: ARTIFACT_VALIDATOR,
+});
+const orchestrator = new Orchestrator({
+  pool, dataDir: config.dataDir, probe: new SystemProbe(config.dataDir),
+  executors: pipelineExecutors({ pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined }),
 });
 const chat = new ChatService({ pool, manager });
 chat.bind();
@@ -71,6 +80,8 @@ try {
       'chat.interrupt': (c) => chat.interrupt(uuidOf(c, 'threadId')),
       'session.cancel': (c) => manager.cancel(uuidOf(c, 'sessionId')),
       'session.retry': (c) => manager.retry(uuidOf(c, 'sessionId'), 'user'),
+      'run.start': (c) => orchestrator.startRun(uuidOf(c, 'runId')),
+      'run.cancel': (c) => orchestrator.cancel(uuidOf(c, 'runId')),
       'roles.changed': async () => { manager.setRoleOverrides(await loadRoleOverrides(pool)); },
       ...(config.devEndpoints ? {
         'dev.session.start': (c: Record<string, unknown>) => manager.start({ kind: 'pipeline', role: roleOf(c.role), prompt: typeof c.prompt === 'string' ? c.prompt.slice(0, 2000) : 'Merhaba', fakeScript: (c.script ?? undefined) as FakeScript | undefined }),
@@ -79,6 +90,8 @@ try {
     { onFailure: (f) => { void audit('command.failed', { reason: f.reason, ...(f.type ? { type: f.type } : {}), ...(f.error ? { error: f.error } : {}) }); } },
   );
   await chat.recover();
+  await orchestrator.recover();
+  orchestrator.start();
 } catch (e) {
   die('init', e);
 }
@@ -91,6 +104,7 @@ const shutdown = async () => {
   stopUsage();
   stopHeartbeat();
   guard.stop();
+  orchestrator.stop();
   await stopCommands().catch(() => {});
   await manager.stop().catch(() => {});
   await audit('worker.stopping', { pid: process.pid });

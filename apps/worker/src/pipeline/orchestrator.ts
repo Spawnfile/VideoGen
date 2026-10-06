@@ -218,6 +218,8 @@ export class Orchestrator {
       outcome = ctx.signal.aborted ? { status: 'cancelled' } : { status: 'failed', error: errorTag(e) };
     }
     this.running.delete(step.id);
+    // Shutting down: leave the lease in place; the next start recovers the job and runs the step again.
+    if (this.stopped) return;
     await this.settle(step, ctx.attempt, job, outcome).catch((e) => this.log(`settle ${step.id} failed (${errorTag(e)})`));
     this.kick();
   }

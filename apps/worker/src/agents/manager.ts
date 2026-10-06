@@ -58,6 +58,8 @@ export interface StartRequest {
   parentSessionId?: string | null;
   outputFormat?: SessionSpec['outputFormat'];
   fakeScript?: FakeScript;
+  /** false: the caller resumes a rate-limited session itself (pipeline steps); the manager does not open its own child. */
+  autoResume?: boolean;
 }
 export interface ManagerEvents {
   onTurnComplete?(sessionId: string, r: { turn: number; text: string | null; structured: unknown }): void | Promise<void>;
@@ -107,6 +109,8 @@ export class SessionManager {
 
   setRoleOverrides(o: RoleOverrides): void { this.overrides = o; }
   isLive(id: string): boolean { return this.live.has(id); }
+
+  isStopping(): boolean { return this.stopping; }
 
   /** Several consumers (chat service, orchestrator); `events` stays as one more listener for M3 code and tests. */
   subscribe(listener: ManagerEvents): () => void {
@@ -312,11 +316,14 @@ export class SessionManager {
     }
     const limited = end.status !== 'cancelled' && end.rateLimit?.status === 'rejected' && (end.status === 'failed' || end.resultIsError);
     if (limited) {
+      const own = l?.req.autoResume === false;
       const at = this.gate.resumeAt();
-      await updateSession(this.d.pool, id, { status: 'waiting_limit', waitingUntil: at ? new Date(at) : null }).catch(() => {});
-      await appendAudit(this.d.pool, { actorType: 'orchestrator', action: 'agent.session.waiting_limit', sessionId: id, data: { resumeAt: at } }).catch(() => {});
+      await updateSession(this.d.pool, id, own
+        ? { status: 'failed', terminalReason: 'rate_limited', waitingUntil: null }
+        : { status: 'waiting_limit', waitingUntil: at ? new Date(at) : null }).catch(() => {});
+      await appendAudit(this.d.pool, { actorType: 'orchestrator', action: 'agent.session.waiting_limit', sessionId: id, data: { resumeAt: at, resumedBy: own ? 'caller' : 'manager' } }).catch(() => {});
       await this.publish(id).catch(() => {});
-      if (l?.kind === 'pipeline') this.limited.add(id);
+      if (l?.kind === 'pipeline' && !own) this.limited.add(id);
       if (this.gate.allowsNewPipeline()) void this.resumeLimited();
     }
     await this.emit('onEnd', id, end, { limited });
