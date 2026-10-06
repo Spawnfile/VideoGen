@@ -86,3 +86,63 @@ def test_consecutive_unmatched_words_share_the_gap():
     assert (mid[2]["endMs"] - mid[2]["startMs"]) > (mid[0]["endMs"] - mid[0]["startMs"])
     for a, b in zip(out, out[1:]):
         assert a["endMs"] <= b["startMs"]
+
+
+def test_whisper_splits_decimal_separator_into_its_own_token():
+    # Real Whisper tokenization of "0,7": "0" and ",7" (results.json asr "0 ,7").
+    script = "Uç 0,7 milimetre kalınlıkta."
+    asr = [
+        {"text": "Uç", "start": 0.0, "end": 0.2},
+        {"text": "0", "start": 0.2, "end": 0.5},
+        {"text": ",7", "start": 0.5, "end": 0.9},
+        {"text": "milimetre", "start": 0.9, "end": 1.4},
+        {"text": "kalınlıkta.", "start": 1.4, "end": 2.0},
+    ]
+    out = map_words(script, asr)
+    assert [w["text"] for w in out] == ["Uç", "0,7", "milimetre", "kalınlıkta."]
+    assert (out[1]["startMs"], out[1]["endMs"]) == (200, 900)
+    assert out[2]["startMs"] == 900 and out[3]["startMs"] == 1400
+
+
+def test_separator_merge_does_not_touch_ordinary_tokens():
+    from audio_service.align import _merge_decimal_tokens
+
+    toks = [{"text": "yedi", "start": 0.0, "end": 0.2}, {"text": ",", "start": 0.2, "end": 0.3},
+            {"text": "sekiz", "start": 0.3, "end": 0.5}]
+    assert _merge_decimal_tokens(toks) == toks
+    assert _merge_decimal_tokens([{"text": ",7", "start": 0.0, "end": 0.1}])[0]["text"] == ",7"
+
+
+def test_whisper_model_args_pin_revision_and_root(monkeypatch, tmp_path):
+    from audio_service import align
+
+    monkeypatch.delenv("HF_HOME", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    args = align.whisper_model_args("large-v3-turbo")
+    assert args["revision"] == "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf"
+    assert args["download_root"] == str(tmp_path / "videogen-data/models/hf/hub")
+    monkeypatch.setenv("HF_HOME", str(tmp_path / "hf"))
+    assert align.whisper_model_args("large-v3-turbo")["download_root"] == str(tmp_path / "hf/hub")
+    assert align.whisper_model_args("large-v3-turbo", download_root="/x")["download_root"] == "/x"
+    assert "revision" not in align.whisper_model_args("small")
+
+
+def test_transcribe_words_passes_pinned_revision(monkeypatch):
+    import sys, types
+    from audio_service import align
+
+    seen = {}
+
+    class FakeModel:
+        def __init__(self, size, **kw):
+            seen["size"], seen["kw"] = size, kw
+
+        def transcribe(self, *a, **k):
+            return iter([]), None
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", types.SimpleNamespace(WhisperModel=FakeModel))
+    monkeypatch.setitem(sys.modules, "torch", types.SimpleNamespace(cuda=types.SimpleNamespace(
+        is_available=lambda: False, empty_cache=lambda: None)))
+    assert align.transcribe_words("x.wav") == []
+    assert seen["kw"]["revision"] == "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf"
+    assert seen["kw"]["download_root"].endswith("/hub")

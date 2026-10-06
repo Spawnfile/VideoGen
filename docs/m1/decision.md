@@ -1,5 +1,7 @@
 # M1 Kararı: TTS motoru ve anlatıcı sesi (K17)
 
+> **Önce dinleyin: ~/videogen-data/m1/listening/index.html — bu dosyadaki ölçümler ve telaffuz notları kör dinlemeyi etkiler.**
+
 | | |
 |---|---|
 | Tarih | 2026-10-06 |
@@ -14,7 +16,7 @@
 | Yedek motor | **FreyaTTS** (Apache-2.0), yalnızca VRAM baskısı zorunlu kılarsa; bugünkü hâliyle Türkçe CER kapısını geçmiyor |
 | Anlatıcı sesi | **Hazır ses** (Chatterbox'ın varsayılan koşullandırması `conds.pt`) |
 | AIGC (G4) | Ses için **AI etiketi gerekmez** (Blender CG + hazır TTS sesi). Klon **test edilmedi** |
-| Kullanıcının seçtiği örnek ve gerekçesi | **Henüz yok** — kullanıcı `~/videogen-data/m1/listening/index.html` sayfasını dinleyip karar verecek (A/B kör; anahtar `key.json`) |
+| Kullanıcının seçtiği örnek ve gerekçesi | **Henüz yok** — kullanıcı `~/videogen-data/m1/listening/index.html` sayfasını dinleyip karar verecek (kör dinleme; hangi örneğin hangi motor olduğu yalnızca `key.json`'da) |
 
 ## 2. Ölçümler (`results.json`)
 
@@ -24,7 +26,6 @@ Metin (3 cümle, motor başına tek koşu, örnekleme tohumu 1234):
 
 | Alan | Chatterbox ML V3 · hazır | FreyaTTS · Leyla |
 |---|---|---|
-| Kör sayfadaki etiket | Örnek **B** | Örnek **A** |
 | Örnekleme hızı (ham) | 24 kHz | 48 kHz |
 | Süre | 13,40 sn | 14,52 sn |
 | `rtf_gen` (yalnızca `generate`/`synthesize`) | **0,63** | 0,30 |
@@ -39,10 +40,7 @@ Metin (3 cümle, motor başına tek koşu, örnekleme tohumu 1234):
 | Konuşma hızı / medyandan sapma | 15,3 kar/sn / +%4 | 14,1 kar/sn / −%4 |
 | `error` | yok | yok |
 
-ASR (faster-whisper large-v3-turbo) çıktıları:
-
-- **Chatterbox:** "Bu kalemin içinde tam 7 parça var. Bilye uç yalnızca 0 ,7 mm genişliğinde ve her yazışta binlerce kez döner. Yay ise her tıplamada mekanizmayı geri iter. O çıt sesi tam burada doğar." Tek hata "tıklamada → tıplamada".
-- **Freya:** "Bu kalemin içinde tam 7 parça var. Bili uç yalnızca 0 ,7 mm gilmedi meşeğinde her yazışta binlerce ek kez döner. Yani ise her tıklamada mekanizmada mekanizmayı geri iter. O çıtlit tam burada doğar." Yanlış telaffuzlar (Bilye → Bili, genişliğinde → gilmedi meşeğinde, Yay → Yani, çıt sesi → çıtlit), fazladan hece ("ek") ve bir **tekrar** ("mekanizmada mekanizmayı"). Kısa tek cümlelik kontrolde Freya doğru çalışıyor (CER 0,0 ve 0,03); hata uzun, sayılı ikinci cümlede yoğunlaşıyor. Kurulum hatası yok (cuda:0, fp32, 48 kHz).
+Motor başına ASR çıktıları ve telaffuz notları kör dinlemeyi etkilediği için §9'a taşındı (dinledikten sonra okuyun).
 
 ## 3. CER neden iki türlü
 
@@ -85,19 +83,26 @@ sha256 değerleri HF indirme metadata'sındaki ETag'ten; `conds.pt` ve `ve.pt` i
 
 ## 7. Kullanıcı nasıl onaylar ya da değiştirir
 
-1. `xdg-open ~/videogen-data/m1/listening/index.html` → Örnek A ve Örnek B'yi **kör** dinle (motor adları yalnızca kartların kapalı "Ölçümler" bölümünde ve `key.json`'da; önce açma).
-2. Claude'a söyle: hangi örnek daha doğal ve neden (kendi sözlerinle); varsayılan anlatıcı hazır ses mi, klon mu.
+1. `xdg-open ~/videogen-data/m1/listening/index.html` → iki örneği **kör** dinle (hangi örneğin hangi motor olduğu yalnızca `~/videogen-data/m1/listening/key.json`'da ve kartların kapalı "Ölçümler" bölümünde; dinlemeden önce açma).
+2. Claude'a söyle: hangi örnek daha doğal ve neden (kendi sözlerinle); varsayılan anlatıcı hazır ses mi, klon mu. Ardından `key.json` açılıp seçim motor adına çevrilir.
 3. Claude `docs/m1/decision.md`'yi günceller: "GEÇİCİ" kaldırılır, §1'deki "Kullanıcının seçtiği örnek ve gerekçesi" kullanıcının sözleriyle yazılır; spec K17 ve §9 TTS satırı buna göre güncellenir.
 
 Olası sonuçlar:
 
-- **B (Chatterbox) seçilirse:** karar olduğu gibi kesinleşir.
-- **A (Freya) seçilirse:** varsayılan Freya olur; ama CER kapısı (%17,9 > %5) M5'te çözülmesi gereken açık bir risk olarak kaydedilir (normalizasyon/cümle bölme denemesi ya da Chatterbox'a düşüş).
+- **Chatterbox seçilirse:** karar olduğu gibi kesinleşir.
+- **FreyaTTS seçilirse:** varsayılan Freya olur; ama CER kapısı (%17,9 > %5) M5'te çözülmesi gereken açık bir risk olarak kaydedilir (normalizasyon/cümle bölme denemesi ya da Chatterbox'a düşüş).
 - **Klon istenirse:** kullanıcı kendi sesini kaydeder, yeni dinleme turu yapılır; klon seçilirse AI etiketi zorunlu.
 
 ## 8. Uyarılar
 
 - **İstatistiksel olarak zayıf:** tek 3 cümlelik metin, motor başına tek tohum. Chatterbox'ın tohumsuz ilk koşusunda ASR "Bilye"yi "Birliğe" duydu (`cer_raw` %14,9); örnekleme rastgeleliği gerçek. M5'te çok cümleli, çok tohumlu ölçüm yapılmalı.
-- **Kör testte kalan ipuçları:** kör kopyalar ortak 48 kHz'e yeniden örneklendi ve RMS −23 dBFS'e eşitlendi; dosya adları nötr (`a.wav`, `b.wav`), sıralama tohumla karıştırıldı. Yine de Chatterbox içeriği 24 kHz kaynaklı olduğu için ~12 kHz üstü boş (bant sınırı duyulabilir) ve süreler farklı (13,4 / 14,5 sn).
+- **Kör testte kalan ipuçları:** kör kopyalar ortak 48 kHz'e yeniden örneklendi ve RMS −23 dBFS'e eşitlendi; dosya adları nötr (`a.wav`, `b.wav`), sıralama tohumla karıştırıldı. Yine de örneklerden biri 24 kHz kaynaklı olduğu için 12 kHz üstü boş (bant sınırı duyulabilir) ve süreler farklı.
 - **Normalizasyon boşlukları** (saatler "14.30", sürümler/bölümler "17.2", sondaki %, kesme işaretli ekler, kesirler/sıra sayıları/m², tarihler) → M5 `voice` adımı.
 - RTF ve VRAM tek koşudan; VRAM örnekleyicisi 0,25 sn aralıklı, çok kısa tepeleri kaçırabilir (torch değeri çapraz kontrol).
+
+## 9. Telaffuz notları (ipucu — dinledikten sonra okuyun)
+
+ASR (faster-whisper large-v3-turbo) çıktıları:
+
+- **Chatterbox:** "Bu kalemin içinde tam 7 parça var. Bilye uç yalnızca 0 ,7 mm genişliğinde ve her yazışta binlerce kez döner. Yay ise her tıplamada mekanizmayı geri iter. O çıt sesi tam burada doğar." Tek hata "tıklamada → tıplamada".
+- **Freya:** "Bu kalemin içinde tam 7 parça var. Bili uç yalnızca 0 ,7 mm gilmedi meşeğinde her yazışta binlerce ek kez döner. Yani ise her tıklamada mekanizmada mekanizmayı geri iter. O çıtlit tam burada doğar." Yanlış telaffuzlar (Bilye → Bili, genişliğinde → gilmedi meşeğinde, Yay → Yani, çıt sesi → çıtlit), fazladan hece ("ek") ve bir **tekrar** ("mekanizmada mekanizmayı"). Kısa tek cümlelik kontrolde Freya doğru çalışıyor (CER 0,0 ve 0,03); hata uzun, sayılı ikinci cümlede yoğunlaşıyor. Kurulum hatası yok (cuda:0, fp32, 48 kHz).

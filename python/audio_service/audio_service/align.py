@@ -1,9 +1,13 @@
 """Map ASR word timings back onto the script's own spelling. Each script word is
 expanded to its spoken form (normalize_tr); spoken tokens are matched to ASR
 tokens with difflib; script words get the span of their matched spoken tokens.
-Unmatched words are interpolated between neighbours so output stays complete
-and monotonic."""
+Unmatched words are interpolated between neighbours so output stays complete; spans are
+monotonic as long as the ASR timings are monotonic (clamping non-monotonic/overlapping ASR
+output is deferred to M5)."""
+import os
+import re
 from difflib import SequenceMatcher
+from pathlib import Path
 
 from .metrics import tr_lower
 from .normalize_tr import UNITS, normalize_tr
@@ -42,7 +46,24 @@ def _spread(words: list[str], lo: int, hi: int) -> list[tuple[int, int]]:
     return bounds
 
 
+_DECIMAL_TAIL = re.compile(r"^[.,]\d")
+
+
+def _merge_decimal_tokens(asr_words: list[dict]) -> list[dict]:
+    """Whisper tokenizes "0,7" as "0" + ",7". Glue a token that starts with a separator and a
+    digit onto the previous token (text concatenated, start of prev, end of current)."""
+    out: list[dict] = []
+    for a in asr_words:
+        if out and _DECIMAL_TAIL.match(a["text"]):
+            prev = out[-1]
+            out[-1] = {**prev, "text": prev["text"] + a["text"], "end": a["end"]}
+        else:
+            out.append(dict(a))
+    return out
+
+
 def map_words(script: str, asr_words: list[dict]) -> list[dict]:
+    asr_words = _merge_decimal_tokens(asr_words)
     script_words = script.split()
     spoken: list[tuple[int, str]] = []
     for idx, w in enumerate(script_words):
@@ -87,12 +108,32 @@ def map_words(script: str, asr_words: list[dict]) -> list[dict]:
     return out  # type: ignore[return-value]
 
 
-def transcribe_words(wav_path: str, model_size: str = "large-v3-turbo") -> list[dict]:
+WHISPER_SIZE = "large-v3-turbo"
+# Snapshot of mobiuslabsgmbh/faster-whisper-large-v3-turbo recorded in PINS.md.
+WHISPER_REVISION = "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf"
+DEFAULT_HF_HOME = "~/videogen-data/models/hf"
+
+
+def whisper_model_args(model_size: str = WHISPER_SIZE, download_root: str | None = None) -> dict:
+    """WhisperModel kwargs: pinned revision (for the default model) and an explicit hub cache.
+    Root = explicit argument > $HF_HOME/hub > DEFAULT_HF_HOME/hub, so a non-interactive worker
+    (which does not read ~/.bashrc's interactive part) never silently downloads into ~/.cache."""
+    if download_root is None:
+        home = os.environ.get("HF_HOME") or DEFAULT_HF_HOME
+        download_root = str(Path(home).expanduser() / "hub")
+    args = {"download_root": download_root}
+    if model_size == WHISPER_SIZE:
+        args["revision"] = WHISPER_REVISION
+    return args
+
+
+def transcribe_words(wav_path: str, model_size: str = WHISPER_SIZE, download_root: str | None = None) -> list[dict]:
     import torch
     from faster_whisper import WhisperModel
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = WhisperModel(model_size, device=device, compute_type="int8_float16" if device == "cuda" else "int8")
+    model = WhisperModel(model_size, device=device, compute_type="int8_float16" if device == "cuda" else "int8",
+                         **whisper_model_args(model_size, download_root))
     segments, _ = model.transcribe(wav_path, language="tr", word_timestamps=True, vad_filter=False)
     words = [{"text": w.word.strip(), "start": w.start, "end": w.end} for s in segments for w in (s.words or [])]
     del model

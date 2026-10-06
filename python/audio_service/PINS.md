@@ -4,6 +4,7 @@
 |---|---|---|
 | chatterbox-tts | github.com/resemble-ai/chatterbox | 5de7a54aa4e5e2baadb0182dde554908b48b85c2 |
 | FreyaTTS | github.com/freyavoiceai/FreyaTTS | 146d36c1cb6660646be57d31339db4eed9315de3 |
+| Chatterbox ağırlıkları (HF `ResembleAI/chatterbox`) | `~/videogen-data/models/chatterbox/` | 5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18 |
 
 ## Yeniden kurulum (2026-10-06)
 
@@ -27,9 +28,10 @@ Doğrulama: `uv pip install --dry-run -r requirements.freeze.txt` temiz bir 3.12
 ## Düzeltmeler ve model anlık görüntüleri (2026-10-06, M1 Görev 4)
 
 - **av==16.1.0**: av 19.x faster-whisper 1.2.1 ile WAV çözemiyor (`av.open(..., metadata_errors=...)` TypeError) → `requirements.freeze.txt` içinde `av==16.1.0`.
-- **HF_HOME bu makinede kullanıcının `/home/alper/gpu-server/hf-cache` dizinidir.** Freya ağırlıkları `~/videogen-data/models` altında DEĞİL, bu önbellekte durur (Chatterbox ağırlıkları `~/videogen-data/models/chatterbox`).
+- **HF_HOME bu makinede kullanıcının `~/gpu-server/hf-cache` dizinidir.** Freya ağırlıkları `~/videogen-data/models` altında DEĞİL, bu önbellekte durur (Chatterbox ağırlıkları `~/videogen-data/models/chatterbox`).
 - Kullanılan HF anlık görüntüleri (`$HF_HOME/hub/models--*/snapshots/<hash>`):
   - `freyavoice/freya-tts` @ `d124e07493615208f58bdd21d432736849ee4230` (config.json, model.safetensors)
   - `openbmb/VoxCPM2` @ `32279effe8c19989596f05d353d1447f51d9e915` (yalnızca `audiovae.pth`, Freya VAE'si)
-  - `mobiuslabsgmbh/faster-whisper-large-v3-turbo` @ `0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf` (ASR)
+  - `mobiuslabsgmbh/faster-whisper-large-v3-turbo` @ `0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf` (ASR; `align.WHISPER_REVISION` olarak koda sabitlendi)
 - Freya venv: `~/videogen-data/venvs/freya` (torch==2.6.0, voxcpm==2.0.3 --no-deps, FreyaTTS kaynağı `~/videogen-data/src/FreyaTTS` @ 146d36c, `.pth` ile).
+- `align.transcribe_words` Whisper'ı sabit revizyonla (`revision=0a363e91…`) ve açık bir hub önbelleğiyle (`download_root`) yükler: açık argüman > `$HF_HOME/hub` > varsayılan `~/videogen-data/models/hf/hub`. `HF_HOME` bu makinede yalnızca `~/.bashrc`'nin etkileşimli bölümünde export edildiği için etkileşimsiz bir işçi onu görmez; servis `HF_HOME`/`download_root`'u kendisi vermelidir (aksi hâlde varsayılana yeniden indirir). Mevcut ağırlıklar taşınmadı.

@@ -37,8 +37,9 @@ KEYS = ("engine", "voice", "wav", "sample_rate", "seconds", "rtf", "rtf_incl_loa
 
 
 def clean_asr(text):
-    """Whisper writes '0 ,7' / '0, 7' for decimals; rejoin so normalize_tr can read the number."""
-    return re.sub(r"(\d)\s*([.,])\s*(\d)", r"\1\2\3", text)
+    """Whisper writes '0 ,7' for decimals; rejoin so normalize_tr can read the number. Only a space
+    BEFORE the separator is removed, so list commas ('7, 8 ve 9') stay intact."""
+    return re.sub(r"(\d)\s+([.,])(\d)", r"\1\2\3", text)
 
 
 class VramPeak:
