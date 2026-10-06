@@ -10,7 +10,7 @@
 | M1 Ses | `plans/2026-10-06-m1-audio-listening.md` | Tamamlandı (K17 kullanıcı onayı bekliyor) | 2026-10-06 | 2026-10-06 | `docs/m1/decision.md` |
 | M2 İskelet | `plans/2026-10-06-m2-skeleton.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m2/report.md` |
 | M3 Canlı agent katmanı | `plans/2026-10-06-m3a-agent-runtime.md` (M3a) + `plans/2026-10-06-m3b-live-ui.md` (M3b) | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m3/report.md` |
-| M4 Dikey dilim | `plans/2026-10-06-m4a-pipeline-core.md` (M4a) + M4b (M4a sonrası) | Plan hazır (M4a) | | | |
+| M4 Dikey dilim | `plans/2026-10-06-m4a-pipeline-core.md` (M4a) + M4b (M4a sonrası) | Devam ediyor (M4a tamam, dal `m4a-pipeline-core`, birleştirilmedi; M4b planı sırada) | 2026-10-06 | | `docs/m4/m4a-summary.md` |
 | M5 Final ve kalite | M4 sonrası | Plan yok | | | |
 | M6 Yayın | M5 sonrası | Plan yok | | | |
 | M7 Sertleştirme | M6 sonrası | Plan yok | | | |
@@ -68,17 +68,17 @@
 
 ## M4 — Dikey dilim *(iki plan: M4a `plans/2026-10-06-m4a-pipeline-core.md` — tablolar, orchestrator, ilerleme, research, storyboard, Stüdyo, Kütüphane; M4b — vg_blender, build, taslak, player, K19, ilk ürün)*
 
-- [ ] Tablolar: `products`, `videos`, `runs`, `steps`, `jobs`, `versions`, `blobs`, `artifacts`
-- [ ] Orchestrator + kaynak zamanlayıcı (GPU kilidi, RAM, swap, disk, VRAM, `ollama ps` ön kontrolü), kiralama ve kurtarma
-- [ ] İlerleme modeli: ağırlıklı ve monoton toplam yüzde, yüzde kaynakları, ETA
-- [ ] research adımı (`ProductResearch`, zorluk kapısı, belirsiz ad yorumu)
-- [ ] storyboard adımı (`Storyboard`, kanca kalıpları, sürümlü kayıt)
+- [x] Tablolar: `products`, `videos`, `runs`, `steps`, `jobs`, `versions`, `blobs`, `artifacts` · commit b44c042 · 2026-10-06 · M4a T2 (migration 0005; `blobs` M3'ten); `reviews/findings/claims/assets/publications` M5/M6
+- [x] Orchestrator + kaynak zamanlayıcı (GPU kilidi, RAM, swap, disk, VRAM, `ollama ps` ön kontrolü), kiralama ve kurtarma · commit d77a817, 23d77ac · 2026-10-06 · M4a T4/T6; son review I2 (iptal yarışı) düzeltildi; 🚦 swap %100 iken GPU ön kontrolü eşiği kullanıcı kararı (M4b öncesi)
+- [x] İlerleme modeli: ağırlıklı ve monoton toplam yüzde, yüzde kaynakları, ETA · commit be821f6, 23d77ac · 2026-10-06 · M4a T3/T6; son review I1 (zorluk kapısında %99) düzeltildi
+- [x] research adımı (`ProductResearch`, zorluk kapısı, belirsiz ad yorumu) · commit bc71c3a, 7cb5f0b · 2026-10-06 · M4a T1/T7; gerçek haiku koşusu ilk denemede geçti (`docs/m4/real-check.md`)
+- [x] storyboard adımı (`Storyboard`, kanca kalıpları, sürümlü kayıt) · commit bc71c3a, 7cb5f0b · 2026-10-06 · M4a T1/T7; Stüdyo kartları T9 (4f76cf2)
 - [ ] `vg_blender` çekirdeği + `build_scene` + önizleme kareleri + eşdeğerlik testi
 - [ ] Paylaşılan Remotion çalışma alanı + Draft3D + `render_draft` + taslak review'u (≤ 2 tur)
-- [ ] Kütüphane ve player (HTML5 Range + `@remotion/player`)
+- [ ] Kütüphane ve player (HTML5 Range + `@remotion/player`) · Kütüphane listesi M4a T10 (80f4597); player M4b
 - [ ] 🚦 Kanal görsel kimliği: 2–3 seçenek → kullanıcı seçimi (K19)
-- [ ] Video başına kullanım ölçümü (spec §18)
-- [ ] Smoke S2 (taslak sürümüyle); ilk gerçek ürün
+- [ ] Video başına kullanım ölçümü (spec §18) · altyapı M4a T2/T6 (toplam + 5 sa payı; gerçek koşuda pencere karşılaştırma hatası bulundu ve düzeltildi); gerçek ürün ölçümü M4b
+- [ ] Smoke S2 (taslak sürümüyle); ilk gerçek ürün · S2a (taslak öncesi) M4a T11 (8018d5b); taslaklı S2 ve ilk gerçek ürün M4b
 
 ## M5 — Final render ve kalite *(plan M4 sonrası)*
 
@@ -132,3 +132,8 @@
 | 2026-10-06 | ThinkingState kaynağı | Kullanıcının tasarım oturumunda yapıştırdığı özgün komponent bulundu ve repoya alındı; yeniden kurulmayacak, §13.2'ye göre uyarlanacak | `docs/m3/thinking-state.original.tsx` (kaynak: `~/.claude/paste-cache`, 02:02) |
 | 2026-10-06 | M3 gerçek uçtan uca doğrulama (tek haiku chat oturumu) | Geçti + 1 bulgu düzeltildi (`result.text` yalnızca son metin bloğu → izde önceki metin kayboluyordu) | `docs/m3/real-check.md`, `docs/m3/real-chat.png` |
 | 2026-10-06 | M3 son review (tek bağımsız reviewer, Claude Fable 5.1) | With fixes → 4 Important düzeltildi (Grep/Glob kökü run klasörüne, bayat muhafız durumu, boşta kapanma penceresi, `\u0000`), 1 Important Minor'a indirildi, 11 Minor ertelendi | `docs/m3/report.md` §7 |
+| 2026-10-06 | 🚦 M4a gerçek doğrulama: kullanım kapısı | İlk deneme durduruldu (5 sa %83 ≥ %80, muhafız `blocked`; 0 oturum). Kullanıcı: sıfırlanmadan sonra koş | `docs/m4/real-check.md` §1 |
+| 2026-10-06 | M4a gerçek doğrulama (tek haiku ürün koşusu) | Geçti: run `done` 5 dk 57 sn, 2 oturum, düzeltme 0; 1 bulgu düzeltildi (video başına 5 sa payı `null`: iki kaynağın sıfırlanma anı farklı yazılıyor) | `docs/m4/real-check.md`, `docs/m4/real-studio.png` |
+| 2026-10-06 | M4a son review (tek bağımsız reviewer, Claude Fable 5.1) | With fixes → 2 Important düzeltildi (zorluk kapısında %99, iptal/başlatma yarışı), 10 Minor + 1 ertelendi; ledger kararlarının hepsi doğru bulundu | `docs/m4/m4a-summary.md` §7 |
+| 2026-10-06 | M4a S5 kırılganlığı ve chat yarışı | S5 kökü kanıtlandı (taze SSE replay etmez; test akışı bekliyor); "Yeni sohbet" + hemen gönderim yarışı düzeltildi | `docs/m4/m4a-summary.md` §6 |
+| 2026-10-06 | 🚦 Swap / GPU ön kontrol eşiği (spec §6.4 `swap < %90`) | **Açık — kullanıcı kararı** (bu makinede swap %100; M4b GPU adımları `waiting_gpu`'da kalır) | `docs/m4/m4a-summary.md` §8 |

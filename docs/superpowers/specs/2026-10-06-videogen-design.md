@@ -356,6 +356,12 @@ Fixer'a **sadece başarısız kontrol kimlikleri, kanıtları ve düzeltme ipuç
 
 Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` olarak tutulur, böylece sorgulanabilir.
 
+**M4a uygulama notları (`packages/shared/src/artifacts.ts`):**
+- `ProductResearch.difficulty_reason_tr` eklendi: `too_hard` için zorunlu (zorluk kapısı gerekçeli durur, §7.1). `approx_dims_mm` 3 pozitif sayılık sabit uzunluklu dizi (`minItems/maxItems`; `prefixItems` kullanılmaz). Yapılabilir üründe en az 3 parça ve 3 kaynaklı iddia.
+- Kanca kalıp adları türetilmiştir (spec ad vermiyor; M5 kalibrasyonunda gözden geçirilir): `question`, `number`, `misconception`, `reveal`, `contrast`. Kamera: `shot ∈ {hero, wide, medium, close, macro}`, `move ∈ {static, orbit, push_in, pull_out, pan, tilt}`, `lens_mm` 50–135.
+- **Sert kurallar** (ihlal → aynı oturumda düzeltme isteği): kimlik tekilliği, vuruşlar 0'dan `duration_s`'ye bitişik, `rehook_at` sürenin %40–60'ı, `payoff_at` ≥ %70, ses moduna göre `vo_text` zorunlu/yasak, parça ve iddia kimlikleri araştırmada var. **Yumuşak kurallar** (yalnızca uyarı; G2 kapısı M5'te): sayısal iddia için 2 bağımsız ya da 1 birincil kaynak.
+- SDK'ya `outputFormat` olarak `z.toJSONSchema` çıktısı (`$schema` olmadan) verilir; incelikler (refine) JSON Schema'da ifade edilemediği için sonuç zod ile yeniden doğrulanır.
+
 ### 7.5 Render
 
 - **Blender önizleme:** 8 kare, %50 ölçek, 16 örnek, kontakt sayfası ve güvenli alan katmanı (~20 sn).
@@ -503,6 +509,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | `usage_snapshots` | ts, source, five_hour_util, five_hour_resets_at, seven_day_util, seven_day_resets_at, status, raw |
 | `chat_threads` | id, video_id, title, claude_session_id, created_at |
 | `settings` | key, value (rol başına model ve effort, eşikler, kanal kimliği) |
+
+**M4a uygulama notları (migration `0005_pipeline`):** `videos.status_note` (kullanıcıya gösterilen gerekçe: `needs_human`/`failed`/"Storyboard hazır…"), `runs.error`, `runs.usage_start/usage_end` (run başı/sonu kullanım izi, §18), `steps.session_id` ve `steps.note` eklendi. Kısmi benzersiz indeksler: bir videoda tek aktif run (`runs(video_id) WHERE status IN ('queued','running')`), bir adımda tek aktif iş (`jobs(step_id) WHERE status IN ('queued','leased')`). Kimlikler `uuid`, `jobs.id` `bigserial`. Olay konuları `run:<id>`/`video:<id>` yerine `runs` / `videos` (`run.updated` → `RunView`, `video.updated` → `VideoView`), M3'ün `agents` konusu gibi; SSE konuya göre filtrelemez.
 | `audit_log` | §11.2 |
 
 ### 11.2 Audit
@@ -546,6 +554,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
   - `deterministic`: orchestrator adımları.
 - **Arayüzde yüzdenin kaynağı yazar:** "gerçek kare" ya da "tahmin".
 - **Düzeltme turu:** Genel yüzde, review adımının sonundaki değerde sabit kalır. "Düzeltme turu k/3" kendi yüzdesiyle ilerler ve ETA güncellenir.
+- **M4a uygulama (`packages/shared/src/progress.ts`):** `done` oran 1, diğerleri `ilerleme/100` (en çok 0,99); yayına hazır olmadan en çok %99, bir ondalık; yüzde DB'de `GREATEST` ile ve yayın tek advisory lock altında yükselir (olay akışı da monoton). Zaman eğrisi `100 × (1 − e^(−t/beklenen))`, en çok %90; `agent`/`render` raporu gelince zaman eğrisi o adıma yazmaz. Beklenen süre: son 5 bitmiş adımın medyanı, yoksa §7.1 orta değerleri. ETA: çalışan adım `beklenen × (1 − ilerleme/100)` (en az 5 sn) + bekleyen adımların beklenen süresi. Zorluk kapısında durdurulan run'da atlanan adımlar pay almaz (yüzde araştırma sonundaki değerde kalır; son review I1).
 
 ### 12.2 Agent kartı
 
@@ -667,6 +676,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | Yayın zaman aşımı | "Bekliyor" olarak işaretlenir ve yoklama sürdürülür; başarı sayılmaz |
 | SSE koptu | Otomatik yeniden bağlanılır ve kaçan olaylar `Last-Event-ID` ile tekrar oynatılır |
 
+**M4a uygulama notları:** Tek worker değişmezi: açılışta başka sahibin bütün kiraları hemen yeniden kuyruğa girer (önceki worker artık yok); çalışma sırasında periyodik süpürme yoktur (kendi kiralarını heartbeat uzatır, süpürme çalışan bir işi ikinci kez başlatabilirdi). Agent adımı limit reddinde oturumu kendisi sürdürür (`autoResume: false`): eski oturum `failed`/`rate_limited` kapanır, aynı Claude oturumu aynı istemle `resume` edilir ve muhafız açılana kadar bekler; limit beklemesi düzeltme ve çökme sayaçlarına girmez, üst üste 5 retten sonra adım `failed`. Şema hatasında ≤ 2 düzeltme, çökmede 1 `resume`; ikisi de tükenirse adım yeniden denenmez (orchestrator'ın yeniden denemesi aynı işi tekrarlardı). İptal ile adım başlatma/kuyruğa alma arasındaki yarış koşullu SQL geçişleriyle kapatıldı (son review I2).
+
 ## 15. Güvenlik
 
 - **Ağ:** API sadece 127.0.0.1'e bağlanır. Yazma uçlarında Host/Origin kontrolü ile CSRF ve DNS-rebinding koruması vardır (dag-wireboard `server/app.py:25-90` modeli). CORS kapalıdır.
@@ -752,7 +763,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | `get_usage` sıfır token harcıyor. SDK'da bu çağrı `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET` adıyla geçiyor ve "her sürümde değişebilir" uyarısı taşıyor | M0: doğrulandı (docs/m0/report.md): 0 mesaj, `total_cost_usd` 0, ~0,6–0,9 sn. Birim: yüzde 0..100 + ISO `resets_at` (`rate_limit_event`: 0..1 + epoch sn). Çağrı tek bir adaptörün arkasında tutulur, SDK yükseltmesinde gerçek smoke ile kontrol edilir | Son `rate_limit_event`, "x dk önce" damgasıyla |
 | `auth login` TTY olmadan çalışıyor | M0: kısmen doğrulandı (docs/m0/report.md): URL basıyor, stdin'den kod bekliyor, 127.0.0.1 callback dinliyor; kod yapıştırma test edilmedi → v1'de yedek plan, URL + kod v1.1 | Ekranda talimat: terminalde `! claude auth login`; ekran durumu yoklar |
 | Chatterbox 5,67 GB VRAM'e sığıyor | M1: doğrulandı — tepe 3611 MB (nvidia-smi) / 3251 MB (torch) (docs/m1/decision.md) | FreyaTTS (M1 tepesi 1811 MB; Türkçe adil CER %17,9, §7.6 kapısını geçmiyor) |
-| Video başına kullanım (token, 5 saatlik pencere payı) bilinmiyor | M4'te ölçülür | Rol modelleri ve reviewer sayısı ayarlanır |
+| Video başına kullanım (token, 5 saatlik pencere payı) bilinmiyor | M4'te ölçülür. **M4a:** ölçüm altyapısı hazır (oturum token/maliyet toplamı + run başı/sonu 5 sa izi; aynı pencere `get_usage` ms ve `rate_limit_event` saniye ile farklı yazıldığından 60 sn tolerans). İlk ölçüm (haiku/low, yalnızca research + storyboard, `docs/m4/real-check.md`): 2 oturum, 671 697 token, 5 sa payı ≈ %2, 5 dk 57 sn. Gerçek rol modelleriyle tam ürün ölçümü M4b | Rol modelleri ve reviewer sayısı ayarlanır |
+| Claude yapılandırılmış çıktısı (`outputFormat` JSON Schema) zod sözleşmesine uyar | M4a gerçek koşu: haiku/low `ProductResearch` ve `Storyboard`'a ilk denemede uydu (düzeltme 0); Fake testleri düzeltme (≤ 2), çökme (1 `resume`) ve limit yolunu kapsar | Aynı oturumda hata listesiyle ≤ 2 düzeltme, sonra adım `failed` |
 | Güvenli alan pikselleri resmi değil (üçüncü taraf değerler çelişiyor) | Kullanıcının telefonundan ekran görüntüleriyle kalibrasyon (M5) | Pilot kılavuzundaki değerler (150–1510 dikey, sağ 130 px) |
 | −14 LUFS resmi bir TikTok değeri değil | Kanal konvansiyonu; ilk 10 yayından sonra gözden geçirilir | — |
 | Karmaşık ürünlerde prosedürel model kalitesi | Zorluk kapısı (§7.1) | CC0 varlık kaynakları; olmuyorsa "insan gerekli" |
