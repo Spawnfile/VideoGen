@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { ClaudeAuth, UsageSnapshot } from '@videogen/shared/browser';
+import type { AgentSessionView, ChatMessage, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, RoleName, TraceRow, UsageSnapshot } from '@videogen/shared/browser';
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
@@ -7,10 +7,38 @@ async function get<T>(path: string): Promise<T> {
   return r.json() as Promise<T>;
 }
 
+/** GET with the server's freshness watermark (x-vg-event-id: max event id when the read began). */
+export async function getFresh<T>(path: string): Promise<{ data: T; eventId: number }> {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  return { data: (await r.json()) as T, eventId: Number(r.headers.get('x-vg-event-id') ?? 0) };
+}
+
+async function send<T>(method: 'POST' | 'PUT', path: string, body: unknown = {}): Promise<T> {
+  const r = await fetch(path, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  return (r.status === 204 ? null : await r.json()) as T;
+}
+
+export type ChatMode = 'ask' | 'analyze' | 'fix';
+export interface RoleSetting { role: RoleName; label: string; model: ModelAlias; effort: Effort; defaults: { model: ModelAlias; effort: Effort } }
+
 export const api = {
   claudeStatus: () => get<ClaudeAuth | null>('/api/claude/status'),
   usage: () => get<UsageSnapshot | null>('/api/usage'),
   refreshClaude: () => fetch('/api/claude/refresh', { method: 'POST' }),
+  sessions: () => getFresh<AgentSessionView[]>('/api/sessions?scope=recent&kind=pipeline'),
+  trace: (id: string) => getFresh<TraceRow[]>(`/api/sessions/${id}/trace`),
+  cancelSession: (id: string) => send<{ accepted: boolean }>('POST', `/api/sessions/${id}/cancel`),
+  retrySession: (id: string) => send<{ accepted: boolean }>('POST', `/api/sessions/${id}/retry`),
+  threads: () => get<ChatThread[]>('/api/chat/threads'),
+  thread: (id: string) => getFresh<{ thread: ChatThread; messages: ChatMessage[] }>(`/api/chat/threads/${id}`),
+  createThread: () => send<ChatThread>('POST', '/api/chat/threads', {}),
+  sendMessage: (threadId: string, text: string, mode: ChatMode) => send<ChatMessage>('POST', `/api/chat/threads/${threadId}/messages`, { text, mode }),
+  interrupt: (threadId: string) => send<{ accepted: boolean }>('POST', `/api/chat/threads/${threadId}/interrupt`),
+  roles: () => get<RoleSetting[]>('/api/roles'),
+  setRole: (role: RoleName, patch: { model?: ModelAlias; effort?: Effort }) => send<unknown>('PUT', `/api/roles/${role}`, patch),
+  guard: () => get<GuardState>('/api/usage/guard'),
 };
 
 /** 'loading' also covers a null status (worker has not checked yet); only a loaded status may say connected or not. */

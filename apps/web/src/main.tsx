@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { ClaudeAuth, UsageSnapshot } from '@videogen/shared/browser';
+import type { AgentSample, AgentSessionView, ChatMessage, ClaudeAuth, GuardState, LiveTraceItem, TraceRow, UsageSnapshot } from '@videogen/shared/browser';
 import { AppShell } from './components/AppShell.tsx';
-import { connectLive, onUiEvent } from './lib/live.ts';
+import { connectLive, onLiveEvent, onUiEvent } from './lib/live.ts';
+import { applyDelta, applyMessage, applyRow, applySample, applySession } from './lib/stores.ts';
 import { useRoute } from './lib/router.ts';
 import { Settings } from './routes/Settings.tsx';
 import { Studio } from './routes/Studio.tsx';
@@ -17,15 +18,25 @@ function App() {
     // A fresh SSE connect starts at the current max id (no history replay), so REST state is refetched on every open.
     const stop = connectLive('/events', {
       onOpen: () => {
-        void queryClient.invalidateQueries({ queryKey: ['claude'] });
-        void queryClient.invalidateQueries({ queryKey: ['usage'] });
+        for (const key of ['claude', 'usage', 'sessions', 'threads', 'thread', 'trace', 'roles']) void queryClient.invalidateQueries({ queryKey: [key] });
       },
     });
-    const off = onUiEvent((e) => {
+    const offUi = onUiEvent((e) => {
       if (e.topic === 'system' && e.type === 'claude.auth') queryClient.setQueryData(['claude', 'status'], e.payload as ClaudeAuth);
       if (e.topic === 'system' && e.type === 'usage') queryClient.setQueryData(['usage'], e.payload as UsageSnapshot);
+      if (e.type === 'usage.guard') queryClient.setQueryData(['usage', 'guard'], e.payload as GuardState);
+      if (e.type === 'agent.session') applySession(e.payload as AgentSessionView, e.id);
+      if (e.type === 'trace.row') applyRow(e.payload as TraceRow, e.id);
+      if (e.type === 'chat.message') applyMessage(e.payload as ChatMessage, e.id);
     });
-    return () => { off(); stop(); };
+    const offLive = onLiveEvent((e) => {
+      if (e.type === 'trace.delta') {
+        const p = e.payload as { sessionId: string; d: LiveTraceItem[] };
+        applyDelta(p.sessionId, p.d);
+      }
+      if (e.type === 'agent.sample') applySample(e.payload as AgentSample);
+    });
+    return () => { offUi(); offLive(); stop(); };
   }, []);
   return <AppShell path={path} go={go}>{path === '/settings' ? <Settings /> : <Studio />}</AppShell>;
 }
