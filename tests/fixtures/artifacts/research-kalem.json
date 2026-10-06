@@ -1,0 +1,23 @@
+{
+  "interpretation": "Basmalı, tek kullanımlık plastik gövdeli tükenmez kalem",
+  "difficulty": "procedural",
+  "parts": [
+    { "id": "govde", "name_tr": "Gövde", "function": "İç parçaları taşır ve tutuş yüzeyi sağlar", "material": "Polipropilen", "approx_dims_mm": [140, 8, 8], "count": 1, "assembly_order": 5, "sources": ["https://en.wikipedia.org/wiki/Ballpoint_pen"] },
+    { "id": "murekkep-haznesi", "name_tr": "Mürekkep haznesi", "function": "Yağ bazlı mürekkebi taşır", "material": "Polipropilen boru", "approx_dims_mm": [110, 3, 3], "count": 1, "assembly_order": 2, "sources": ["https://en.wikipedia.org/wiki/Ballpoint_pen"] },
+    { "id": "uc-yuvasi", "name_tr": "Uç yuvası", "function": "Bilyeyi tutar ve mürekkebi ona iletir", "material": "Pirinç", "approx_dims_mm": [8, 2.2, 2.2], "count": 1, "assembly_order": 1, "sources": ["https://en.wikipedia.org/wiki/Ballpoint_pen"] },
+    { "id": "bilye", "name_tr": "Bilye", "function": "Dönerek mürekkebi kâğıda aktarır", "material": "Tungsten karbür", "approx_dims_mm": [0.7, 0.7, 0.7], "count": 1, "assembly_order": 1, "sources": ["https://en.wikipedia.org/wiki/Ballpoint_pen"] },
+    { "id": "yay", "name_tr": "Yay", "function": "Basma mekanizmasında ucu geri çeker", "material": "Paslanmaz çelik tel", "approx_dims_mm": [18, 3.5, 3.5], "count": 1, "assembly_order": 3, "sources": ["https://en.wikipedia.org/wiki/Ballpoint_pen"] }
+  ],
+  "mechanism": {
+    "summary_tr": "Bilye yuvasında dönerken haznedeki mürekkebi yüzeyine alır ve kâğıda bırakır; mürekkep kılcallık ve yerçekimiyle uca iner.",
+    "steps": ["Uç kâğıda değer ve bilye dönmeye başlar", "Bilye yuvadan mürekkeple kaplanarak çıkar", "Mürekkep kâğıda geçer, hazneden yenisi gelir"]
+  },
+  "claims": [
+    { "id": "bilye-capi", "text_tr": "Yaygın uç boyutlarında bilye çapı 0,7 mm'dir", "sources": [{ "url": "https://en.wikipedia.org/wiki/Ballpoint_pen", "quote": "Ballpoint pens are available with various tip sizes, commonly 0.7 mm and 1.0 mm.", "accessed_at": "2026-10-06", "type": "independent" }, { "url": "https://www.bicworld.com/en/our-products", "quote": "Medium point (1.0 mm) and fine point (0.7 mm).", "accessed_at": "2026-10-06", "type": "primary" }] },
+    { "id": "tungsten-karbur", "text_tr": "Bilye genellikle tungsten karbürden yapılır", "sources": [{ "url": "https://en.wikipedia.org/wiki/Ballpoint_pen", "quote": "the ball is typically made of tungsten carbide", "accessed_at": "2026-10-06", "type": "independent" }] },
+    { "id": "yag-bazli", "text_tr": "Tükenmez kalem mürekkebi yağ bazlı ve yoğundur", "sources": [{ "url": "https://en.wikipedia.org/wiki/Ballpoint_pen", "quote": "oil-based ink", "accessed_at": "2026-10-06", "type": "independent" }] },
+    { "id": "kilcallik", "text_tr": "Mürekkep uca yerçekimi ve kılcallıkla iner", "sources": [{ "url": "https://en.wikipedia.org/wiki/Ballpoint_pen", "quote": "ink flows by gravity and capillary action", "accessed_at": "2026-10-06", "type": "independent" }] }
+  ],
+  "fun_facts": ["İlk ticari tükenmez kalemler 1940'larda satıldı"],
+  "engineer_insight": "Bilye ile yuva arasındaki boşluk mikron mertebesindedir; daha geniş olursa mürekkep sızar, daha dar olursa bilye döner ama mürekkep geçmez."
+}

@@ -5,3 +5,4 @@ export * from './usage.ts';
 export * from './claude-auth.ts';
 export * from './agents.ts';
 export * from './parent-watch.ts';
+export * from './artifacts.ts';

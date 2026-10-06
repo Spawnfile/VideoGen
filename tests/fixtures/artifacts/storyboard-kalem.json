@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "audio_mode": "silent",
+  "duration_s": 45,
+  "hook": { "pattern": "number", "text_tr": "0,7 mm'lik bir bilye her şeyi yazıyor" },
+  "beats": [
+    { "id": "b1-kanca", "t_start": 0, "t_end": 3, "camera": { "shot": "hero", "move": "push_in", "lens_mm": 85 }, "parts": ["govde"], "action": "Kalem ilk karede tam görünür, kamera ucuna yaklaşır", "onscreen_text": { "tr": "0,7 mm'lik bir bilye her şeyi yazıyor" }, "sfx_cues": ["whoosh"], "claim_ids": ["bilye-capi"] },
+    { "id": "b2-patlatma", "t_start": 3, "t_end": 9, "camera": { "shot": "wide", "move": "orbit", "lens_mm": 50 }, "parts": ["govde", "murekkep-haznesi", "yay", "uc-yuvasi"], "action": "Kalem parçalarına ayrılır", "onscreen_text": { "tr": "Tam 5 parça" }, "sfx_cues": ["whoosh", "click"], "claim_ids": [] },
+    { "id": "b3-hazne", "t_start": 9, "t_end": 16, "camera": { "shot": "medium", "move": "pan", "lens_mm": 70 }, "parts": ["murekkep-haznesi"], "action": "Mürekkep haznesi öne çıkar", "onscreen_text": { "tr": "Yağ bazlı, yoğun mürekkep" }, "sfx_cues": [], "claim_ids": ["yag-bazli"] },
+    { "id": "b4-ikinci-kanca", "t_start": 16, "t_end": 24, "camera": { "shot": "close", "move": "push_in", "lens_mm": 100 }, "parts": ["uc-yuvasi", "bilye"], "action": "Uç yuvası kesitle açılır, bilye görünür", "onscreen_text": { "tr": "Asıl iş bu küçük yuvada" }, "sfx_cues": ["pop"], "claim_ids": ["bilye-capi"] },
+    { "id": "b5-mekanizma", "t_start": 24, "t_end": 32, "camera": { "shot": "macro", "move": "static", "lens_mm": 135 }, "parts": ["bilye"], "action": "Bilye döner, mürekkep yüzeyine yayılır", "onscreen_text": { "tr": "Bilye dönerken mürekkebi taşır" }, "sfx_cues": [], "claim_ids": ["kilcallik", "tungsten-karbur"] },
+    { "id": "b6-odul", "t_start": 32, "t_end": 40, "camera": { "shot": "close", "move": "pull_out", "lens_mm": 85 }, "parts": ["bilye", "uc-yuvasi"], "action": "Kâğıda yazan uç; boşluğun ölçeği gösterilir", "onscreen_text": { "tr": "Boşluk mikron kadar dar" }, "sfx_cues": ["rise"], "claim_ids": ["tungsten-karbur"] },
+    { "id": "b7-dongu", "t_start": 40, "t_end": 45, "camera": { "shot": "hero", "move": "push_in", "lens_mm": 85 }, "parts": ["govde"], "action": "Parçalar birleşir, ilk kareye döner", "onscreen_text": { "tr": "Bir dahaki yazışında hatırla" }, "sfx_cues": ["snap"], "claim_ids": [] }
+  ],
+  "rehook_at": 22,
+  "payoff_at": 34,
+  "loop_strategy": "Son karede kalem ilk karedeki pozisyona birleşir",
+  "cta": { "tr": "Sıradaki ürünü yorumlara yaz" }
+}
