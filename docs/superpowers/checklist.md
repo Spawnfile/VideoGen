@@ -9,7 +9,7 @@
 | M0 Doğrulama | `plans/2026-10-06-m0-verification.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m0/report.md` |
 | M1 Ses | `plans/2026-10-06-m1-audio-listening.md` | Tamamlandı (K17 kullanıcı onayı bekliyor) | 2026-10-06 | 2026-10-06 | `docs/m1/decision.md` |
 | M2 İskelet | `plans/2026-10-06-m2-skeleton.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m2/report.md` |
-| M3 Canlı agent katmanı | `plans/2026-10-06-m3a-agent-runtime.md` (M3a) + M3b (M3a sonrası) | Devam ediyor (M3a) | 2026-10-06 | | |
+| M3 Canlı agent katmanı | `plans/2026-10-06-m3a-agent-runtime.md` (M3a) + M3b (M3a sonrası) | Devam ediyor (M3a tamam, M3b sırada) | 2026-10-06 | | |
 | M4 Dikey dilim | M3 sonrası | Plan yok | | | |
 | M5 Final ve kalite | M4 sonrası | Plan yok | | | |
 | M6 Yayın | M5 sonrası | Plan yok | | | |
@@ -55,15 +55,15 @@
 
 ## M3 — Canlı agent katmanı *(iki plan: M3a `plans/2026-10-06-m3a-agent-runtime.md` — sürücü, roller, MCP, koruma, tablolar, kullanım muhafızı; M3b — kartlar, ThinkingState, chat paneli, smoke; M3a bitince yazılır)*
 
-- [ ] `ClaudeDriver` arayüzü: `SdkClaudeDriver` + fixture oynatan `FakeClaudeDriver`
-- [ ] Rol tanımları (`claude-plugin/agents/*.md`) ve rol başına model/effort/araç ayarları (spec §6.2)
-- [ ] `videogen` MCP sunucusu (in-process): `report_progress`, `get_context`, `read_spec`/`write_spec`, `register_artifact`
-- [ ] `PreToolUse` koruması: yol sınırı + ağır komut yasağı; gerekçe doğru MCP aracını gösteriyor
-- [ ] `agent_sessions` / `agent_events` tabloları, ham NDJSON, transcript arşivi
+- [x] `ClaudeDriver` arayüzü: `SdkClaudeDriver` + fixture oynatan `FakeClaudeDriver` · commit 4a0ff5c, 02e891d · 2026-10-06 · M3a T1/T6; elle gerçek doğrulama (haiku): MCP bağlı, guard reddi, interrupt → giriş kapanınca iterator fırlatır
+- [x] Rol tanımları (`claude-plugin/agents/*.md`) ve rol başına model/effort/araç ayarları (spec §6.2) · commit 1d360cf, 853e23a · 2026-10-06 · M3a T3 (+ skill symlink'leri manifestten üretiliyor), ayar uçları T11; Ayarlar arayüzü M3b
+- [x] `videogen` MCP sunucusu (in-process): `report_progress`, `get_context`, `read_spec`/`write_spec`, `register_artifact` · commit bb76c1e · 2026-10-06 · M3a T5; şema içerikleri M4
+- [x] `PreToolUse` koruması: yol sınırı + ağır komut yasağı; gerekçe doğru MCP aracını gösteriyor · commit 1d360cf · 2026-10-06 · M3a T3; + symlink kaçışı, Bash izin listesi, gizli dosya okuma yasağı
+- [x] `agent_sessions` / `agent_events` tabloları, ham NDJSON, transcript arşivi · commit e41797e, dfda49c, 14973bf · 2026-10-06 · M3a T4/T7/T8; `ui_events` sırası DB'de zorlanıyor
 - [ ] Agent kartları: durum, yüzde ve kaynağı, alt ajanlar, CPU/RAM, "takılmış olabilir"
 - [ ] Canlı ThinkingState (Steps / Reasoning / Search / Coding) + olay→satır eşleyici (fixture testli)
 - [ ] Chat paneli: kalıcı oturum, interrupt, resume, ayrılmış chat slotu
-- [ ] Kullanım muhafızı: `rate_limit_event` beslemesi, %80 / %90 eşikleri, `resetsAt`'te devam
+- [x] Kullanım muhafızı: `rate_limit_event` beslemesi, %80 / %90 eşikleri, `resetsAt`'te devam · commit b9189b5 · 2026-10-06 · M3a T9; footer gösterimi M3b
 - [ ] Smoke S3 (canlılık), S4 (SSE kopması), S5 (chat, kısmi)
 
 ## M4 — Dikey dilim *(plan M3 sonrası)*
