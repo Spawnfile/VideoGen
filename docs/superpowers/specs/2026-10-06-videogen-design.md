@@ -69,7 +69,7 @@ Bu doküman; kullanıcı gereksinimlerini, brainstorming ve grilling turlarında
 | K14 | İş sırası: birden fazla ürün sıraya girer; Claude adımları paralel, GPU adımları sırayla | Kullanıcı kararı (Q4) |
 | K15 | Chat agent'ının her değişikliği yeni sürüm olur ve aynı pipeline'dan geçer; silme ve yayın sadece butonla | Kullanıcı kararı (Q5) |
 | K16 | Shorts için v1'de sadece MP4 dışa aktarımı | Kullanıcı kararı (Q6) |
-| K17 | Anlatıcı sesi (hazır ses ya da klon) TTS dinleme testinde seçilir; klon seçilirse AI etiketi zorunlu | Kullanıcı kararı (Q7). TikTok AIGC kuralı |
+| K17 | Anlatıcı sesi (hazır ses ya da klon) TTS dinleme testinde seçilir; klon seçilirse AI etiketi zorunlu. **GEÇİCİ (M1, 2026-10-06): Chatterbox ML V3 + hazır ses; Freya yedek; klon test edilmedi; kullanıcı onayı bekliyor** | Kullanıcı kararı (Q7). TikTok AIGC kuralı. Geçici seçim ölçümlerden (adil CER %0,5 / %17,9; `docs/m1/decision.md`) |
 | K18 | Ekran yazıları Türkçe; metinler dil anahtarlı tutulur (İngilizce varyanta hazır) | Kullanıcı kararı (Q8) |
 | K19 | Sabit kanal görsel kimliği; ilk dikey dilimde 2–3 seçenek sunulur | Kullanıcı kararı (Q9) |
 | K20 | Agent SDK tam sürüme sabitlenir ve **kendi gömülü CLI binary'siyle** çalışır | Kurulu CLI `autoUpdates:false` iken 3 haftada 283→286→289→290 sürümlerine geçti (ölçüldü) |
@@ -137,7 +137,7 @@ Bu doküman; kullanıcı gereksinimlerini, brainstorming ve grilling turlarında
   packages/claude/     ClaudeDriver (SDK + Fake), rol tanımları, MCP araçları, stream→UI eşleyici
   packages/remotion/   tek paylaşılan Remotion çalışma alanı (Draft3D, Compose, etiket/altyazı bileşenleri)
   python/vg_blender/   bpy kütüphanesi (primitive'ler, malzemeler, ışık, kamera, anchors/events/GLB export)
-  python/audio_service/ TTS (Chatterbox/Freya) + Whisper hizalama, tek venv
+  python/audio_service/ TTS (Chatterbox; yedek Freya ayrı venv'de) + Whisper hizalama, tek venv
   python/qc/           qc_probe (otomatik kapılar; araştırmadaki prototipten)
   claude-plugin/       platform plugin'i: skills (symlink), agents/*.md, guides/ (MCP'ye uyarlanmış kılavuzlar)
   tests/smoke/         Playwright smoke testleri
@@ -367,7 +367,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 - **VO modu (`voice` adımı, build'den önce):**
   1. Türkçe metin normalizasyonu: sayılar, birimler, kısaltmalar, ondalık virgül
   2. Cümle bazında TTS
-  3. Whisper ile kelime zamanları; senaryo metniyle eşleştirilir; CER > %5 ise yeni seed ile yeniden üretilir
+  3. Whisper ile kelime zamanları; senaryo metniyle eşleştirilir; CER > %5 ise yeni seed ile yeniden üretilir. CER **iki tarafa da `normalize_tr` uygulanarak** hesaplanır (`cer(normalize_tr(betik), normalize_tr(asr))`): Whisper sayıları rakamla yazar ("0,7 mm"), betik sözle açılır; ham ASR'ye karşı CER doğru okumayı da cezalandırır (M1: %13,9 yerine %0,5, `docs/m1/decision.md` §3)
   4. 120–250 ms aralar
   5. 48 kHz'e yeniden örnekleme
 - **Seslendirmesiz mod:** Her vuruşu metin ve SFX taşır.
@@ -451,9 +451,9 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
 | Alan | Karar | Kanıt |
 |---|---|---|
-| TTS | M1'de **dinleme testi**: Chatterbox Multilingual V3 (MIT) ve FreyaTTS-small (Apache-2.0), aynı Türkçe metinle; hazır ses ve kendi ses klonu yan yana. Kararı kullanıcı verir | Ticari kullanıma uygun, Türkçe konuşan ve 6 GB'a sığan sadece bu ikisi. XTTS-v2, MMS ve F5 ticari değil; Kokoro'da Türkçe yok |
-| TTS çalışma şekli | `python/audio_service`: tek uv venv (Python 3.12). Model **sadece ses işi sırasında, GPU kilidi altında** yüklenir ve iş bitince boşaltılır | Chatterbox 4–6 GB VRAM tutuyor; yüklü kalırsa Blender çakışır |
-| Hizalama | faster-whisper (large-v3-turbo veya bu GPU'ya sığan en büyük model) kendi venv'inde. Kelime zamanları senaryoyla eşleştirilir ve Remotion `createTikTokStyleCaptions` ile kullanılır | Mevcut `transcription` komutu başka bir deneyin venv'ine bağlı; kırılgan, ona güvenilmez |
+| TTS | M1'de **dinleme testi**: Chatterbox Multilingual V3 (MIT) ve FreyaTTS-small (Apache-2.0), aynı Türkçe metinle; hazır ses ve kendi ses klonu yan yana. Kararı kullanıcı verir. **M1 sonucu (GEÇİCİ, kullanıcı onayı bekliyor): varsayılan Chatterbox Multilingual V3** (kaynak `5de7a54`, ağırlık `t3_mtl23ls_v3`, `t3_model="v3"`), hazır ses; **yedek FreyaTTS** yalnızca VRAM baskısında. Klon test edilmedi (kullanıcı kaydı yok) | Ticari kullanıma uygun, Türkçe konuşan ve 6 GB'a sığan sadece bu ikisi. XTTS-v2, MMS ve F5 ticari değil; Kokoro'da Türkçe yok. M1 ölçümü (3 cümle, tek tohum): Chatterbox adil CER %0,5, `rtf_gen` 0,63, tepe 3611 MB; Freya adil CER %17,9 (> %5; yanlış telaffuz + tekrar), `rtf_gen` 0,30, tepe 1811 MB (`docs/m1/decision.md`) |
+| TTS çalışma şekli | `python/audio_service`: Chatterbox + Whisper tek uv venv (Python 3.12). Model **sadece ses işi sırasında, GPU kilidi altında** yüklenir ve iş bitince boşaltılır. Freya yedeği ayrı venv'de (`~/videogen-data/venvs/freya`; olası bağımlılık çakışmasına karşı) | Chatterbox M1'de tepe **3,3–3,6 GB** VRAM tuttu (torch 3251 MB / nvidia-smi 3611 MB); yüklü kalırsa Blender çakışır |
+| Hizalama | faster-whisper (large-v3-turbo veya bu GPU'ya sığan en büyük model) kendi venv'inde. M1: large-v3-turbo, `audio_service` venv'inde; `av==16.1.0` sabit (av 19 ile WAV açılamıyor). Kelime zamanları senaryoyla eşleştirilir ve Remotion `createTikTokStyleCaptions` ile kullanılır | Mevcut `transcription` komutu başka bir deneyin venv'ine bağlı; kırılgan, ona güvenilmez |
 | SFX | Kenney CC0 paketleri + lisansı CC0 olarak doğrulanmış Remotion sesleri (whoosh, whip, mouse-click, switch, page-turn, shutter). Remotion'un `ding.wav` sesi **lisanssız**, kullanılmaz. Gerekirse ffmpeg ile prosedürel SFX | Araştırma raporu |
 | Müzik | `assets` defteri: başlık, kaynak URL, SPDX lisansı, yazar, atıf metni, lisansın anlık görüntüsü, sha256. Sadece Pixabay Content License, CC0 ve CC-BY-4.0 kabul edilir; NC, ND, SA ve YouTube Audio Library standart lisansı engellenir. Kürasyon arayüzden elle yapılır | Ücretli API yok; MusicGen ve YuE çıktıları ticari değil |
 | Lisans kapısı | Render, defterde olmayan veya izin verilmeyen bir varlığı **reddeder**. CC-BY atıfları açıklama metnine otomatik eklenir | |
@@ -747,7 +747,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | SDK'nın gömülü binary'si `~/.claude` OAuth bilgilerini kullanıyor; kullanıcının terminaldeki CLI'sıyla aynı anda token yenilemesi sorun çıkarmıyor | M0: doğrulandı (docs/m0/report.md): `apiKeySource: none`, gömülü CLI 2.1.290. Eşzamanlı token yenilemesi ayrıca zorlanmadı; M0 boyunca sorun görülmedi, M3'te izlenir | `pathToClaudeCodeExecutable` ile kurulu CLI kullanılır ve sürüm her açılışta kontrol edilir |
 | `get_usage` sıfır token harcıyor. SDK'da bu çağrı `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET` adıyla geçiyor ve "her sürümde değişebilir" uyarısı taşıyor | M0: doğrulandı (docs/m0/report.md): 0 mesaj, `total_cost_usd` 0, ~0,6–0,9 sn. Birim: yüzde 0..100 + ISO `resets_at` (`rate_limit_event`: 0..1 + epoch sn). Çağrı tek bir adaptörün arkasında tutulur, SDK yükseltmesinde gerçek smoke ile kontrol edilir | Son `rate_limit_event`, "x dk önce" damgasıyla |
 | `auth login` TTY olmadan çalışıyor | M0: kısmen doğrulandı (docs/m0/report.md): URL basıyor, stdin'den kod bekliyor, 127.0.0.1 callback dinliyor; kod yapıştırma test edilmedi → v1'de yedek plan, URL + kod v1.1 | Ekranda talimat: terminalde `! claude auth login`; ekran durumu yoklar |
-| Chatterbox 5,67 GB VRAM'e sığıyor | M1 ölçümü | FreyaTTS (1,5 GB) |
+| Chatterbox 5,67 GB VRAM'e sığıyor | M1: doğrulandı — tepe 3611 MB (nvidia-smi) / 3251 MB (torch) (docs/m1/decision.md) | FreyaTTS (M1 tepesi 1811 MB; Türkçe adil CER %17,9, §7.6 kapısını geçmiyor) |
 | Video başına kullanım (token, 5 saatlik pencere payı) bilinmiyor | M4'te ölçülür | Rol modelleri ve reviewer sayısı ayarlanır |
 | Güvenli alan pikselleri resmi değil (üçüncü taraf değerler çelişiyor) | Kullanıcının telefonundan ekran görüntüleriyle kalibrasyon (M5) | Pilot kılavuzundaki değerler (150–1510 dikey, sağ 130 px) |
 | −14 LUFS resmi bir TikTok değeri değil | Kanal konvansiyonu; ilk 10 yayından sonra gözden geçirilir | — |

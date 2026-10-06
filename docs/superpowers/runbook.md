@@ -85,8 +85,8 @@ Yeni bir Claude Code oturumu açın (cwd: `~/gpu-server/VideoGen`) ve şunu yaz�
 | `minillm-lab`'da commit edilmemiş, push edilmemiş ya da stash'lenmiş iş var | M0 Task 1 (geçti: temiz) | Silme atlanır; liste kullanıcıya gösterilip yeniden onay istenir |
 | `apiKeySource` `none` değil (abonelik yolu çalışmıyor) | M0 Task 3 (geçti: `none`) | Dur. Spec §18 yedek planı kullanıcıyla konuşulur |
 | `PreToolUse` yol koruması kaçışı engellemiyor | M0 Task 4 (geçti: engelledi) | Dur. Spec §6.1 ve §15 güncellenmeden M3'e geçilmez |
-| Boş disk < 30 GB (M1) veya < 3 GB + kare tahmini (render) | M1, M4+ | Dur. Temizlik önerisi sunulur |
-| TTS motoru ve anlatıcı sesi seçimi | M1 Task 5 | Kullanıcı karar verir (K17) |
+| Boş disk < 30 GB (M1) veya < 3 GB + kare tahmini (render) | M1 (29,5 GiB = 31,7 GB ile geçildi; indirmelerde taban 10 GiB), M4+ | Dur. Temizlik önerisi sunulur |
+| TTS motoru ve anlatıcı sesi seçimi | M1 Task 5 (**geçici karar kaydedildi**: Chatterbox ML V3 + hazır ses; `docs/m1/decision.md`) | Kullanıcı karar verir (K17): `~/videogen-data/m1/listening/index.html` sayfasını kör dinler, seçimini söyler; karar ve spec K17 güncellenir. M5 `voice` adımından önce kesinleşmeli |
 | Kanal görsel kimliği seçimi | M4 | Kullanıcı 2–3 seçenekten birini seçer (K19) |
 | Gerçek TikTok taslak gönderimi | M6 | Kullanıcı butona kendisi basar |
 | Herhangi bir silme veya geri alınamaz işlem (planda yazanlar dışında) | Her yer | Önce hedef gösterilir, onay alınır |
@@ -112,6 +112,7 @@ Taş raporu bittikten sonra yeni bir oturumda:
 | Disk | `df -h / && du -sh ~/videogen-data/*` |
 | Geliştirme kipi | `npm run dev:api` + `npm run dev:worker` + `npm run dev:web` (Vite 5173 → 5180). `dev:api` çalışırken `npm run build` yaptıysan `dev:api`'yi yeniden başlat (statik dosyalar API açılışında kaydedilir) |
 | Testler | `npm run typecheck && npm test && npm run test:smoke` |
+| Ses servisi testleri | `cd python/audio_service && .venv/bin/pytest -q` (tüm testler geçmeli, GPU gerekmez). Kurulum/yeniden kurulum: `python/audio_service/PINS.md` (**`uv sync` asla**) |
 | Smoke | `npm run test:smoke`: kendi yığınını port **5190** ve `videogen_smoke` veritabanıyla kurar, her koşuda web'i derler. `videogen_smoke` DB'si ve `/tmp/videogen-smoke-*` bir sonraki koşuya kadar kalır (sonraki koşu DB'yi silip yeniden oluşturur) |
 
 ## 7. Sorun giderme
@@ -137,3 +138,6 @@ Taş raporu bittikten sonra yeni bir oturumda:
 | Postgres yeniden başladıktan sonra api/worker günlüklerinde yeniden başlatmalar | Beklenen: worker crash-only (LISTEN bağlantısı kopunca çıkar), başlatıcı backoff ile (1→2→4… 30 sn) yeniden başlatır | Bir şey yapma; birkaç saniye içinde footer yeniden "Worker canlı" olur |
 | Elle `npm run build` sonrası boş sayfa / eksik dosya | API statik dosyaları açılışta kaydeder; derleme dosya adlarını değiştirdi | API'yi yeniden başlat (`npm start` her zaman önce derler) |
 | `başarısız: docker compose … (spawnSync docker ENOENT)` | `docker` PATH'te yok ya da kurulu değil | Docker'ı kur/başlat, `docker ps` çalışıyor mu bak; 127.0.0.1:5433 boş mu kontrol et |
+| Ses venv'inde `import torch` / `import chatterbox` başarısız (paketler kaybolmuş), ortada bir `uv.lock` var | Birisi `python/audio_service` içinde `uv sync` çalıştırdı: pyproject chatterbox/torch'u listelemez, sync onları **siler** (M1 Task 3'te oldu) | `cd python/audio_service && rm -f uv.lock && uv pip install --python .venv -r requirements.freeze.txt && uv pip install --python .venv --no-deps -e .`; doğrula: `uv pip freeze --python .venv/bin/python \| grep -v '^-e' \| diff - requirements.freeze.txt` boş. **`uv sync` asla** (`PINS.md`) |
+| faster-whisper WAV açamıyor: `TypeError` (`av.open(..., metadata_errors=...)`) | `av` 19.x faster-whisper 1.2.1 ile uyumsuz | `cd python/audio_service && uv pip install --python .venv av==16.1.0` (freeze'de zaten sabit; freeze'den yeniden kurulumla gelir) |
+| Freya / Whisper ağırlıkları `~/videogen-data/models` altında yok, yeniden iniyor sanılıyor | Bu makinede `HF_HOME=~/gpu-server/hf-cache` (`~/.bashrc`'de export; kullanıcının paylaşılan önbelleği); Freya, VoxCPM2 `audiovae.pth` ve Whisper turbo oraya iner. Yalnız Chatterbox `~/videogen-data/models/chatterbox`'ta | Önbelleği silme; disk hesabında `du -sh ~/gpu-server/hf-cache` ayrıca say. Sabit anlık görüntüler `python/audio_service/PINS.md`. **Ses servisi `HF_HOME`/`download_root`'u kendisi ayarlamalı:** `HF_HOME` yalnızca `~/.bashrc`'nin etkileşimli bölümünde export edilir, etkileşimsiz süreçler (işçi, systemd, cron) onu okumaz; `align.transcribe_words` yoksa `~/videogen-data/models/hf/hub`'a düşer ve yeniden indirir |

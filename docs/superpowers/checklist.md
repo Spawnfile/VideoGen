@@ -7,7 +7,7 @@
 | Taş | Plan | Durum | Başlangıç | Bitiş | Rapor |
 |---|---|---|---|---|---|
 | M0 Doğrulama | `plans/2026-10-06-m0-verification.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m0/report.md` |
-| M1 Ses | `plans/2026-10-06-m1-audio-listening.md` | Başlamadı | | | `docs/m1/decision.md` |
+| M1 Ses | `plans/2026-10-06-m1-audio-listening.md` | Tamamlandı (K17 kullanıcı onayı bekliyor) | 2026-10-06 | 2026-10-06 | `docs/m1/decision.md` |
 | M2 İskelet | `plans/2026-10-06-m2-skeleton.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m2/report.md` |
 | M3 Canlı agent katmanı | M2 sonrası yazılacak | Plan yok | | | |
 | M4 Dikey dilim | M3 sonrası | Plan yok | | | |
@@ -34,11 +34,11 @@
 
 ## M1 — Ses servisi ve TTS dinleme testi
 
-- [ ] T1 Ses venv'i (Python 3.12, torch CUDA), sabitlenmiş commit'ler (`PINS.md`)
-- [ ] T2 Türkçe normalizasyon (TDD, 11 test: ondalık virgül, birimler, TDK sayı yazımı, İ/ı)
-- [ ] T3 CER + senaryoya sadık kelime hizalama (TDD, 6 test)
-- [ ] T4 Dinleme testi: Chatterbox (hazır ses) · FreyaTTS · (isteğe bağlı) kendi ses klonunuz; VRAM, RTF, CER ölçümleri + kör dinleme sayfası
-- [ ] T5 🚦 Kullanıcı kararı: TTS motoru + anlatıcı sesi (klonsa AI etiketi zorunlu) → `docs/m1/decision.md`, spec K17
+- [x] T1 Ses venv'i (Python 3.12, torch CUDA), sabitlenmiş commit'ler (`PINS.md`) · commit 49c0899 · 2026-10-06 · + `requirements.freeze.txt`, av==16.1.0, paket yapılandırması
+- [x] T2 Türkçe normalizasyon (TDD, 11 test: ondalık virgül, birimler, TDK sayı yazımı, İ/ı) · commit 2ff0aba · 2026-10-06 · + noktalı ondalık, L, eksi, ≥10^12; 17 test
+- [x] T3 CER + senaryoya sadık kelime hizalama (TDD, 6 test) · commit ef959d2 · 2026-10-06 · + noktalama, Whisper rakamları, "0"+",7" birleştirme, Whisper revizyon sabitleme
+- [x] T4 Dinleme testi: Chatterbox (hazır ses) · FreyaTTS · (isteğe bağlı) kendi ses klonunuz; VRAM, RTF, CER ölçümleri + kör dinleme sayfası · commit a3006be · 2026-10-06 · klon test edilmedi (kayıt yok); adil CER: Chatterbox %0,5, Freya %17,9
+- [ ] T5 🚦 Kullanıcı kararı: TTS motoru + anlatıcı sesi (klonsa AI etiketi zorunlu) → `docs/m1/decision.md`, spec K17 · commit 57cce67 · 2026-10-06 · **GEÇİCİ karar kaydedildi (Chatterbox ML V3 + hazır ses; Freya yedek); kullanıcının `~/videogen-data/m1/listening/index.html` dinleyip onaylaması bekleniyor**
 
 ## M2 — Platform iskeleti
 
@@ -124,4 +124,6 @@
 | 2026-10-06 | M2 planı errata | `toFraction` kaldırıldı; kaynak başına normalizasyon | M2 planı başındaki errata |
 | 2026-10-06 | 🚦 M1 öncesi disk eşiği (< 30 GB) | Otonom karar: devam (önceden onaylı `~/.npm` yeniden temizlendi → 29,5 GiB / 31,7 GB). M1 sırasında boş alan < 10 GiB olursa indirmeler durur | M2 sonrası `node_modules` (0,5 GB) + spike (0,3 GB) + npm önbelleği (0,8 GB) alanı tüketti; M1 gerçek ihtiyacı ~8–13 GB (uv hardlink'leri ikinci venv'i ucuzlatır); `df -B1M` 30203 MiB |
 | 2026-10-06 | M2 final review | With fixes → düzeltildi (havuz hata dinleyicisi, idempotent kapanış, smoke her seferinde derler, yönlendirme env'leri temizlenir) | `docs/m2/report.md` §5 |
+| 2026-10-06 | 🚦 M1 T4 ses klonu | Atlandı (kayıt yok; `/goal` gereği sorulmadı) | `docs/m1/report.md` |
+| 2026-10-06 | 🚦 M1 T5 TTS ve anlatıcı sesi (K17) | GEÇİCİ: Chatterbox ML V3 + hazır ses (adil CER %0,5, VRAM 3,6 GB, rtf_gen 0,63); Freya yedek (CER %17,9 > %5 kapısı). **Kullanıcı onayı bekliyor** | `docs/m1/decision.md`; `~/videogen-data/m1/listening/results.json` |
 | 2026-10-06 | M0 T1 disk eşiği | 32 GB boş ≥ 30 ✓ | `docs/m0/disk-cleanup.md` |
