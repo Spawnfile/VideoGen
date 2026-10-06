@@ -84,7 +84,7 @@ export interface ToolSession {
   /** GPU queue position / pre-check reason while a tool waits; null when it runs (plan B8). */
   gpuWait(w: { position?: number; reason?: string } | null): void;
 }
-export interface ToolHost { ports(s: ToolSession): Pick<McpPorts, 'buildScene' | 'previewStills'> }
+export interface ToolHost { ports(s: ToolSession): Pick<McpPorts, 'buildScene' | 'previewStills' | 'extractFrames'> }
 
 export const RESUME_PROMPT = 'Önceki oturum kesildi. Durumu kontrol et ve göreve kaldığın yerden devam et.';
 
@@ -301,6 +301,7 @@ export class SessionManager {
     return {
       buildScene: tracked(host?.buildScene),
       previewStills: tracked(host?.previewStills),
+      extractFrames: tracked(host?.extractFrames),
       reportProgress: async (pct, message) => {
         const v = Math.min(99, Math.max(this.progress.get(id) ?? 0, Math.round(pct)));
         this.progress.set(id, v);

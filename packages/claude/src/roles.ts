@@ -3,8 +3,8 @@ import type { Effort, ModelAlias, RoleName } from '@videogen/shared';
 export const SPEC_KINDS = ['research', 'storyboard', 'scene', 'audio'] as const;
 export type SpecKind = (typeof SPEC_KINDS)[number];
 
-/** MCP tools that exist. M4b adds the scene tools; the rest (render_draft, extract_frames, run_qc, tts_*, …) arrive in M4c/M5. */
-export const IMPLEMENTED_MCP = ['report_progress', 'get_context', 'read_spec', 'write_spec', 'register_artifact', 'build_scene', 'render_preview_stills'] as const;
+/** MCP tools that exist. M4b adds the scene tools, M4c extract_frames; render_draft stays out (plan B7: the draft_render step makes the draft); run_qc, tts_* … arrive in M5. */
+export const IMPLEMENTED_MCP = ['report_progress', 'get_context', 'read_spec', 'write_spec', 'register_artifact', 'build_scene', 'render_preview_stills', 'extract_frames'] as const;
 
 export interface RoleDef {
   role: RoleName;

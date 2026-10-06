@@ -15,6 +15,9 @@ export interface BuildToolResult {
   files: Record<string, string> | null;
 }
 export interface StillsToolResult { contact_sheet: string; stills: string[]; renderer: string }
+/** extract_frames result (plan C22): PNG paths relative to the run directory and the frame budget left for this review round. */
+export interface FramesToolResult { frames: { time: number; frame: number; path: string }[]; remaining: number }
+export interface FrameCrop { x: number; y: number; w: number; h: number }
 
 export interface McpPorts {
   /** Clamps into [last, 99] and persists; returns the stored value. */
@@ -24,6 +27,8 @@ export interface McpPorts {
   /** M4b, build sessions only (the worker supplies them): spec §6.3 build_scene / render_preview_stills. */
   buildScene?(): Promise<BuildToolResult>;
   previewStills?(o: { frames?: number[] }): Promise<StillsToolResult>;
+  /** M4c, draft review sessions only: spec §6.3 extract_frames on the draft under review (K27: our own frame tool). */
+  extractFrames?(o: { times: number[]; crop?: FrameCrop }): Promise<FramesToolResult>;
 }
 
 const ok = (text: string): ToolResult => ({ content: [{ type: 'text', text }] });
@@ -95,6 +100,21 @@ export function videogenTools(o: { role: RoleDef; runDir: string; ports: McpPort
       },
     },
     {
+      name: 'extract_frames',
+      description: 'Extract still frames of the draft video under review at the given times (seconds) as PNG files you can Read. An optional crop (fractions 0-1 of the frame: x, y, w, h) is enlarged 2x. Budget: 12 frames per review in total; the result says how many are left.',
+      shape: {
+        times: z.array(z.number().min(0)).min(1).max(12),
+        crop: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().gt(0).max(1), h: z.number().gt(0).max(1) }).optional(),
+      },
+      handler: async (a) => {
+        try {
+          return json(await o.ports.extractFrames!({ times: a.times as number[], crop: a.crop as FrameCrop | undefined }));
+        } catch (e) {
+          return fail((e as Error).message);
+        }
+      },
+    },
+    {
       name: 'register_artifact',
       description: 'Store a file from the run directory in the content-addressed media store; returns its sha256.',
       shape: { path: z.string(), kind: z.string().max(64) },
@@ -106,7 +126,8 @@ export function videogenTools(o: { role: RoleDef; runDir: string; ports: McpPort
     },
   ];
   const owned = new Set(o.role.mcp.filter((n) => (IMPLEMENTED_MCP as readonly string[]).includes(n)));
-  // Scene tools exist only where the worker supplied their ports (a build step), never in chat or other sessions.
-  const supplied = (n: string) => (n === 'build_scene' ? !!o.ports.buildScene : n === 'render_preview_stills' ? !!o.ports.previewStills : true);
+  // Scene and frame tools exist only where the worker supplied their ports (a build or draft review step), never in chat or elsewhere.
+  const supplied = (n: string) =>
+    n === 'build_scene' ? !!o.ports.buildScene : n === 'render_preview_stills' ? !!o.ports.previewStills : n === 'extract_frames' ? !!o.ports.extractFrames : true;
   return all.filter((t) => owned.has(t.name) && supplied(t.name));
 }

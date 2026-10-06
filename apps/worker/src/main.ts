@@ -19,6 +19,7 @@ import { Orchestrator } from './pipeline/orchestrator.ts';
 import { SystemProbe } from './pipeline/resources.ts';
 import { BlenderRenderDriver, FakeRenderDriver, type Capability, type RenderDriver } from './render/driver.ts';
 import { ResourceLocks } from './render/locks.ts';
+import { ReviewTargets, reviewToolHost, toolHosts } from './pipeline/review-tools.ts';
 import { sceneToolHost } from './pipeline/scene-tools.ts';
 import { ARTIFACT_VALIDATOR, pipelineExecutors } from './pipeline/steps.ts';
 import { FixtureUsageSource, SdkUsageSource, startUsagePoller } from './usage.ts';
@@ -46,12 +47,17 @@ const render: RenderDriver = config.render.driver === 'fake'
 const locks = new ResourceLocks();
 const probe = new SystemProbe(config.dataDir);
 let renderCapability: Capability = { ok: false, reason: 'denetlenmedi' };
+/** M4c: the draft under review per draft_review step (extract_frames reads it; plan C22). */
+const reviews = new ReviewTargets();
 const manager = new SessionManager({
   pool, dataDir: config.dataDir, driver, pluginDir: PLUGIN_DIR, gate: guard, sdkVersion: sdkVersion(), chatIdleMs: config.chatIdleMs,
   quietAfterMs: config.liveness.quietAfterMs, stuckAfterMs: config.liveness.stuckAfterMs,
   archive: (s) => archiveTranscript({ pool, dataDir: config.dataDir, ...s }),
   validator: ARTIFACT_VALIDATOR,
-  tools: sceneToolHost({ pool, render, locks, probe, ffmpeg: config.render.ffmpeg, capability: () => renderCapability }),
+  tools: toolHosts(
+    sceneToolHost({ pool, render, locks, probe, ffmpeg: config.render.ffmpeg, capability: () => renderCapability }),
+    reviewToolHost({ ffmpeg: config.render.ffmpeg, targets: reviews }),
+  ),
 });
 const orchestrator = new Orchestrator({
   pool, dataDir: config.dataDir, probe, locks, gate: guard,
