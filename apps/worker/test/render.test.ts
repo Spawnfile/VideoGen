@@ -56,7 +56,7 @@ describe('resource locks and the GPU gate', () => {
     const waits: unknown[] = [];
     const r = withResource(locks, 'gpu', { owner: 'x', probe, waitMs: 20, onWait: (w) => { waits.push(w); swap = 10; } }, async () => 'ran');
     expect(await r).toBe('ran');
-    expect(waits).toEqual([{ reason: 'swap %95 ≥ %90' }]);
+    expect(waits).toEqual([{ reason: 'swap %95 ≥ %90', status: 'waiting_gpu' }]);
     swap = 95;
     const ac = new AbortController();
     const stuck = withResource(locks, 'gpu', { owner: 'y', probe, waitMs: 20, signal: ac.signal, onWait: () => ac.abort() }, async () => 'never');

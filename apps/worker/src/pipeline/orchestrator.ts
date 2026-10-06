@@ -1,15 +1,18 @@
 import { join } from 'node:path';
 import type pg from 'pg';
 import {
-  ACTIVE_STEP_STATUSES, etaSeconds, expectedSeconds, overallPercent, STEP_LABELS, timeCurvePercent,
+  ACTIVE_STEP_STATUSES, DRAFT_MAX_RETURNS, etaSeconds, expectedSeconds, overallPercent, STEP_LABELS, timeCurvePercent,
   type ProgressSource, type ProgressStep, type Resource, type RunStatus, type StepKey,
 } from '@videogen/shared';
 import {
   appendAudit, cancelRunJobs, claimJob, enqueueJob, finishJob, getRun, getRunContext, getStep, heartbeatJobs, latestUsageMark, listRunSteps,
-  bumpStepProgress, publishRunAndVideo, queueStepIfRunActive, raiseRunProgress, recoverJobs, setStepStatusIfActive, requeueJob, startStepIfRunActive, stepHistorySeconds, updateRun, updateStep, updateVideo,
+  bumpStepProgress, claimQueuedRun, publishRunAndVideo, queueStepIfRunActive, raiseRunProgress, recoverJobs, rewindForReview, setStepStatusIfActive, requeueJob, startStepIfRunActive, stepHistorySeconds, updateRun, updateStep, updateVideo,
   type JobRecord, type RunContext, type StepRecord,
 } from '@videogen/db';
+import type { UsageGate } from '../agents/manager.ts';
 import { errorTag } from '../errors.ts';
+import { withResource } from '../render/gate.ts';
+import type { LockedResource, ResourceLocks } from '../render/locks.ts';
 import { precheck, type Probe } from './resources.ts';
 import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
 
@@ -18,6 +21,10 @@ export interface OrchestratorDeps {
   dataDir: string;
   executors: Partial<Record<StepKey, StepExecutor>>;
   probe?: Probe;
+  /** Plan C21: GPU and heavy-CPU steps go through the same in-process lock and §6.4 gate as the MCP render tools (K22, B8). */
+  locks?: ResourceLocks;
+  /** Plan C25 (spec §6.4, M4a minor 4): no new run starts while the usage guard blocks pipelines. */
+  gate?: Pick<UsageGate, 'allowsNewPipeline' | 'resumeAt'>;
   owner?: string;
   capacity?: Partial<Record<Resource, number>>;
   leaseMs?: number;
@@ -42,8 +49,14 @@ const NOT_YET: Partial<Record<StepKey, string>> = {
   research: 'Storyboard, sahne kurulumu ve taslak render bu sürümde henüz yok.',
   storyboard: 'Sahne kurulumu ve taslak render bu sürümde henüz yok.',
   build: 'Taslak render bu sürümde henüz yok.',
+  draft_render: 'Taslak incelemesi bu sürümde henüz yok.',
 };
-export const PIPELINE_INCOMPLETE_NOTE = (last: StepKey) => `${STEP_LABELS[last]} hazır. ${NOT_YET[last] ?? 'Sonraki adımlar bu sürümde henüz yok.'}`;
+/** M4 ends with a reviewed draft (spec §17: S2 with the draft instead of the final); final render, sound and review gates are M5. */
+const DONE_NOTE: Partial<Record<StepKey, string>> = { draft_review: 'Taslak hazır ve incelendi. Final render bu sürümde henüz yok.' };
+export const PIPELINE_INCOMPLETE_NOTE = (last: StepKey) => DONE_NOTE[last] ?? `${STEP_LABELS[last]} hazır. ${NOT_YET[last] ?? 'Sonraki adımlar bu sürümde henüz yok.'}`;
+/** Plan C25: why a run waits in the queue (no Turkish case suffix on the time). */
+export const LIMIT_NOTE = (resumeAt: string | null) =>
+  `Kullanım sınırı yakın: üretim sınır açılınca kendiliğinden başlar${resumeAt ? ` (açılış ${new Date(resumeAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })})` : ''}.`;
 
 interface Running { jobId: number; stepId: string; runId: string; resource: Resource; abort: AbortController }
 
@@ -88,12 +101,15 @@ export class Orchestrator {
     for (const j of await recoverJobs(pool, { owner: this.owner, foreign: true })) {
       const step = await getStep(pool, j.stepId);
       if (!step) continue;
-      await updateStep(pool, step.id, { status: 'queued', note: 'worker yeniden başladı' });
+      // Grilling C6: only an active step goes back to the queue; a lease left on a finished or rewound step is stale.
+      if (!(await setStepStatusIfActive(pool, step.id, 'queued', 'worker yeniden başladı'))) {
+        await finishJob(pool, j.jobId, 'cancelled');
+        continue;
+      }
       await this.audit('job.recovered', step.runId, { stepId: step.id, data: { jobId: j.jobId } });
       await this.publish(step.runId);
     }
-    const queued = await pool.query("SELECT id FROM runs WHERE status = 'queued' ORDER BY created_at");
-    for (const r of queued.rows) await this.startRun(r.id);
+    await this.startQueued();
     const idle = await pool.query(
       `SELECT r.id FROM runs r WHERE r.status = 'running' AND NOT EXISTS (
          SELECT 1 FROM jobs j JOIN steps s ON s.id = j.step_id WHERE s.run_id = r.id AND j.status IN ('queued', 'leased'))`,
@@ -102,13 +118,32 @@ export class Orchestrator {
     this.kick();
   }
 
+  /** Queued runs in order (worker start, and the usage guard clearing: plan C25). */
+  async startQueued(): Promise<void> {
+    const { rows } = await this.d.pool.query("SELECT id FROM runs WHERE status = 'queued' ORDER BY created_at");
+    for (const r of rows) await this.startRun(r.id);
+  }
+
   async startRun(runId: string): Promise<void> {
     const ctx = await getRunContext(this.d.pool, runId);
     if (!ctx || ctx.run.status !== 'queued') return;
-    await updateRun(this.d.pool, runId, { status: 'running', startedAt: new Date(), usageStart: await latestUsageMark(this.d.pool) });
+    if (this.d.gate && !this.d.gate.allowsNewPipeline()) return this.deferRun(ctx);
+    // A conditional claim, not a blind write: a concurrent start (run.start command, recover, guard clear) or a cancel that landed
+    // since the check above must not start the run twice or undo the cancel (final review M5).
+    if (!(await claimQueuedRun(this.d.pool, runId, await latestUsageMark(this.d.pool)))) return;
     await updateVideo(this.d.pool, ctx.videoId, { status: 'running', statusNote: null });
     await this.audit('run.started', runId, { data: { videoId: ctx.videoId, plan: ctx.run.plan.map((s) => s.key) } });
     await this.advance(runId);
+  }
+
+  /** Plan C25: the run stays queued with the reason on the video; audited once per reason (the note is the marker, it survives a restart). */
+  private async deferRun(ctx: RunContext): Promise<void> {
+    const note = LIMIT_NOTE(this.d.gate!.resumeAt());
+    const { rows } = await this.d.pool.query('SELECT status_note FROM videos WHERE id = $1', [ctx.videoId]);
+    if (rows[0]?.status_note === note) return;
+    await updateVideo(this.d.pool, ctx.videoId, { statusNote: note });
+    await this.audit('run.deferred_limit', ctx.run.id, { data: { resumeAt: this.d.gate!.resumeAt() } });
+    await this.publish(ctx.run.id);
   }
 
   async cancel(runId: string, actor: 'user' | 'orchestrator' = 'user'): Promise<boolean> {
@@ -178,8 +213,9 @@ export class Orchestrator {
       await finishJob(pool, job.id, 'cancelled');
       return;
     }
-    if (ex.resource !== 'claude' && this.d.probe) {
-      const pc = precheck(ex.resource, await this.d.probe.snapshot());
+    // With locks the pre-check runs inside the gate (plan C21: one door); without them (tests) it stays here.
+    if (ex.resource !== 'claude' && this.d.probe && !this.d.locks) {
+      const pc = precheck(ex.resource, await this.d.probe.snapshot(), ex.extraDiskMb ?? 0);
       if (!pc.ok) {
         await requeueJob(pool, job.id, this.d.waitDelayMs ?? 15_000);
         if ((step.status !== pc.status || step.note !== pc.reason) && (await setStepStatusIfActive(pool, step.id, pc.status, pc.reason))) {
@@ -205,11 +241,13 @@ export class Orchestrator {
   }
 
   private stepContext(ctx: RunContext, step: StepRecord, attempt: number, signal: AbortSignal): StepContext {
+    // Status changes of one step apply in order (a late "waiting_gpu" must not overwrite the "running" that followed it).
+    let statuses = Promise.resolve();
     return {
-      runId: step.runId, stepId: step.id, key: step.key, attempt, videoId: ctx.videoId, productId: ctx.productId, productName: ctx.productName,
+      runId: step.runId, stepId: step.id, key: step.key, attempt, round: step.round, videoId: ctx.videoId, productId: ctx.productId, productName: ctx.productName,
       audioMode: ctx.audioMode, versionId: ctx.versionId, runDir: join(this.d.dataDir, 'runs', step.runId), signal,
       progress: (pct, source) => { void this.stepProgress(step.id, pct, source); },
-      status: (s, note) => { void this.stepStatus(step.id, s, note); },
+      status: (s, note) => { statuses = statuses.then(() => this.stepStatus(step.id, s, note)).catch(() => {}); },
       session: (sessionId) => { void updateStep(this.d.pool, step.id, { sessionId }).then(() => this.publish(step.runId)); },
     };
   }
@@ -219,7 +257,9 @@ export class Orchestrator {
     try {
       const hash = await ex.inputHash(ctx);
       await updateStep(this.d.pool, step.id, { inputHash: hash });
-      outcome = (await ex.reuse?.(ctx, hash)) ? { status: 'done', note: 'önceki geçerli çıktı kullanıldı' } : await ex.run(ctx, hash);
+      if (await ex.reuse?.(ctx, hash)) outcome = { status: 'done', note: 'önceki geçerli çıktı kullanıldı' };
+      else if (ex.resource !== 'claude' && this.d.locks) outcome = await this.gated(ex, ctx, () => ex.run(ctx, hash));
+      else outcome = await ex.run(ctx, hash);
     } catch (e) {
       outcome = ctx.signal.aborted ? { status: 'cancelled' } : { status: 'failed', error: errorTag(e) };
     }
@@ -230,6 +270,15 @@ export class Orchestrator {
     this.kick();
   }
 
+  /** Plan C21 (K22, B8): the in-process lock, then the §6.4 pre-check in a loop, then the work; the lock is released in any case. */
+  private gated(ex: StepExecutor, ctx: StepContext, fn: () => Promise<StepOutcome>): Promise<StepOutcome> {
+    return withResource(this.d.locks!, ex.resource as LockedResource, {
+      owner: ctx.stepId, signal: ctx.signal, probe: this.d.probe, extraDiskMb: ex.extraDiskMb, waitMs: this.d.waitDelayMs,
+      onWait: (w) => ctx.status(w.status ?? 'waiting_gpu', w.reason ?? `GPU sırası bekleniyor (sırada ${w.position ?? 1})`),
+      onRun: () => ctx.status('running', null),
+    }, fn);
+  }
+
   private async settle(step: StepRecord, attempt: number, job: JobRecord, o: StepOutcome): Promise<void> {
     const { pool } = this.d;
     const run = await getRun(pool, step.runId);
@@ -237,6 +286,7 @@ export class Orchestrator {
       await finishJob(pool, job.id, 'cancelled');
       return;
     }
+    if (o.status === 'rewind') return this.rewind(step, attempt, job, o);
     if (o.status === 'done' || o.status === 'needs_human') {
       await finishJob(pool, job.id, 'done');
       await updateStep(pool, step.id, { status: 'done', progress: 100, endedAt: new Date(), note: o.status === 'done' ? (o.note ?? null) : o.reason });
@@ -263,6 +313,23 @@ export class Orchestrator {
     await this.audit('step.failed', step.runId, { stepId: step.id, data: { key: step.key, attempt, error: o.error } });
     await pool.query("UPDATE steps SET status = 'cancelled' WHERE run_id = $1 AND status = 'pending'", [step.runId]);
     return this.finish(step.runId, 'failed', `${STEP_LABELS[step.key]}: ${o.error}`);
+  }
+
+  /** Plan C6: the draft review sends the run back to `to`; past DRAFT_MAX_RETURNS the run stops for a human with the reason. */
+  private async rewind(step: StepRecord, attempt: number, job: JobRecord, o: Extract<StepOutcome, { status: 'rewind' }>): Promise<void> {
+    const { pool } = this.d;
+    const target = (await listRunSteps(pool, step.runId)).find((s) => s.key === o.to);
+    if (!target || target.ordinal >= step.ordinal) return this.settle(step, attempt, job, { status: 'failed', error: `geçersiz geri dönüş: ${o.to}`, retry: false });
+    if (step.round >= DRAFT_MAX_RETURNS) return this.settle(step, attempt, job, { status: 'needs_human', reason: o.reason });
+    const round = step.round + 1;
+    const note = `taslak turu ${round}/${DRAFT_MAX_RETURNS}: ${o.reason}`.slice(0, 300);
+    if (!(await rewindForReview(pool, { runId: step.runId, stepId: step.id, jobId: job.id, round: step.round, fromOrdinal: target.ordinal, toOrdinal: step.ordinal, note }))) {
+      await finishJob(pool, job.id, 'cancelled');
+      return;
+    }
+    await this.audit('step.rewind', step.runId, { stepId: step.id, data: { key: step.key, to: o.to, round, reason: o.reason } });
+    await this.recompute(step.runId);
+    return this.advance(step.runId);
   }
 
   /** Queue the first pending step, or finish the run when none is left. */

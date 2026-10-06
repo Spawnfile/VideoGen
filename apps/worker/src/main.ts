@@ -54,7 +54,7 @@ const manager = new SessionManager({
   tools: sceneToolHost({ pool, render, locks, probe, ffmpeg: config.render.ffmpeg, capability: () => renderCapability }),
 });
 const orchestrator = new Orchestrator({
-  pool, dataDir: config.dataDir, probe,
+  pool, dataDir: config.dataDir, probe, locks, gate: guard,
   executors: pipelineExecutors({
     pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined,
     scene: { pool, render, locks, probe, ffmpeg: config.render.ffmpeg, capability: () => renderCapability },
@@ -62,7 +62,7 @@ const orchestrator = new Orchestrator({
 });
 const chat = new ChatService({ pool, manager });
 chat.bind();
-guard.onClear(() => { void chat.resumeWaiting(); });
+guard.onClear(() => { void chat.resumeWaiting(); void orchestrator.startQueued(); });
 
 const audit = (action: string, data: Record<string, unknown>) => appendAudit(pool, { actorType: 'system', action, data }).catch(() => {});
 const safeRefresh = () => refreshAuth(pool, authSrc).catch((e) => audit('claude.refresh_failed', { error: errorTag(e) }));
@@ -110,6 +110,7 @@ try {
     { onFailure: (f) => { void audit('command.failed', { reason: f.reason, ...(f.type ? { type: f.type } : {}), ...(f.error ? { error: f.error } : {}) }); } },
   );
   await chat.recover();
+  await guard.restore(); // before recover(): queued runs must see the stored §6.4 block, not the fresh default (final review I1)
   await orchestrator.recover();
   orchestrator.start();
 } catch (e) {

@@ -5,6 +5,8 @@ export interface StepContext {
   stepId: string;
   key: StepKey;
   attempt: number;
+  /** Draft review round of this step (plan C6): 0 on the first pass, +1 each time the review sends the run back. */
+  round: number;
   videoId: string;
   productId: string;
   productName: string;
@@ -25,11 +27,15 @@ export type StepOutcome =
   | { status: 'done'; note?: string }
   | { status: 'needs_human'; reason: string }
   | { status: 'failed'; error: string; retry?: boolean }
-  | { status: 'cancelled' };
+  | { status: 'cancelled' }
+  /** Plan C6 (spec §7.1 step 6): send the run back to the earlier step `to`; the orchestrator reruns `to`…this step in the next round. */
+  | { status: 'rewind'; to: StepKey; reason: string };
 
 export interface StepExecutor {
   key: StepKey;
   resource: Resource;
+  /** Spec §6.4 disk pre-check: room this step's output needs on top of the 3 GB floor (MB). */
+  extraDiskMb?: number;
   inputHash(ctx: StepContext): Promise<string>;
   /** Spec §14 idempotency: true when a valid output for this input already exists. */
   reuse?(ctx: StepContext, inputHash: string): Promise<boolean>;

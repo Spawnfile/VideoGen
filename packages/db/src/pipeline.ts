@@ -316,6 +316,15 @@ export async function rewindForReview(pool: pg.Pool, o: { runId: string; stepId:
   }
 }
 
+/** queued → running as one conditional write: false when another start won or the run was cancelled since it was read. */
+export async function claimQueuedRun(db: Queryable, runId: string, usageStart: UsageMark | null): Promise<boolean> {
+  const { rowCount } = await db.query(
+    "UPDATE runs SET status = 'running', started_at = now(), usage_start = $2 WHERE id = $1 AND status = 'queued'",
+    [runId, usageStart === null ? null : JSON.stringify(usageStart)],
+  );
+  return (rowCount ?? 0) > 0;
+}
+
 /** queued/waiting_* → running only while the run is running: a cancel that lands mid-launch keeps the step from starting. */
 export async function startStepIfRunActive(db: Queryable, stepId: string, attempt: number): Promise<boolean> {
   const { rowCount } = await db.query(
