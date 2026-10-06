@@ -1,16 +1,21 @@
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type pg from 'pg';
 import {
-  CHANNEL_STYLES, HOOK_PATTERN_LABELS, normalizeProductName, sceneRefErrors, storyboardRefErrors, validateArtifact,
-  type AudioMode, type ChannelStyleId, type ProductResearch, type SceneSpec, type StepKey, type Storyboard,
+  CHANNEL_STYLES, DRAFT_CHECKS, DRAFT_GATES, formatClock, HOOK_PATTERN_LABELS, normalizeProductName, sceneRefErrors, storyboardRefErrors, validateArtifact,
+  type AudioMode, type ChannelStyleId, type ProductResearch, type Review, type SceneSpec, type StepKey, type Storyboard,
 } from '@videogen/shared';
-import { appendAudit, findArtifact, getChannelStyle, insertArtifact, latestArtifact, latestStepSession, setProductDifficulty } from '@videogen/db';
+import { appendAudit, findArtifact, getBlob, getChannelStyle, insertArtifact, latestArtifact, latestStepSession, setProductDifficulty } from '@videogen/db';
 import { SpecStore, type FakeScript, type SpecKind } from '@videogen/claude';
+import { bundleHash, DRAFT_RENDER } from '@videogen/remotion/hash';
+import { draftProps, type DraftProps } from '@videogen/remotion/props';
 import { ARTIFACT_VALIDATOR } from './validator.ts';
 import { RESUME_PROMPT, type SessionManager } from '../agents/manager.ts';
 import { putBlob } from '../media.ts';
+import { RenderError } from '../render/driver.ts';
+import { draftProbeErrors, extractFrame, probeVideo } from '../render/ffmpeg.ts';
 import { runStructured } from './agent-step.ts';
 import { buildScene, previewScene, type SceneBuild, type SceneDeps } from './scene-tools.ts';
 import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
@@ -125,6 +130,22 @@ export function storyboardExecutor(deps: StepDeps): StepExecutor {
   };
 }
 
+/** Plan C8: what the draft review sent back — only the failed checks with their evidence and hints (spec §7.2), fenced as data. */
+export function draftFixPrompt(r: Review, reviewedRound: number): string {
+  const findings = r.checks.filter((c) => !c.pass).map((c) => ({
+    id: c.id, onem: DRAFT_CHECKS[c.id].severity, kontrol: DRAFT_CHECKS[c.id].label_tr, kare: c.evidence?.frame ?? null, zaman_sn: c.evidence?.timecode ?? null, ipucu: c.fix_hint ?? null,
+  }));
+  return [
+    `Taslak incelemesi (tur ${reviewedRound}) taslağı geri gönderdi. Yalnızca aşağıdaki bulguları düzelt: product.py ve/veya SceneSpec (kamera, patlatma zamanları) → write_spec(kind "scene") → build_scene → render_preview_stills ile kontrol et.`,
+    '',
+    fenced('Bulgular', { bulgular: findings, kapilar: DRAFT_GATES.filter((g) => !r.gate_results[g]) }),
+    '',
+    `Kanıt kareleri: review/r${reviewedRound}/sheet.png (12 kare) ve review/r${reviewedRound}/frames/ (Read ile bakabilirsin). Taslak 540×960 ve 30 fps; kare numarası/30 = saniye.`,
+    'Sahnede (GLB ya da SceneSpec) bir şey değiştirmezsen taslak yeniden incelenmez ve video insan incelemesine düşer.',
+    "Son başarılı build_scene'deki SceneSpec'i değiştirmeden yapılandırılmış çıktı (SceneSpec şeması) olarak döndür.",
+  ].join('\n');
+}
+
 export function buildPrompt(name: string, styleId: ChannelStyleId, storyboard: Storyboard, research: ProductResearch): string {
   const style = CHANNEL_STYLES[styleId];
   const parts = research.parts.map((p) => ({ id: p.id, name_tr: p.name_tr, material: p.material, approx_dims_mm: p.approx_dims_mm, count: p.count, function: p.function }));
@@ -153,7 +174,9 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
     async inputHash(ctx) {
       const storyboard = await latestArtifact(deps.pool, ctx.runId, 'storyboard');
       const style = await getChannelStyle(deps.pool);
-      return sha({ step: 'build', storyboard: storyboard?.id ?? null, style: style.id, schema: SCHEMA_VERSION.scene });
+      // Plan C8: a fix round is a new input (the review it answers), so it never reuses the previous round's build.
+      const review = ctx.round > 0 ? await latestArtifact(deps.pool, ctx.runId, 'draft_review') : null;
+      return sha({ step: 'build', storyboard: storyboard?.id ?? null, style: style.id, schema: SCHEMA_VERSION.scene, round: ctx.round, review: review?.id ?? null });
     },
     async reuse(ctx, hash) {
       const scene = await findArtifact(deps.pool, { runId: ctx.runId, kind: 'scene', inputHash: hash });
@@ -173,11 +196,16 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
       const style = await getChannelStyle(deps.pool);
       const specs = new SpecStore(join(ctx.runDir, 'spec'), ARTIFACT_VALIDATOR);
       let last: SceneBuild | null = null;
-      // Plan B15: an attempt after a worker restart continues the step's own Claude session.
-      const prior = ctx.attempt > 1 ? await latestStepSession(deps.pool, ctx.stepId) : null;
+      const reviewArt = ctx.round > 0 ? await latestArtifact(deps.pool, ctx.runId, 'draft_review') : null;
+      const review = reviewArt ? validateArtifact('Review', reviewArt.content) : null;
+      const fixes = review?.ok ? draftFixPrompt(review.value, ctx.round - 1) : null;
+      // Plan B15 + C8: a restarted attempt, or a draft fix round, continues the step's own builder session (it knows product.py).
+      const prior = ctx.attempt > 1 || fixes ? await latestStepSession(deps.pool, ctx.stepId) : null;
+      const resumePrompt = fixes ? (ctx.attempt > 1 ? `${RESUME_PROMPT}\n\n${fixes}` : fixes) : RESUME_PROMPT;
+      const fresh = buildPrompt(ctx.productName, style.id, storyboard.value, research.value) + (fixes ? `\n\n${fixes}` : '');
       const r = await runStructured<SceneSpec>({
-        manager: deps.manager, ctx, role: 'builder', prompt: buildPrompt(ctx.productName, style.id, storyboard.value, research.value), schema: 'SceneSpec',
-        initialResume: prior?.role === 'builder' ? { claudeSessionId: prior.claudeSessionId, parent: prior.id, prompt: RESUME_PROMPT } : undefined,
+        manager: deps.manager, ctx, role: 'builder', prompt: fresh, schema: 'SceneSpec',
+        initialResume: prior?.role === 'builder' ? { claudeSessionId: prior.claudeSessionId, parent: prior.id, prompt: resumePrompt } : undefined,
         check: (s) => sceneRefErrors(s, storyboard.value, style.id),
         // Plan B6: the structured SceneSpec is canonical; the step builds it itself with the final scene/product.py.
         checkAsync: async (s) => {
@@ -215,6 +243,100 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
   };
 }
 
+/** Artifact file → media store → `artifacts` row → audit (the draft steps; the build keeps its own `put`). */
+async function record(deps: StepDeps, ctx: StepContext, a: { kind: string; file: string; inputHash: string; content?: unknown; meta?: unknown; media?: { durationMs: number; width: number; height: number; codec: string } }): Promise<string> {
+  const blob = await putBlob(deps.pool, deps.dataDir, a.file);
+  const m = await insertArtifact(deps.pool, { runId: ctx.runId, stepId: ctx.stepId, versionId: ctx.versionId, kind: a.kind, blobSha: blob.sha256, content: a.content, inputHash: a.inputHash, meta: a.meta, ...a.media });
+  await appendAudit(deps.pool, { actorType: 'orchestrator', action: 'artifact.created', runId: ctx.runId, stepId: ctx.stepId, subjectType: 'artifact', subjectId: m.id, data: { kind: a.kind, sha256: blob.sha256 } });
+  return m.id;
+}
+
+/** `draft_video` meta (grilling missing decision 3): what the unchanged-fix rule, same-round reuse and the review rely on. */
+export interface DraftMeta { round: number; glbSha: string; specHash: string; frames: number; renderMs: number; concurrency: number }
+
+export interface DraftSource { hash: string; glbSha: string; glbPath: string; specHash: string; props: Omit<DraftProps, 'glbUrl'> }
+
+/**
+ * Spec §8.3 / plan C19: the draft's inputs (latest GLB, scene spec, storyboard and camera track of the run) and its input hash
+ * = GLB sha + scene spec hash + composition props (style, texts, lens track) + bundle hash + fixed render parameters.
+ */
+export async function draftSource(deps: Pick<StepDeps, 'pool' | 'dataDir'>, runId: string): Promise<DraftSource | null> {
+  const [scene, glb, track, board] = await Promise.all(['scene', 'scene_glb', 'camera_track', 'storyboard'].map((k) => latestArtifact(deps.pool, runId, k)));
+  const s = scene ? validateArtifact('SceneSpec', scene.content) : null;
+  const b = board ? validateArtifact('Storyboard', board.content) : null;
+  const yfov = (track?.content as { yfov?: number[] } | null)?.yfov;
+  const blob = glb?.blobSha ? await getBlob(deps.pool, glb.blobSha) : null;
+  if (!s?.ok || !b?.ok || !yfov || !blob) return null;
+  const { glbUrl: _url, ...props } = draftProps({ glbUrl: '', yfov, width: DRAFT_RENDER.width, height: DRAFT_RENDER.height, scene: s.value, storyboard: b.value, style: CHANNEL_STYLES[s.value.style_id] });
+  const specHash = sha(s.value);
+  return { glbSha: blob.sha256, glbPath: join(deps.dataDir, blob.path), specHash, props, hash: sha({ step: 'draft_render', glb: blob.sha256, spec: specHash, props: sha(props), bundle: bundleHash(), render: DRAFT_RENDER }) };
+}
+
+/** Failed checks of the last draft review, as Turkish labels ("Mekanizma çekimi, G3"). */
+async function openFindings(deps: StepDeps, runId: string): Promise<string> {
+  const a = await latestArtifact(deps.pool, runId, 'draft_review');
+  const v = a ? validateArtifact('Review', a.content) : null;
+  if (!v?.ok) return '';
+  return [...v.value.checks.filter((c) => !c.pass).map((c) => DRAFT_CHECKS[c.id].label_tr), ...DRAFT_GATES.filter((g) => !v.value.gate_results[g])].join(', ');
+}
+
+/** Spec §7.1 step 5: GLB + SceneSpec → Three.js-in-Remotion draft MP4 + cover. GPU: the orchestrator holds the lock (plan C21). */
+export function draftRenderExecutor(deps: StepDeps): StepExecutor {
+  return {
+    key: 'draft_render',
+    resource: 'gpu',
+    extraDiskMb: 300,
+    async inputHash(ctx) {
+      return (await draftSource(deps, ctx.runId))?.hash ?? sha({ step: 'draft_render', missing: true });
+    },
+    // Grilling C19: only a draft of this round counts; the same draft from an earlier round is the unchanged-fix signal in run().
+    async reuse(ctx, hash) {
+      const a = await findArtifact(deps.pool, { runId: ctx.runId, kind: 'draft_video', inputHash: hash });
+      const blob = a?.blobSha ? await getBlob(deps.pool, a.blobSha) : null;
+      return !!a && (a.meta as DraftMeta | null)?.round === ctx.round && !!blob && existsSync(join(deps.dataDir, blob.path));
+    },
+    async run(ctx, hash) {
+      const scene = deps.scene;
+      if (!scene) return { status: 'failed', error: 'render yapılandırılmadı', retry: false };
+      const src = await draftSource(deps, ctx.runId);
+      if (!src) return { status: 'failed', error: "sahne çıktısı yok (GLB, sahne spec'i, storyboard ya da kamera izi)", retry: false };
+      if (ctx.round > 0) {
+        // Inherited rule: a fix round whose GLB and scene spec equal the previous round's is not rendered or reviewed again.
+        const prev = (await latestArtifact(deps.pool, ctx.runId, 'draft_video'))?.meta as DraftMeta | undefined;
+        if (prev && prev.round < ctx.round && prev.glbSha === src.glbSha && prev.specHash === src.specHash) {
+          const open = await openFindings(deps, ctx.runId);
+          return { status: 'needs_human', reason: `Düzeltme turu sahneyi değiştirmedi; taslak yeniden incelenmedi.${open ? ` Açık bulgular: ${open}.` : ''}` };
+        }
+      }
+      const dir = join(ctx.runDir, 'draft', `r${ctx.round}`);
+      const out = join(dir, 'draft.mp4');
+      try {
+        ctx.status('running', 'taslak hazırlanıyor (bundle, Chrome)');
+        const r = await scene.render.draft({
+          runDir: ctx.runDir, props: src.props, glbPath: src.glbPath, outPath: out, owner: ctx.stepId, signal: ctx.signal,
+          onStage: (s) => { if (s === 'frames') ctx.status('running', null); },
+          onProgress: (done, total) => ctx.progress(Math.min(99, (done / total) * 100), 'render'),
+        });
+        const probe = await probeVideo(scene.ffmpeg, out, ctx.signal);
+        const errors = draftProbeErrors(probe, { width: src.props.width, height: src.props.height, frames: r.frames });
+        if (errors.length) {
+          await appendAudit(deps.pool, { actorType: 'orchestrator', action: 'render.draft_rejected', runId: ctx.runId, stepId: ctx.stepId, data: { errors } });
+          return { status: 'failed', error: `taslak MP4 doğrulamadan geçmedi: ${errors.join('; ')}`, retry: false };
+        }
+        const cover = join(dir, 'cover.png');
+        await extractFrame(scene.ffmpeg, out, cover, { t: 0, width: 270, signal: ctx.signal });
+        const meta: DraftMeta = { round: ctx.round, glbSha: src.glbSha, specHash: src.specHash, frames: probe.frames, renderMs: r.ms, concurrency: r.concurrency };
+        await record(deps, ctx, { kind: 'draft_video', file: out, inputHash: hash, meta, media: { durationMs: Math.round(probe.durationS * 1000), width: probe.width, height: probe.height, codec: probe.codec } });
+        await record(deps, ctx, { kind: 'draft_cover', file: cover, inputHash: hash, meta: { round: ctx.round } });
+        return { status: 'done', note: `${probe.width}×${probe.height} · ${formatClock(probe.durationS)} · render ${Math.round(r.ms / 1000)} sn` };
+      } catch (e) {
+        if (e instanceof RenderError && e.kind !== 'aborted') return { status: 'failed', error: e.message, retry: false };
+        throw e;
+      }
+    },
+  };
+}
+
 export function pipelineExecutors(deps: StepDeps): Partial<Record<StepKey, StepExecutor>> {
-  return { research: researchExecutor(deps), storyboard: storyboardExecutor(deps), build: buildExecutor(deps) };
+  return { research: researchExecutor(deps), storyboard: storyboardExecutor(deps), build: buildExecutor(deps), draft_render: draftRenderExecutor(deps) };
 }

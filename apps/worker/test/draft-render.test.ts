@@ -63,7 +63,8 @@ describe('draft render: fake driver, probe, frames, real-driver protocol', () =>
     const data = tmp('vg-reap-');
     const child = spawn('bash', ['-c', 'exec -a node-render-cli sleep 30'], { detached: true, stdio: 'ignore' });
     const exited = new Promise((res) => child.once('exit', res));
-    await vi.waitFor(() => expect(readFileSync(`/proc/${child.pid}/cmdline`, 'utf8')).toContain('render-cli'));
+    // bash's own command line already mentions render-cli: wait for the exec (argv[0]), not the bash line, or the reap can race execve.
+    await vi.waitFor(() => expect(readFileSync(`/proc/${child.pid}/cmdline`, 'utf8').split('\0')[0]).toBe('node-render-cli'));
     await writePidFile(data, child.pid!, 'step-1', 'render');
     expect(await reapOrphans(data)).toEqual([child.pid]);
     await exited;

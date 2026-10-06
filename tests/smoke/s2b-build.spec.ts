@@ -11,8 +11,8 @@ test('S2b: storyboard → build: the builder card, the build card with its previ
   await page.goto(`/?video=${videoId}`);
   const header = page.getByTestId('video-header');
   await expect(page.locator('[data-testid="step"][data-key="build"]')).toHaveAttribute('data-status', 'done', { timeout: 60_000 });
-  await expect(header).toHaveAttribute('data-status', 'needs_human');
-  await expect(header).toContainText('Sahne kurulumu hazır. Taslak render bu sürümde henüz yok.');
+  await expect(header).toHaveAttribute('data-status', 'needs_human', { timeout: 30_000 });
+  await expect(header).toContainText('Taslak render hazır. Taslak incelemesi bu sürümde henüz yok.');
   await expect(page.locator('[data-testid="step"][data-key="build"]')).toContainText('5 parça · 7.526 üçgen');
   const card = page.getByTestId('build-card');
   await expect(card).toContainText('5 parça · 7.526 üçgen · kahraman %80');

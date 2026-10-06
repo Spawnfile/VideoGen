@@ -15,8 +15,14 @@ export const STEP_LABELS: Record<StepKey, string> = {
 export const STEP_DEFAULT_S: Record<StepKey, number> = {
   research: 300, storyboard: 180, voice: 270, build: 1500, draft_render: 60, draft_review: 180, final_render: 1380, compose: 300, qc: 5, review: 300, finalize: 30,
 };
-/** Steps with an executor in this build. M4a: research → storyboard; M4b: + build; M4c extends the list. */
-export const IMPLEMENTED_STEPS: readonly StepKey[] = ['research', 'storyboard', 'build'];
+/** Steps with an executor in this build. M4a: research → storyboard; M4b: + build; M4c: + draft_render (T6), draft_review (T8). */
+export const IMPLEMENTED_STEPS: readonly StepKey[] = ['research', 'storyboard', 'build', 'draft_render'];
+
+/** "0:45", "1:02": a video length for cards and notes. */
+export function formatClock(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
 
 export type VideoStatus = 'queued' | 'running' | 'ready' | 'needs_human' | 'failed' | 'cancelled' | 'published';
 export type RunStatus = 'queued' | 'running' | 'done' | 'needs_human' | 'failed' | 'cancelled';

@@ -156,9 +156,9 @@ describe('pipeline end to end with build (fake Claude and fake render)', () => {
     await o.startRun(r.runId);
     await vi.waitFor(async () => expect((await getRunView(t.pool, r.runId))!.status).toBe('done'), { timeout: 15_000 });
     const run = (await getRunView(t.pool, r.runId))!;
-    expect(run.steps.map((s) => s.key)).toEqual(['research', 'storyboard', 'build']);
+    expect(run.steps.map((s) => s.key)).toEqual(['research', 'storyboard', 'build', 'draft_render']);
     expect(run.steps[2]!.note).toBe('5 parça · 7.526 üçgen · 2 uyarı · kanal kimliği geçici');
-    expect(await getVideoView(t.pool, r.videoId)).toMatchObject({ status: 'needs_human', statusNote: 'Sahne kurulumu hazır. Taslak render bu sürümde henüz yok.' });
+    expect(await getVideoView(t.pool, r.videoId)).toMatchObject({ status: 'needs_human', statusNote: 'Taslak render hazır. Taslak incelemesi bu sürümde henüz yok.' });
     expect(run.progress).toBe(99);
   });
 });
