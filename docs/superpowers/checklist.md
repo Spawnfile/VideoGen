@@ -11,7 +11,7 @@
 | M2 İskelet | `plans/2026-10-06-m2-skeleton.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m2/report.md` |
 | M3 Canlı agent katmanı | `plans/2026-10-06-m3a-agent-runtime.md` (M3a) + `plans/2026-10-06-m3b-live-ui.md` (M3b) | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m3/report.md` |
 | M4 Dikey dilim | `plans/2026-10-06-m4a-pipeline-core.md` (M4a) + `plans/2026-10-06-m4b-scene-core.md` (M4b) + M4c (sırada) | Devam ediyor (M4a ve M4b tamam, `main`'e birleştirildi; M4c sırada: taslak render, inceleme, player, ilk gerçek ürün) | 2026-10-06 | | `docs/m4/m4a-summary.md`, `docs/m4/m4b-summary.md` |
-| M5 Final ve kalite | M4 sonrası | Plan yok | | | |
+| M5 Final ve kalite | `plans/2026-10-06-m5a-final-render-qc.md` (M5a) + M5b + M5c | M5a planı yazıldı (12 görev, self-review'lu); uygulama sırada | 2026-10-06 | | |
 | M6 Yayın | M5 sonrası | Plan yok | | | |
 | M7 Sertleştirme | M6 sonrası | Plan yok | | | |
 
