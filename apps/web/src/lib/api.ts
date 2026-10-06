@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { AgentSessionView, ArtifactMeta, AudioMode, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, RoleName, RunView, TraceRow, UsageSnapshot, VideoView } from '@videogen/shared/browser';
+import type { AgentSessionView, ArtifactMeta, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, RoleName, RunView, TraceRow, UsageSnapshot, VideoView } from '@videogen/shared/browser';
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
@@ -49,7 +49,15 @@ export const api = {
   run: (id: string) => getFresh<RunView>(`/api/runs/${id}`),
   cancelRun: (id: string) => send<{ accepted: boolean }>('POST', `/api/runs/${id}/cancel`),
   artifact: (id: string) => get<ArtifactMeta & { content: unknown }>(`/api/artifacts/${id}`),
+  channelStyle: () => get<ChannelStyleState>('/api/channel-style'),
+  setChannelStyle: (id: ChannelStyleId) => send<ChannelStyleState>('PUT', '/api/channel-style', { id }),
 };
+
+export interface ChannelStyleState {
+  id: ChannelStyleId;
+  chosen: boolean;
+  options: { id: ChannelStyleId; name_tr: string; description_tr: string; image: string }[];
+}
 
 /** Content-addressed media (HTTP Range, immutable). */
 export const blobUrl = (sha: string) => `/api/blobs/${sha}`;

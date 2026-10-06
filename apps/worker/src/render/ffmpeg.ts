@@ -14,10 +14,23 @@ export const SAFE_AREA_FILTER = [
   'drawbox=x=iw-iw*130/1080:y=0:w=iw*130/1080:h=ih:color=red@0.22:t=fill',
 ].join(',');
 
-/** Spec §7.5: up to 8 stills (f*.png in `dir`) as one 4×2 sheet of 270×480 tiles with the safe-area overlay. */
-export function contactSheet(ffmpeg: string, dir: string, out: string, o: { safeArea?: boolean; cols?: number; rows?: number; signal?: AbortSignal } = {}): Promise<void> {
-  const vf = [...(o.safeArea === false ? [] : [SAFE_AREA_FILTER]), 'scale=270:480', `tile=${o.cols ?? 4}x${o.rows ?? 2}:padding=6:color=white`].join(',');
-  return run(ffmpeg, ['-pattern_type', 'glob', '-i', `${dir}/f*.png`, '-vf', vf, '-frames:v', '1', out], o.signal);
+const hex = (c: string) => `0x${c.replace('#', '')}`;
+
+/** The channel style backdrop (top → bottom), the same pair the Remotion layer draws behind transparent frames. */
+export function gradientSource(bg: { top: string; bottom: string }, width: number, height: number): string {
+  return `gradients=s=${width}x${height}:c0=${hex(bg.top)}:c1=${hex(bg.bottom)}:x0=0:y0=0:x1=0:y1=${height}:n=2:speed=0`;
+}
+
+/**
+ * Spec §7.5: up to 8 stills (f*.png in `dir`, RGBA) on the style backdrop, as one 4×2 sheet of 270×480 tiles with the safe-area
+ * overlay. `size` is the stills' own size (50 % previews: 540×960).
+ */
+export function contactSheet(ffmpeg: string, dir: string, out: string, o: { background?: { top: string; bottom: string }; size?: { width: number; height: number }; safeArea?: boolean; cols?: number; rows?: number; signal?: AbortSignal } = {}): Promise<void> {
+  const tail = [...(o.safeArea === false ? [] : [SAFE_AREA_FILTER]), 'scale=270:480', `tile=${o.cols ?? 4}x${o.rows ?? 2}:padding=6:color=white`].join(',');
+  const stills = ['-pattern_type', 'glob', '-i', `${dir}/f*.png`];
+  if (!o.background) return run(ffmpeg, [...stills, '-vf', tail, '-frames:v', '1', out], o.signal);
+  const { width, height } = o.size ?? { width: 540, height: 960 };
+  return run(ffmpeg, ['-f', 'lavfi', '-i', gradientSource(o.background, width, height), ...stills, '-filter_complex', `[0:v][1:v]overlay=shortest=1:format=rgb,${tail}`, '-frames:v', '1', out], o.signal);
 }
 
 /** Fake render driver: a calm stand-in still (night-blue backdrop, a pen-like bar), not a loud test pattern in the UI. */

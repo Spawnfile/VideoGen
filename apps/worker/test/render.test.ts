@@ -120,6 +120,12 @@ describe('ffmpeg helpers and the fake render driver', () => {
     await contactSheet(FFMPEG, dir, join(dir, 'sheet.png'));
     const size = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', join(dir, 'sheet.png')]).toString().trim();
     expect(size).toBe(`${4 * 270 + 3 * 6},${2 * 480 + 6}`); // padding sits between tiles only
+    // Transparent stills over the style backdrop: an empty frame shows the gradient's own colour (no AgX shift).
+    const clear = tmp('vg-sheet-');
+    execFileSync(FFMPEG, ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=black@0.0:s=540x960,format=rgba', '-frames:v', '1', join(clear, 'f00000.png')]);
+    await contactSheet(FFMPEG, clear, join(clear, 'sheet.png'), { background: { top: '#f7f5f1', bottom: '#f7f5f1' }, safeArea: false });
+    const px = execFileSync(FFMPEG, ['-v', 'error', '-i', join(clear, 'sheet.png'), '-vf', 'crop=1:1:100:300', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']);
+    expect([...px]).toEqual([0xf7, 0xf5, 0xf1]);
   });
 
   it('fake build copies the committed pen outputs, and a vg-fake-error marker fails it like a product error', async () => {

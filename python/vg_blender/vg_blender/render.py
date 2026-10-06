@@ -21,9 +21,11 @@ def main(argv):
     s = bpy.context.scene
     s.render.resolution_percentage = a.scale
     s.eevee.taa_render_samples = a.samples
-    s.render.film_transparent = False
+    # Transparent like the final frames (spec §7.5: RGBA; the backdrop is drawn later in the channel style's exact colours,
+    # which the AgX view transform would otherwise shift).
+    s.render.film_transparent = True
     s.render.image_settings.file_format = "PNG"
-    s.render.image_settings.color_mode = "RGB"
+    s.render.image_settings.color_mode = "RGBA"
     os.makedirs(a.out, exist_ok=True)
     frames = [int(x) for x in a.frames.split(",") if x != ""]
     for i, f in enumerate(frames):

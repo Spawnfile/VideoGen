@@ -8,6 +8,7 @@ import { appendAudit, maxEventId, verifyAudit } from '@videogen/db';
 import type { EventHub } from './event-hub.ts';
 import { registerGuard } from './guard.ts';
 import { registerAgentRoutes } from './routes/agents.ts';
+import { registerChannelRoutes } from './routes/channel.ts';
 import { registerChatRoutes } from './routes/chat.ts';
 import { registerMediaRoutes } from './routes/media.ts';
 import { registerRoleRoutes } from './routes/roles.ts';
@@ -70,6 +71,7 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
   await app.register(fastifyStatic, { root: deps.config.dataDir, serve: false });
   registerMediaRoutes(app, { pool: deps.pool, dataDir: deps.config.dataDir });
   registerRoleRoutes(app, { pool: deps.pool, devEndpoints: deps.config.devEndpoints });
+  registerChannelRoutes(app, { pool: deps.pool });
   registerSse(app, deps);
 
   if (existsSync(join(deps.config.webDist, 'index.html'))) {

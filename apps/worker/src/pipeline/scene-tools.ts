@@ -113,7 +113,8 @@ export async function previewScene(d: SceneDeps, o: Ctx & { frames?: number[] })
   const r = await withResource(d.locks, 'gpu', { owner: o.owner, signal: o.signal, probe: d.probe, extraDiskMb: 200, waitMs: d.waitMs, onWait: o.onWait, onRun: o.onRun }, () =>
     d.render.stills({ runDir: o.runDir, blendPath: latest.files.blend, frames, outDir: stillsDir, owner: o.owner, signal: o.signal }));
   const sheet = join(stillsDir, 'preview.png');
-  await contactSheet(d.ffmpeg, stillsDir, sheet, { signal: o.signal });
+  const style = CHANNEL_STYLES[scene.value.style_id];
+  await contactSheet(d.ffmpeg, stillsDir, sheet, { background: style.background, size: { width: 540, height: 960 }, signal: o.signal });
   return { dir: stillsDir, sheet, stills: r.files, renderer: r.renderer };
 }
 
