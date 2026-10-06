@@ -1,0 +1,8 @@
+{
+  "name": "@videogen/scene3d",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "three": "0.186.1" },
+  "devDependencies": { "@types/three": "0.186.0" }
+}
