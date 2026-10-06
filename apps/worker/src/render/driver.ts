@@ -1,13 +1,18 @@
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { BuildReportSchema, type BuildReport, type ChannelStyle } from '@videogen/shared';
-import { ffmpegWorks, testStill } from './ffmpeg.ts';
+import type { DraftProps } from '@videogen/remotion/props';
+import { fakeDraft, ffmpegWorks, testStill } from './ffmpeg.ts';
 import { runProcess, type ProcResult } from './process.ts';
 import { sandboxArgv, sandboxWorks } from './sandbox.ts';
 
 export const PYTHON_DIR = resolve(import.meta.dirname, '../../../../python/vg_blender');
 export const SCENE_FIXTURES = resolve(import.meta.dirname, '../../../../tests/fixtures/scene/kalem');
+const REPO_ROOT = resolve(import.meta.dirname, '../../../..');
+/** Plan C13: the Remotion render runs in this child process (Chrome dies with its process group). */
+export const REMOTION_CLI = resolve(REPO_ROOT, 'packages/remotion/src/render-cli.ts');
 
 export interface BuildInput {
   runDir: string;
@@ -24,6 +29,20 @@ export interface BuildFiles { blend: string; glb: string; anchors: string; event
 export interface BuildOutput { report: BuildReport; files: BuildFiles | null; ms: number }
 export interface StillsInput { runDir: string; blendPath: string; frames: number[]; outDir: string; scale?: number; samples?: number; owner: string; signal?: AbortSignal; onProgress?: (done: number, total: number) => void }
 export interface StillsOutput { files: string[]; renderer: string; ms: number }
+export interface DraftInput {
+  runDir: string;
+  props: Omit<DraftProps, 'glbUrl'>;
+  glbPath: string;
+  outPath: string;
+  owner: string;
+  signal?: AbortSignal;
+  onProgress?: (done: number, total: number) => void;
+  /** Bundling and Chrome start-up before the first frame (plan: the step says what it is doing). */
+  onStage?: (stage: string) => void;
+  /** Tests: render only these frames. */
+  frameRange?: [number, number];
+}
+export interface DraftOutput { file: string; frames: number; ms: number; concurrency: number }
 export type Capability = { ok: true } | { ok: false; reason: string };
 
 /** A render job that could not finish (not a product.py problem: those come back as report.ok = false). */
@@ -41,6 +60,8 @@ export interface RenderDriver {
   build(i: BuildInput): Promise<BuildOutput>;
   /** Spec §7.5 Blender preview stills. GPU. */
   stills(i: StillsInput): Promise<StillsOutput>;
+  /** Spec §7.1 step 5: the Three.js-in-Remotion draft MP4. GPU (the caller holds the lock). */
+  draft(i: DraftInput): Promise<DraftOutput>;
 }
 
 export type RenderAudit = (action: string, data: Record<string, unknown>) => Promise<void>;
@@ -55,7 +76,14 @@ export interface BlenderDriverOptions {
   stillsTimeoutMs?: number;
   maxRssMb?: number;
   audit?: RenderAudit;
+  /** Draft render child (default REMOTION_CLI), its time limit and the RSS of its group (Chrome included). */
+  remotionCli?: string;
+  draftTimeoutMs?: number;
+  draftMaxRssMb?: number;
 }
+
+/** Grilling C13: runProcess starts from an empty env; the render child needs PATH (node, Chrome), HOME and TMPDIR. */
+const draftEnv = (): NodeJS.ProcessEnv => ({ PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: homedir(), TMPDIR: tmpdir(), LANG: 'C.UTF-8', ...(process.env.VG_CHROME ? { VG_CHROME: process.env.VG_CHROME } : {}), ...(process.env.VG_REMOTION_GL ? { VG_REMOTION_GL: process.env.VG_REMOTION_GL } : {}) });
 
 const stoppedError = (r: ProcResult, what: string): RenderError | null => {
   if (r.stopped === 'timeout') return new RenderError('timeout', `${what} zaman aşımına uğradı`);
@@ -134,6 +162,40 @@ export class BlenderRenderDriver implements RenderDriver {
     if (r.code !== 0) throw new RenderError('crash', `önizleme render'ı başarısız (kod ${r.code ?? r.signal})`);
     return { files: i.frames.map((f) => join(i.outDir, `f${String(f).padStart(5, '0')}.png`)), renderer, ms: r.ms };
   }
+
+  /** Plan C13/C17: the Remotion child under the process-group guard; a Chrome/WebGL failure (exit 3) is retried once with concurrency 1. */
+  async draft(i: DraftInput): Promise<DraftOutput> {
+    await mkdir(resolve(i.outPath, '..'), { recursive: true });
+    const propsPath = `${i.outPath}.props.json`;
+    await writeFile(propsPath, JSON.stringify(i.props));
+    const once = async (concurrency: number): Promise<DraftOutput | null> => {
+      let done: { frames: number; ms: number } | null = null;
+      let error = '';
+      const r = await runProcess(process.execPath, [
+        '--import', 'tsx', this.o.remotionCli ?? REMOTION_CLI, '--props', propsPath, '--glb', i.glbPath, '--out', i.outPath,
+        '--cache', join(this.o.dataDir, 'cache', 'remotion'), '--concurrency', String(concurrency), ...(i.frameRange ? ['--frames', i.frameRange.join('-')] : []),
+      ], {
+        cwd: REPO_ROOT, dataDir: this.o.dataDir, owner: i.owner, signal: i.signal, env: draftEnv(),
+        timeoutMs: this.o.draftTimeoutMs ?? 600_000, maxRssMb: this.o.draftMaxRssMb ?? 6144,
+        onLine: (l) => {
+          const p = /^VG_PROGRESS (\d+) (\d+)$/.exec(l);
+          if (p) i.onProgress?.(Number(p[1]), Number(p[2]));
+          if (l.startsWith('VG_STAGE ')) i.onStage?.(l.slice(9).trim());
+          if (l.startsWith('VG_DONE ')) done = JSON.parse(l.slice(8)) as { frames: number; ms: number };
+          if (l.startsWith('VG_ERROR ')) error = l.slice(9).trim();
+        },
+      });
+      await this.o.audit?.('render.draft', { ms: r.ms, code: r.code, stopped: r.stopped, concurrency, frames: (done as { frames: number } | null)?.frames ?? null });
+      const stop = stoppedError(r, 'taslak render');
+      if (stop) throw stop;
+      if (r.code === 3) return null;
+      if (r.code !== 0 || !done) throw new RenderError('crash', `taslak render başarısız (kod ${r.code ?? r.signal})${error ? `: ${error}` : ''}`);
+      return { file: i.outPath, ...(done as { frames: number; ms: number }), concurrency };
+    };
+    const out = (await once(2)) ?? (await once(1));
+    if (!out) throw new RenderError('gpu', 'taslak render GPU/WebGL hatasıyla iki kez düştü');
+    return out;
+  }
 }
 
 /** Spec §16.1 FakeRenderDriver: committed pen build outputs and ffmpeg test stills; no Blender, bwrap or GPU. */
@@ -181,5 +243,18 @@ export class FakeRenderDriver implements RenderDriver {
       i.onProgress?.(n + 1, i.frames.length);
     }
     return { files, renderer: 'fake', ms: Date.now() - t0 };
+  }
+
+  /** Spec §16.1: a 2 s test-pattern MP4 at the requested size, tagged like the real draft (yuv420p, tv, bt709). */
+  async draft(i: DraftInput): Promise<DraftOutput> {
+    const t0 = Date.now();
+    await mkdir(resolve(i.outPath, '..'), { recursive: true });
+    await this.wait(i.signal);
+    i.onStage?.('frames');
+    i.onProgress?.(30, 60);
+    await fakeDraft(this.o.ffmpeg, i.outPath, { width: i.props.width, height: i.props.height, frames: 60, signal: i.signal });
+    if (i.signal?.aborted) throw new RenderError('aborted', 'durduruldu');
+    i.onProgress?.(60, 60);
+    return { file: i.outPath, frames: 60, ms: Date.now() - t0, concurrency: 1 };
   }
 }

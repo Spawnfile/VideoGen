@@ -5,10 +5,13 @@
   "exports": {
     ".": "./src/index.ts",
     "./props": "./src/props.ts",
-    "./hash": "./src/hash.ts"
+    "./hash": "./src/hash.ts",
+    "./render": "./src/render.ts"
   },
   "dependencies": {
     "@react-three/fiber": "9.8.1",
+    "@remotion/bundler": "4.0.533",
+    "@remotion/renderer": "4.0.533",
     "@remotion/three": "4.0.533",
     "@videogen/scene3d": "*",
     "@videogen/shared": "*",

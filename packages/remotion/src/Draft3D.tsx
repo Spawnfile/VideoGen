@@ -99,7 +99,9 @@ export const Draft3D: React.FC<DraftProps> = (p) => {
         }}>{b.text}</div>
       ))}
       {beat?.index === 0 ? (
-        <div data-text="hook" style={{ position: 'absolute', left: L.safe.left, top: L.hookTop, width: L.safe.right - L.safe.left, fontSize: L.hookFont, fontWeight: 500, lineHeight: 1.15, color: p.text.color }}>{p.hook}</div>
+        <div data-text="hook" style={{ position: 'absolute', left: L.safe.left, top: L.hookTop, width: L.safe.right - L.safe.left, fontSize: L.hookFont, fontWeight: 500, lineHeight: 1.15, color: p.text.color }}>
+          <span style={{ background: p.text.plate, padding: `${6 * s}px ${14 * s}px`, borderRadius: 10 * s, boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone' }}>{p.hook}</span>
+        </div>
       ) : beat ? (
         <div data-text="beat" style={{ position: 'absolute', left: L.safe.left, bottom: L.lineBottom, width: L.safe.right - L.safe.left, opacity: fade, fontSize: L.lineFont, fontWeight: 500, lineHeight: 1.25, color: p.text.color }}>
           <span style={{ background: p.text.plate, padding: `${6 * s}px ${14 * s}px`, borderRadius: 10 * s, boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone' }}>{beat.beat.text}</span>
