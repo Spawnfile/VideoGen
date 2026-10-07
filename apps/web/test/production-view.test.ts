@@ -3,7 +3,7 @@ import type { RunView, StepView, VideoView } from '@videogen/shared/browser';
 import { activeStep, buildFacts, formatDay, formatEta, formatUsage, isRunActive, pickVideoId, sourceLabel, stepDuration, videoTone } from '../src/lib/production-view.ts';
 
 const step = (over: Partial<StepView>): StepView => ({
-  id: 's', runId: 'r', key: 'research', ordinal: 0, weight: 50, status: 'pending', progress: 0, progressSource: null, attempt: 0, round: 0,
+  id: 's', runId: 'r', key: 'research', ordinal: 0, weight: 50, status: 'pending', progress: 0, progressSource: null, attempt: 0, round: 0, fixRound: 0,
   sessionId: null, error: null, note: null, startedAt: null, endedAt: null, ...over,
 });
 const run = (steps: StepView[], status: RunView['status'] = 'running'): RunView => ({ id: 'r', videoId: 'v', kind: 'produce', status, progress: 40, etaS: 200, error: null, createdAt: '', startedAt: null, endedAt: null, steps });

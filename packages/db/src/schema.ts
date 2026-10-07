@@ -225,6 +225,8 @@ export const steps = pgTable(
     attempt: integer('attempt').notNull().default(0),
     /** Draft review returns (plan C6, inherited D5): bumped for every step the review sends back; `attempt` restarts per round. */
     round: integer('round').notNull().default(0),
+    /** Final review fix rounds (plan F3, migration 0008): bumped for compose…review (or build…review, storyboard…review); `round` stays the draft counter. */
+    fixRound: integer('fix_round').notNull().default(0),
     inputHash: text('input_hash'),
     sessionId: uuid('session_id'),
     error: text('error'),
@@ -297,4 +299,46 @@ export const assets = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, precision: 6 }).notNull().defaultNow(),
   },
   (t) => [index('assets_kind_idx').on(t.kind, t.allowed), uniqueIndex('assets_blob_kind_uq').on(t.blobSha, t.kind)],
+);
+
+/** Spec §11.1 review rows (migration 0008, plan F22): one per reviewer and round, plus the `orchestrator` round summary. `seq` 2 = the second visual review. */
+export const reviews = pgTable(
+  'reviews',
+  {
+    id: uuid('id').primaryKey(),
+    videoId: uuid('video_id').notNull().references(() => videos.id),
+    versionId: uuid('version_id').references(() => versions.id),
+    runId: uuid('run_id').notNull().references(() => runs.id),
+    stepId: uuid('step_id').references(() => steps.id),
+    round: integer('round').notNull(),
+    reviewerRole: text('reviewer_role').notNull(),
+    seq: integer('seq').notNull().default(1),
+    sessionId: uuid('session_id'),
+    rubricVersion: text('rubric_version').notNull(),
+    total: real('total'),
+    dimensionScores: jsonb('dimension_scores'),
+    gates: jsonb('gates'),
+    verdict: text('verdict'),
+    summaryTr: text('summary_tr'),
+    createdAt: timestamp('created_at', { withTimezone: true, precision: 6 }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('reviews_round_role_uq').on(t.runId, t.round, t.reviewerRole, t.seq), index('reviews_video_idx').on(t.videoId, t.createdAt)],
+);
+
+export const findings = pgTable(
+  'findings',
+  {
+    id: uuid('id').primaryKey(),
+    reviewId: uuid('review_id').notNull().references(() => reviews.id),
+    checkId: text('check_id').notNull(),
+    severity: text('severity').notNull(),
+    dimension: text('dimension'),
+    gate: text('gate'),
+    evidence: jsonb('evidence'),
+    fixHint: text('fix_hint'),
+    status: text('status').notNull().default('open'),
+    fixedInVersionId: uuid('fixed_in_version_id').references(() => versions.id),
+    createdAt: timestamp('created_at', { withTimezone: true, precision: 6 }).notNull().defaultNow(),
+  },
+  (t) => [index('findings_review_idx').on(t.reviewId)],
 );

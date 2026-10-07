@@ -87,7 +87,7 @@ function toRun(r: Record<string, any>): RunRecord {
 function toStep(r: Record<string, any>): StepRecord {
   return {
     id: r.id, runId: r.run_id, key: r.key as StepKey, ordinal: r.ordinal, weight: Number(r.weight), status: r.status, progress: Number(r.progress),
-    progressSource: r.progress_source, attempt: r.attempt, round: r.round, sessionId: r.session_id, error: r.error, note: r.note, inputHash: r.input_hash,
+    progressSource: r.progress_source, attempt: r.attempt, round: r.round, fixRound: r.fix_round, sessionId: r.session_id, error: r.error, note: r.note, inputHash: r.input_hash,
     startedAt: iso(r.started_at), endedAt: iso(r.ended_at),
   };
 }
@@ -144,7 +144,7 @@ const VIDEO_SQL = `
     GROUP BY video_id)
   SELECT v.*, p.name AS product_name, p.difficulty, lr.id AS latest_run_id, u.sessions, u.tokens, u.cost, w.d AS five_hour_delta,
     dv.blob_sha AS draft_sha, dv.duration_ms AS draft_ms, dc.blob_sha AS cover_sha,
-    fm.blob_sha AS final_sha, fm.duration_ms AS final_ms, ft.blob_sha AS tiktok_sha, fc.blob_sha AS final_cover_sha
+    fm.blob_sha AS final_sha, fm.duration_ms AS final_ms, ft.blob_sha AS tiktok_sha, fc.blob_sha AS final_cover_sha, sc.total AS score
   FROM videos v JOIN products p ON p.id = v.product_id
   LEFT JOIN LATERAL (SELECT id FROM runs r WHERE r.video_id = v.id ORDER BY r.created_at DESC LIMIT 1) lr ON true
   LEFT JOIN LATERAL (SELECT a.blob_sha, a.duration_ms FROM artifacts a JOIN runs r ON r.id = a.run_id
@@ -152,12 +152,16 @@ const VIDEO_SQL = `
   LEFT JOIN LATERAL (SELECT a.blob_sha FROM artifacts a JOIN runs r ON r.id = a.run_id
     WHERE r.video_id = v.id AND a.kind = 'draft_cover' ORDER BY a.created_at DESC LIMIT 1) dc ON true
   -- Plan E18: the newest music variant, and the TikTok variant and cover of the same compose (same run and input hash).
+  -- Plan F13: the best version's final comes first (no best version: all NULL, newest wins).
   LEFT JOIN LATERAL (SELECT a.blob_sha, a.duration_ms, a.input_hash, a.run_id FROM artifacts a JOIN runs r ON r.id = a.run_id
-    WHERE r.video_id = v.id AND a.kind = 'final_video_music' ORDER BY a.created_at DESC LIMIT 1) fm ON true
+    WHERE r.video_id = v.id AND a.kind = 'final_video_music' ORDER BY (a.version_id = v.best_version_id) DESC NULLS LAST, a.created_at DESC LIMIT 1) fm ON true
   LEFT JOIN LATERAL (SELECT a.blob_sha FROM artifacts a
     WHERE a.run_id = fm.run_id AND a.kind = 'final_video_tiktok' AND a.input_hash = fm.input_hash ORDER BY a.created_at DESC LIMIT 1) ft ON true
   LEFT JOIN LATERAL (SELECT a.blob_sha FROM artifacts a
     WHERE a.run_id = fm.run_id AND a.kind = 'final_cover' AND a.input_hash = fm.input_hash ORDER BY a.created_at DESC LIMIT 1) fc ON true
+  -- Plan F13/F22: the library score is the panel total (orchestrator row) of the best version, else of the newest scored round.
+  LEFT JOIN LATERAL (SELECT rv.total FROM reviews rv WHERE rv.video_id = v.id AND rv.reviewer_role = 'orchestrator' AND rv.total IS NOT NULL
+    ORDER BY (rv.version_id = v.best_version_id) DESC NULLS LAST, rv.created_at DESC LIMIT 1) sc ON true
   LEFT JOIN u ON u.video_id = v.id
   LEFT JOIN w ON w.video_id = v.id`;
 
@@ -168,6 +172,7 @@ function toVideo(r: Record<string, any>): VideoView {
     usage: { sessions: r.sessions ?? 0, tokens: Number(r.tokens ?? 0), costUsd: num(r.cost), fiveHourDelta: num(r.five_hour_delta) },
     draft: r.draft_sha ? { videoSha: r.draft_sha, coverSha: r.cover_sha ?? null, durationS: Math.round(Number(r.draft_ms ?? 0) / 100) / 10 } : null,
     final: r.final_sha ? { musicSha: r.final_sha, tiktokSha: r.tiktok_sha ?? null, coverSha: r.final_cover_sha ?? null, durationS: Math.round(Number(r.final_ms ?? 0) / 100) / 10 } : null,
+    score: round4(r.score),
   };
 }
 export async function getVideoView(db: Queryable, id: string): Promise<VideoView | null> {
@@ -232,6 +237,18 @@ export async function latestUsageMark(db: Queryable): Promise<UsageMark | null> 
   const { rows } = await db.query('SELECT five_hour_util, five_hour_resets_at, seven_day_util FROM usage_snapshots ORDER BY id DESC LIMIT 1');
   const r = rows[0];
   return r ? { fiveHour: round4(r.five_hour_util), fiveHourResetsAt: iso(r.five_hour_resets_at), sevenDay: round4(r.seven_day_util) } : null;
+}
+
+/** Plan F13: a version row before the fixer's artifacts (`artifacts.version_id` is a foreign key); a restart reuses the row by its deterministic id. */
+export async function insertVersion(db: Queryable, v: { id: string; videoId: string; parentVersionId: string | null; round: number; reason: string }): Promise<void> {
+  await db.query(
+    `INSERT INTO versions (id, video_id, parent_version_id, round, reason) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
+    [v.id, v.videoId, v.parentVersionId, v.round, v.reason],
+  );
+}
+/** Plan F16: `finalize` records the best version. */
+export async function setBestVersion(db: Queryable, videoId: string, versionId: string): Promise<void> {
+  await db.query('UPDATE videos SET best_version_id = $2, updated_at = now() WHERE id = $1', [videoId, versionId]);
 }
 
 /**
@@ -306,13 +323,23 @@ export async function queueStepIfRunActive(db: Queryable, stepId: string): Promi
  * orchestrator's retry budget is per round), and the review's job is closed. A crash before COMMIT changes nothing (the restarted
  * review replays its stored decision); a replay after COMMIT finds the step pending and changes nothing (no double round).
  */
-export async function rewindForReview(pool: pg.Pool, o: { runId: string; stepId: string; jobId: number; round: number; fromOrdinal: number; toOrdinal: number; note: string }): Promise<boolean> {
+export async function rewindForReview(
+  pool: pg.Pool,
+  o: {
+    runId: string; stepId: string; jobId: number; round: number; fromOrdinal: number; toOrdinal: number; note: string;
+    /** Which counter the rewind reads and bumps: the draft `round` (default, M4c) or the final loop's `fix_round` (plan F3). */
+    counter?: 'round' | 'fix_round';
+    /** Plan F13: in the same transaction the pending version row gets its final reason and becomes the video's current version. */
+    version?: { id: string; reason: string };
+  },
+): Promise<boolean> {
+  const col = o.counter === 'fix_round' ? 'fix_round' : 'round';
   const c = await pool.connect();
   try {
     await c.query('BEGIN');
     const live = await c.query(
       `SELECT 1 FROM steps s JOIN runs r ON r.id = s.run_id
-       WHERE s.id = $1 AND s.status = 'running' AND s.round = $2 AND r.status = 'running' FOR UPDATE OF s, r`,
+       WHERE s.id = $1 AND s.status = 'running' AND s.${col} = $2 AND r.status = 'running' FOR UPDATE OF s, r`,
       [o.stepId, o.round],
     );
     if (!live.rowCount) {
@@ -320,11 +347,16 @@ export async function rewindForReview(pool: pg.Pool, o: { runId: string; stepId:
       return false;
     }
     await c.query(
-      `UPDATE steps SET status = 'pending', round = round + 1, attempt = 0, progress = 0, progress_source = NULL, input_hash = NULL, session_id = NULL,
+      `UPDATE steps SET status = 'pending', ${col} = ${col} + 1, attempt = 0, progress = 0, progress_source = NULL, input_hash = NULL, session_id = NULL,
          error = NULL, note = $4, started_at = NULL, ended_at = NULL
        WHERE run_id = $1 AND ordinal BETWEEN $2 AND $3`,
       [o.runId, o.fromOrdinal, o.toOrdinal, o.note],
     );
+    if (o.version) {
+      const v = await c.query('UPDATE versions SET reason = $2 WHERE id = $1 AND video_id = (SELECT video_id FROM runs WHERE id = $3)', [o.version.id, o.version.reason, o.runId]);
+      if (!v.rowCount) throw new Error(`rewind: version ${o.version.id} does not exist`);
+      await c.query('UPDATE videos SET current_version_id = $2, updated_at = now() WHERE id = (SELECT video_id FROM runs WHERE id = $1)', [o.runId, o.version.id]);
+    }
     await c.query("UPDATE jobs SET status = 'done', lease_owner = NULL, lease_expires_at = NULL WHERE id = $1", [o.jobId]);
     await c.query('COMMIT');
     return true;

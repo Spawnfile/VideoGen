@@ -69,3 +69,16 @@ export function draftRound(steps: readonly Pick<StepView, 'key' | 'weight' | 'st
   const done = loop.reduce((a, s) => a + s.weight * (s.status === 'done' ? 1 : Math.min(0.99, s.progress / 100)), 0);
   return { round, percent: total > 0 ? Math.round((done / total) * 100) : 0 };
 }
+
+/**
+ * Plan F3: the header's "Düzeltme turu k/3 · %N" of the final review loop. k is the newest `fixRound`, N the weighted progress of the
+ * steps that carry it (the same formula as `draftRound`). Null before the first fix.
+ */
+export function finalRound(steps: readonly Pick<StepView, 'weight' | 'status' | 'progress' | 'fixRound'>[]): { round: number; percent: number } | null {
+  const round = steps.reduce((m, s) => Math.max(m, s.fixRound), 0);
+  if (!round) return null;
+  const loop = steps.filter((s) => s.fixRound === round);
+  const total = loop.reduce((a, s) => a + s.weight, 0);
+  const done = loop.reduce((a, s) => a + s.weight * (s.status === 'done' ? 1 : Math.min(0.99, s.progress / 100)), 0);
+  return { round, percent: total > 0 ? Math.round((done / total) * 100) : 0 };
+}

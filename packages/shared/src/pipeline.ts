@@ -48,6 +48,8 @@ export interface StepView {
   attempt: number;
   /** Draft review round (0 = first pass; each return to build adds 1 to the steps it reruns). */
   round: number;
+  /** Final review fix round (plan F3): 0 = first pass; each final-loop rewind adds 1 to the steps it reruns. Independent of `round`. */
+  fixRound: number;
   sessionId: string | null;
   error: string | null;
   note: string | null;
@@ -88,6 +90,8 @@ export interface VideoView {
   usage: VideoUsage;
   draft: VideoDraft | null;
   final: VideoFinal | null;
+  /** The panel total of the best version's final review (newest round while there is no best version); null before a scored review. */
+  score: number | null;
 }
 export interface ArtifactMeta { id: string; runId: string; stepId: string | null; versionId: string | null; kind: string; blobSha: string | null; createdAt: string }
 

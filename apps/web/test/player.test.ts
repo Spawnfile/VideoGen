@@ -26,7 +26,7 @@ describe('player shortcuts and draft view helpers', () => {
     });
     expect(pickDraft([], 'r2').videoSha).toBeNull();
     const step = (key: StepView['key'], weight: number, status: StepView['status'], progress: number, round: number): StepView =>
-      ({ id: key, runId: 'r', key, ordinal: 0, weight, status, progress, progressSource: null, attempt: 1, round, sessionId: null, error: null, note: null, startedAt: null, endedAt: null });
+      ({ id: key, runId: 'r', key, ordinal: 0, weight, status, progress, progressSource: null, attempt: 1, round, fixRound: 0, sessionId: null, error: null, note: null, startedAt: null, endedAt: null });
     const run = (steps: StepView[], status: RunView['status'] = 'running'): RunView => ({ id: 'r', videoId: 'v', kind: 'produce', status, progress: 60, etaS: 100, error: null, createdAt: '', startedAt: null, endedAt: null, steps });
     const loop = [step('build', 42.86, 'running', 50, 1), step('draft_render', 9.52, 'pending', 0, 1), step('draft_review', 11.9, 'pending', 0, 1)];
     expect(draftRoundLabel(run(loop))).toBe('Taslak turu 1/2 · %33');
