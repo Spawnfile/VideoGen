@@ -5,6 +5,7 @@ export * from './usage.ts';
 export * from './claude-auth.ts';
 export * from './agents.ts';
 export * from './parent-watch.ts';
+export * from './assets.ts';
 export * from './artifacts.ts';
 export * from './pipeline.ts';
 export * from './progress.ts';

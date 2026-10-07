@@ -1,4 +1,4 @@
-import { type AnyPgColumn, bigint, bigserial, doublePrecision, index, integer, jsonb, pgTable, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, bigint, bigserial, boolean, doublePrecision, index, integer, jsonb, pgTable, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const auditLog = pgTable(
@@ -276,4 +276,25 @@ export const artifacts = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, precision: 6 }).notNull().defaultNow(),
   },
   (t) => [index('artifacts_run_kind_idx').on(t.runId, t.kind)],
+);
+/** Spec §9 / §11.1 asset ledger (migration 0007, plan E13). `allowed` is the license gate's verdict at import time. */
+export const assets = pgTable(
+  'assets',
+  {
+    id: uuid('id').primaryKey(),
+    kind: text('kind').notNull(),
+    title: text('title').notNull(),
+    blobSha: text('blob_sha').notNull().references(() => blobs.sha256),
+    licenseSpdx: text('license_spdx').notNull(),
+    sourceUrl: text('source_url'),
+    author: text('author').notNull(),
+    attribution: text('attribution'),
+    licenseSnapshotSha: text('license_snapshot_sha').references(() => blobs.sha256),
+    allowed: boolean('allowed').notNull(),
+    platforms: jsonb('platforms').notNull().default([]),
+    tags: jsonb('tags').notNull().default([]),
+    durationMs: integer('duration_ms'),
+    createdAt: timestamp('created_at', { withTimezone: true, precision: 6 }).notNull().defaultNow(),
+  },
+  (t) => [index('assets_kind_idx').on(t.kind, t.allowed), uniqueIndex('assets_blob_kind_uq').on(t.blobSha, t.kind)],
 );

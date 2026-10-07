@@ -50,6 +50,13 @@
       "when": 1791321310458,
       "tag": "0006_step_round",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791354741617,
+      "tag": "0007_assets",
+      "breakpoints": true
     }
   ]
 }
