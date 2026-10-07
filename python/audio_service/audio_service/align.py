@@ -2,8 +2,7 @@
 expanded to its spoken form (normalize_tr); spoken tokens are matched to ASR
 tokens with difflib; script words get the span of their matched spoken tokens.
 Unmatched words are interpolated between neighbours so output stays complete; spans are
-monotonic as long as the ASR timings are monotonic (clamping non-monotonic/overlapping ASR
-output is deferred to M5)."""
+monotonic: overlapping or backwards ASR timings are clamped first (_clamp_monotone)."""
 import os
 import re
 from difflib import SequenceMatcher
@@ -62,7 +61,23 @@ def _merge_decimal_tokens(asr_words: list[dict]) -> list[dict]:
     return out
 
 
+def _clamp_monotone(asr_words: list[dict]) -> list[dict]:
+    """Whisper word timings may overlap or step back. Each word starts no earlier than the previous
+    one; the previous word is cut where the next begins, so spans are ordered and disjoint."""
+    out: list[dict] = []
+    for a in asr_words:
+        w = dict(a)
+        if out:
+            prev = out[-1]
+            w["start"] = max(w["start"], prev["start"])
+            prev["end"] = max(prev["start"], min(prev["end"], w["start"]))
+        w["end"] = max(w["end"], w["start"])
+        out.append(w)
+    return out
+
+
 def map_words(script: str, asr_words: list[dict]) -> list[dict]:
+    asr_words = _clamp_monotone(asr_words)
     asr_words = _merge_decimal_tokens(asr_words)
     script_words = script.split()
     spoken: list[tuple[int, str]] = []
@@ -129,13 +144,13 @@ def whisper_model_args(model_size: str = WHISPER_SIZE, download_root: str | None
 
 def transcribe_words(wav_path: str, model_size: str = WHISPER_SIZE, download_root: str | None = None) -> list[dict]:
     import torch
+    from .asr import transcribe
     from faster_whisper import WhisperModel
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = WhisperModel(model_size, device=device, compute_type="int8_float16" if device == "cuda" else "int8",
                          **whisper_model_args(model_size, download_root))
-    segments, _ = model.transcribe(wav_path, language="tr", word_timestamps=True, vad_filter=False)
-    words = [{"text": w.word.strip(), "start": w.start, "end": w.end} for s in segments for w in (s.words or [])]
+    words = transcribe(wav_path, model)
     del model
     if device == "cuda":
         torch.cuda.empty_cache()

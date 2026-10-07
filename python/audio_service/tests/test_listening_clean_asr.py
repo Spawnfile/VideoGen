@@ -1,4 +1,4 @@
-from listening_test import clean_asr
+from audio_service.asr import clean_asr
 
 
 def test_rejoins_whisper_decimal_with_space_before_separator():

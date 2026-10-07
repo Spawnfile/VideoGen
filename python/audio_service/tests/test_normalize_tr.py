@@ -78,3 +78,50 @@ def test_leading_minus():
 
 def test_minus_in_range_untouched():
     assert normalize_tr("2-3 gün") == "iki-üç gün"
+
+
+def test_percent_trailing():
+    assert normalize_tr("%50 indirim") == "yüzde elli indirim"
+    assert normalize_tr("50% indirim") == "yüzde elli indirim"
+    assert normalize_tr("2,5 % artış") == "yüzde iki virgül beş artış"
+
+
+def test_currency():
+    assert normalize_tr("15 TL") == "on beş lira"
+    assert normalize_tr("₺15") == "on beş lira"
+    assert normalize_tr("3,5 TL") == "üç virgül beş lira"
+
+
+def test_data_sizes():
+    assert normalize_tr("256 GB") == "iki yüz elli altı gigabayt"
+    assert normalize_tr("4GB bellek") == "dört gigabayt bellek"
+    assert normalize_tr("512 MB") == "beş yüz on iki megabayt"
+
+
+def test_clock():
+    assert normalize_tr("Saat 14.30 gibi") == "Saat on dört otuz gibi"
+    assert normalize_tr("14:05") == "on dört sıfır beş"
+    assert normalize_tr("09.00") == "dokuz"
+    # a short decimal is still a decimal, a price with a unit is not a clock
+    assert normalize_tr("1.5 mm") == "bir virgül beş milimetre"
+    assert normalize_tr("12.50 TL") == "on iki virgül elli lira"
+    # a percent next to a clock-shaped number is a percent decimal
+    assert normalize_tr("%12.30") == "yüzde on iki virgül otuz"
+    assert normalize_tr("12.30%") == "yüzde on iki virgül otuz"
+
+
+def test_simple_fraction():
+    assert normalize_tr("1/2 bardak") == "bir bölü iki bardak"
+
+
+def test_assert_speakable_rejects_leftovers():
+    import pytest
+    from audio_service.normalize_tr import assert_speakable
+
+    assert_speakable(normalize_tr("Bu kalemde 7 parça var, %50 ucuz; 14.30'da, ₺15!"))
+    assert assert_speakable("İstanbul'da “şık” (ılık) — tamam…") is None
+    for bad in ("x2", "@", "a_b", "çok 😀", "12/05/2024"):
+        with pytest.raises(ValueError):
+            assert_speakable(normalize_tr(bad))
+    with pytest.raises(ValueError, match="rakam"):
+        assert_speakable("sıfır 3 beş")  # a digit that reached the TTS input

@@ -146,3 +146,28 @@ def test_transcribe_words_passes_pinned_revision(monkeypatch):
     assert align.transcribe_words("x.wav") == []
     assert seen["kw"]["revision"] == "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf"
     assert seen["kw"]["download_root"].endswith("/hub")
+
+
+def test_overlapping_asr_is_clamped_monotone():
+    asr = [
+        {"text": "bir", "start": 0.0, "end": 1.0},
+        {"text": "iki", "start": 0.6, "end": 1.4},   # starts before "bir" ends
+        {"text": "üç", "start": 1.2, "end": 2.0},
+        {"text": "dört", "start": 0.5, "end": 2.5},  # jumps backwards
+    ]
+    out = map_words("bir iki üç dört", asr)
+    assert [w["text"] for w in out] == ["bir", "iki", "üç", "dört"]
+    assert [(w["startMs"], w["endMs"]) for w in out][:2] == [(0, 600), (600, 1200)]
+    for a, b in zip(out, out[1:]):
+        assert a["startMs"] <= a["endMs"] <= b["startMs"] <= b["endMs"]
+
+
+def test_empty_asr_or_script():
+    assert map_words("", []) == []
+    assert map_words("", [{"text": "bir", "start": 0.0, "end": 0.5}]) == []
+    out = map_words("Merhaba dünya", [])
+    assert [w["text"] for w in out] == ["Merhaba", "dünya"]
+    assert all(0 <= w["startMs"] <= w["endMs"] for w in out)
+    # an ASR token with nothing speakable in it matches nothing but does not break the mapping
+    out = map_words("Merhaba", [{"text": "...", "start": 0.0, "end": 0.4}])
+    assert [w["text"] for w in out] == ["Merhaba"]

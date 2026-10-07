@@ -12,6 +12,7 @@ UNITS = {
     "mAh": "miliamper saat", "mA": "miliamper", "A": "amper", "V": "volt", "W": "vat",
     "kW": "kilovat", "Hz": "hertz", "kHz": "kilohertz", "MHz": "megahertz", "GHz": "gigahertz",
     "°C": "santigrat derece", "sn": "saniye", "dk": "dakika",
+    "KB": "kilobayt", "MB": "megabayt", "GB": "gigabayt", "TB": "terabayt", "TL": "lira",
 }
 ABBREVIATIONS = {"vb.": "ve benzeri", "vs.": "vesaire", "örn.": "örneğin", "yak.": "yaklaşık"}
 
@@ -24,6 +25,13 @@ _DOT_DECIMAL = re.compile(r"\d+\.\d{1,2}")
 _MINUS = re.compile(r"(?:^|(?<=[\s(\[{\"'“‘]))-(?=\d)", re.MULTILINE)
 _NUM_UNIT = re.compile(rf"({_NUMBER})\s?({_unit_alt})(?![\wçğıöşüÇĞİÖŞÜ])")
 _PERCENT = re.compile(rf"%\s?({_NUMBER})")
+_PERCENT_TRAIL = re.compile(rf"(?<![\w,.])({_NUMBER})\s?%")
+_LIRA_SIGN = re.compile(rf"₺\s?({_NUMBER})")
+# Saat: iki haneli saat + ".": "14.30" (tek haneli "1.50" ondalıktır); ":" ile tek haneli saat de olur.
+# Birim/TL ardından gelirse ("12.50 TL") saat değil ondalıktır; tarih/sürüm ("12.05.2024") saat değildir.
+_CLOCK = re.compile(
+    rf"(?<![\d.,:/])(?:([01]\d|2[0-3])\.|([01]?\d|2[0-3]):)([0-5]\d)(?!\d|[.,:/]\d)(?!\s?(?:{_unit_alt})(?![\wçğıöşüÇĞİÖŞÜ]))")
+_FRACTION = re.compile(r"(?<![\w/.,])(\d{1,3})/(\d{1,3})(?![\w/])")
 _NUM = re.compile(rf"(?<![\w,.])({_NUMBER})(?![\w])")
 
 
@@ -67,11 +75,36 @@ def _say(num: str) -> str:
     return f"{say_int(int(whole))} virgül {tail}"
 
 
+def _say_clock(m: re.Match) -> str:
+    hour, minute = int(m.group(1) or m.group(2)), m.group(3)
+    tail = "" if minute == "00" else ("sıfır " + ONES[int(minute)] if minute[0] == "0" else say_int(int(minute)))
+    return f"{say_int(hour)} {tail}".strip()
+
+
 def normalize_tr(text: str) -> str:
     for abbr, full in ABBREVIATIONS.items():
         text = re.sub(rf"(?<![\w]){re.escape(abbr)}", full, text)
     text = _MINUS.sub("eksi ", text)
-    text = _NUM_UNIT.sub(lambda m: f"{_say(m.group(1))} {UNITS[m.group(2)]}", text)
+    # percent first: "%12.30" / "12.30%" are percent decimals, never a clock
     text = _PERCENT.sub(lambda m: f"yüzde {_say(m.group(1))}", text)
+    text = _PERCENT_TRAIL.sub(lambda m: f"yüzde {_say(m.group(1))}", text)
+    text = _CLOCK.sub(_say_clock, text)
+    text = _FRACTION.sub(lambda m: f"{say_int(int(m.group(1)))} bölü {say_int(int(m.group(2)))}", text)
+    text = _LIRA_SIGN.sub(lambda m: f"{_say(m.group(1))} lira", text)
+    text = _NUM_UNIT.sub(lambda m: f"{_say(m.group(1))} {UNITS[m.group(2)]}", text)
     text = _NUM.sub(lambda m: _say(m.group(1)), text)
     return text
+
+
+_SPEAKABLE_PUNCT = set(" .,;:!?'\"’‘“”()-–—…")
+
+
+def assert_speakable(spoken: str) -> None:
+    """Guard on normalize_tr's OUTPUT (H21): no digit or symbol the TTS front end cannot read may
+    reach the engine. Raises ValueError (Turkish reason) naming the leftovers."""
+    digits = re.search(r"\S*\d\S*", spoken)
+    if digits:
+        raise ValueError(f"okunamayan rakam kaldı: {digits.group(0)}")
+    bad = sorted({c for c in spoken if not (c.isalpha() or c.isspace() or c in _SPEAKABLE_PUNCT)})
+    if bad:
+        raise ValueError(f"okunamayan karakter: {' '.join(bad)}")

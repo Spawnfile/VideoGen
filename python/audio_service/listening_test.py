@@ -14,7 +14,7 @@ Record fields (all keys always present; null when not measured):
   cer_written    written script vs raw ASR text
   cer_over_5pct, chars_per_sec, drift_vs_median_pct   informational flags (the >35 % drift gate belongs to the M5 pipeline)
 """
-import argparse, gc, json, re, statistics, subprocess, threading, time, traceback
+import argparse, gc, json, statistics, subprocess, threading, time, traceback
 from pathlib import Path
 
 import soundfile as sf
@@ -22,6 +22,7 @@ import soundfile as sf
 from audio_service.metrics import cer
 from audio_service.normalize_tr import normalize_tr
 from audio_service.align import transcribe_words
+from audio_service.asr import clean_asr  # moved into the package (M5c)
 
 SCRIPT = [
     "Bu kalemin içinde tam 7 parça var.",
@@ -34,12 +35,6 @@ MODELS = Path.home() / "videogen-data/models"
 KEYS = ("engine", "voice", "wav", "sample_rate", "seconds", "rtf", "rtf_incl_load", "rtf_gen", "peak_vram_mb",
         "torch_peak_alloc_mb", "vram_sampler_error", "cer", "cer_raw", "cer_written", "cer_over_5pct",
         "chars_per_sec", "drift_vs_median_pct", "asr", "error", "trace")
-
-
-def clean_asr(text):
-    """Whisper writes '0 ,7' for decimals; rejoin so normalize_tr can read the number. Only a space
-    BEFORE the separator is removed, so list commas ('7, 8 ve 9') stay intact."""
-    return re.sub(r"(\d)\s+([.,])(\d)", r"\1\2\3", text)
 
 
 class VramPeak:
