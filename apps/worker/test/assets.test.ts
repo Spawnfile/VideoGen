@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getBlob, listAssets } from '@videogen/db';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
-import { ensureSfxLibrary, importAsset, parseAddArgs, SFX_NAMES } from '../src/assets.ts';
+import { SFX_NAMES } from '@videogen/shared';
+import { ensureSfxLibrary, importAsset, parseAddArgs } from '../src/assets.ts';
 
 const FFMPEG = process.env.VG_FFMPEG ?? 'ffmpeg';
 let t: Awaited<ReturnType<typeof createTestDb>>;

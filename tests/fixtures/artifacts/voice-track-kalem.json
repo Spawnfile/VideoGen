@@ -1,0 +1,404 @@
+{
+  "lines": [
+    {
+      "beat_id": "b1-kanca",
+      "text_tr": "Yedi onda bir milimetrelik bir bilye her şeyi yazıyor.",
+      "normalized_tr": "sıfır virgül yedi milimetrelik bir bilye her şeyi yazıyor.",
+      "start_ms": 100,
+      "end_ms": 2820,
+      "seed": 1000,
+      "attempts": 1,
+      "cer": 0,
+      "asr_tr": "yedi onda bir milimetrelik bir bilye her şeyi yazıyor."
+    },
+    {
+      "beat_id": "b2-patlatma",
+      "text_tr": "Kalemi açınca içinden yalnızca beş parça çıkıyor.",
+      "normalized_tr": "Kalemi açınca içinden yalnızca beş parça çıkıyor.",
+      "start_ms": 3100,
+      "end_ms": 8820,
+      "seed": 1001,
+      "attempts": 1,
+      "cer": 0,
+      "asr_tr": "kalemi açınca içinden yalnızca beş parça çıkıyor."
+    },
+    {
+      "beat_id": "b3-hazne",
+      "text_tr": "Mürekkep haznesinde sıvı değil, yoğun ve yağ bazlı bir macun var.",
+      "normalized_tr": "Mürekkep haznesinde sıvı değil, yoğun ve yağ bazlı bir macun var.",
+      "start_ms": 9100,
+      "end_ms": 15820,
+      "seed": 1002,
+      "attempts": 1,
+      "cer": 0,
+      "asr_tr": "mürekkep haznesinde sıvı değil, yoğun ve yağ bazlı bir macun var."
+    },
+    {
+      "beat_id": "b4-ikinci-kanca",
+      "text_tr": "Asıl iş ise ucundaki küçük yuvada oluyor.",
+      "normalized_tr": "Asıl iş ise ucundaki küçük yuvada oluyor.",
+      "start_ms": 16100,
+      "end_ms": 23820,
+      "seed": 1003,
+      "attempts": 1,
+      "cer": 0,
+      "asr_tr": "asıl iş ise ucundaki küçük yuvada oluyor."
+    },
+    {
+      "beat_id": "b5-mekanizma",
+      "text_tr": "Bilye döndükçe mürekkebi alıp kâğıda taşıyor.",
+      "normalized_tr": "Bilye döndükçe mürekkebi alıp kâğıda taşıyor.",
+      "start_ms": 24100,
+      "end_ms": 31820,
+      "seed": 1004,
+      "attempts": 1,
+      "cer": 0,
+      "asr_tr": "bilye döndükçe mürekkebi alıp kâğıda taşıyor."
+    },
+    {
+      "beat_id": "b6-odul",
+      "text_tr": "Bilyenin yuvadaki boşluğu mikron kadar dar.",
+      "normalized_tr": "Bilyenin yuvadaki boşluğu mikron kadar dar.",
+      "start_ms": 32100,
+      "end_ms": 39820,
+      "seed": 1005,
+      "attempts": 1,
+      "cer": 0,
+      "asr_tr": "bilyenin yuvadaki boşluğu mikron kadar dar."
+    },
+    {
+      "beat_id": "b7-dongu",
+      "text_tr": "Bir dahaki yazışında bunu hatırla.",
+      "normalized_tr": "Bir dahaki yazışında bunu hatırla.",
+      "start_ms": 40100,
+      "end_ms": 44820,
+      "seed": 1006,
+      "attempts": 1,
+      "cer": 0,
+      "asr_tr": "bir dahaki yazışında bunu hatırla."
+    }
+  ],
+  "words": [
+    {
+      "text": "Yedi",
+      "start_ms": 100,
+      "end_ms": 317,
+      "beat_id": "b1-kanca"
+    },
+    {
+      "text": "onda",
+      "start_ms": 337,
+      "end_ms": 554,
+      "beat_id": "b1-kanca"
+    },
+    {
+      "text": "bir",
+      "start_ms": 574,
+      "end_ms": 731,
+      "beat_id": "b1-kanca"
+    },
+    {
+      "text": "milimetrelik",
+      "start_ms": 751,
+      "end_ms": 1441,
+      "beat_id": "b1-kanca"
+    },
+    {
+      "text": "bir",
+      "start_ms": 1461,
+      "end_ms": 1618,
+      "beat_id": "b1-kanca"
+    },
+    {
+      "text": "bilye",
+      "start_ms": 1638,
+      "end_ms": 1914,
+      "beat_id": "b1-kanca"
+    },
+    {
+      "text": "her",
+      "start_ms": 1934,
+      "end_ms": 2091,
+      "beat_id": "b1-kanca"
+    },
+    {
+      "text": "şeyi",
+      "start_ms": 2111,
+      "end_ms": 2328,
+      "beat_id": "b1-kanca"
+    },
+    {
+      "text": "yazıyor.",
+      "start_ms": 2348,
+      "end_ms": 2820,
+      "beat_id": "b1-kanca"
+    },
+    {
+      "text": "Kalemi",
+      "start_ms": 3100,
+      "end_ms": 3878,
+      "beat_id": "b2-patlatma"
+    },
+    {
+      "text": "açınca",
+      "start_ms": 3898,
+      "end_ms": 4676,
+      "beat_id": "b2-patlatma"
+    },
+    {
+      "text": "içinden",
+      "start_ms": 4696,
+      "end_ms": 5607,
+      "beat_id": "b2-patlatma"
+    },
+    {
+      "text": "yalnızca",
+      "start_ms": 5627,
+      "end_ms": 6671,
+      "beat_id": "b2-patlatma"
+    },
+    {
+      "text": "beş",
+      "start_ms": 6691,
+      "end_ms": 7070,
+      "beat_id": "b2-patlatma"
+    },
+    {
+      "text": "parça",
+      "start_ms": 7090,
+      "end_ms": 7735,
+      "beat_id": "b2-patlatma"
+    },
+    {
+      "text": "çıkıyor.",
+      "start_ms": 7755,
+      "end_ms": 8820,
+      "beat_id": "b2-patlatma"
+    },
+    {
+      "text": "Mürekkep",
+      "start_ms": 9100,
+      "end_ms": 10057,
+      "beat_id": "b3-hazne"
+    },
+    {
+      "text": "haznesinde",
+      "start_ms": 10077,
+      "end_ms": 11279,
+      "beat_id": "b3-hazne"
+    },
+    {
+      "text": "sıvı",
+      "start_ms": 11299,
+      "end_ms": 11768,
+      "beat_id": "b3-hazne"
+    },
+    {
+      "text": "değil,",
+      "start_ms": 11788,
+      "end_ms": 12501,
+      "beat_id": "b3-hazne"
+    },
+    {
+      "text": "yoğun",
+      "start_ms": 12521,
+      "end_ms": 13112,
+      "beat_id": "b3-hazne"
+    },
+    {
+      "text": "ve",
+      "start_ms": 13132,
+      "end_ms": 13356,
+      "beat_id": "b3-hazne"
+    },
+    {
+      "text": "yağ",
+      "start_ms": 13376,
+      "end_ms": 13723,
+      "beat_id": "b3-hazne"
+    },
+    {
+      "text": "bazlı",
+      "start_ms": 13743,
+      "end_ms": 14334,
+      "beat_id": "b3-hazne"
+    },
+    {
+      "text": "bir",
+      "start_ms": 14354,
+      "end_ms": 14701,
+      "beat_id": "b3-hazne"
+    },
+    {
+      "text": "macun",
+      "start_ms": 14721,
+      "end_ms": 15312,
+      "beat_id": "b3-hazne"
+    },
+    {
+      "text": "var.",
+      "start_ms": 15332,
+      "end_ms": 15820,
+      "beat_id": "b3-hazne"
+    },
+    {
+      "text": "Asıl",
+      "start_ms": 16100,
+      "end_ms": 16962,
+      "beat_id": "b4-ikinci-kanca"
+    },
+    {
+      "text": "iş",
+      "start_ms": 16982,
+      "end_ms": 17403,
+      "beat_id": "b4-ikinci-kanca"
+    },
+    {
+      "text": "ise",
+      "start_ms": 17423,
+      "end_ms": 18065,
+      "beat_id": "b4-ikinci-kanca"
+    },
+    {
+      "text": "ucundaki",
+      "start_ms": 18085,
+      "end_ms": 19830,
+      "beat_id": "b4-ikinci-kanca"
+    },
+    {
+      "text": "küçük",
+      "start_ms": 19850,
+      "end_ms": 20933,
+      "beat_id": "b4-ikinci-kanca"
+    },
+    {
+      "text": "yuvada",
+      "start_ms": 20953,
+      "end_ms": 22256,
+      "beat_id": "b4-ikinci-kanca"
+    },
+    {
+      "text": "oluyor.",
+      "start_ms": 22276,
+      "end_ms": 23820,
+      "beat_id": "b4-ikinci-kanca"
+    },
+    {
+      "text": "Bilye",
+      "start_ms": 24100,
+      "end_ms": 25045,
+      "beat_id": "b5-mekanizma"
+    },
+    {
+      "text": "döndükçe",
+      "start_ms": 25065,
+      "end_ms": 26589,
+      "beat_id": "b5-mekanizma"
+    },
+    {
+      "text": "mürekkebi",
+      "start_ms": 26609,
+      "end_ms": 28326,
+      "beat_id": "b5-mekanizma"
+    },
+    {
+      "text": "alıp",
+      "start_ms": 28346,
+      "end_ms": 29098,
+      "beat_id": "b5-mekanizma"
+    },
+    {
+      "text": "kâğıda",
+      "start_ms": 29118,
+      "end_ms": 30256,
+      "beat_id": "b5-mekanizma"
+    },
+    {
+      "text": "taşıyor.",
+      "start_ms": 30276,
+      "end_ms": 31820,
+      "beat_id": "b5-mekanizma"
+    },
+    {
+      "text": "Bilyenin",
+      "start_ms": 32100,
+      "end_ms": 33705,
+      "beat_id": "b6-odul"
+    },
+    {
+      "text": "yuvadaki",
+      "start_ms": 33725,
+      "end_ms": 35330,
+      "beat_id": "b6-odul"
+    },
+    {
+      "text": "boşluğu",
+      "start_ms": 35350,
+      "end_ms": 36752,
+      "beat_id": "b6-odul"
+    },
+    {
+      "text": "mikron",
+      "start_ms": 36772,
+      "end_ms": 37971,
+      "beat_id": "b6-odul"
+    },
+    {
+      "text": "kadar",
+      "start_ms": 37991,
+      "end_ms": 38987,
+      "beat_id": "b6-odul"
+    },
+    {
+      "text": "dar.",
+      "start_ms": 39007,
+      "end_ms": 39820,
+      "beat_id": "b6-odul"
+    },
+    {
+      "text": "Bir",
+      "start_ms": 40100,
+      "end_ms": 40552,
+      "beat_id": "b7-dongu"
+    },
+    {
+      "text": "dahaki",
+      "start_ms": 40572,
+      "end_ms": 41496,
+      "beat_id": "b7-dongu"
+    },
+    {
+      "text": "yazışında",
+      "start_ms": 41516,
+      "end_ms": 42912,
+      "beat_id": "b7-dongu"
+    },
+    {
+      "text": "bunu",
+      "start_ms": 42932,
+      "end_ms": 43541,
+      "beat_id": "b7-dongu"
+    },
+    {
+      "text": "hatırla.",
+      "start_ms": 43561,
+      "end_ms": 44820,
+      "beat_id": "b7-dongu"
+    }
+  ],
+  "duration_ms": 45000,
+  "provider": {
+    "engine": "chatterbox",
+    "model": "chatterbox-ml-v3",
+    "voice": {
+      "kind": "preset",
+      "id": "hazir"
+    },
+    "aigc_label": false
+  },
+  "facts": {
+    "first_word_s": 0.1,
+    "syllables_per_s": 2.81,
+    "max_cer": 0
+  }
+}

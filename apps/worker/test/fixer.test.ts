@@ -35,6 +35,7 @@ async function setup(name: string, o: { qc?: string[] } = {}) {
   h.deps.fixer = runFixer;
   const p = await h.prepare(name, o);
   const store = new SpecStore(join(p.runDir, 'spec'), ARTIFACT_VALIDATOR);
+  expect(ARTIFACT_VALIDATOR('audio', fx('audio-plan-vo'))).toEqual({ ok: true }); // M5c: write_spec(audio) is validated
   for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', 'storyboard-kalem'], ['scene', 'scene-kalem']] as const) await store.write(kind, fx(f));
   mkdirSync(join(p.runDir, 'scene'), { recursive: true });
   copyFileSync(PRODUCT, join(p.runDir, 'scene', 'product.py'));

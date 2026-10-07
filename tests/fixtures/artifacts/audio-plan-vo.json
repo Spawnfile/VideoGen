@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "mode": "vo",
+  "music": {
+    "asset_id": null,
+    "gain_db": -18
+  },
+  "vo_gain_db": 0,
+  "duck_db": 12,
+  "sfx": {
+    "gain_offset_db": 0,
+    "exclude": []
+  },
+  "mastering": {
+    "target_lufs": -14,
+    "tp": -1
+  }
+}

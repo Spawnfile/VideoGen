@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
-import { licenseVerdict } from '@videogen/shared';
+import { licenseVerdict, type SfxName } from '@videogen/shared';
 import type { AssetRecord } from '@videogen/db';
-import type { SfxName } from '../assets.ts';
 
 /** Plan E10: scene events → sounds (spec §7.6: explode_start → whoosh, part_lock → click/snap). */
 export const SFX_FOR_EVENT = { explode_start: 'whoosh', part_lock: 'click', label_in: 'tick', zoom: 'swoosh' } as const satisfies Record<string, SfxName>;
@@ -54,7 +53,7 @@ export interface SoundPlan {
 }
 
 /** The stored verdict and today's policy (review #3: a tightened license list or a cleared attribution also blocks). */
-const permitted = (a: AssetRecord) => a.allowed && licenseVerdict({ spdx: a.licenseSpdx, attribution: a.attribution }).allowed;
+const permitted = (a: AssetRecord) => a.allowed && licenseVerdict({ spdx: a.licenseSpdx, attribution: a.attribution, kind: a.kind }).allowed;
 
 /**
  * Plan F18: an allowed SFX imported into the ledger whose title or tag names a library sound (matchSfx) takes that sound's place; among several

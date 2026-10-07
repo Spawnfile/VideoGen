@@ -3,6 +3,7 @@ import { FinalReviewSchema, type FinalReview } from './final-review.ts';
 import { RERENDER_SCOPES } from './fix-loop.ts';
 import { ReviewSchema, type Review } from './review.ts';
 import { SceneSpecSchema, type SceneSpec } from './scene.ts';
+import { AudioPlanSchema, type AudioPlan } from './voice.ts';
 
 /** Spec §8.1 D1: the hook uses one of five patterns. Names are derived (the spec lists none); M5 calibration may revise them. */
 export const HOOK_PATTERNS = ['question', 'number', 'misconception', 'reveal', 'contrast'] as const;
@@ -163,9 +164,9 @@ export const FixReportSchema = FixReportBase.superRefine((r, ctx) => {
   if (dup) ctx.addIssue({ code: 'custom', path: ['addressed'], message: `tekrarlanan kontrol kimliği: ${dup}` });
 });
 
-export const ARTIFACT_SCHEMAS = { ProductResearch: ProductResearchSchema, Storyboard: StoryboardSchema, SceneSpec: SceneSpecSchema, Review: ReviewSchema, FinalReview: FinalReviewSchema, FixReport: FixReportSchema } as const;
+export const ARTIFACT_SCHEMAS = { ProductResearch: ProductResearchSchema, Storyboard: StoryboardSchema, SceneSpec: SceneSpecSchema, Review: ReviewSchema, FinalReview: FinalReviewSchema, FixReport: FixReportSchema, AudioPlan: AudioPlanSchema } as const;
 export type ArtifactSchemaName = keyof typeof ARTIFACT_SCHEMAS;
-export interface ArtifactValues { ProductResearch: ProductResearch; Storyboard: Storyboard; SceneSpec: SceneSpec; Review: Review; FinalReview: FinalReview; FixReport: FixReport }
+export interface ArtifactValues { ProductResearch: ProductResearch; Storyboard: Storyboard; SceneSpec: SceneSpec; Review: Review; FinalReview: FinalReview; FixReport: FixReport; AudioPlan: AudioPlan }
 export type ArtifactValue<N extends ArtifactSchemaName> = ArtifactValues[N];
 
 /** JSON Schema for the SDK's outputFormat. Refinements are not expressible there; validateArtifact re-checks them. */

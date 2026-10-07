@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type pg from 'pg';
-import { ASSET_KINDS, licenseVerdict, type AssetKind } from '@videogen/shared';
+import { ASSET_KINDS, licenseVerdict, SFX_NAMES, type AssetKind, type SfxName } from '@videogen/shared';
 import { appendAudit, findAssetByBlob, insertAsset, type AssetRecord } from '@videogen/db';
 import { putBlob } from './media.ts';
 import { ffprobeOf } from './render/ffmpeg.ts';
@@ -25,7 +25,7 @@ export function audioDurationMs(ffmpeg: string, file: string): Promise<number | 
 
 /** Spec §9 license gate at the door: every import is recorded (rejected ones with allowed=false) and audited. */
 export async function importAsset(pool: pg.Pool, dataDir: string, ffmpeg: string, i: ImportAssetInput): Promise<AssetRecord> {
-  const verdict = licenseVerdict({ spdx: i.spdx, attribution: i.attribution });
+  const verdict = licenseVerdict({ spdx: i.spdx, attribution: i.attribution, kind: i.kind });
   const blob = await putBlob(pool, dataDir, i.file);
   const license = await putBlob(pool, dataDir, i.licenseTextFile);
   const durationMs = i.kind === 'music' || i.kind === 'sfx' ? await audioDurationMs(ffmpeg, i.file) : null;
@@ -45,8 +45,6 @@ export async function importAsset(pool: pg.Pool, dataDir: string, ffmpeg: string
   return row;
 }
 
-export const SFX_NAMES = ['whoosh', 'swoosh', 'click', 'snap', 'tick', 'thud'] as const;
-export type SfxName = (typeof SFX_NAMES)[number];
 /** Plan E10: procedural, deterministic (fixed noise seed), 48 kHz mono. CC0 by construction (made here with ffmpeg). */
 const SFX_RECIPES: Record<SfxName, string> = {
   whoosh: 'anoisesrc=d=0.6:c=pink:r=48000:a=0.5:seed=7,highpass=f=300,lowpass=f=4000,afade=t=in:d=0.25,afade=t=out:st=0.3:d=0.3',
