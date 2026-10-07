@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { join } from 'node:path';
 
 const run = (ffmpeg: string, args: string[], signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
   execFile(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', ...args], { timeout: 60_000, signal }, (err, _o, stderr) => {
@@ -104,4 +105,9 @@ export function extractFrame(ffmpeg: string, video: string, out: string, o: { t:
 
 export function ffmpegWorks(ffmpeg: string): Promise<boolean> {
   return new Promise((resolve) => { execFile(ffmpeg, ['-version'], { timeout: 5000 }, (err) => resolve(!err)); });
+}
+
+/** Fake final render (plan E17): `count` tiny transparent RGBA PNGs f00000.png… in one ffmpeg call. */
+export function fakeFrames(ffmpeg: string, dir: string, count: number, signal?: AbortSignal): Promise<void> {
+  return run(ffmpeg, ['-f', 'lavfi', '-i', 'color=c=black@0.0:s=54x96:r=30,format=rgba', '-frames:v', String(count), '-start_number', '0', join(dir, 'f%05d.png')], signal);
 }

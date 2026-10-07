@@ -11,6 +11,7 @@ import {
 } from '@videogen/db';
 import type { UsageGate } from '../agents/manager.ts';
 import { errorTag } from '../errors.ts';
+import { removeRunFrames } from '../render/frames.ts';
 import { withResource } from '../render/gate.ts';
 import type { LockedResource, ResourceLocks } from '../render/locks.ts';
 import { precheck, type Probe } from './resources.ts';
@@ -159,6 +160,7 @@ export class Orchestrator {
     await updateVideo(pool, run.videoId, { status: 'cancelled', statusNote: 'Kullanıcı durdurdu' });
     for (const r of this.running.values()) if (r.runId === runId) r.abort.abort();
     await this.audit('run.cancelled', runId, { actor });
+    await this.cleanupFrames(runId);
     await this.publish(runId);
     return true;
   }
@@ -264,6 +266,9 @@ export class Orchestrator {
       outcome = ctx.signal.aborted ? { status: 'cancelled' } : { status: 'failed', error: errorTag(e) };
     }
     this.running.delete(step.id);
+    // A run cancelled while this job was still running: its frames could not go at cancel time (plan E6).
+    const after = await getRun(this.d.pool, step.runId).catch(() => null);
+    if (after && TERMINAL.includes(after.status)) await this.cleanupFrames(step.runId);
     // Shutting down: leave the lease in place; the next start recovers the job and runs the step again.
     if (this.stopped) return;
     await this.settle(step, ctx.attempt, job, outcome).catch((e) => this.log(`settle ${step.id} failed (${errorTag(e)})`));
@@ -372,7 +377,21 @@ export class Orchestrator {
     }
     if (status !== 'needs_human') await this.recompute(runId, complete);
     await this.audit(`run.${status}`, runId, { data: reason ? { reason } : undefined });
+    await this.cleanupFrames(runId);
     await this.publish(runId);
+  }
+
+  /** Plan E6: a terminal run's PNG frames go; only when none of its jobs is still running (a cancelled render may still be writing). */
+  private async cleanupFrames(runId: string): Promise<void> {
+    if ([...this.running.values()].some((r) => r.runId === runId)) return;
+    let dirs: string[];
+    try {
+      dirs = removeRunFrames(this.d.dataDir, runId);
+    } catch (e) {
+      this.log(`frame cleanup ${runId} failed (${errorTag(e)})`);
+      return;
+    }
+    if (dirs.length) await this.audit('frames.deleted', runId, { data: { dirs } });
   }
 
   private async expected(key: StepKey): Promise<number> {

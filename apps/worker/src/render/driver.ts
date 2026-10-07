@@ -4,7 +4,8 @@ import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { BuildReportSchema, type BuildReport, type ChannelStyle } from '@videogen/shared';
 import type { DraftProps } from '@videogen/remotion/props';
-import { fakeDraft, ffmpegWorks, testStill } from './ffmpeg.ts';
+import { fakeDraft, fakeFrames, ffmpegWorks, testStill } from './ffmpeg.ts';
+import { missingFrames } from './frames.ts';
 import { runProcess, type ProcResult } from './process.ts';
 import { sandboxArgv, sandboxWorks } from './sandbox.ts';
 
@@ -43,6 +44,26 @@ export interface DraftInput {
   frameRange?: [number, number];
 }
 export interface DraftOutput { file: string; frames: number; ms: number; concurrency: number }
+export interface FinalInput {
+  runDir: string;
+  /** Inside runDir (the sandbox sees only the run directory): the step copies the scene .blend there. */
+  blendPath: string;
+  outDir: string;
+  lastFrame: number;
+  owner: string;
+  /** Default: the .blend's own (64). */
+  samples?: number;
+  signal?: AbortSignal;
+  onProgress?: (done: number, total: number) => void;
+}
+export interface FinalOutput { dir: string; frames: number; skipped: number; samples: number; renderer: string; ms: number }
+
+/** Spec §14 (plan E5): the default samples first; after a crash the remaining frames once more with 32 (frames already done are kept). */
+export async function retryFinal(once: (samples: number | null) => Promise<FinalOutput | null>, samples?: number): Promise<FinalOutput> {
+  const out = (await once(samples ?? null)) ?? (await once(32));
+  if (!out) throw new RenderError('gpu', 'final render iki kez çöktü (varsayılan ve 32 örnek)');
+  return out;
+}
 export type Capability = { ok: true } | { ok: false; reason: string };
 
 /** A render job that could not finish (not a product.py problem: those come back as report.ok = false). */
@@ -62,6 +83,8 @@ export interface RenderDriver {
   stills(i: StillsInput): Promise<StillsOutput>;
   /** Spec §7.1 step 5: the Three.js-in-Remotion draft MP4. GPU (the caller holds the lock). */
   draft(i: DraftInput): Promise<DraftOutput>;
+  /** Spec §7.1 step 7: Blender EEVEE RGBA PNG frames 0…lastFrame, resumable. GPU (the caller holds the lock). */
+  final(i: FinalInput): Promise<FinalOutput>;
 }
 
 export type RenderAudit = (action: string, data: Record<string, unknown>) => Promise<void>;
@@ -80,6 +103,9 @@ export interface BlenderDriverOptions {
   remotionCli?: string;
   draftTimeoutMs?: number;
   draftMaxRssMb?: number;
+  /** Final render (spec §7.5, plan E5): 2 h and 6 GB by default. */
+  finalTimeoutMs?: number;
+  finalMaxRssMb?: number;
 }
 
 /** Grilling C13: runProcess starts from an empty env; the render child needs PATH (node, Chrome), HOME and TMPDIR. */
@@ -107,14 +133,14 @@ export class BlenderRenderDriver implements RenderDriver {
     return [this.o.blender, '-b', '--factory-startup', '--disable-autoexec', '--python-exit-code', '1', '-P', join(this.py, script), '--', ...rest];
   }
 
-  private async sandboxed(i: { runDir: string; owner: string; signal?: AbortSignal; gpu: boolean; timeoutMs: number; onLine?: (l: string) => void }, cmd: string[]) {
+  private async sandboxed(i: { runDir: string; owner: string; signal?: AbortSignal; gpu: boolean; timeoutMs: number; maxRssMb?: number; onLine?: (l: string) => void }, cmd: string[]) {
     const blenderDir = resolve(this.o.blender, '..');
     const { file, args } = sandboxArgv({
       bwrap: this.o.bwrap, home: this.o.home, runDir: i.runDir, roBinds: [blenderDir, this.py], gpu: i.gpu,
       persistentHome: i.gpu ? join(this.o.dataDir, 'cache', 'blender-home') : undefined,
     }, cmd);
     if (i.gpu) await mkdir(join(this.o.dataDir, 'cache', 'blender-home'), { recursive: true });
-    return runProcess(file, args, { cwd: i.runDir, dataDir: this.o.dataDir, owner: i.owner, signal: i.signal, timeoutMs: i.timeoutMs, maxRssMb: this.o.maxRssMb ?? 4096, onLine: i.onLine });
+    return runProcess(file, args, { cwd: i.runDir, dataDir: this.o.dataDir, owner: i.owner, signal: i.signal, timeoutMs: i.timeoutMs, maxRssMb: i.maxRssMb ?? this.o.maxRssMb ?? 4096, onLine: i.onLine });
   }
 
   async build(i: BuildInput): Promise<BuildOutput> {
@@ -196,6 +222,33 @@ export class BlenderRenderDriver implements RenderDriver {
     if (!out) throw new RenderError('gpu', 'taslak render GPU/WebGL hatasıyla iki kez düştü');
     return out;
   }
+
+  async final(i: FinalInput): Promise<FinalOutput> {
+    await mkdir(i.outDir, { recursive: true });
+    return retryFinal(async (samples) => {
+      let renderer = '';
+      let skipped = 0;
+      let used = 0;
+      let gpuError = '';
+      const r = await this.sandboxed({
+        runDir: i.runDir, owner: i.owner, signal: i.signal, gpu: true, timeoutMs: this.o.finalTimeoutMs ?? 7_200_000, maxRssMb: this.o.finalMaxRssMb ?? 6144,
+        onLine: (l) => {
+          const p = /^VG_PROGRESS (\d+) (\d+)$/.exec(l);
+          if (p) i.onProgress?.(Number(p[1]), Number(p[2]));
+          if (l.startsWith('VG_RENDERER ')) renderer = l.slice(12).trim();
+          if (l.startsWith('VG_SKIPPED ')) skipped = Number(l.slice(11));
+          if (l.startsWith('VG_SAMPLES ')) used = Number(l.slice(11));
+          if (l.startsWith('VG_ERROR ')) gpuError = l.slice(9).trim();
+        },
+      }, this.blenderArgs('final_cli.py', ['--blend', i.blendPath, '--out', i.outDir, '--start', '0', '--end', String(i.lastFrame), ...(samples ? ['--samples', String(samples)] : [])]));
+      await this.o.audit?.('render.final', { ms: r.ms, code: r.code, stopped: r.stopped, samples: samples ?? 'blend', skipped, renderer });
+      const stop = stoppedError(r, 'final render');
+      if (stop) throw stop;
+      if (r.code === 3) throw new RenderError('gpu', gpuError || 'GPU NVIDIA değil');
+      if (r.code !== 0) return null;
+      return { dir: i.outDir, frames: i.lastFrame + 1, skipped, samples: used || samples || 64, renderer, ms: r.ms };
+    }, i.samples);
+  }
 }
 
 /** Spec §16.1 FakeRenderDriver: committed pen build outputs and ffmpeg test stills; no Blender, bwrap or GPU. */
@@ -256,5 +309,18 @@ export class FakeRenderDriver implements RenderDriver {
     if (i.signal?.aborted) throw new RenderError('aborted', 'durduruldu');
     i.onProgress?.(60, 60);
     return { file: i.outPath, frames: 60, ms: Date.now() - t0, concurrency: 1 };
+  }
+
+  /** Spec §16.1: tiny transparent frames; frames already present are counted as skipped (like the real resume). */
+  async final(i: FinalInput): Promise<FinalOutput> {
+    const t0 = Date.now();
+    await mkdir(i.outDir, { recursive: true });
+    await this.wait(i.signal);
+    const total = i.lastFrame + 1;
+    const skipped = total - missingFrames(i.outDir, i.lastFrame).length;
+    if (skipped < total) await fakeFrames(this.o.ffmpeg, i.outDir, total, i.signal);
+    if (i.signal?.aborted) throw new RenderError('aborted', 'durduruldu');
+    i.onProgress?.(total, total);
+    return { dir: i.outDir, frames: total, skipped, samples: i.samples ?? 64, renderer: 'fake', ms: Date.now() - t0 };
   }
 }

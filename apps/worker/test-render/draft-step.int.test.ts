@@ -34,7 +34,7 @@ describe('draft_render + draft_review steps on the real Remotion driver', () => 
   it('renders the full pen draft (1351 frames, h264 yuv420p tv bt709), records it, and reviews it from a 4×3 contact sheet', async () => {
     const fake = new FakeRenderDriver({ ffmpeg: FFMPEG, delayMs: 1 });
     const real = new BlenderRenderDriver({ blender: '/nonexistent', bwrap: '/nonexistent', dataDir, home: dataDir });
-    const render: RenderDriver = { kind: 'real', capabilities: () => fake.capabilities(), build: (i) => fake.build(i), stills: (i) => fake.stills(i), draft: (i) => real.draft(i) };
+    const render: RenderDriver = { kind: 'real', capabilities: () => fake.capabilities(), build: (i) => fake.build(i), stills: (i) => fake.stills(i), draft: (i) => real.draft(i) , final: (i) => fake.final(i) };
     const scene: SceneDeps = { pool: t.pool, render, locks: new ResourceLocks(), ffmpeg: FFMPEG, capability: () => ({ ok: true }), waitMs: 10 };
     const reviews = new ReviewTargets();
     const manager = new SessionManager({
