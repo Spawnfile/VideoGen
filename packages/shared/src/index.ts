@@ -10,6 +10,7 @@ export * from './artifacts.ts';
 export * from './pipeline.ts';
 export * from './progress.ts';
 export * from './final-review.ts';
+export * from './fix-loop.ts';
 export * from './qc.ts';
 export * from './review.ts';
 export * from './rubric.ts';

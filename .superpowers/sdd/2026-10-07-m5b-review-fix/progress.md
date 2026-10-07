@@ -13,3 +13,10 @@ docs/superpowers/plans/2026-10-07-m5b-review-fix.md
   - Ruling: `finalVerdict` — a known total < 70 is rework even with a failed gate; a null total (AUTO gate failure) is fix.
   - Ruling: `isBorderline` = total 78–82 and no known failed gate (a low dimension does not exclude it); `low` includes the qc-owned D6/D7 (K13 floor on all nine).
   - Ruling: `formatScore` rounds half-up (61.65 → '61,7').
+- T2 done: 365 passed. Spec review: 1 Critical (deferred to T4, see below), 1 Important fixed (oscillation missed F,P,P,F → evaluated sequence is collapsed). Quality review: tests now pin the text/structure projections (sfx_cues, hook.text_tr, hook.pattern, vo_text/audio_mode, cta/version separately), non-adjacent regressions/fixes, null total = −1, all STOP_NOTEs; `tracked` uses Object.hasOwn; FixReport's scope enum comes from RERENDER_SCOPES.
+  - Ruling (process): the T2 implementer wrote the code before the tests (no failing-first run); the reviewers' mutation testing (scratchpad copy) found the unpinned behaviour, now covered.
+  - Ruling: beat `t_start/t_end/parts` sit in the structure projection (the plan test expects a beat-time change → only `storyboard.structure`); text = `hook.text_tr`, `onscreen_text`, `sfx_cues`. Both are compose scope.
+  - Ruling: a research-only change → scope `none`, `changed ['research']` (the fixer step rejects it, T8).
+  - Ruling: oscillation (F14) only on tracked checks, same noise rationale as regressions; `fixed` lists any F→P.
+  - Ruling: STOP_NOTE wording for `oscillation` ("aynı kontrol düzelip yeniden bozuldu; döngü durduruldu") and `no_fixer` ("düzeltme yapacak ajan bağlı değil") chosen by the implementer (plan gives none).
+  - Ruling (Critical found by review, F11 premise): Blender's `events_manifest` (python/vg_blender/vg_blender/build.py) writes `label_in` events from storyboard beats (id, t_start, parts), and compose feeds the stored `scene_events` to `planSfx` → a compose-scope beat time/parts fix would keep stale tick cues. Fix goes into T4 (composeSource derives `label_in` events from the current storyboard; other event types stay from events.json) with a test.

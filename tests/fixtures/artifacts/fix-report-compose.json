@@ -1,0 +1,12 @@
+{
+  "round": 1,
+  "addressed": [
+    { "check_id": "text_readable", "change_summary_tr": "Vuruş yazıları kısaltıldı ve kontrastı artırıldı", "files": ["storyboard.json"] },
+    { "check_id": "text_dwell", "change_summary_tr": "Yazıların ekranda kalma süresi uzatıldı", "files": ["storyboard.json"] }
+  ],
+  "not_addressed": [
+    { "check_id": "payoff", "reason": "Ödül anı mevcut kurguda zaten net; değişiklik gerekmedi" }
+  ],
+  "rerender_scope": "compose",
+  "spec_diffs": ["beats.2.onscreen_text.tr kısaltıldı"]
+}

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { FinalReviewSchema, type FinalReview } from './final-review.ts';
+import { RERENDER_SCOPES } from './fix-loop.ts';
 import { ReviewSchema, type Review } from './review.ts';
 import { SceneSpecSchema, type SceneSpec } from './scene.ts';
 
@@ -143,9 +144,25 @@ export function storyboardRefErrors(s: Storyboard, r: ProductResearch): string[]
   return out;
 }
 
-export const ARTIFACT_SCHEMAS = { ProductResearch: ProductResearchSchema, Storyboard: StoryboardSchema, SceneSpec: SceneSpecSchema, Review: ReviewSchema, FinalReview: FinalReviewSchema } as const;
+const FixReportBase = z.object({
+  round: z.number().int().min(1).max(3),
+  addressed: z.array(z.object({ check_id: slug, change_summary_tr: tr(300), files: z.array(tr(200)).max(20) })).max(60),
+  not_addressed: z.array(z.object({ check_id: slug, reason: tr(300) })).max(60),
+  rerender_scope: z.enum(RERENDER_SCOPES),
+  spec_diffs: z.array(tr(300)).max(40),
+});
+export type FixReport = z.infer<typeof FixReportBase>;
+
+/** Spec §7.4: the fixer's report. Its scope is a claim; the step computes the real one (fixScope). */
+export const FixReportSchema = FixReportBase.superRefine((r, ctx) => {
+  const ids = [...r.addressed.map((a) => a.check_id), ...r.not_addressed.map((n) => n.check_id)];
+  const dup = firstDuplicate(ids);
+  if (dup) ctx.addIssue({ code: 'custom', path: ['addressed'], message: `tekrarlanan kontrol kimliği: ${dup}` });
+});
+
+export const ARTIFACT_SCHEMAS = { ProductResearch: ProductResearchSchema, Storyboard: StoryboardSchema, SceneSpec: SceneSpecSchema, Review: ReviewSchema, FinalReview: FinalReviewSchema, FixReport: FixReportSchema } as const;
 export type ArtifactSchemaName = keyof typeof ARTIFACT_SCHEMAS;
-export interface ArtifactValues { ProductResearch: ProductResearch; Storyboard: Storyboard; SceneSpec: SceneSpec; Review: Review; FinalReview: FinalReview }
+export interface ArtifactValues { ProductResearch: ProductResearch; Storyboard: Storyboard; SceneSpec: SceneSpec; Review: Review; FinalReview: FinalReview; FixReport: FixReport }
 export type ArtifactValue<N extends ArtifactSchemaName> = ArtifactValues[N];
 
 /** JSON Schema for the SDK's outputFormat. Refinements are not expressible there; validateArtifact re-checks them. */
