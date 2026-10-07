@@ -102,3 +102,64 @@ export function placeLabels(anchors: { id: string; text: string; at: [number, nu
   }
   return boxes;
 }
+
+/** Remotion composition id of the final layer (spec §7.1 step 8, plan E7). */
+export const FINAL_COMPOSITION = 'Final3D';
+/** The draft props at 1080×1920 plus the URL base of the Blender PNG frames (served once, like the GLB). */
+export type FinalProps = DraftProps & { framesUrl: string };
+
+export function finalProps(o: Omit<Parameters<typeof draftProps>[0], 'width' | 'height'> & { framesUrl: string }): FinalProps {
+  return { ...draftProps({ ...o, width: 1080, height: 1920 }), framesUrl: o.framesUrl };
+}
+export const frameUrl = (base: string, frame: number) => `${base}/f${String(frame).padStart(5, '0')}.png`;
+
+/** A text box on screen (px), as Overlay draws it; layout.json lists them (spec §7.4, plan E9). */
+export interface TextBox { kind: 'hook' | 'beat' | 'label'; id?: string; box: [number, number, number, number] }
+
+/** The generous per-character width of placeLabels (M4c ruling: 0.66 em; Inter / DejaVu with Turkish diacritics ≈ 0.6). */
+const textWidth = (text: string, font: number) => text.length * font * 0.66;
+
+/**
+ * Greedy word wrap with the same width estimate (the browser wraps at least as early as this). A word wider than a line is cut into
+ * line-sized pieces, as Overlay's `overflow-wrap: anywhere` does (review #7: otherwise it would overflow into the unsafe band).
+ */
+export function wrapLines(text: string, font: number, maxWidth: number): string[] {
+  const lines: string[] = [];
+  let cur = '';
+  const per = Math.max(1, Math.floor(maxWidth / (font * 0.66)));
+  const words = text.split(/\s+/).filter(Boolean).flatMap((w) => (w.length <= per ? [w] : Array.from({ length: Math.ceil(w.length / per) }, (_, i) => w.slice(i * per, (i + 1) * per))));
+  for (const w of words) {
+    const next = cur ? `${cur} ${w}` : w;
+    if (cur && textWidth(next, font) > maxWidth) { lines.push(cur); cur = w; } else cur = next;
+  }
+  if (cur) lines.push(cur);
+  return lines.length ? lines : [''];
+}
+
+/**
+ * Plan E9: where Overlay draws text at `frame`. Label boxes are exact (Overlay positions them absolutely); the hook and beat boxes
+ * are estimates with the same generous width and the line heights Overlay uses, plus the plate padding.
+ */
+export function overlayBoxes(p: Pick<DraftProps, 'width' | 'height' | 'hook' | 'beats'>, frame: number, labels: LabelBox[]): TextBox[] {
+  const L = draftLayout(p.width, p.height);
+  const s = p.width / 1080;
+  const padX = 14 * s;
+  const padY = 6 * s;
+  const maxW = L.safe.right - L.safe.left;
+  const r = (b: [number, number, number, number]) => b.map((v) => Math.round(v)) as [number, number, number, number];
+  const boxes: TextBox[] = labels.map((b) => ({ kind: 'label', id: b.id, box: r([b.x, b.y, b.x + b.w, b.y + b.h]) }));
+  const beat = activeBeat(p.beats, frame / DRAFT_FPS);
+  const block = (text: string, font: number, lineH: number) => {
+    const lines = wrapLines(text, font, maxW - 2 * padX);
+    return { w: Math.min(maxW, Math.max(...lines.map((l) => textWidth(l, font))) + 2 * padX), h: lines.length * font * lineH };
+  };
+  if (beat?.index === 0) {
+    const b = block(p.hook, L.hookFont, 1.15);
+    boxes.push({ kind: 'hook', box: r([L.safe.left, L.hookTop - padY, L.safe.left + b.w, L.hookTop + b.h + padY]) });
+  } else if (beat) {
+    const b = block(beat.beat.text, L.lineFont, 1.25);
+    const bottom = p.height - L.lineBottom;
+    boxes.push({ kind: 'beat', box: r([L.safe.left, bottom - b.h - padY, L.safe.left + b.w, bottom + padY]) });
+  }
+  return boxes;
+}

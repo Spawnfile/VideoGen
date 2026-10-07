@@ -6,7 +6,8 @@
     ".": "./src/index.ts",
     "./props": "./src/props.ts",
     "./hash": "./src/hash.ts",
-    "./render": "./src/render.ts"
+    "./render": "./src/render.ts",
+    "./layout": "./src/layout.ts"
   },
   "dependencies": {
     "@react-three/fiber": "9.8.1",
