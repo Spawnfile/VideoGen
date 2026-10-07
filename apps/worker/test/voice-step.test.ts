@@ -33,7 +33,7 @@ describe('voice step', () => {
     h.flags.realStem = true;
     const { r, runDir, ctx, sourceId } = await h.prepare('Kalem vo 1');
     const c = ctx('voice');
-    expect(await h.exec(c)).toEqual({ status: 'done', note: '7 satır · 0:45 · en kötü CER %0,0 · chatterbox/hazir · GEÇİCİ ses (K17)' });
+    expect(await h.exec(c)).toEqual({ status: 'done', note: '7 satır · 0:45 · en kötü CER %0,0 · Chatterbox · hazır ses · GEÇİCİ ses (K17)' });
 
     // (2)(3): one line per beat (target = beat − lead − gap), cache next to the output dir, the lock held by the step.
     expect(h.calls).toHaveLength(1);

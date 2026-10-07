@@ -1,12 +1,13 @@
 import { expect, test } from '@playwright/test';
+import { STEP_KEYS } from '@videogen/shared';
 import { produceVia } from './helpers.ts';
 
-test('S2a: product name → research → … → final and automatic checks, one run for a double click, monotone progress, listed in the library', async ({ page, request }) => {
+test('S2a: Seslendirmeli — product name → research → … → voice → … → final, the voice card plays, one run for a double click, monotone progress, listed in the library', async ({ page, request }) => {
   test.setTimeout(300_000);
   await page.goto('/');
   const bar = page.getByRole('region', { name: 'Yeni üretim' });
   await bar.getByRole('textbox', { name: 'Ürün adı' }).fill('Tükenmez kalem');
-  await bar.getByRole('radio', { name: 'Seslendirmesiz' }).click();
+  await bar.getByRole('radio', { name: 'Seslendirmeli' }).click();
   const listed = async () => { const r = await request.get('/api/videos'); expect(r.ok()).toBe(true); return (await r.json()) as { id: string; status: string; statusNote: string | null }[]; };
   const beforeIds = new Set((await listed()).map((v) => v.id));
   const before = beforeIds.size;
@@ -22,6 +23,13 @@ test('S2a: product name → research → … → final and automatic checks, one
     await expect(page.getByTestId('research-card')).toContainText('Basmalı, tek kullanımlık', { timeout: 30_000 });
     await expect(page.locator('[data-testid="step"][data-key="storyboard"]')).toHaveAttribute('data-status', 'done', { timeout: 30_000 });
     await expect(page.locator('[data-testid="step"][data-key="build"]')).toHaveAttribute('data-status', 'done', { timeout: 30_000 });
+    // The voice step sits before review; its note carries the K17 marker, which relies on no smoke test choosing a narrator voice (chosen stays false).
+    const voice = page.locator('[data-testid="step"][data-key="voice"]');
+    await expect(voice).toHaveAttribute('data-status', 'done', { timeout: 120_000 });
+    await expect(voice).toContainText(/\d+ satır · \d+:\d\d · en kötü CER %[\d,.]+ · Chatterbox · hazır ses · GEÇİCİ ses \(K17\)/);
+    // The whole plan, in order (retrying: the list may still be rendering).
+    await expect(page.locator('[data-testid="step"]')).toHaveCount(STEP_KEYS.length);
+    expect(await page.locator('[data-testid="step"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-key')))).toEqual([...STEP_KEYS]);
     await expect(header).toHaveAttribute('data-status', 'ready', { timeout: 200_000 });
   } finally {
     clearInterval(sampler);
@@ -31,6 +39,15 @@ test('S2a: product name → research → … → final and automatic checks, one
   await expect(header).toContainText('yayına hazır');
   await expect(page.getByTestId('storyboard-card').locator('li')).toHaveCount(7);
   await expect(bar2).toHaveAttribute('aria-valuenow', '100');
+  const card = page.getByTestId('voice-card');
+  await expect(card).toBeVisible({ timeout: 10_000 });
+  await expect(card).toHaveAccessibleName('Seslendirme');
+  const audio = page.getByTestId('voice-audio');
+  await expect(audio).toBeVisible({ timeout: 10_000 });
+  // Headless Chrome only autoplays muted media.
+  await audio.evaluate(async (a) => { const el = a as HTMLAudioElement; el.muted = true; await el.play(); });
+  await expect.poll(() => audio.evaluate((a) => (a as HTMLAudioElement).currentTime), { timeout: 10_000 }).toBeGreaterThan(0.3);
+  await audio.evaluate((a) => { (a as HTMLAudioElement).pause(); });
   expect(seen.length).toBeGreaterThan(5);
   for (let i = 1; i < seen.length; i++) expect(seen[i], `progress went back at sample ${i}`).toBeGreaterThanOrEqual(seen[i - 1]!);
   const all = await listed();

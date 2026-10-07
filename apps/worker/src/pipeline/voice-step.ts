@@ -54,7 +54,12 @@ export async function voiceSource(deps: Pick<StepDeps, 'pool' | 'dataDir'>, runI
 }
 
 const pct = (cer: number) => (cer * 100).toFixed(1).replace('.', ',');
-const voiceLabel = (n: NarratorVoice) => `${n.engine}/${n.voice.kind === 'preset' ? n.voice.id : 'klon'}`;
+/** Display label, the same wording as the Voice card ("Chatterbox · hazır ses", "Freya · Leyla", "Chatterbox · klon ses"). */
+const voiceLabel = (n: NarratorVoice) => {
+  const engine = n.engine === 'freya' ? 'Freya' : 'Chatterbox';
+  const who = n.voice.kind === 'clone' ? 'klon ses' : n.voice.id === 'hazir' ? 'hazır ses' : n.voice.id === 'leyla' ? 'Leyla' : n.voice.id;
+  return `${engine} · ${who}`;
+};
 
 /** Spec §7.6 step 4: the lines at their placed moments (adelay + amix without normalisation), one single-pass (dynamic mode) loudnorm to −16 LUFS, FLAC 48 kHz mono, padded to the video length (atrim by sample: loudnorm shifts the timestamps, a time-based trim ends 80 ms short). */
 export async function buildStem(ffmpeg: string, o: { lines: { file: string; startMs: number }[]; durationS: number; out: string; signal?: AbortSignal }): Promise<void> {

@@ -24,11 +24,11 @@ export function VoiceCard({ trackId, stemSha }: { trackId: string | null; stemSh
       <p className="mt-1 text-[12.5px] tabular-nums text-ink-2">
         {v.lines} satır · {v.duration} · en kötü CER {v.worstCer} · ilk kelime {v.firstWord} · {v.pace}
       </p>
-      {stemSha && <audio controls preload="none" data-testid="voice-audio" src={blobUrl(stemSha)} aria-label="Seslendirme dinle" className="mt-2 w-full" />}
+      {stemSha && <audio controls preload="metadata" data-testid="voice-audio" src={blobUrl(stemSha)} aria-label="Seslendirme dinle" className="mt-2 w-full" />}
       <ol aria-label="Seslendirme satırları" className="mt-2 flex flex-col gap-1">
         {v.rows.map((r) => (
-          <li key={r.beat} className="grid grid-cols-[48px_1fr_auto] gap-2 text-[12.5px]">
-            <span className="text-ink-3">{r.beat}</span>
+          <li key={r.beat} className="grid grid-cols-[96px_1fr_auto] gap-2 text-[12.5px]">
+            <span className="truncate text-ink-3" title={r.beat}>{r.beat}</span>
             <span>{r.text}</span>
             <span className={`tabular-nums ${r.warn ? 'font-medium text-ink' : 'text-ink-3'}`} title={r.warn ? 'CER %3 üstünde' : undefined}>{r.cer}{r.warn && <span aria-label="CER %3 üstünde"> !</span>}</span>
           </li>
