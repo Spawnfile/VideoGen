@@ -29,3 +29,6 @@ export function bundleHash(): string {
   h.update(JSON.stringify((JSON.parse(readFileSync(PKG, 'utf8')) as { dependencies: unknown }).dependencies));
   return h.digest('hex').slice(0, 16);
 }
+
+/** Fixed parameters of the Remotion master of the final (plan E8): a near-lossless intermediate; the delivery encode is ffmpeg's. */
+export const FINAL_MASTER = { width: 1080, height: 1920, fps: 30, codec: 'h264', crf: 14, x264Preset: 'fast', pixelFormat: 'yuv420p', colorSpace: 'bt709' } as const;

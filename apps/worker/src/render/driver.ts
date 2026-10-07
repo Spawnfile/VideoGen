@@ -3,8 +3,8 @@ import { existsSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { BuildReportSchema, type BuildReport, type ChannelStyle } from '@videogen/shared';
-import type { DraftProps } from '@videogen/remotion/props';
-import { fakeDraft, fakeFrames, ffmpegWorks, testStill } from './ffmpeg.ts';
+import type { DraftProps, FinalProps } from '@videogen/remotion/props';
+import { fakeDraft, fakeFinal, fakeFrames, ffmpegWorks, testStill } from './ffmpeg.ts';
 import { missingFrames } from './frames.ts';
 import { runProcess, type ProcResult } from './process.ts';
 import { sandboxArgv, sandboxWorks } from './sandbox.ts';
@@ -56,6 +56,19 @@ export interface FinalInput {
   signal?: AbortSignal;
   onProgress?: (done: number, total: number) => void;
 }
+export interface ComposeInput {
+  runDir: string;
+  props: Omit<FinalProps, 'glbUrl' | 'framesUrl'>;
+  glbPath: string;
+  framesDir: string;
+  outPath: string;
+  owner: string;
+  signal?: AbortSignal;
+  onProgress?: (done: number, total: number) => void;
+  onStage?: (stage: string) => void;
+  frameRange?: [number, number];
+}
+export interface ComposeOutput { file: string; frames: number; ms: number; concurrency: number }
 export interface FinalOutput { dir: string; frames: number; skipped: number; samples: number; renderer: string; ms: number }
 
 /** Spec §14 (plan E5): the default samples first; after a crash the remaining frames once more with 32 (frames already done are kept). */
@@ -85,6 +98,8 @@ export interface RenderDriver {
   draft(i: DraftInput): Promise<DraftOutput>;
   /** Spec §7.1 step 7: Blender EEVEE RGBA PNG frames 0…lastFrame, resumable. GPU (the caller holds the lock). */
   final(i: FinalInput): Promise<FinalOutput>;
+  /** Spec §7.1 step 8: Final3D over the frames → the silent master. heavy_cpu (the caller holds the lock). */
+  compose(i: ComposeInput): Promise<ComposeOutput>;
 }
 
 export type RenderAudit = (action: string, data: Record<string, unknown>) => Promise<void>;
@@ -106,6 +121,8 @@ export interface BlenderDriverOptions {
   /** Final render (spec §7.5, plan E5): 2 h and 6 GB by default. */
   finalTimeoutMs?: number;
   finalMaxRssMb?: number;
+  /** Final compose (Remotion child): 30 min by default. */
+  composeTimeoutMs?: number;
 }
 
 /** Grilling C13: runProcess starts from an empty env; the render child needs PATH (node, Chrome), HOME and TMPDIR. */
@@ -190,19 +207,18 @@ export class BlenderRenderDriver implements RenderDriver {
   }
 
   /** Plan C13/C17: the Remotion child under the process-group guard; a Chrome/WebGL failure (exit 3) is retried once with concurrency 1. */
-  async draft(i: DraftInput): Promise<DraftOutput> {
+  private async remotion(kind: 'draft' | 'final', extra: string[], i: { outPath: string; owner: string; signal?: AbortSignal; onProgress?: (d: number, t: number) => void; onStage?: (s: string) => void; frameRange?: [number, number]; props: unknown }, timeoutMs: number): Promise<{ file: string; frames: number; ms: number; concurrency: number }> {
     await mkdir(resolve(i.outPath, '..'), { recursive: true });
     const propsPath = `${i.outPath}.props.json`;
     await writeFile(propsPath, JSON.stringify(i.props));
-    const once = async (concurrency: number): Promise<DraftOutput | null> => {
+    const once = async (concurrency: number) => {
       let done: { frames: number; ms: number } | null = null;
       let error = '';
       const r = await runProcess(process.execPath, [
-        '--import', 'tsx', this.o.remotionCli ?? REMOTION_CLI, '--props', propsPath, '--glb', i.glbPath, '--out', i.outPath,
+        '--import', 'tsx', this.o.remotionCli ?? REMOTION_CLI, '--composition', kind, '--props', propsPath, ...extra, '--out', i.outPath,
         '--cache', join(this.o.dataDir, 'cache', 'remotion'), '--concurrency', String(concurrency), ...(i.frameRange ? ['--frames', i.frameRange.join('-')] : []),
       ], {
-        cwd: REPO_ROOT, dataDir: this.o.dataDir, owner: i.owner, signal: i.signal, env: draftEnv(),
-        timeoutMs: this.o.draftTimeoutMs ?? 600_000, maxRssMb: this.o.draftMaxRssMb ?? 6144,
+        cwd: REPO_ROOT, dataDir: this.o.dataDir, owner: i.owner, signal: i.signal, env: draftEnv(), timeoutMs, maxRssMb: this.o.draftMaxRssMb ?? 6144,
         onLine: (l) => {
           const p = /^VG_PROGRESS (\d+) (\d+)$/.exec(l);
           if (p) i.onProgress?.(Number(p[1]), Number(p[2]));
@@ -211,16 +227,25 @@ export class BlenderRenderDriver implements RenderDriver {
           if (l.startsWith('VG_ERROR ')) error = l.slice(9).trim();
         },
       });
-      await this.o.audit?.('render.draft', { ms: r.ms, code: r.code, stopped: r.stopped, concurrency, frames: (done as { frames: number } | null)?.frames ?? null });
-      const stop = stoppedError(r, 'taslak render');
+      await this.o.audit?.(`render.${kind === 'draft' ? 'draft' : 'compose'}`, { ms: r.ms, code: r.code, stopped: r.stopped, concurrency, frames: (done as { frames: number } | null)?.frames ?? null });
+      const what = kind === 'draft' ? 'taslak render' : 'final birleştirme';
+      const stop = stoppedError(r, what);
       if (stop) throw stop;
       if (r.code === 3) return null;
-      if (r.code !== 0 || !done) throw new RenderError('crash', `taslak render başarısız (kod ${r.code ?? r.signal})${error ? `: ${error}` : ''}`);
+      if (r.code !== 0 || !done) throw new RenderError('crash', `${what} başarısız (kod ${r.code ?? r.signal})${error ? `: ${error}` : ''}`);
       return { file: i.outPath, ...(done as { frames: number; ms: number }), concurrency };
     };
     const out = (await once(2)) ?? (await once(1));
-    if (!out) throw new RenderError('gpu', 'taslak render GPU/WebGL hatasıyla iki kez düştü');
+    if (!out) throw new RenderError('gpu', `${kind === 'draft' ? 'taslak render' : 'final birleştirme'} Chrome hatasıyla iki kez düştü`);
     return out;
+  }
+
+  draft(i: DraftInput): Promise<DraftOutput> {
+    return this.remotion('draft', ['--glb', i.glbPath], i, this.o.draftTimeoutMs ?? 600_000);
+  }
+
+  compose(i: ComposeInput): Promise<ComposeOutput> {
+    return this.remotion('final', ['--glb', i.glbPath, '--frames-dir', i.framesDir], i, this.o.composeTimeoutMs ?? 1_800_000);
   }
 
   async final(i: FinalInput): Promise<FinalOutput> {
@@ -323,4 +348,17 @@ export class FakeRenderDriver implements RenderDriver {
     i.onProgress?.(total, total);
     return { dir: i.outDir, frames: total, skipped, samples: i.samples ?? 64, renderer: 'fake', ms: Date.now() - t0 };
   }
+  /** Spec §16.1: the calm stand-in at the real size (1080×1920, 30 fps, frames + 1), for the real delivery encode, sound and qc. */
+  async compose(i: ComposeInput): Promise<ComposeOutput> {
+    const t0 = Date.now();
+    await mkdir(resolve(i.outPath, '..'), { recursive: true });
+    await this.wait(i.signal);
+    const frames = i.frameRange ? i.frameRange[1] - i.frameRange[0] + 1 : i.props.frames + 1;
+    i.onStage?.('frames');
+    await fakeFinal(this.o.ffmpeg, i.outPath, { frames, signal: i.signal });
+    if (i.signal?.aborted) throw new RenderError('aborted', 'durduruldu');
+    i.onProgress?.(frames, frames);
+    return { file: i.outPath, frames, ms: Date.now() - t0, concurrency: 1 };
+  }
+
 }

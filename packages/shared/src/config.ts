@@ -15,7 +15,7 @@ export interface Config {
   liveness: { quietAfterMs: number; stuckAfterMs: number };
   chatIdleMs: number;
   /** M4b: Blender, bubblewrap and ffmpeg ('fake': committed pen outputs and ffmpeg test stills, spec §16.1). */
-  render: { driver: 'real' | 'fake'; blender: string; bwrap: string; ffmpeg: string };
+  render: { driver: 'real' | 'fake'; blender: string; bwrap: string; ffmpeg: string; encodePreset: string };
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -38,6 +38,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       blender: env.VG_BLENDER ?? join(homedir(), 'apps/blender-5.2.2-linux-x64/blender'),
       bwrap: env.VG_BWRAP ?? '/usr/bin/bwrap',
       ffmpeg: env.VG_FFMPEG ?? 'ffmpeg',
+      /** x264 preset of the final delivery encode (plan E8); smoke runs `ultrafast`. */
+      encodePreset: env.VG_ENCODE_PRESET ?? 'slow',
     },
   };
 }

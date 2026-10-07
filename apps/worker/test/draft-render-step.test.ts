@@ -78,7 +78,7 @@ describe('draft_render step and the builder fix round', () => {
   it('a fix round that changed neither the GLB nor the scene spec is not rendered again: needs_human with the open findings', async () => {
     const fake = new FakeRenderDriver({ ffmpeg: FFMPEG, delayMs: 1 });
     let drafts = 0;
-    const counting: RenderDriver = { kind: 'fake', capabilities: () => fake.capabilities(), build: (i) => fake.build(i), stills: (i) => fake.stills(i), draft: (i) => { drafts++; return fake.draft(i); } , final: (i) => fake.final(i) };
+    const counting: RenderDriver = { kind: 'fake', capabilities: () => fake.capabilities(), build: (i) => fake.build(i), stills: (i) => fake.stills(i), draft: (i) => { drafts++; return fake.draft(i); } , final: (i) => fake.final(i), compose: (i) => fake.compose(i) };
     const { deps } = setup(counting);
     const { r, ctx } = await built(deps, 'İnatçı kalem');
     const ex = draftRenderExecutor(deps);
@@ -92,7 +92,7 @@ describe('draft_render step and the builder fix round', () => {
   it('a draft that fails the spec §7.5 probe is rejected with the reasons and audited', async () => {
     const fake = new FakeRenderDriver({ ffmpeg: FFMPEG, delayMs: 1 });
     const fullRange: RenderDriver = {
-      kind: 'fake', capabilities: () => fake.capabilities(), build: (i) => fake.build(i), stills: (i) => fake.stills(i), final: (i) => fake.final(i),
+      kind: 'fake', capabilities: () => fake.capabilities(), build: (i) => fake.build(i), stills: (i) => fake.stills(i), final: (i) => fake.final(i), compose: (i) => fake.compose(i),
       draft: async (i: DraftInput) => {
         mkdirSync(dirname(i.outPath), { recursive: true });
         execFileSync(FFMPEG, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=540x960:r=30', '-frames:v', '60', '-c:v', 'libx264', '-pix_fmt', 'yuvj420p', '-color_range', 'pc', i.outPath]);

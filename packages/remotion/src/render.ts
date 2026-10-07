@@ -6,8 +6,8 @@ import { mkdir, readFile, rename, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { bundle } from '@remotion/bundler';
 import { makeCancelSignal, renderMedia, selectComposition } from '@remotion/renderer';
-import { bundleHash, DRAFT_RENDER } from './hash.ts';
-import { DRAFT_COMPOSITION, type DraftProps } from './props.ts';
+import { bundleHash, DRAFT_RENDER, FINAL_MASTER } from './hash.ts';
+import { DRAFT_COMPOSITION, FINAL_COMPOSITION, type DraftProps, type FinalProps } from './props.ts';
 
 export const DRAFT_ENTRY = resolve(import.meta.dirname, 'entry.ts');
 const GL_MODES = ['angle', 'swangle', 'egl', 'swiftshader', 'vulkan', 'angle-egl'] as const;
@@ -37,56 +37,83 @@ export async function ensureBundle(cacheRoot: string, onProgress?: (pct: number)
   return dir;
 }
 
-export interface DraftRenderOptions {
-  props: Omit<DraftProps, 'glbUrl'>;
-  glbPath: string;
-  out: string;
-  cacheRoot: string;
-  concurrency?: number;
-  /** Tests: render only these frames. */
-  frameRange?: [number, number];
-  signal?: AbortSignal;
-  onProgress?: (done: number, total: number) => void;
-  onStage?: (stage: 'bundle' | 'browser' | 'frames') => void;
-}
-
 /**
- * Spec §7.5 / plan C12–C14: renders the draft MP4 (h264, yuv420p, bt709, silent). The GLB is served once from 127.0.0.1 under a
- * random 32-hex token path (GET only, everything else 404, CORS open for the bundle's own origin) and the server closes afterwards.
+ * Plan C14 / E7: one random 32-hex token path on 127.0.0.1 serving the GLB and (final) the frame PNGs by exact name; GET only,
+ * everything else 404, CORS open for the bundle's own origin. Closed by the caller when the render ends.
  */
-export async function renderDraftVideo(o: DraftRenderOptions): Promise<{ frames: number; ms: number }> {
-  o.onStage?.('bundle');
-  const serveUrl = await ensureBundle(o.cacheRoot);
+export async function serveOnce(o: { glbPath: string; framesDir?: string }): Promise<{ base: string; close: () => void }> {
   const glb = await readFile(o.glbPath);
   const token = randomBytes(16).toString('hex');
+  const frame = new RegExp(`^/${token}/frames/(f\\d{5}\\.png)$`);
   const server = createServer((req, res) => {
+    const cors = { 'access-control-allow-origin': '*' };
     if (req.method === 'GET' && req.url === `/${token}/scene.glb`) {
-      res.writeHead(200, { 'content-type': 'model/gltf-binary', 'content-length': glb.length, 'access-control-allow-origin': '*' });
+      res.writeHead(200, { ...cors, 'content-type': 'model/gltf-binary', 'content-length': glb.length });
       res.end(glb);
+      return;
+    }
+    const m = req.method === 'GET' && o.framesDir ? frame.exec(req.url ?? '') : null;
+    if (m) {
+      readFile(join(o.framesDir!, m[1]!)).then(
+        (png) => { res.writeHead(200, { ...cors, 'content-type': 'image/png', 'content-length': png.length }); res.end(png); },
+        () => res.writeHead(404).end(),
+      );
       return;
     }
     res.writeHead(404).end();
   });
   await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+  return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}/${token}`, close: () => server.close() };
+}
+
+interface RenderRun { signal?: AbortSignal; onProgress?: (done: number, total: number) => void; onStage?: (stage: 'bundle' | 'browser' | 'frames') => void; frameRange?: [number, number]; concurrency?: number }
+type Params = { codec: 'h264'; crf: number; x264Preset: string; pixelFormat: string; colorSpace: string };
+
+/** One Remotion render: the cached bundle, system Chrome, the composition sized by its props, silent, cancellable. */
+async function renderComposition(id: string, inputProps: Record<string, unknown>, params: Params, cacheRoot: string, out: string, o: RenderRun): Promise<{ frames: number; ms: number }> {
+  o.onStage?.('bundle');
+  const serveUrl = await ensureBundle(cacheRoot);
   const { cancelSignal, cancel } = makeCancelSignal();
   const onAbort = () => cancel();
   o.signal?.addEventListener('abort', onAbort, { once: true });
   try {
-    const inputProps: DraftProps = { ...o.props, glbUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/${token}/scene.glb` };
     const common = { serveUrl, inputProps, browserExecutable: CHROME.browserExecutable, chromeMode: CHROME.chromeMode, chromiumOptions: { gl: CHROME.gl } };
     o.onStage?.('browser');
-    const composition = await selectComposition({ ...common, id: DRAFT_COMPOSITION });
+    const composition = await selectComposition({ ...common, id });
     const total = o.frameRange ? o.frameRange[1] - o.frameRange[0] + 1 : composition.durationInFrames;
     o.onStage?.('frames');
     const t0 = Date.now();
     await renderMedia({
-      ...common, composition, codec: DRAFT_RENDER.codec, crf: DRAFT_RENDER.crf, x264Preset: DRAFT_RENDER.x264Preset, pixelFormat: DRAFT_RENDER.pixelFormat,
-      colorSpace: DRAFT_RENDER.colorSpace, muted: true, outputLocation: o.out, concurrency: o.concurrency ?? 2, frameRange: o.frameRange ?? null, cancelSignal,
+      ...common, composition, codec: params.codec, crf: params.crf, x264Preset: params.x264Preset as 'fast', pixelFormat: params.pixelFormat as 'yuv420p',
+      colorSpace: params.colorSpace as 'bt709', muted: true, outputLocation: out, concurrency: o.concurrency ?? 2, frameRange: o.frameRange ?? null, cancelSignal,
       onProgress: ({ renderedFrames }) => o.onProgress?.(renderedFrames, total),
     });
     return { frames: total, ms: Date.now() - t0 };
   } finally {
     o.signal?.removeEventListener('abort', onAbort);
-    server.close();
+  }
+}
+
+export interface DraftRenderOptions extends RenderRun { props: Omit<DraftProps, 'glbUrl'>; glbPath: string; out: string; cacheRoot: string }
+
+/** Spec §7.5 / plan C12–C14: the draft MP4 (h264, yuv420p, bt709, silent). */
+export async function renderDraftVideo(o: DraftRenderOptions): Promise<{ frames: number; ms: number }> {
+  const s = await serveOnce({ glbPath: o.glbPath });
+  try {
+    return await renderComposition(DRAFT_COMPOSITION, { ...o.props, glbUrl: `${s.base}/scene.glb` }, DRAFT_RENDER, o.cacheRoot, o.out, o);
+  } finally {
+    s.close();
+  }
+}
+
+export interface FinalRenderOptions extends RenderRun { props: Omit<FinalProps, 'glbUrl' | 'framesUrl'>; glbPath: string; framesDir: string; out: string; cacheRoot: string }
+
+/** Spec §7.1 step 8 / plan E7–E8: Final3D over the Blender frames → the silent master (CRF 14); the delivery encode follows in ffmpeg. */
+export async function renderFinalVideo(o: FinalRenderOptions): Promise<{ frames: number; ms: number }> {
+  const s = await serveOnce({ glbPath: o.glbPath, framesDir: o.framesDir });
+  try {
+    return await renderComposition(FINAL_COMPOSITION, { ...o.props, glbUrl: `${s.base}/scene.glb`, framesUrl: `${s.base}/frames` }, FINAL_MASTER, o.cacheRoot, o.out, o);
+  } finally {
+    s.close();
   }
 }

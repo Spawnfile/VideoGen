@@ -111,3 +111,13 @@ export function ffmpegWorks(ffmpeg: string): Promise<boolean> {
 export function fakeFrames(ffmpeg: string, dir: string, count: number, signal?: AbortSignal): Promise<void> {
   return run(ffmpeg, ['-f', 'lavfi', '-i', 'color=c=black@0.0:s=54x96:r=30,format=rgba', '-frames:v', String(count), '-start_number', '0', join(dir, 'f%05d.png')], signal);
 }
+
+/** Fake final master (plan E17): a calm stand-in at 1080×1920 (night blue, a wide bar sliding at a constant 8 px/frame: no freeze), ultrafast. */
+export function fakeFinal(ffmpeg: string, out: string, o: { frames: number; signal?: AbortSignal }): Promise<void> {
+  return run(ffmpeg, [
+    '-f', 'lavfi', '-i', 'color=c=0x16203a:s=1080x1920:r=30',
+    '-vf', "drawbox=x='216+mod(t*240,648)':y=346:w=216:h=1100:color=0x2f6bd8:t=fill",
+    '-frames:v', String(o.frames), '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '14',
+    '-pix_fmt', 'yuv420p', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', out,
+  ], o.signal);
+}
