@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  buildQcReport, CHANNEL_STYLES, evaluateQc, formatClock, QC_CHECKS, qcFailures, QcReportSchema, RUBRIC_VERSION, SceneEventsSchema, sceneRender, validateArtifact, type QcReport, type SceneEvents, type Storyboard,
+  buildQcReport, canonical, captionPages, CHANNEL_STYLES, evaluateQc, formatClock, QC_CHECKS, qcFailures, QcReportSchema, RUBRIC_VERSION, SceneEventsSchema, sceneRender, validateArtifact, VoiceTrackSchema, type AudioMode, type AudioPlan, type QcReport, type SceneEvents, type Storyboard,
 } from '@videogen/shared';
 import { appendAudit, findArtifact, getBlob, insertArtifact, latestArtifact, listAssets } from '@videogen/db';
 import { parseGlb } from '@videogen/scene3d';
@@ -15,8 +15,9 @@ import { RenderError } from '../render/driver.ts';
 import { draftProbeErrors, encodeDelivery, extractFrame, FINAL_ENCODE, probeVideo } from '../render/ffmpeg.ts';
 import { missingFrames, removeStaleFrames } from '../render/frames.ts';
 import { probeQc } from '../render/qc.ts';
-import { LicenseError, pickMusic, planSfx, soundPlan, withImportedSfx, type SoundPlan } from './sound.ts';
-import { record, sha, type StepDeps } from './steps.ts';
+import { DUCK, duckingEnvelope, effectiveAudioPlan, LicenseError, planSfx, soundPlan, withImportedSfx, type SoundPlan } from './sound.ts';
+import { persist, record, sha, type StepDeps } from './steps.ts';
+import { voKey } from './voice-step.ts';
 import type { StepExecutor, StepOutcome } from './types.ts';
 
 /** Fixed final render parameters (spec §7.5; part of the §8.3 input hash). The .blend carries the EEVEE settings (stage.configure). */
@@ -100,6 +101,11 @@ export interface ComposeSource {
   props: Omit<FinalProps, 'glbUrl' | 'framesUrl'>;
   durationS: number;
   sound: SoundPlan;
+  /** H4: the plan compose mixes by; `persist` = no `audio` artifact yet (the run writes the default once). */
+  plan: AudioPlan;
+  persist: boolean;
+  /** H9: the voice stem and its lines (VO mode only); `stemSha` is the blob's sha. */
+  vo: { file: string; stemSha: string; durationMs: number; lines: { start_ms: number; end_ms: number }[] } | null;
   files: Map<string, string>;
 }
 
@@ -121,9 +127,9 @@ export function currentEvents(stored: SceneEvents['events'], beats: Storyboard['
 }
 
 /** Plan E16: everything compose reads, and its input hash (frames, GLB, overlay props, template, master/encode settings, sound plan). */
-export async function composeSource(deps: StepDeps, runId: string, videoId: string): Promise<ComposeSource | { error: string } | null> {
+export async function composeSource(deps: StepDeps, runId: string, videoId: string, audioMode: AudioMode): Promise<ComposeSource | { error: string } | null> {
   const ffmpeg = deps.scene?.ffmpeg ?? 'ffmpeg';
-  const [frames, glb, scene, board, track, events] = await Promise.all(['final_frames', 'scene_glb', 'scene', 'storyboard', 'camera_track', 'scene_events'].map((k) => latestArtifact(deps.pool, runId, k)));
+  const [frames, glb, scene, board, track, events, audio] = await Promise.all(['final_frames', 'scene_glb', 'scene', 'storyboard', 'camera_track', 'scene_events', 'audio'].map((k) => latestArtifact(deps.pool, runId, k)));
   const current = await finalSource(deps, runId);
   const s = scene ? validateArtifact('SceneSpec', scene.content) : null;
   const b = board ? validateArtifact('Storyboard', board.content) : null;
@@ -132,21 +138,42 @@ export async function composeSource(deps: StepDeps, runId: string, videoId: stri
   const glbBlob = glb?.blobSha ? await getBlob(deps.pool, glb.blobSha) : null;
   const meta = frames?.meta as FinalFramesMeta | undefined;
   if (!frames?.inputHash || !meta || !current || !s?.ok || !b?.ok || !ev?.success || !yfov || !glbBlob) return null;
-  const { glbUrl: _g, framesUrl: _f, ...props } = finalProps({ glbUrl: '', framesUrl: '', yfov, scene: s.value, storyboard: b.value, style: CHANNEL_STYLES[s.value.style_id] });
+  // H9: in VO mode the newest voice track and its stem; the track must belong to the newest storyboard's words and times (§8.3).
+  let vo: ComposeSource['vo'] = null;
+  let captions: ReturnType<typeof captionPages> | undefined;
+  if (audioMode === 'vo') {
+    const voice = await latestArtifact(deps.pool, runId, 'voice_track');
+    const vt = voice ? VoiceTrackSchema.safeParse(voice.content) : null;
+    const m = voice?.meta as { voKey?: string; stemSha?: string } | null;
+    if (!voice || !vt?.success || !m?.stemSha) return { error: 'seslendirme yok (voice adımı çalışmadı)' };
+    if (m.voKey !== voKey(b.value)) return { error: 'seslendirme güncel storyboard ile uyuşmuyor (bayat artefakt, §8.3)' };
+    const stem = await getBlob(deps.pool, m.stemSha);
+    const stemFile = stem ? join(deps.dataDir, stem.path) : null;
+    if (!stemFile || !existsSync(stemFile)) return { error: 'seslendirme dosyası yok' };
+    vo = { file: stemFile, stemSha: m.stemSha, durationMs: vt.data.duration_ms, lines: vt.data.lines.map((l) => ({ start_ms: l.start_ms, end_ms: l.end_ms })) };
+    captions = captionPages(vt.data.words);
+  }
+  const { glbUrl: _g, framesUrl: _f, ...props } = finalProps({ glbUrl: '', framesUrl: '', yfov, scene: s.value, storyboard: b.value, style: CHANNEL_STYLES[s.value.style_id], captions });
   const durationS = (props.frames + 1) / 30;
   const library = withImportedSfx(await ensureSfxLibrary(deps.pool, deps.dataDir, ffmpeg), await listAssets(deps.pool, { kind: 'sfx', allowedOnly: true }));
-  const music = pickMusic(await listAssets(deps.pool, { kind: 'music', allowedOnly: true }), videoId);
+  const tracks = await listAssets(deps.pool, { kind: 'music', allowedOnly: true });
+  // H3: a stored `audio` plan wins; otherwise the default is computed here (in memory) and only run() persists it.
+  const storedPlan = audio ? validateArtifact('AudioPlan', audio.content) : null;
+  if (storedPlan && !storedPlan.ok) return { error: `ses planı geçersiz: ${storedPlan.errors.join('; ')}` };
   let sound: SoundPlan;
+  let eff: ReturnType<typeof effectiveAudioPlan>;
   try {
-    sound = soundPlan(planSfx({ events: currentEvents(ev.data.events, b.value.beats, 30), beats: b.value.beats, fps: 30, durationS }), library, music);
+    eff = effectiveAudioPlan({ stored: storedPlan?.ok ? storedPlan.value : null, mode: audioMode, music: tracks, seed: videoId });
+    sound = soundPlan(planSfx({ events: currentEvents(ev.data.events, b.value.beats, 30), beats: b.value.beats, fps: 30, durationS }), library, eff.music, eff.plan);
   } catch (e) {
     if (e instanceof LicenseError) return { error: `lisans kapısı: ${e.message}` };
     throw e;
   }
+  const { plan, music } = eff;
   const files = new Map<string, string>();
   for (const a of [...Object.values(library), ...(music ? [music] : [])]) files.set(a.id, join(deps.dataDir, (await getBlob(deps.pool, a.blobSha))!.path));
-  const hash = sha({ step: 'compose', frames: frames.inputHash, glb: glbBlob.sha256, props: sha(props), bundle: bundleHash(), master: FINAL_MASTER, encode: FINAL_ENCODE, preset: deps.scene?.encodePreset ?? 'slow', sound: sha(sound) });
-  return { hash, framesHash: frames.inputHash, currentFramesHash: current.hash, framesDir: meta.dir, glbPath: join(deps.dataDir, glbBlob.path), props, durationS, sound, files };
+  const hash = sha({ step: 'compose', frames: frames.inputHash, glb: glbBlob.sha256, props: sha(props), bundle: bundleHash(), master: FINAL_MASTER, encode: FINAL_ENCODE, preset: deps.scene?.encodePreset ?? 'slow', sound: sha(sound), ...(vo ? { vo: vo.stemSha, plan: sha(canonical(plan)), duck: DUCK } : {}) });
+  return { hash, framesHash: frames.inputHash, currentFramesHash: current.hash, framesDir: meta.dir, glbPath: join(deps.dataDir, glbBlob.path), props, durationS, sound, plan, persist: eff.persist, vo, files };
 }
 
 /** Spec §7.1 step 8: Final3D over the frames → delivery encode → SFX + music + mastering → the two variants (plan E7–E12). heavy_cpu. */
@@ -156,7 +183,7 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
     resource: 'heavy_cpu',
     extraDiskMb: 600,
     async inputHash(ctx) {
-      const src = await composeSource(deps, ctx.runId, ctx.videoId);
+      const src = await composeSource(deps, ctx.runId, ctx.videoId, ctx.audioMode);
       return src && 'hash' in src ? src.hash : sha({ step: 'compose', missing: true, error: src && 'error' in src ? src.error : null });
     },
     async reuse(ctx, hash) {
@@ -167,7 +194,7 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
     async run(ctx) {
       const scene = deps.scene;
       if (!scene) return { status: 'failed', error: 'render yapılandırılmadı', retry: false };
-      const src = await composeSource(deps, ctx.runId, ctx.videoId);
+      const src = await composeSource(deps, ctx.runId, ctx.videoId, ctx.audioMode);
       if (!src) return { status: 'failed', error: 'final kareleri ya da sahne çıktısı yok', retry: false };
       if ('error' in src) return { status: 'failed', error: src.error, retry: false };
       // One source for the whole step: a music track imported after inputHash() must not mix two plans under one hash.
@@ -176,6 +203,8 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
       const framesDir = join(ctx.runDir, src.framesDir);
       const missing = missingFrames(framesDir, src.props.frames);
       if (missing.length) return { status: 'failed', error: `eksik final kare: ${missing.length} (ilk: f${String(missing[0]).padStart(5, '0')})`, retry: false };
+      // H3: the default plan is written before anything is rendered or recorded, so a crash later can never leave variants without it.
+      if (src.persist) await persist(deps, ctx, 'audio', src.plan, hash);
       const dir = join(ctx.runDir, 'final', 'compose', hash.slice(0, 16));
       await mkdir(dir, { recursive: true });
       const layout = layoutManifest(src.props, await parseGlb(await readFile(src.glbPath)));
@@ -201,9 +230,12 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
         ctx.status('running', 'ses: efektler, müzik, mastering');
         const cues = src.sound.cues.map((c) => ({ atMs: c.atMs, gainDb: c.gainDb, file: src.files.get(c.assetId)! }));
         const music = src.sound.music ? { file: src.files.get(src.sound.music.assetId)!, gainDb: src.sound.music.gainDb } : null;
+        const vo = src.vo ? { file: src.vo.file, gainDb: src.plan.vo_gain_db } : null;
+        // H9: the envelope rides on the music chain only; the TikTok variant is VO + SFX without music.
+        const duck = src.vo && music ? duckingEnvelope(src.vo.lines, { duckDb: src.plan.duck_db, ...DUCK }) : null;
         const out: Record<'music' | 'tiktok', string> = { music: join(dir, 'final_music.mp4'), tiktok: join(dir, 'final_tiktok.mp4') };
         for (const v of ['music', 'tiktok'] as const) {
-          await mixTrack(scene.ffmpeg, { cues, music: v === 'music' ? music : null, durationS: src.durationS, out: join(dir, `mix-${v}.wav`), signal: ctx.signal });
+          await mixTrack(scene.ffmpeg, { cues, music: v === 'music' ? music : null, vo, duck: v === 'music' ? duck : null, durationS: src.durationS, out: join(dir, `mix-${v}.wav`), signal: ctx.signal });
           await masterVariant(scene.ffmpeg, join(dir, `mix-${v}.wav`), video, out[v], ctx.signal);
         }
         ctx.status('running', null);
@@ -215,11 +247,12 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
         const media = { durationMs: Math.round(probe.durationS * 1000), width: probe.width, height: probe.height, codec: probe.codec };
         await record(deps, ctx, { kind: 'layout', file: layoutFile, content: layout, inputHash: hash });
         await record(deps, ctx, { kind: 'audio_plan', file: planFile, content: src.sound, inputHash: hash });
-        await record(deps, ctx, { kind: 'final_video_music', file: out.music, inputHash: hash, media, meta: { music: src.sound.music?.title ?? null, framesHash: src.framesHash } });
+        await record(deps, ctx, { kind: 'final_video_music', file: out.music, inputHash: hash, media, meta: { music: src.sound.music?.title ?? null, framesHash: src.framesHash, ...(src.vo ? { voiceStemSha: src.vo.stemSha } : {}) } });
         await record(deps, ctx, { kind: 'final_video_tiktok', file: out.tiktok, inputHash: hash, media, meta: { music: null, framesHash: src.framesHash } });
         await record(deps, ctx, { kind: 'final_cover', file: cover, inputHash: hash });
         await removeIntermediates(dir);
-        return { status: 'done', note: `1080×1920 · ${formatClock(probe.durationS)} · ${src.sound.cues.length} efekt · müzik: ${src.sound.music?.title ?? 'yok'}` };
+        const voNote = src.vo ? ` · VO ${formatClock(src.vo.durationMs / 1000)}${duck ? ` · ducking ${src.plan.duck_db} dB` : ''}` : '';
+        return { status: 'done', note: `1080×1920 · ${formatClock(probe.durationS)} · ${src.sound.cues.length} efekt · müzik: ${src.sound.music?.title ?? 'yok'}${voNote}` };
       } catch (e) {
         if (e instanceof RenderError && e.kind !== 'aborted') return { status: 'failed', error: e.message, retry: false };
         throw e;

@@ -33,17 +33,19 @@ export function finalHarness(t: { pool: pg.Pool }) {
     tools: toolHosts(sceneToolHost(scene), reviewToolHost({ ffmpeg: FFMPEG, targets: reviews })),
   });
   const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene, reviews };
-  async function run(name: string, through: StepKey[]) {
-    const r = await createProduceRun(t.pool, { productName: name, audioMode: 'silent', plan: producePlan('silent') });
+  /** `vo`: a seslendirmeli run (VO storyboard fixture; the voice track is the caller's to insert). */
+  async function run(name: string, through: StepKey[], o: { vo?: boolean } = {}) {
+    const mode = o.vo ? 'vo' : 'silent';
+    const r = await createProduceRun(t.pool, { productName: name, audioMode: mode, plan: producePlan(mode) });
     const runDir = join(dataDir, 'runs', r.runId);
     const store = new SpecStore(join(runDir, 'spec'), ARTIFACT_VALIDATOR);
-    for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', 'storyboard-kalem']] as const) {
+    for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', o.vo ? 'storyboard-kalem-vo' : 'storyboard-kalem']] as const) {
       await store.write(kind, fx(f));
       await insertArtifact(t.pool, { runId: r.runId, kind, content: fx(f) });
     }
     const steps = await listRunSteps(t.pool, r.runId);
     const ctx = (key: StepKey): StepContext => ({
-      runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt: 1, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode: 'silent',
+      runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt: 1, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode: mode,
       versionId: r.versionId, runDir, signal: new AbortController().signal, progress: () => {}, status: () => {}, session: () => {},
     });
     const ex = { build: buildExecutor(deps), final_render: finalRenderExecutor(deps), compose: composeExecutor(deps) } as const;
@@ -52,7 +54,7 @@ export function finalHarness(t: { pool: pg.Pool }) {
   }
   return {
     dataDir, deps,
-    framed: (name: string) => run(name, ['build', 'final_render']),
+    framed: (name: string, o: { vo?: boolean } = {}) => run(name, ['build', 'final_render'], o),
     composed: (name: string) => run(name, ['build', 'final_render', 'compose']),
     stop: () => manager.stop(),
   };

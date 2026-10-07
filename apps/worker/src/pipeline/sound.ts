@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { licenseVerdict, type SfxName } from '@videogen/shared';
+import { licenseVerdict, type AudioMode, type AudioPlan, type SfxName } from '@videogen/shared';
 import type { AssetRecord } from '@videogen/db';
 
 /** Plan E10: scene events → sounds (spec §7.6: explode_start → whoosh, part_lock → click/snap). */
@@ -73,13 +73,71 @@ export function withImportedSfx(library: Record<SfxName, AssetRecord>, imported:
   return out;
 }
 
-/** Spec §9: the render refuses an asset that is not in the ledger or not allowed (checked again here, at use). */
-export function soundPlan(cues: SfxCue[], library: Record<SfxName, AssetRecord>, music: AssetRecord | null): SoundPlan {
-  const out = cues.map((c) => {
+/** Spec §9: the render refuses an asset that is not in the ledger or not allowed (checked again here, at use). `plan` (H4): excluded sounds drop out, the offset adds to every cue, the music gain is the plan's. */
+export function soundPlan(cues: SfxCue[], library: Record<SfxName, AssetRecord>, music: AssetRecord | null, plan?: AudioPlan): SoundPlan {
+  const out = cues.filter((c) => !plan?.sfx.exclude.includes(c.name)).map((c) => {
     const a = library[c.name];
     if (!a || !permitted(a) || a.kind !== 'sfx') throw new LicenseError(`izinsiz ses: ${c.name}`);
-    return { ...c, assetId: a.id, gainDb: SFX_GAIN_DB[c.name] };
+    return { ...c, assetId: a.id, gainDb: SFX_GAIN_DB[c.name] + (plan?.sfx.gain_offset_db ?? 0) };
   });
   if (music && (!permitted(music) || music.kind !== 'music')) throw new LicenseError(`izinsiz müzik: ${music.title} (${music.licenseSpdx})`);
-  return { cues: out, music: music ? { assetId: music.id, title: music.title, license: music.licenseSpdx, attribution: music.attribution, gainDb: MUSIC_GAIN_DB } : null };
+  return { cues: out, music: music ? { assetId: music.id, title: music.title, license: music.licenseSpdx, attribution: music.attribution, gainDb: plan?.music.gain_db ?? MUSIC_GAIN_DB } : null };
+}
+
+/**
+ * H3/H4: the deterministic stand-in of the audio director. The defaults reproduce today's silent mix (music at MUSIC_GAIN_DB, SFX as is);
+ * a missing music track is a valid plan (the "silent video needs music" rule lives in the preflight and the fixer, H10).
+ */
+export function defaultAudioPlan(o: { mode: AudioMode; music: AssetRecord | null }): AudioPlan {
+  return { version: 1, mode: o.mode, music: { asset_id: o.music?.id ?? null, gain_db: MUSIC_GAIN_DB }, vo_gain_db: 0, duck_db: 12, sfx: { gain_offset_db: 0, exclude: [] }, mastering: { target_lufs: -14, tp: -1 } };
+}
+
+/**
+ * H3: the stored plan wins (a later ledger addition never changes a replay); without one the default is computed in memory (`persist: true`,
+ * written by compose's run only). A stored music track must still be permitted today. `music` are the ledger's allowed music tracks,
+ * `seed` the video id of pickMusic. Returns the resolved music asset too.
+ */
+export function effectiveAudioPlan(o: { stored: AudioPlan | null; mode: AudioMode; music: AssetRecord[]; seed: string }): { plan: AudioPlan; persist: boolean; music: AssetRecord | null } {
+  if (!o.stored) {
+    const music = pickMusic(o.music, o.seed);
+    return { plan: defaultAudioPlan({ mode: o.mode, music }), persist: true, music };
+  }
+  const id = o.stored.music.asset_id;
+  if (id === null) return { plan: o.stored, persist: false, music: null };
+  const music = o.music.find((a) => a.id === id);
+  if (!music) throw new LicenseError(`müzik bulunamadı: ${id}`);
+  if (!permitted(music) || music.kind !== 'music') throw new LicenseError(`izinsiz müzik: ${music.title} (${music.licenseSpdx})`);
+  return { plan: o.stored, persist: false, music };
+}
+
+/** `lines`' merged windows (plateau from `preMs` before a line to `postMs` after it) of H9, in ms; two windows closer than both ramps merge. */
+function duckWindows(lines: { start_ms: number; end_ms: number }[], o: { preMs: number; postMs: number; rampMs: number }): [number, number][] {
+  const out: [number, number][] = [];
+  for (const l of [...lines].sort((a, b) => a.start_ms - b.start_ms)) {
+    const w: [number, number] = [Math.max(0, l.start_ms - o.preMs), l.end_ms + o.postMs];
+    const last = out.at(-1);
+    if (last && w[0] - last[1] <= 2 * o.rampMs) last[1] = Math.max(last[1], w[1]);
+    else out.push(w);
+  }
+  return out;
+}
+
+/** H9 constants of the ducking envelope; part of the VO compose hash (a change re-composes). */
+export const DUCK = { preMs: 150, postMs: 300, rampMs: 150 } as const;
+
+/**
+ * H9: the music's gain envelope as an ffmpeg `volume` expression (`eval=frame`; `t` in seconds): −`duckDb` from `preMs` before each VO line to `postMs`
+ * after it, linear ramps of `rampMs` outside that plateau, 1 in the gaps; '1' without lines. SFX never see it. Deterministic text.
+ */
+export function duckingEnvelope(lines: { start_ms: number; end_ms: number }[], o: { duckDb: number; preMs: number; postMs: number; rampMs: number }): string {
+  const wins = duckWindows(lines, o);
+  if (!wins.length) return '1';
+  // a negative time (a window starting at 0 ms) must print as `t+x`, not `t--x`
+  const at = (ms: number) => (ms >= 0 ? `t-${(ms / 1000).toFixed(3)}` : `t+${(-ms / 1000).toFixed(3)}`);
+  const sec = (ms: number) => (ms / 1000).toFixed(3);
+  const r = sec(o.rampMs);
+  const depth = (1 - 10 ** (-o.duckDb / 20)).toFixed(5);
+  // one trapezoid per window: 0 → 1 over the ramp before the plateau, 1 → 0 over the ramp after it
+  const traps = wins.map(([a, b]) => `clip(min((${at(a - o.rampMs)})/${r},(${sec(b + o.rampMs)}-t)/${r}),0,1)`);
+  return `1-${depth}*(${traps.join('+')})`;
 }

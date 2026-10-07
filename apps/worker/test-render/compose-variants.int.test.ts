@@ -32,7 +32,7 @@ describe('compose step', () => {
     const hash = await ex.inputHash(ctx('compose'));
     expect(await ex.run(ctx('compose'), hash)).toMatchObject({ status: 'done', note: expect.stringMatching(/^1080×1920 · 0:45 · \d+ efekt · müzik: Test yatağı$/) });
     const kinds = (await t.pool.query('SELECT kind FROM artifacts WHERE run_id = $1 AND input_hash = $2 ORDER BY kind', [r.runId, hash])).rows.map((x) => x.kind);
-    expect(kinds).toEqual(['audio_plan', 'final_cover', 'final_video_music', 'final_video_tiktok', 'layout']);
+    expect(kinds).toEqual(['audio', 'audio_plan', 'final_cover', 'final_video_music', 'final_video_tiktok', 'layout']);
     const music = (await latestArtifact(t.pool, r.runId, 'final_video_music'))!;
     const tiktok = (await latestArtifact(t.pool, r.runId, 'final_video_tiktok'))!;
     expect((await t.pool.query('SELECT width, height, codec, duration_ms FROM artifacts WHERE id = $1', [music.id])).rows[0]).toMatchObject({ width: 1080, height: 1920, codec: 'h264', duration_ms: 45033 });

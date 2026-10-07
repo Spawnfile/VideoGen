@@ -31,7 +31,7 @@ describe('compose step', () => {
     const { r } = await h.framed('Kalem etiket');
     const scene = fx('scene-kalem');
     const board = fx('storyboard-kalem');
-    const src = async () => (await composeSource(h.deps, r.runId, r.videoId)) as Exclude<Awaited<ReturnType<typeof composeSource>>, { error: string } | null>;
+    const src = async () => (await composeSource(h.deps, r.runId, r.videoId, 'silent')) as Exclude<Awaited<ReturnType<typeof composeSource>>, { error: string } | null>;
     const tickAt = (s: Awaited<ReturnType<typeof src>>) => s.sound.cues.filter((c) => c.source.startsWith('event:label_in:')).map((c) => [c.source, c.atMs]);
     // the unchanged fixture beats give back the events build.py stored; Python rounds half to even (0.15 s → frame 4, 0.05 s → frame 2)
     const stored = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/scene/kalem/events.json'), 'utf8')).events;

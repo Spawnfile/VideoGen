@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { AssetRecord } from '@videogen/db';
-import { LicenseError, matchSfx, pickMusic, planSfx, soundPlan, withImportedSfx, type SfxCue } from '../src/pipeline/sound.ts';
+import { AudioPlanSchema } from '@videogen/shared';
+import { defaultAudioPlan, duckingEnvelope, effectiveAudioPlan, LicenseError, matchSfx, pickMusic, planSfx, soundPlan, withImportedSfx, type SfxCue } from '../src/pipeline/sound.ts';
 import { masterAudio, masterVariant, measureLoudnorm, mixTrack, parseLoudnormJson } from '../src/render/audio.ts';
 import { encodeDelivery, fakeFinal, muxVariant } from '../src/render/ffmpeg.ts';
 
@@ -60,6 +61,68 @@ describe('sound plan, mix, mastering and the two variants', () => {
     expect(() => soundPlan(cues, { ...lib, whoosh: asset({ allowed: false }) }, null)).toThrow('izinsiz ses: whoosh');
     // Today's policy, not only the stored flag: a CC-BY row whose attribution was cleared is refused at use.
     expect(() => soundPlan(cues, lib, asset({ id: 'm9', kind: 'music', licenseSpdx: 'CC-BY-4.0', attribution: null }))).toThrow(LicenseError);
+  });
+
+  it('defaultAudioPlan and effectiveAudioPlan: the music pick by video id, no music gives a null track without an error (a dev plan; the rule lives in the preflight and the fixer), a stored plan wins, a stored plan with a disallowed music track is a license error, sfx exclude and the gain offset reach the cues', () => {
+    const U1 = '11111111-1111-4111-8111-111111111111';
+    const U2 = '22222222-2222-4222-8222-222222222222';
+    const m1 = asset({ id: U1, kind: 'music', title: 'A' });
+    const m2 = asset({ id: U2, kind: 'music', title: 'B' });
+    const picked = pickMusic([m1, m2], 'video-1')!;
+    const d = effectiveAudioPlan({ stored: null, mode: 'silent', music: [m1, m2], seed: 'video-1' });
+    expect(d).toMatchObject({ persist: true, music: picked, plan: { version: 1, mode: 'silent', music: { asset_id: picked.id, gain_db: -18 }, vo_gain_db: 0, duck_db: 12, sfx: { gain_offset_db: 0, exclude: [] }, mastering: { target_lufs: -14, tp: -1 } } });
+    expect(AudioPlanSchema.safeParse(d.plan).success).toBe(true);
+    expect(defaultAudioPlan({ mode: 'vo', music: m1 })).toEqual({ ...d.plan, mode: 'vo', music: { asset_id: U1, gain_db: -18 } });
+    // today's silent mix: the default plan changes no gain
+    const cues: SfxCue[] = [{ atMs: 0, name: 'whoosh', source: 'hook' }, { atMs: 500, name: 'click', source: 'event:x' }];
+    expect(soundPlan(cues, lib, picked, d.plan)).toEqual(soundPlan(cues, lib, picked));
+    // no music: a valid plan with a null track
+    const none = effectiveAudioPlan({ stored: null, mode: 'vo', music: [], seed: 'video-1' });
+    expect(none).toMatchObject({ persist: true, music: null, plan: { music: { asset_id: null } } });
+    expect(AudioPlanSchema.safeParse(none.plan).success).toBe(true);
+    // a stored plan wins over the pick, and is not persisted again
+    const stored = { ...defaultAudioPlan({ mode: 'vo', music: m2 }), vo_gain_db: 2 };
+    expect(effectiveAudioPlan({ stored, mode: 'vo', music: [m1, m2], seed: 'x' })).toEqual({ plan: stored, persist: false, music: m2 });
+    expect(effectiveAudioPlan({ stored: { ...stored, music: { ...stored.music, asset_id: null } }, mode: 'vo', music: [m1], seed: 'x' })).toMatchObject({ persist: false, music: null });
+    // a stored track that is gone, disallowed or no longer permitted by today's policy is a license error
+    expect(() => effectiveAudioPlan({ stored, mode: 'vo', music: [m1], seed: 'x' })).toThrow(`müzik bulunamadı: ${U2}`);
+    expect(() => effectiveAudioPlan({ stored, mode: 'vo', music: [{ ...m2, allowed: false }], seed: 'x' })).toThrow(/^izinsiz müzik: B/);
+    expect(() => effectiveAudioPlan({ stored, mode: 'vo', music: [{ ...m2, licenseSpdx: 'CC-BY-4.0', attribution: null }], seed: 'x' })).toThrow(LicenseError);
+    // exclude, the SFX offset and the music gain reach the cues
+    const plan = { ...stored, music: { asset_id: U2, gain_db: -22 }, sfx: { gain_offset_db: -3, exclude: ['click' as const] } };
+    expect(soundPlan(cues, lib, m2, plan)).toEqual({
+      cues: [{ atMs: 0, name: 'whoosh', source: 'hook', assetId: 'sfx-whoosh', gainDb: -9 }],
+      music: { assetId: U2, title: 'B', license: 'CC0-1.0', attribution: null, gainDb: -22 },
+    });
+  });
+
+  it("duckingEnvelope: −duck_db under each VO line with 150 ms ramps and the 150/300 ms margins, 0 dB in the gaps, '1' without lines", () => {
+    const o = { duckDb: 12, preMs: 150, postMs: 300, rampMs: 150 };
+    expect(duckingEnvelope([], o)).toBe('1');
+    const lines = [{ start_ms: 1000, end_ms: 2000 }, { start_ms: 5000, end_ms: 6000 }];
+    const expr = duckingEnvelope(lines, o);
+    expect(duckingEnvelope(lines, o)).toBe(expr);
+    // evaluate the expression the way ffmpeg does (t in seconds)
+    const clip = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
+    const gainDb = (t: number) => 20 * Math.log10(new Function('t', 'clip', 'min', `return ${expr}`)(t, clip, Math.min) as number);
+    expect(gainDb(0)).toBeCloseTo(0, 6);
+    expect(gainDb(0.7)).toBeCloseTo(0, 6); // before the down ramp (starts at 0.7 s)
+    expect(gainDb(0.775)).toBeCloseTo(-4.07, 1); // mid ramp: linear in amplitude (0.625)
+    expect(gainDb(0.85)).toBeCloseTo(-12, 1); // plateau starts 150 ms before the line
+    expect(gainDb(1)).toBeCloseTo(-12, 1);
+    expect(gainDb(2.3)).toBeCloseTo(-12, 1); // plateau ends 300 ms after the line
+    expect(gainDb(2.375)).toBeCloseTo(-4.07, 1);
+    expect(gainDb(2.45)).toBeCloseTo(0, 6);
+    expect(gainDb(3.5)).toBeCloseTo(0, 6);
+    expect(gainDb(5.5)).toBeCloseTo(-12, 1);
+    // a line at 0 ms: the window starts at 0, its down ramp before 0 prints as `t+x` (no `t--x`), the plateau holds from t = 0
+    const zero = duckingEnvelope([{ start_ms: 0, end_ms: 1000 }], o);
+    expect(zero).not.toContain('--');
+    const zeroDb = (t: number) => 20 * Math.log10(new Function('t', 'clip', 'min', `return ${zero}`)(t, clip, Math.min) as number);
+    expect([zeroDb(0), zeroDb(1.3), zeroDb(1.375), zeroDb(1.5)].map((x) => Math.round(x * 10) / 10)).toEqual([-12, -12, -4.1, 0]);
+    // lines closer than the ramps share one plateau; the depth follows duck_db
+    expect(duckingEnvelope([{ start_ms: 1000, end_ms: 2000 }, { start_ms: 2400, end_ms: 3000 }], o)).toBe(duckingEnvelope([{ start_ms: 1000, end_ms: 3000 }], o));
+    expect(duckingEnvelope(lines, { ...o, duckDb: 6 })).not.toBe(expr);
   });
 
   it('parses loudnorm measurements, including a silent input', () => {
