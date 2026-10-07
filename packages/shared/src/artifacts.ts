@@ -69,11 +69,14 @@ export const ProductResearchSchema = ResearchBase.superRefine((r, ctx) => {
   if (r.claims.length < 3) issue(['claims'], 'en az 3 kaynaklı iddia gerekli');
 });
 
+/** A numeric claim is one whose text has a digit (the G2 source rule applies to it). */
+export const isNumericClaim = (text_tr: string): boolean => /\d/.test(text_tr);
+
 /** Soft rules (G2 is a review gate in M5): a numeric claim needs 2 independent sources or 1 primary source. */
 export function researchWarnings(r: ProductResearch): string[] {
   const out: string[] = [];
   for (const c of r.claims) {
-    if (!/\d/.test(c.text_tr)) continue;
+    if (!isNumericClaim(c.text_tr)) continue;
     const primary = c.sources.some((s) => s.type === 'primary');
     const independent = new Set(c.sources.filter((s) => s.type === 'independent').map((s) => new URL(s.url).hostname)).size;
     if (!primary && independent < 2) out.push(`${c.id}: sayısal iddia için 2 bağımsız ya da 1 birincil kaynak gerekir`);

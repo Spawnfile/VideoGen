@@ -10,7 +10,7 @@ import { SessionManager } from '../src/agents/manager.ts';
 import { fakePipelineScript } from '../src/pipeline/fake-scripts.ts';
 import { Orchestrator } from '../src/pipeline/orchestrator.ts';
 import { sceneToolHost, type SceneDeps } from '../src/pipeline/scene-tools.ts';
-import { buildExecutor, buildPrompt, pipelineExecutors, researchExecutor, storyboardPrompt, type PipelineRole, type StepDeps } from '../src/pipeline/steps.ts';
+import { buildExecutor, buildPrompt, pipelineExecutors, researchExecutor, storyboardPrompt, type FakeExtra, type PipelineRole, type StepDeps } from '../src/pipeline/steps.ts';
 import type { StepContext } from '../src/pipeline/types.ts';
 import { ARTIFACT_VALIDATOR } from '../src/pipeline/validator.ts';
 import { FakeRenderDriver, type Capability } from '../src/render/driver.ts';
@@ -28,7 +28,7 @@ afterEach(async () => { for (const c of cleanups.splice(0)) await c(); });
 
 const FFMPEG = process.env.VG_FFMPEG ?? 'ffmpeg';
 const fx = (name: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${name}.json`), 'utf8'));
-type Script = (role: PipelineRole, ctx: StepContext, attempt: number, extra?: { styleId: 'atolye' | 'beyaz_lab' | 'gece_mavisi' }) => FakeScript;
+type Script = (role: PipelineRole, ctx: StepContext, attempt: number, extra?: FakeExtra) => FakeScript;
 
 function setup(o: { script?: Script; capability?: Capability } = {}) {
   const dataDir = mkdtempSync(join(tmpdir(), 'vg-build-'));

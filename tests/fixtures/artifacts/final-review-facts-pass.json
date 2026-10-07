@@ -36,6 +36,12 @@
   "web_checks": [
     {
       "claim_id": "bilye-capi",
+      "url": "https://www.bicworld.com/en/our-products",
+      "reachable": true,
+      "supports": true
+    },
+    {
+      "claim_id": "bilye-capi",
       "url": "https://en.wikipedia.org/wiki/Ballpoint_pen",
       "reachable": true,
       "supports": true
