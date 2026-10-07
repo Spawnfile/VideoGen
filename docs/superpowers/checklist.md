@@ -11,7 +11,7 @@
 | M2 İskelet | `plans/2026-10-06-m2-skeleton.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m2/report.md` |
 | M3 Canlı agent katmanı | `plans/2026-10-06-m3a-agent-runtime.md` (M3a) + `plans/2026-10-06-m3b-live-ui.md` (M3b) | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m3/report.md` |
 | M4 Dikey dilim | `plans/2026-10-06-m4a-pipeline-core.md` (M4a) + `plans/2026-10-06-m4b-scene-core.md` (M4b) + M4c (sırada) | Devam ediyor (M4a ve M4b tamam, `main`'e birleştirildi; M4c sırada: taslak render, inceleme, player, ilk gerçek ürün) | 2026-10-06 | | `docs/m4/m4a-summary.md`, `docs/m4/m4b-summary.md` |
-| M5 Final ve kalite | `plans/2026-10-06-m5a-final-render-qc.md` (M5a) + M5b + M5c | M5a uygulandı (T1–T11 + T12 kısmi, bulut konteynerinde; GPU ve gerçek ürün doğrulaması bekliyor, `main`'e birleştirilmedi); M5b, M5c sırada | 2026-10-06 | | `docs/m5/m5a-summary.md` |
+| M5 Final ve kalite | `plans/2026-10-06-m5a-final-render-qc.md` (M5a) + `plans/2026-10-07-m5b-review-fix.md` (M5b) + M5c | M5a ve M5b uygulandı (bulut konteynerinde, `main`'e fast-forward; M5b: T1–T11 + T12 kısmi; GPU, gerçek ürün ve son review bekliyor); M5c sırada | 2026-10-06 | | `docs/m5/m5a-summary.md`, `docs/m5/m5b-summary.md` |
 | M6 Yayın | M5 sonrası | Plan yok | | | |
 | M7 Sertleştirme | M6 sonrası | Plan yok | | | |
 
@@ -87,10 +87,11 @@
 - [x] compose: Remotion katmanı, SFX cue'ları, müzik defteri ve lisans kapısı, mastering, iki varyant · M5a T2, T5–T8 · 2026-10-07 (seslendirmesiz; VO ve ducking M5c)
 - [x] İçerik adresli medya deposu, kare temizliği, disk muhafızı · M4b (`putBlob`), M5a T4 (terminal run'da kare temizliği; `extraDiskMb` 2000/600) · 2026-10-07
 - [x] qc_probe otomatik kapıları · M5a T1, T9, T10 (G1, G5 flaş, G6 manifest/kenar; D6 12, D7 5; rubrik `final@1`) · 2026-10-07
-- [ ] 3 reviewer (görsel, doğruluk, izlenme) + boyut sahipliği + puanlama
-- [ ] Fixer döngüsü (≤ 3 tur, kapsam seçimi, regresyon ve salınım tespiti)
+- [x] 3 reviewer (görsel, doğruluk, izlenme) + boyut sahipliği + puanlama · M5b T1, T5–T7 (`final@1`: 30 kontrol, deterministik `panelScore` + K13 kararı, `run_qc`, sınırda ikinci görsel review; commit 7b469c4, bedf7ea, 79c30ea, cbe5a68) · 2026-10-07 · Fake sürücüyle; gerçek reviewer isabeti GPU'lu makinede bekliyor (`docs/m5/real-check.md` M5b-3)
+- [x] Fixer döngüsü (≤ 3 tur, kapsam seçimi, regresyon ve salınım tespiti) · M5b T2, T3, T4, T8 (hesaplanan kapsam compose/build/rework, `steps.fix_round`, migration 0008; commit 8792795, 90c437b, 9d90062, 3b515a9) · 2026-10-07 · yalnızca izlenen kontrollerde regresyon/salınım; seslendirme satırı M5c
 - [ ] Kalibrasyon: rubrik kalem pilotunun 7 hatasını yakalıyor · pilot benzeri sentetik klipte 7/7 (M5a T9); gerçek pilot dosyasıyla `qc-cli` GPU'lu makinede bekliyor (`docs/m5/real-check.md` §1)
-- [ ] Bir ürün uçtan uca "yayına hazır"; smoke S2 tam sürüm
+- [ ] Bir ürün uçtan uca "yayına hazır"; smoke S2 tam sürüm · **smoke S2 tam sürüm ✓** (M5b T9–T11: Fake sürücüyle "Yayına hazır · 87,5 puan", `rötuş` düzeltme turu, inceleme paneli; smoke 19/13; commit bf1b284, 19d5cc7; 2026-10-07) · **gerçek ürün bekliyor** (izinli müzikle "tükenmez kalem" yayına hazır; `docs/m5/real-check.md` M5b-3; müziksiz koşu D6'da `needs_human` ile biter)
+- [x] `finalize`: en iyi sürüm, kare temizliği, gerekçeli `needs_human` · M5b T9 (commit bf1b284) · 2026-10-07 (M5a M10 reddedildi: v1'de `failed` run sürdürülemez)
 
 ## M6 — Yayın *(plan M5 sonrası)*
 
@@ -142,3 +143,10 @@
 | 2026-10-07 | M5 plan bölme | M5 → M5a (final, ses, otomatik kapılar) + M5b (reviewer'lar, fixer, "yayına hazır") + M5c (seslendirme) | `plans/2026-10-06-m5a-final-render-qc.md` E1 |
 | 2026-10-07 | M5a uygulama (bulut konteyneri, GPU'suz; inline yürütme, her görevden sonra self-review) | T1–T11 uygulandı; `npm test` 355, smoke 19/11, render (Blender'sız) 5; Blender testleri, gerçek pilot kalibrasyonu ve ilk gerçek ürün GPU'lu makinede bekliyor; `main`'e birleştirilmedi (kullanıcı onayı) | `docs/m5/m5a-summary.md`, `docs/m5/real-check.md` |
 | 2026-10-07 | M5a rubrik modülü (E2), LRA eşiği (E4), kare temizliği (E6), kodlama zinciri (E8), müzik yoksa davranış (E11) | Plandaki gibi; ek: teslim kodlaması her preset'te High profil, mastering −2 dBTP + AAC sonrası denetim | spec §7.5, §7.6, §8.1 notları |
+| 2026-10-07 | M5b uygulama (bulut konteyneri, GPU'suz; alt ajanlar sonnet, kullanıcı: Fable ve opus alt ajan yok) | T1–T11 uygulandı (11 commit, her görevde spec + kalite review'u); `npm test` 399, smoke 19/13, M5b ekranları 2; `main` kullanıcı isteğiyle **fast-forward** (PR yok) | `docs/m5/m5b-summary.md`, ledger `.superpowers/sdd/2026-10-07-m5b-review-fix/progress.md` |
+| 2026-10-07 | M5b T12 (kullanıcı kararları) | Tam doğrulama ayrı adım olarak koşulmadı (kanıt görev başına; `test:render` suiti ve `test:blender` koşulmadı); pilot kalibrasyonu, Blender testleri ve gerçek ürün koşusu GPU'lu makinede bekliyor; **son bağımsız review atlandı** | `docs/m5/real-check.md` M5b bekleyenleri |
+| 2026-10-07 | M5b F4: boyut puanı ve kapılar deterministik (reviewer yalnız kontrol sonucu verir) | Plandaki gibi; spec §7.4 notu. D6 alt puanları (E3) karşılaştırması gerçek pilot/ürün bekliyor, rubrik `final@1` kaldı | `packages/shared/src/final-review.ts`, `m5b-summary` §4 |
+| 2026-10-07 | M5b F11/F12/F14: kapsamı adım hesaplar; build ajansız; regresyon ve salınım yalnız izlenen kontrollerde | Plandaki gibi; ek: compose kapsamında `label_in` olayları güncel storyboard'dan türetilir (T2 Critical) | spec §7.2 notu, ledger T2/T4 |
+| 2026-10-07 | M5b F16: M10 reddedildi; F21: `rötuş` uçtan uca testi `test:render`'a taşındı (`npm test` 6,8 → 5,9 dk) | `npm test` 399 (plan 400), `test:render` Blender'sız 6 | ledger T9 |
+| 2026-10-07 | M5b T9 bulgusu: müziksiz ürün D6'da düşer, fixer ses spec'i yazamaz → `needs_human` | Bilinçli sınır; çözüm izinli müzik ya da M5c `AudioPlan` | `m5b-summary` §9–§10 |
+| 2026-10-07 | 🚦 K17 (TTS/ses kararı), K19, müzik kürasyonu, D6 alt puanları | Açık (K17 ve K19 değişmedi) | `docs/m1/decision.md`, `m5b-summary` §4 |

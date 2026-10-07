@@ -214,6 +214,7 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 - **M4b:** GPU ve ağır CPU işleri için tek kapı, worker'daki süreç içi `ResourceLocks` (K22; MCP araçları ondan geçer, orchestrator'ın GPU adımları M4c'de aynı kilide bağlanır). `render_preview_stills`'in `scale` parametresi yok: önizleme sabit %50, 16 örnek. Builder'ın MCP listesinden `render_draft` çıkarıldı. Taslak videoyu `draft_render` pipeline adımı üretir; builder kareleri `render_preview_stills` ile görür. `build_scene` ve `render_preview_stills` uygulandı. Sonuç, run klasörüne göre yollarla `{ok, errors, warnings, report, equivalence, files}` olarak döner. GPU beklemesi kartta "GPU bekliyor · sırada N" diye görünür; araç sürerken oturum "takılmış" sayılmaz.
 - **M4c (kanıt `docs/m4/report.md`):** orchestrator'ın GPU adımları (`draft_render`) MCP araçlarıyla aynı `ResourceLocks` kilidinden ve §6.4 ön kontrolünden geçer (tek kapı; adım notu "GPU sırası bekleniyor (sırada N)" ya da ön kontrol gerekçesi). Run başlatma kullanım kapısına uyar: muhafız kapalıyken run `queued` kalır, video notu "Kullanım sınırı yakın: …", muhafız açılınca kendiliğinden başlar. `extract_frames({times[1–12], crop?})` uygulandı: yalnızca reviewer_visual ve kayıtlı taslağı olan bir `draft_review` adımının oturumu; bütçe adım+tur başına 12 kare; kırpma 2× büyütülür. Taslak incelemesinde reviewer_visual tek reviewer'dır: 4×3 kontakt sayfası + `extract_frames`.
 - Reviewer'lar **builder'ın akıl yürütmesini görmez**. Sadece artefaktları (kareler, manifestler, spec) görürler.
+- **Spec notu (M5b):** `reviewer_facts` `maxTurns` 25 → **40** (web doğrulama hedefleri, §8.2 notu). Fixer `ROLES`'ta `specWrite` yalnızca `storyboard` ve `scene` (araştırmayı yazamaz); reviewer'lara builder ya da fixer çıktısının metni (özet, gerekçe) verilmez, güvenilmeyen veri çitli (`fenced`) gider.
 
 ### 6.3 `videogen` MCP sunucusu (in-process, `createSdkMcpServer`)
 
@@ -311,6 +312,12 @@ Fixer'a **sadece başarısız kontrol kimlikleri, kanıtları ve düzeltme ipuç
 - 3 tur sonunda eşik geçilemezse durum "insan gerekli" olur. En yüksek puanlı sürüm ve açık bulgular gösterilir; kullanıcı chat'ten devam eder.
 - **Salınım tespiti:** Aynı kontrol iki kez düzelip yeniden bozulursa döngü erken durur.
 
+**Spec notu (M5b):**
+- **Kapsamı orchestrator hesaplar** (`fixScope`), fixer'ın beyanı yalnızca iddiadır. **build** yalnızca `product.py` ya da sahnenin render alanları (`name_tr` ve `recipe.note` hariç) değiştiyse; **compose** storyboard'un herhangi bir alanı ya da parça `name_tr` değiştiyse (compose `label_in` olaylarını güncel storyboard'dan türetir); `cta`, `loop_strategy`, `version` hiçbir şey render etmez → değişmemiş sayılır. Değişiklik yoksa ve beyan `storyboard` ise yeniden işleme; aksi halde dur (`unchanged`).
+- **Sayaç:** `steps.fix_round` (≤ 3) taslak `round`'undan (≤ 2) ayrıdır; her tur yeni bir `versions` satırı. Build kapsamlı turda build ajansızdır (SpecStore'daki son sahne + `product.py`), `draft_review` "final düzeltme turu: taslak incelemesi atlandı (§7.2)" notuyla atlanır. Durma sırası: hazır; tur sınırı; kullanım muhafızı kapalı (`usage`); salınım; yeniden işle; düzelt.
+- **Regresyon ve salınım yalnızca izlenen kontrollerde** (kapılar, ≥ 3 puanlı kontroller, qc kapı kontrolleri): sürekli skorlardaki 1–2 puanlık oynama gürültüdür. "İki kez düzelip bozulma" beş review gerektirir; ≤ 3 turda hiç tetiklenmez, bu yüzden salınım F→P→F ile (değerlendirilen turlarda) algılanır.
+- **Seslendirmesiz kipte "SFX, müzik, seviye" satırına ulaşılamaz:** fixer'ın yazabileceği bir ses spec'i yoktur; D6 düşüşü (ör. izinli müzik yok) `unchanged` ile durur. M5c `AudioPlan` ile açar. VO satırı ve `rerender_scope 'voice'` M5c'de.
+
 ### 7.3 Tek geometri kaynağı: bpy → GLB
 
 - Builder, `python/vg_blender` kütüphanesini kullanarak `product.py`'yi yazar. Kütüphanenin içeriği:
@@ -386,6 +393,11 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 - Taslak `Review`'u `rubric_version 'draft@1'`, `reviewer_role 'reviewer_visual'`, 8 kontrol (`hero_frame0` blocker; `mechanism_shot`, `parts_visible`, `labels_correct` major; `no_intersection`, `text_readable`, `motion_flow`, `no_slop` minor), `dimension_scores{D2,D3,D5,D9}`, `gate_results{G3,G5}` taşır. Her kontrol tam bir kez; `pass:false` kanıt (kare, zaman kodu) ve `fix_hint` ister; kare taslağın ffprobe kare sayısının içinde ve `|kare/30 − zaman| ≤ 0,5` olmalıdır.
 - Önem derecesi kontrol kimliğine bağlıdır (`DRAFT_CHECKS`), reviewer belirlemez. Karar `draftDecision`'ın işidir: başarısız blocker/major ya da kapı → `revise`; minor yalnızca notta. Puan karara girmez (kalibrasyon M5).
 - `reviews/findings` tabloları M5'te; M4c'de Review `artifacts` satırıdır (`kind 'draft_review'`, meta `{round, verdict, draftArtifactId}`).
+
+**M5b uygulama notları (`packages/shared/src/final-review.ts`, `fix-loop.ts`):**
+- **`dimension_scores` hesaplanır, reviewer yazmaz** (F4): Reviewer her kontrol için `{pass, score 0–1, evidence, fix_hint}` verir (pass ⇔ score ≥ 0,5; pass:false ise kanıt ve ipucu zorunlu); boyut puanı = Σ(kontrol puanı × score), kapı = kapının kontrollerinin hepsi geçti; `panelScore` + `finalVerdict` saf fonksiyonlardır. `final@1` 30 kontrol taşır (LLM 83 + D6 12 + D7 5 = 100). Önem derecesi yalnızca fixer sırası ve arayüz içindir. Bu yüzden "geçmedi" bir kontrol varken K13 sağlanabilir (`ready` + açık küçük bulgular).
+- Sözleşme adı `FinalReview` (taslak `Review` ayrı kalır). **FixReport**: `round 1–3`, `addressed[]`, `not_addressed[]`, `rerender_scope` (`compose|voice|build|storyboard`), `spec_diffs[]`; her başarısız kontrol tam bir listede olmalı; `voice` M5b'de reddedilir ("seslendirme kapsamı M5c'de"). Hesaplanan kapsam beyandan farklıysa hesaplanan kazanır (`fix.scope` audit).
+- Fixer `research`'ü değiştiremez (G2 düzeltmesi ekrandaki iddiayı çıkarmak ya da yeniden yazmaktır → compose).
 
 ### 7.5 Render
 
@@ -475,10 +487,16 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | reviewer_retention | D1 Kanca, D8 Döngü/izlenme |
 | orchestrator (kural) | G4 (AIGC kararı: ses seçimi ve provenance'tan deterministik) |
 
+**Spec notu (M5b):**
+- **Kare bütçesi** "saniyede 1 kare" yerine **12 + 12 + 8** (maliyet): adım müzikli varyanttan 4×3 kontakt sayfası (12 kare) hazırlar; reviewer rol + tur + sıra başına 12 tek kare ister (`extract_frames`, 1080×1920'den); izlenme reviewer'ına ek olarak 4×2 "kanca sayfası" (0, 0,5, 1, 2, 3 sn, `rehook_at`, `payoff_at`, son kare) verilir. `run_qc` kayıtlı `qc_report`'u döner, yeniden ölçmez.
+- **Web hedefleri:** yalnızca videoda kullanılan iddialar (storyboard `claim_ids`); her sayısal iddianın kuralı sağlayan kaynakları + kalan (iddia, URL) çiftlerinden `runId:fixRound` ile tohumlanmış %30 (yukarı yuvarlanır), en çok 16. Reviewer her hedef için `web_checks{claim_id, url, reachable, supports}` döndürmek zorundadır. "Desteksiz" yalnızca ulaşılabilen bir kaynağın iddiayı taşımadığı ve hiçbir ulaşılabilen kaynağın desteklemediği durumdur; erişilemeyen sayfa tek başına G2'yi düşürmez.
+- AUTO kapısı düşerse (adım 1) `review` LLM çalıştırmaz, tur özeti (toplam `null`) kaydedilir ve fixer qc bulgularıyla başlar; değerlendirilmeyen LLM kontrolleri "bilinmiyor" sayılır.
+
 ### 8.3 Kendi kendini onaylamaya karşı önlemler
 
 - Reviewer'lar ayrı ve izole oturumlarda çalışır. Builder'ın düşüncesini görmezler; her bulguyu kare ve zaman koduyla kanıtlamak zorundadırlar.
 - Sınırdaki puanlarda (78–82) ikinci, bağımsız bir görsel review çalışır. Puanların ortalaması alınır.
+  - **Spec notu (M5b):** İkinci review yalnızca görsel reviewer'ındır (`seq 2`, taze oturum, ilk review'un oturumu sürdürülmez); kontrol başına skor ortalaması alınır (pass = ortalama ≥ 0,5), kapı kontrolleri için ikisinin de geçmesi gerekir. Seq-1 satırının bulguları ortalanmış sonuçtur; ham çıktılar `final_review_visual{,2}` artefaktlarında. Tetik: kapıların hiçbiri düşmemiş ve toplam 78–82.
 - **Kalibrasyon:** Kalem pilotu (`~/icinde-ne-var/pilot-kalem/remotion/out/icinde-ne-var-kalem.mp4`) bilinen kötü örnek olarak kullanılır. Rubrik bu videoda en az şu 7 hatayı yakalamalı: −23,4 LUFS, LRA 20,6, ilk ses 0,79 sn, sessizlikler, donmalar, renk etiketleri, güvenli alan ihlalleri. Yakalamıyorsa rubrik hatalı sayılır.
   M5a: `qc-cli` (`apps/worker/src/render/qc-cli.ts`) ile ölçülür. Pilot benzeri sentetik klip (14 sn; −29,3 LUFS, LRA 16,9, ilk ses 0,81 sn, sessizlik, 1,3 sn donma, yuvj420p/pc, bantta metin izi) 7 hatanın hepsinde düşer (`apps/worker/test/qc.test.ts`); gerçek pilot dosyasıyla doğrulama GPU'lu makinede (`docs/m5/real-check.md` §1).
 - **Bayat artefakt koruması:** Her render için `sha256(spec + src + lock)` kaydedilir. Hash'i güncel spec'le uyuşmayan bir artefakt review edilmez.
@@ -548,6 +566,12 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 **M4a uygulama notları (migration `0005_pipeline`):** `videos.status_note` (kullanıcıya gösterilen gerekçe: `needs_human`/`failed`/"Storyboard hazır…"), `runs.error`, `runs.usage_start/usage_end` (run başı/sonu kullanım izi, §18), `steps.session_id` ve `steps.note` eklendi. Kısmi benzersiz indeksler: bir videoda tek aktif run (`runs(video_id) WHERE status IN ('queued','running')`), bir adımda tek aktif iş (`jobs(step_id) WHERE status IN ('queued','leased')`). Kimlikler `uuid`, `jobs.id` `bigserial`. Olay konuları `run:<id>`/`video:<id>` yerine `runs` / `videos` (`run.updated` → `RunView`, `video.updated` → `VideoView`), M3'ün `agents` konusu gibi; SSE konuya göre filtrelemez.
 
 **M4c uygulama notları (migration `0006_step_round`):** `steps.round integer NOT NULL DEFAULT 0`. Taslak incelemesi `rewind` dönerse orchestrator `rewindForReview` ile tek transaction'da (inceleme adımı hâlâ `running` ve aynı turdaysa, run `running`'se) build…draft_review aralığını `pending`, `round+1`, `attempt 0` yapar ve işi kapatır; tekrar oynatma çift tur üretmez, iptal edilmiş run yeni tura geçmez. Yeni artefakt türleri: `draft_video` (`duration_ms/width/height/codec` dolu), `draft_cover`, `review_sheet`, `draft_review`. `VideoView.draft = {videoSha, coverSha, durationS}`.
+
+**M5b uygulama notları (migration `0008_review_fix`):**
+- `steps.fix_round integer NOT NULL DEFAULT 0`: final döngüsünün ayrı sayacı. Final `rewind` onu artırır, taslak `steps.round`'una dokunmaz; taslak dönüşleri run başına toplam ≤ 2 kalır.
+- `reviews`: tur başına reviewer satırları + `reviewer_role 'orchestrator'` tur özeti (toplam, 9 boyut, 6 kapı, karar `ready|fix|rework`); `seq` (sınırdaki ikinci görsel review `seq 2`) ve `summary_tr` eklendi; tekillik `(run_id, round, reviewer_role, seq)`, yazımlar `ON CONFLICT DO NOTHING` (replay). `findings`: önceki turların açık bulguları düzelince `fixed` + `fixed_in_version_id`.
+- Her final turu yeni bir `versions` satırıdır (`reason 'fix:pending'` → rewind'de `fix:compose`/`fix:build`/`fix:rework`); kimlik deterministiktir (`sha(runId, 'fix', fixRound)`). `finalize` `videos.best_version_id`'yi yazar; kütüphane puanı ve final önce en iyi sürümden alınır. `claims` tablosu M6'da.
+
 | `audit_log` | §11.2 |
 
 ### 11.2 Audit
@@ -592,6 +616,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 - **Arayüzde yüzdenin kaynağı yazar:** "gerçek kare" ya da "tahmin".
 - **Düzeltme turu:** Genel yüzde, review adımının sonundaki değerde sabit kalır. "Düzeltme turu k/3" kendi yüzdesiyle ilerler ve ETA güncellenir.
 - **M4a uygulama (`packages/shared/src/progress.ts`):** `done` oran 1, diğerleri `ilerleme/100` (en çok 0,99); yayına hazır olmadan en çok %99, bir ondalık; yüzde DB'de `GREATEST` ile ve yayın tek advisory lock altında yükselir (olay akışı da monoton). Zaman eğrisi `100 × (1 − e^(−t/beklenen))`, en çok %90; `agent`/`render` raporu gelince zaman eğrisi o adıma yazmaz. Beklenen süre: son 5 bitmiş adımın medyanı, yoksa §7.1 orta değerleri. ETA: çalışan adım `beklenen × (1 − ilerleme/100)` (en az 5 sn) + bekleyen adımların beklenen süresi. Zorluk kapısında durdurulan run'da atlanan adımlar pay almaz (yüzde araştırma sonundaki değerde kalır; son review I1).
+- **Spec notu (M5b):** `fix_round > 0` iken başlık "Düzeltme turu k/3 · %N" gösterir (k en yeni `fixRound`, N o turun ağırlıklı yüzdesi); değilse taslak etiketi ("Taslak turu k/2"). Genel yüzde, `finalize` bitmeden %100 olmaz (hazır video %100).
 
 ### 12.2 Agent kartı
 
@@ -643,6 +668,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
     - mesajlar ve canlı ThinkingState izleri
   - **Footer:** Claude bağlantı noktası ve plan rozeti · 5 sa ve 7 gün kullanım çubukları (sıfırlanma saatiyle) · GPU kuyruğu · boş disk.
 - **Kütüphane:** Video kartları (kapak, puan, durum, süre, kullanım maliyeti). Video detayının sekmeleri: Sürümler · Storyboard · Araştırma ve kaynaklar · Review'lar (boyut çubukları, kapı rozetleri, kareli bulgular) · Audit · Yayın. M4c: satırda taslak kapağı (9:16) ve süre; satır videoyu Stüdyo'da açar.
+  - **Spec notu (M5b):** Stüdyo'da "Final" sekmesinin altında **inceleme paneli** (`region "İnceleme"`, `review-panel`): toplam puan, 9 boyut çubuğu (%60 işareti), 6 kapı rozeti, turun ana kontakt sayfası, "Otomatik kontrol" kartı (qc bulguları ve G2 `claims_verified`) ve üç reviewer kartı. Bulgular **kare yerine zaman kodu + seek + turun kontakt sayfası** olarak gösterilir (tek kareler blob olarak saklanmaz; `frameSha` yok); zaman koduna tıklamak Final oynatıcıyı o ana sarar. Panel en yeni turu gösterir ("önceki N tur"); tur seçici, Karşılaştır sekmesi ve kütüphane detayındaki Review'lar sekmesi M7'de. Kütüphane satırı ve kart **puanı** en iyi sürümden gösterir ("yayına hazır · 87,5 puan"). Puan her yerde bir ondalık ve virgüllüdür.
 - **Audit gezgini:** Filtreler: run, video, agent, olay türü, tarih. Her satırdan ham transcript'e, diff'e ve artefakta inilir. Zincir doğrulama durumu gösterilir.
 - **Varlıklar:** Müzik, SFX ve 3D defteri; lisans alanları; ekleme ve onay.
 - **Ayarlar:**
@@ -749,6 +775,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
 **M5a biçimi:** S2a (arayüzden "Üret") ve S2d (`tests/smoke/s2d-final.spec.ts`) finale ve otomatik kapılara kadar koşar: final_render (fake kareler) → compose (gerçek ffmpeg teslim kodlaması `ultrafast`, ses, iki varyant) → qc; video `insan gerekli`, not "Final video hazır ve otomatik kontrolden geçti."; QC kartı kapıları ve puanları gösterir; kütüphaneden final iki varyantta Range ile oynar; terminal run'ın kareleri silinir. Eski senaryolar plan sonunu geliştirici `until: 'draft_review'` ile seçer. Tam smoke 19 geçti / 11 atlandı, 3,8 dk (hedef 3 dk aşıldı: iki senaryo ve bir ekran testi finale kadar koşar).
 
+**M5b biçimi:** S2a ve S2d (`tests/smoke/s2d-final.spec.ts`) "Yayına hazır"a kadar koşar (Fake sürücü, içe aktarılan CC0 müzik yatağı): üç reviewer + K13 → `finalize` → video `ready` ("Yayına hazır · 87,5 puan"), genel yüzde 100; inceleme paneli (puan, 9 boyut çubuğu, 6 kapı rozeti, "Otomatik kontrol" kartı, üç reviewer kartı) ve kütüphane puanı görünür. İkinci senaryo `rötuş`: compose kapsamlı bir düzeltme turu ("Düzeltme turu 1/3" başlıkta, `compose`/`qc`/`review` adımları `fixRound` 1) sonra panel yeniden ≥ 80. Smoke 19 geçti / 13 atlandı, 4,3 dk (iki M5b ekran testi `VG_SCREENSHOTS=1` ister).
+
 **İzolasyon:**
 - Aynı container'da ayrı bir `videogen_smoke` veritabanı kullanılır; her koşuda oluşturulup silinir (M3: Playwright `webServer.gracefulShutdown` SIGTERM; verilmezse süreç grubu SIGKILL'lenir ve temizlik hiç çalışmaz).
 - Veri klasörü sabit `/tmp/videogen-smoke` (açılışta ve kapanışta silinir; `pids.json` ve `hold-<ad>` dosyaları burada); test API'si (SPA dahil) 5190, TikTok mock sunucusu rastgele port. Smoke yığını API ve worker'ı kendisi denetler (beklenmedik çıkışta 300 ms sonra yeniden başlatır); Claude yerine Fake sürücü kayıtlı akışları oynatır.
@@ -805,6 +833,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | `auth login` TTY olmadan çalışıyor | M0: kısmen doğrulandı (docs/m0/report.md): URL basıyor, stdin'den kod bekliyor, 127.0.0.1 callback dinliyor; kod yapıştırma test edilmedi → v1'de yedek plan, URL + kod v1.1 | Ekranda talimat: terminalde `! claude auth login`; ekran durumu yoklar |
 | Chatterbox 5,67 GB VRAM'e sığıyor | M1: doğrulandı — tepe 3611 MB (nvidia-smi) / 3251 MB (torch) (docs/m1/decision.md) | FreyaTTS (M1 tepesi 1811 MB; Türkçe adil CER %17,9, §7.6 kapısını geçmiyor) |
 | Video başına kullanım (token, 5 saatlik pencere payı) bilinmiyor | M4'te ölçülür. **M4a:** ölçüm altyapısı hazır (oturum token/maliyet toplamı + run başı/sonu 5 sa izi; aynı pencere `get_usage` ms ve `rate_limit_event` saniye ile farklı yazıldığından 60 sn tolerans). İlk ölçüm (haiku/low, yalnızca research + storyboard, `docs/m4/real-check.md`): 2 oturum, 671 697 token, 5 sa payı ≈ %2, 5 dk 57 sn. Gerçek rol modelleriyle tam ürün ölçümü M4c'ye kaldı; M4c bulut ortamında uygulandı (gerçek Claude oturumu, Blender ve GPU yok), ölçüm GPU'lu makinede `docs/m4/report.md` §4 tarifiyle yapılacak | Rol modelleri ve reviewer sayısı ayarlanır |
+| Video başına kullanım, M5b koşusu (final turları ve fixer dahil) | **Bekliyor:** gerçek "tükenmez kalem" koşusu (izinli müzikle, K12 rolleri) GPU'lu makinede; kayıt tablosu `docs/m5/real-check.md` M5b-3, sonuç `docs/m4/real-check.md` M4c §4 ve `docs/m5/m5b-summary.md` §5'e yazılır. Kodda koruma: kullanım muhafızı kapalıyken yeni düzeltme turu başlamaz (`usage` durdurması) | Final turu sayısını ya da fixer modelini düşür |
 | Claude yapılandırılmış çıktısı (`outputFormat` JSON Schema) zod sözleşmesine uyar | M4a gerçek koşu: haiku/low `ProductResearch` ve `Storyboard`'a ilk denemede uydu (düzeltme 0); Fake testleri düzeltme (≤ 2), çökme (1 `resume`) ve limit yolunu kapsar | Aynı oturumda hata listesiyle ≤ 2 düzeltme, sonra adım `failed` |
 | Güvenli alan pikselleri resmi değil (üçüncü taraf değerler çelişiyor) | Kullanıcının telefonundan ekran görüntüleriyle kalibrasyon (M5) | Pilot kılavuzundaki değerler (150–1510 dikey, sağ 130 px) |
 | −14 LUFS resmi bir TikTok değeri değil | Kanal konvansiyonu; ilk 10 yayından sonra gözden geçirilir | — |
