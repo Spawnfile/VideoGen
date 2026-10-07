@@ -125,7 +125,7 @@ test('M4c screen: library with draft covers and lengths', async ({ page }) => {
 
 test('M5a screen: studio final tab and the QC card', async ({ page, request }) => {
   test.setTimeout(240_000);
-  const { videoId } = await produceVia(request, 'Tükenmez kalem', 'silent');
+  const { videoId } = await produceVia(request, 'Tükenmez kalem', 'silent', 'qc');
   await page.goto(`/?video=${videoId}`);
   await expect(page.getByTestId('qc-card')).toBeVisible({ timeout: 200_000 });
   await page.waitForTimeout(600);
@@ -142,4 +142,27 @@ test('M5a screen: library with final covers', async ({ page }) => {
   await expect(page.getByTestId('library-cover').first()).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(400);
   await page.screenshot({ path: shot('library-final.png', 'm5') });
+});
+
+// Serial: the library test below needs the ready video the studio test produces.
+test.describe.configure({ mode: 'serial' });
+
+test('M5b screen: studio review panel (three reviewers, gates, bars, score)', async ({ page, request }) => {
+  test.setTimeout(300_000);
+  const { videoId } = await produceVia(request, 'Tükenmez kalem', 'silent');
+  await page.goto(`/?video=${videoId}`);
+  await expect(page.getByTestId('video-header')).toHaveAttribute('data-status', 'ready', { timeout: 240_000 });
+  const panel = page.getByTestId('review-panel');
+  await expect(panel.getByTestId('reviewer-card')).toHaveCount(3);
+  await expect(panel.getByTestId('panel-score')).toContainText('puan');
+  await panel.scrollIntoViewIfNeeded(); // the production panel scrolls on its own
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: shot('studio-review.png', 'm5') });
+});
+
+test('M5b screen: library with the panel score', async ({ page }) => {
+  await page.goto('/library');
+  await expect(page.getByTestId('library-score').first()).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: shot('library-score.png', 'm5') });
 });
