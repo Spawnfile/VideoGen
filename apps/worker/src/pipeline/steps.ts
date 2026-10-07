@@ -19,6 +19,7 @@ import { RenderError } from '../render/driver.ts';
 import { contactSheet, draftProbeErrors, extractFrame, probeVideo } from '../render/ffmpeg.ts';
 import type { ReviewTargets } from './review-tools.ts';
 import { runStructured } from './agent-step.ts';
+import { composeExecutor, finalRenderExecutor, qcExecutor } from './final-steps.ts';
 import { buildScene, previewScene, type SceneBuild, type SceneDeps } from './scene-tools.ts';
 import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
 
@@ -443,5 +444,6 @@ export function pipelineExecutors(deps: StepDeps): Partial<Record<StepKey, StepE
   return {
     research: researchExecutor(deps), storyboard: storyboardExecutor(deps), build: buildExecutor(deps),
     draft_render: draftRenderExecutor(deps), draft_review: draftReviewExecutor(deps),
+    final_render: finalRenderExecutor(deps), compose: composeExecutor(deps), qc: qcExecutor(deps),
   };
 }

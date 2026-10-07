@@ -7,7 +7,7 @@ const sessionsOf = async (request: import('@playwright/test').APIRequestContext,
 
 test('S2b: storyboard → build: the builder card, the build card with its preview served by the media endpoint, the waiting note', async ({ page, request }) => {
   test.setTimeout(90_000);
-  const { videoId, runId } = await produceVia(request, 'Tükenmez kalem', 'silent');
+  const { videoId, runId } = await produceVia(request, 'Tükenmez kalem', 'silent', 'draft_review');
   await page.goto(`/?video=${videoId}`);
   const header = page.getByTestId('video-header');
   await expect(page.locator('[data-testid="step"][data-key="build"]')).toHaveAttribute('data-status', 'done', { timeout: 60_000 });
@@ -28,7 +28,7 @@ test('S2b: storyboard → build: the builder card, the build card with its previ
 
 test('S2b: a broken first build goes back to the same builder session and the step still finishes', async ({ page, request }) => {
   test.setTimeout(90_000);
-  const { videoId, runId } = await produceVia(request, 'Bozuk sahne kalemi', 'silent');
+  const { videoId, runId } = await produceVia(request, 'Bozuk sahne kalemi', 'silent', 'draft_review');
   await page.goto(`/?video=${videoId}`);
   await expect(page.locator('[data-testid="step"][data-key="build"]')).toHaveAttribute('data-status', 'done', { timeout: 60_000 });
   const builders = (await sessionsOf(request, runId)).filter((s) => s.role === 'builder');
@@ -39,7 +39,7 @@ test('S2b: a broken first build goes back to the same builder session and the st
 
 test('S2b: "Üretimi durdur" during the build stops the builder; research and storyboard stay done', async ({ page, request }) => {
   test.setTimeout(90_000);
-  const { videoId, runId } = await produceVia(request, 'Yavaş sahne kalemi', 'silent');
+  const { videoId, runId } = await produceVia(request, 'Yavaş sahne kalemi', 'silent', 'draft_review');
   await page.goto(`/?video=${videoId}`);
   const header = page.getByTestId('video-header');
   await expect(page.locator('[data-testid="step"][data-key="build"]')).toHaveAttribute('data-status', 'running', { timeout: 60_000 });
@@ -58,7 +58,7 @@ test('S2b: the channel identity chosen in Settings is the style of the next buil
   await expect(page.getByText('Henüz seçilmedi')).toBeVisible(); // the note sits above the options
   await group.getByRole('radio', { name: /Beyaz laboratuvar/ }).click();
   await expect(group.getByRole('radio', { name: /Beyaz laboratuvar/ })).toHaveAttribute('aria-checked', 'true');
-  const { videoId } = await produceVia(request, 'Beyaz kalem', 'silent');
+  const { videoId } = await produceVia(request, 'Beyaz kalem', 'silent', 'draft_review');
   await page.goto(`/?video=${videoId}`);
   await expect(page.getByTestId('build-card')).toContainText('Beyaz laboratuvar', { timeout: 60_000 });
   await expect(page.locator('[data-testid="step"][data-key="build"]')).not.toContainText('kanal kimliği geçici');

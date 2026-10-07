@@ -40,7 +40,7 @@ function setup() {
   return { dataDir, deps, render };
 }
 async function built(deps: StepDeps, name = 'Tükenmez kalem') {
-  const r = await createProduceRun(t.pool, { productName: name, audioMode: 'silent', plan: producePlan('silent', ['research', 'storyboard', 'build', 'final_render']) });
+  const r = await createProduceRun(t.pool, { productName: name, audioMode: 'silent', plan: producePlan('silent') });
   const runDir = join(deps.dataDir, 'runs', r.runId);
   const store = new SpecStore(join(runDir, 'spec'), ARTIFACT_VALIDATOR);
   for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', 'storyboard-kalem']] as const) {

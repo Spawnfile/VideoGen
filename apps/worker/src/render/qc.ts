@@ -114,7 +114,8 @@ export async function probeQc(ffmpeg: string, file: string, o: { video?: boolean
     let loopSsim: number | null = null;
     if (o.video !== false) {
       const yfile = join(tmp, 'yavg.txt');
-      const err = await capture(ffmpeg, ['-i', file, '-an', '-vf', `signalstats,metadata=mode=print:key=lavfi.signalstats.YAVG:file=${yfile},blackdetect=d=${QC_LIMITS.blackS}:pix_th=0.10,freezedetect=n=0.001:d=${QC_LIMITS.freezeS}`, '-f', 'null', '-'], sig);
+      // Half size (540 wide): brightness, black and freeze are size independent; the full 1080p pass took ~3× as long.
+      const err = await capture(ffmpeg, ['-i', file, '-an', '-vf', `scale=540:-2,signalstats,metadata=mode=print:key=lavfi.signalstats.YAVG:file=${yfile},blackdetect=d=${QC_LIMITS.blackS}:pix_th=0.10,freezedetect=n=0.001:d=${QC_LIMITS.freezeS}`, '-f', 'null', '-'], sig);
       yavg = parseYavg(await readFile(yfile, 'utf8').catch(() => ''));
       blacks = parseSpans(err, 'black', durationS);
       freezes = parseSpans(err, 'freeze', durationS);

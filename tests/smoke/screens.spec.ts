@@ -102,7 +102,7 @@ test('M4b screen: channel identity (K19)', async ({ page }) => {
 
 test('M4c screen: studio draft round, review card and the two player tabs', async ({ page, request }) => {
   test.setTimeout(120_000);
-  const { videoId } = await produceVia(request, 'Kusurlu kalem', 'silent');
+  const { videoId } = await produceVia(request, 'Kusurlu kalem', 'silent', 'draft_review');
   await page.goto(`/?video=${videoId}`);
   await expect(page.getByTestId('draft-round')).toContainText('Taslak turu 1/2', { timeout: 60_000 });
   await page.screenshot({ path: shot('studio-draft-round.png', 'm4') });

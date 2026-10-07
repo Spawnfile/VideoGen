@@ -1,20 +1,23 @@
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { CHANNEL_STYLES, formatClock, SceneEventsSchema, validateArtifact } from '@videogen/shared';
+import {
+  buildQcReport, CHANNEL_STYLES, evaluateQc, formatClock, QC_CHECKS, qcFailures, QcReportSchema, RUBRIC_VERSION, SceneEventsSchema, validateArtifact, type QcReport,
+} from '@videogen/shared';
 import { appendAudit, findArtifact, getBlob, insertArtifact, latestArtifact, listAssets } from '@videogen/db';
 import { parseGlb } from '@videogen/scene3d';
 import { bundleHash, FINAL_MASTER } from '@videogen/remotion/hash';
 import { finalProps, type FinalProps } from '@videogen/remotion/props';
-import { layoutManifest } from '@videogen/remotion/layout';
+import { layoutIssues, layoutManifest, type LayoutManifest } from '@videogen/remotion/layout';
 import { ensureSfxLibrary } from '../assets.ts';
 import { masterVariant, mixTrack } from '../render/audio.ts';
 import { RenderError } from '../render/driver.ts';
 import { draftProbeErrors, encodeDelivery, extractFrame, FINAL_ENCODE, probeVideo } from '../render/ffmpeg.ts';
 import { missingFrames } from '../render/frames.ts';
+import { probeQc } from '../render/qc.ts';
 import { LicenseError, pickMusic, planSfx, soundPlan, type SoundPlan } from './sound.ts';
 import { record, sha, type StepDeps } from './steps.ts';
-import type { StepExecutor } from './types.ts';
+import type { StepExecutor, StepOutcome } from './types.ts';
 
 /** Fixed final render parameters (spec §7.5; part of the §8.3 input hash). The .blend carries the EEVEE settings (stage.configure). */
 export const FINAL_RENDER = { engine: 'BLENDER_EEVEE', samples: 64, raytracing: true, view: 'AgX Punchy', width: 1080, height: 1920, fps: 30, frames: 'png-rgba8' } as const;
@@ -130,12 +133,14 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
       const blob = a?.blobSha ? await getBlob(deps.pool, a.blobSha) : null;
       return !!blob && existsSync(join(deps.dataDir, blob.path));
     },
-    async run(ctx, hash) {
+    async run(ctx) {
       const scene = deps.scene;
       if (!scene) return { status: 'failed', error: 'render yapılandırılmadı', retry: false };
       const src = await composeSource(deps, ctx.runId, ctx.videoId);
       if (!src) return { status: 'failed', error: 'final kareleri ya da sahne çıktısı yok', retry: false };
       if ('error' in src) return { status: 'failed', error: src.error, retry: false };
+      // One source for the whole step: a music track imported after inputHash() must not mix two plans under one hash.
+      const hash = src.hash;
       if (src.framesHash !== src.currentFramesHash) return { status: 'failed', error: 'final kareler güncel sahneyle uyuşmuyor (bayat artefakt, §8.3)', retry: false };
       const framesDir = join(ctx.runDir, src.framesDir);
       const missing = missingFrames(framesDir, src.props.frames);
@@ -179,9 +184,10 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
         const media = { durationMs: Math.round(probe.durationS * 1000), width: probe.width, height: probe.height, codec: probe.codec };
         await record(deps, ctx, { kind: 'layout', file: layoutFile, content: layout, inputHash: hash });
         await record(deps, ctx, { kind: 'audio_plan', file: planFile, content: src.sound, inputHash: hash });
-        await record(deps, ctx, { kind: 'final_video_music', file: out.music, inputHash: hash, media, meta: { music: src.sound.music?.title ?? null } });
-        await record(deps, ctx, { kind: 'final_video_tiktok', file: out.tiktok, inputHash: hash, media, meta: { music: null } });
+        await record(deps, ctx, { kind: 'final_video_music', file: out.music, inputHash: hash, media, meta: { music: src.sound.music?.title ?? null, framesHash: src.framesHash } });
+        await record(deps, ctx, { kind: 'final_video_tiktok', file: out.tiktok, inputHash: hash, media, meta: { music: null, framesHash: src.framesHash } });
         await record(deps, ctx, { kind: 'final_cover', file: cover, inputHash: hash });
+        await removeIntermediates(dir);
         return { status: 'done', note: `1080×1920 · ${formatClock(probe.durationS)} · ${src.sound.cues.length} efekt · müzik: ${src.sound.music?.title ?? 'yok'}` };
       } catch (e) {
         if (e instanceof RenderError && e.kind !== 'aborted') return { status: 'failed', error: e.message, retry: false };
@@ -189,4 +195,64 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
       }
     },
   };
+}
+
+/** Plan E15: gates decide (needs_human until the fixer of M5b); the D6/D7 checks that cost points go into the note. */
+export function decideQc(r: QcReport, musicTitle: string | null): StepOutcome {
+  if (!r.pass) return { status: 'needs_human', reason: `Otomatik kontrol geçmedi: ${qcFailures(r).join('; ')}.` };
+  const soft = r.music.filter((c) => !c.pass && QC_CHECKS[c.id].points > 0).map((c) => `${QC_CHECKS[c.id].label_tr} ${c.value}`);
+  return {
+    status: 'done',
+    note: `G1 ✓ G5 ✓ G6 ✓ · D6 ${r.scores.D6}/12 · D7 ${r.scores.D7}/5${soft.length ? ` · ${soft.join(', ')}` : ''}${musicTitle ? '' : ' · müzik defterinde izinli parça yok (bin/assets.mjs add)'}`,
+  };
+}
+
+/** Spec §7.1 step 9 / §8.2 AUTO + MANIFEST: qc_probe on both variants, layout.json for G6, the report and the decision. heavy_cpu. */
+export function qcExecutor(deps: StepDeps): StepExecutor {
+  return {
+    key: 'qc',
+    resource: 'heavy_cpu',
+    async inputHash(ctx) {
+      const [m, t] = await Promise.all(['final_video_music', 'final_video_tiktok'].map((k) => latestArtifact(deps.pool, ctx.runId, k)));
+      return sha({ step: 'qc', music: m?.blobSha ?? null, tiktok: t?.blobSha ?? null, rubric: RUBRIC_VERSION });
+    },
+    async run(ctx, hash) {
+      const scene = deps.scene;
+      if (!scene) return { status: 'failed', error: 'render yapılandırılmadı', retry: false };
+      const music = await latestArtifact(deps.pool, ctx.runId, 'final_video_music');
+      // The variant, cover and layout of the same compose (same input hash), not merely the latest rows.
+      const [tiktok, cover, layout] = music?.inputHash
+        ? await Promise.all(['final_video_tiktok', 'final_cover', 'layout'].map((kind) => findArtifact(deps.pool, { runId: ctx.runId, kind, inputHash: music.inputHash! })))
+        : [null, null, null];
+      if (!music?.blobSha || !tiktok?.blobSha) return { status: 'failed', error: 'denetlenecek final video yok', retry: false };
+      // §8.3: the frames this final was composed from must still be the current scene's (the compose hash itself also moves with the
+      // asset ledger, which is not staleness).
+      const current = await finalSource(deps, ctx.runId);
+      if (!current || (music.meta as { framesHash?: string } | null)?.framesHash !== current.hash) return { status: 'failed', error: 'final video güncel sahneyle uyuşmuyor (bayat artefakt, §8.3)', retry: false };
+      const musicTitle = (music.meta as { music?: string | null } | null)?.music ?? null;
+      const stored = await findArtifact(deps.pool, { runId: ctx.runId, kind: 'qc_report', inputHash: hash });
+      const replay = stored ? QcReportSchema.safeParse(stored.content) : null;
+      if (replay?.success) return decideQc(replay.data, musicTitle);
+      const file = async (s: string) => join(deps.dataDir, (await getBlob(deps.pool, s))!.path);
+      ctx.status('running', 'ölçülüyor: görüntü ve ses');
+      const m = await probeQc(scene.ffmpeg, await file(music.blobSha), { edges: !layout, signal: ctx.signal });
+      ctx.progress(60, 'deterministic');
+      const t = await probeQc(scene.ffmpeg, await file(tiktok.blobSha), { video: false, signal: ctx.signal });
+      ctx.status('running', null);
+      const issues = layout ? layoutIssues(layout.content as LayoutManifest) : null;
+      const report = buildQcReport(evaluateQc(m, { variant: 'music', layoutIssues: issues, coverOk: !!cover?.blobSha }), evaluateQc(t, { variant: 'tiktok' }));
+      const dir = join(ctx.runDir, 'final', 'qc', hash.slice(0, 16));
+      await mkdir(dir, { recursive: true });
+      const qcFile = join(dir, 'qc.json');
+      await writeFile(qcFile, JSON.stringify({ report, measure: { music: m, tiktok: t } }, null, 2));
+      await record(deps, ctx, { kind: 'qc_report', file: qcFile, content: report, inputHash: hash, meta: { pass: report.pass } });
+      return decideQc(report, musicTitle);
+    },
+  };
+}
+
+/** Review #1: the compose intermediates are in the blob store or no longer needed; layout.json and audio_plan.json stay (small). */
+async function removeIntermediates(dir: string): Promise<void> {
+  const keep = new Set(['layout.json', 'audio_plan.json']);
+  for (const f of await readdir(dir)) if (!keep.has(f)) await rm(join(dir, f), { force: true });
 }

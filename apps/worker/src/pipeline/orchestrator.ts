@@ -51,9 +51,14 @@ const NOT_YET: Partial<Record<StepKey, string>> = {
   storyboard: 'Sahne kurulumu ve taslak render bu sürümde henüz yok.',
   build: 'Taslak render bu sürümde henüz yok.',
   draft_render: 'Taslak incelemesi bu sürümde henüz yok.',
+  final_render: 'Birleştirme ve otomatik kontrol bu sürümde henüz yok.',
+  compose: 'Otomatik kontrol bu sürümde henüz yok.',
 };
-/** M4 ends with a reviewed draft (spec §17: S2 with the draft instead of the final); final render, sound and review gates are M5. */
-const DONE_NOTE: Partial<Record<StepKey, string>> = { draft_review: 'Taslak hazır ve incelendi. Final render bu sürümde henüz yok.' };
+/** M5a ends with the automatic gates (K13: "yayına hazır" needs the M5b review); a dev run may end at the draft review. */
+const DONE_NOTE: Partial<Record<StepKey, string>> = {
+  draft_review: 'Taslak hazır ve incelendi. Final render bu sürümde henüz yok.',
+  qc: 'Final video hazır ve otomatik kontrolden geçti. İnceleme ve "yayına hazır" kararı M5b\'de.',
+};
 export const PIPELINE_INCOMPLETE_NOTE = (last: StepKey) => DONE_NOTE[last] ?? `${STEP_LABELS[last]} hazır. ${NOT_YET[last] ?? 'Sonraki adımlar bu sürümde henüz yok.'}`;
 /** Plan C25: why a run waits in the queue (no Turkish case suffix on the time). */
 export const LIMIT_NOTE = (resumeAt: string | null) =>

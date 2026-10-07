@@ -41,8 +41,20 @@ describe('produce', () => {
     const v = (await app.inject({ url: `/api/videos/${videoId}`, headers: H })).json();
     expect(v.video).toMatchObject({ id: videoId, productName: 'Tükenmez kalem', status: 'queued', audioMode: 'silent' });
     expect(v.runs[0]).toMatchObject({ id: runId, status: 'queued' });
-    expect(v.runs[0].steps.map((s: { key: string }) => s.key)).toEqual(['research', 'storyboard', 'build', 'draft_render', 'draft_review']);
+    expect(v.runs[0].steps.map((s: { key: string }) => s.key)).toEqual(['research', 'storyboard', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc']);
     expect((await app.inject({ url: '/api/videos', headers: H })).json()[0].id).toBe(videoId);
+    // `until` (plan end for older smoke scenarios) only with the dev endpoints on.
+    const early = { productName: 'Erken kalem', audioMode: 'silent', until: 'draft_review' };
+    expect((await produce(early)).json()).toEqual({ error: 'until yalnızca geliştirici kipinde' });
+    const dev = await buildApp({ pool: t.pool, hub, config: { ...loadConfig(), webDist: '/nonexistent', devEndpoints: true } });
+    try {
+      const d = await dev.inject({ method: 'POST', url: '/api/videos', headers: H, payload: early });
+      expect(d.statusCode).toBe(202);
+      const run = (await dev.inject({ url: `/api/runs/${d.json().runId}`, headers: H })).json();
+      expect(run.steps.map((s: { key: string }) => s.key)).toEqual(['research', 'storyboard', 'build', 'draft_render', 'draft_review']);
+    } finally {
+      await dev.close();
+    }
   });
 
   it('rejects bad input with a Turkish message and unknown ids with 404', async () => {

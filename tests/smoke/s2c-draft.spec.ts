@@ -7,7 +7,7 @@ const sessionsOf = async (request: APIRequestContext, runId: string) =>
 
 test('S2: product → draft → review; the draft MP4 streams with Range and plays; the library shows cover and length and opens it in the player', async ({ page, request }) => {
   test.setTimeout(150_000);
-  const { videoId, runId } = await produceVia(request, 'Tükenmez kalem', 'silent');
+  const { videoId, runId } = await produceVia(request, 'Tükenmez kalem', 'silent', 'draft_review');
   await page.goto(`/?video=${videoId}`);
   const header = page.getByTestId('video-header');
   await expect(header).toHaveAttribute('data-status', 'needs_human', { timeout: 90_000 });
@@ -47,7 +47,7 @@ test('S2: product → draft → review; the draft MP4 streams with Range and pla
 
 test('S2: a flawed draft goes back to build once ("Taslak turu 1/2"), the same builder session fixes it, the second review passes, progress never goes back', async ({ page, request }) => {
   test.setTimeout(150_000);
-  const { videoId, runId } = await produceVia(request, 'Kusurlu kalem', 'silent');
+  const { videoId, runId } = await produceVia(request, 'Kusurlu kalem', 'silent', 'draft_review');
   await page.goto(`/?video=${videoId}`);
   const header = page.getByTestId('video-header');
   const bar = header.getByRole('progressbar', { name: 'Genel ilerleme' });

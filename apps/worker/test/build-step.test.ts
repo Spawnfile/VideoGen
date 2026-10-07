@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { producePlan, type AudioMode } from '@videogen/shared';
+import { IMPLEMENTED_STEPS, producePlan, type AudioMode } from '@videogen/shared';
 import { createProduceRun, getBlob, getRunView, getVideoView, insertArtifact, insertSession, listArtifacts, listRunSteps, setChannelStyle } from '@videogen/db';
 import { FakeClaudeDriver, SpecStore, type ClaudeDriver, type FakeScript, type SessionSpec } from '@videogen/claude';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
@@ -15,6 +15,9 @@ import type { StepContext } from '../src/pipeline/types.ts';
 import { ARTIFACT_VALIDATOR } from '../src/pipeline/validator.ts';
 import { FakeRenderDriver, type Capability } from '../src/render/driver.ts';
 import { ResourceLocks } from '../src/render/locks.ts';
+
+/** The M4 plan (research … draft_review): these end-to-end tests are about the draft loop and keep the M4 notes. */
+const M4_STEPS = IMPLEMENTED_STEPS.slice(0, 5);
 
 let t: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => { t = await createTestDb(); });
@@ -152,7 +155,7 @@ describe('pipeline end to end with build (fake Claude and fake render)', () => {
     const o = new Orchestrator({ pool: t.pool, dataDir: deps.dataDir, executors: pipelineExecutors(deps), tickMs: 20, timeTickMs: 50 });
     o.start();
     cleanups.push(() => o.stop());
-    const r = await createProduceRun(t.pool, { productName: 'Tükenmez kalem', audioMode: 'silent', plan: producePlan('silent') });
+    const r = await createProduceRun(t.pool, { productName: 'Tükenmez kalem', audioMode: 'silent', plan: producePlan('silent', M4_STEPS) });
     await o.startRun(r.runId);
     await vi.waitFor(async () => expect((await getRunView(t.pool, r.runId))!.status).toBe('done'), { timeout: 15_000 });
     const run = (await getRunView(t.pool, r.runId))!;

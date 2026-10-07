@@ -66,7 +66,7 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
 
   registerAgentRoutes(app, deps);
   registerChatRoutes(app, deps);
-  registerVideoRoutes(app, deps);
+  registerVideoRoutes(app, { pool: deps.pool, devEndpoints: deps.config.devEndpoints });
   // One @fastify/static instance owns reply.sendFile (Range, ETag); it serves no route of its own. The SPA instance below adds none.
   await app.register(fastifyStatic, { root: deps.config.dataDir, serve: false });
   registerMediaRoutes(app, { pool: deps.pool, dataDir: deps.config.dataDir });

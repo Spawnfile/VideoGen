@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { producePlan, type Review } from '@videogen/shared';
+import { IMPLEMENTED_STEPS, producePlan, type Review } from '@videogen/shared';
 import { createProduceRun, getBlob, getRunView, getVideoView, insertArtifact, listArtifacts, listRunSteps } from '@videogen/db';
 import { FakeClaudeDriver, SpecStore, type ClaudeDriver, type FakeScript, type SessionSpec } from '@videogen/claude';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
@@ -17,6 +17,9 @@ import type { StepContext } from '../src/pipeline/types.ts';
 import { ARTIFACT_VALIDATOR } from '../src/pipeline/validator.ts';
 import { FakeRenderDriver } from '../src/render/driver.ts';
 import { ResourceLocks } from '../src/render/locks.ts';
+
+/** The M4 plan (research … draft_review): these end-to-end tests are about the draft loop and keep the M4 notes. */
+const M4_STEPS = IMPLEMENTED_STEPS.slice(0, 5);
 
 let t: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => { t = await createTestDb(); });
@@ -134,7 +137,7 @@ describe('draft_review step', () => {
     o.start();
     cleanups.push(() => o.stop());
     const go = async (name: string) => {
-      const r = await createProduceRun(t.pool, { productName: name, audioMode: 'silent', plan: producePlan('silent') });
+      const r = await createProduceRun(t.pool, { productName: name, audioMode: 'silent', plan: producePlan('silent', M4_STEPS) });
       await o.startRun(r.runId);
       await vi.waitFor(async () => expect(['done', 'needs_human', 'failed']).toContain((await getRunView(t.pool, r.runId))!.status), { timeout: 30_000, interval: 100 });
       return { r, run: (await getRunView(t.pool, r.runId))!, video: (await getVideoView(t.pool, r.videoId))! };

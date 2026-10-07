@@ -58,6 +58,8 @@ const env = {
   VG_STUCK_AFTER_MS: '6000',
   // M4b: committed pen build outputs and ffmpeg test stills instead of Blender/bubblewrap/GPU (spec §16.1).
   VG_RENDER_DRIVER: 'fake',
+  // The delivery encode of the fake final takes seconds instead of minutes (plan E17).
+  VG_ENCODE_PRESET: 'ultrafast',
   VG_FFMPEG: spawnSync('bash', ['-lc', 'command -v ffmpeg']).stdout?.toString().trim() || 'ffmpeg',
 };
 for (const k of ['ANTHROPIC_API_KEY', 'CLAUDECODE']) delete env[k];
