@@ -14,6 +14,8 @@ import { errorTag } from '../errors.ts';
 import { removeRunFrames } from '../render/frames.ts';
 import { withResource } from '../render/gate.ts';
 import type { LockedResource, ResourceLocks } from '../render/locks.ts';
+import { settleBest } from './finalize-step.ts';
+import { LIMIT_NOTE } from './notes.ts';
 import { precheck, type Probe } from './resources.ts';
 import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
 
@@ -58,12 +60,10 @@ const NOT_YET: Partial<Record<StepKey, string>> = {
 const DONE_NOTE: Partial<Record<StepKey, string>> = {
   draft_review: 'Taslak hazır ve incelendi. Final render bu sürümde henüz yok.',
   review: 'Final video incelendi. Sonlandırma bu sürümde henüz yok.',
-  qc: 'Final video hazır ve otomatik kontrolden geçti. İnceleme ve "yayına hazır" kararı M5b\'de.',
+  qc: 'Final video hazır ve otomatik kontrolden geçti. İnceleme bu planda yok (geliştirici kipi).',
 };
 export const PIPELINE_INCOMPLETE_NOTE = (last: StepKey) => DONE_NOTE[last] ?? `${STEP_LABELS[last]} hazır. ${NOT_YET[last] ?? 'Sonraki adımlar bu sürümde henüz yok.'}`;
-/** Plan C25: why a run waits in the queue (no Turkish case suffix on the time). */
-export const LIMIT_NOTE = (resumeAt: string | null) =>
-  `Kullanım sınırı yakın: üretim sınır açılınca kendiliğinden başlar${resumeAt ? ` (açılış ${new Date(resumeAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })})` : ''}.`;
+export { LIMIT_NOTE };
 
 interface Running { jobId: number; stepId: string; runId: string; resource: Resource; abort: AbortController }
 
@@ -402,6 +402,8 @@ export class Orchestrator {
       await updateVideo(pool, ctx.videoId, { status, statusNote: reason ?? null });
     }
     if (status !== 'needs_human') await this.recompute(runId, complete);
+    // Plan I6: a run that stops after a final review round (even before finalize) still shows its best round in the library.
+    if (status !== 'done') await settleBest(pool, runId).catch((e) => this.log(`settleBest ${runId} failed (${errorTag(e)})`));
     await this.audit(`run.${status}`, runId, { data: reason ? { reason } : undefined });
     await this.cleanupFrames(runId);
     await this.publish(runId);

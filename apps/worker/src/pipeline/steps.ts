@@ -20,7 +20,9 @@ import { RenderError, type BuildFiles } from '../render/driver.ts';
 import { contactSheet, draftProbeErrors, extractFrame, probeVideo } from '../render/ffmpeg.ts';
 import type { ReviewTargets } from './review-tools.ts';
 import { causeKey, reworkBuildPrompt, reworkStoryboardPrompt, roundCause, roundFindings } from './fix-round.ts';
-import type { FixerRun } from './review-step.ts';
+import { runFixer } from './fixer.ts';
+import { finalizeExecutor } from './finalize-step.ts';
+import { reviewExecutor, type FixerRun } from './review-step.ts';
 import { runStructured } from './agent-step.ts';
 import { composeExecutor, finalRenderExecutor, qcExecutor } from './final-steps.ts';
 import { buildScene, previewScene, type SceneBuild, type SceneDeps } from './scene-tools.ts';
@@ -493,5 +495,7 @@ export function pipelineExecutors(deps: StepDeps): Partial<Record<StepKey, StepE
     research: researchExecutor(deps), storyboard: storyboardExecutor(deps), build: buildExecutor(deps),
     draft_render: draftRenderExecutor(deps), draft_review: draftReviewExecutor(deps),
     final_render: finalRenderExecutor(deps), compose: composeExecutor(deps), qc: qcExecutor(deps),
+    // T8: `fixer: null` means no fixer; unset means the real one.
+    review: reviewExecutor({ ...deps, fixer: deps.fixer === undefined ? runFixer : deps.fixer }), finalize: finalizeExecutor(deps),
   };
 }

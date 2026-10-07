@@ -1,15 +1,14 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { QcReportSchema, producePlan, type QcReport, type StepKey } from '@videogen/shared';
-import { createProduceRun, getRunView, getVideoView, insertArtifact, latestArtifact } from '@videogen/db';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { QcReportSchema, formatScore, producePlan, type QcReport, type StepKey } from '@videogen/shared';
+import { getRunView, getVideoView, insertArtifact, latestArtifact } from '@videogen/db';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
 import { decideQc, qcExecutor } from '../src/pipeline/final-steps.ts';
-import { Orchestrator, PIPELINE_INCOMPLETE_NOTE } from '../src/pipeline/orchestrator.ts';
-import { pipelineExecutors } from '../src/pipeline/steps.ts';
 import { importAsset } from '../src/assets.ts';
 import { finalHarness } from './final-helpers.ts';
+import { runEndToEnd } from './e2e-helpers.ts';
 
 let t: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => { t = await createTestDb(); });
@@ -64,22 +63,25 @@ describe('qc step and the M5a plan', () => {
     await h.stop();
   }, 240_000);
 
-  it('end to end (orchestrator, fake drivers): produce → … → qc; the video waits for M5b with the qc note; frames are deleted; progress is monotone', async () => {
-    const h = finalHarness(t);
-    expect(producePlan('silent').map((s) => s.key)).toEqual(['research', 'storyboard', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc']);
-    const o = new Orchestrator({ pool: t.pool, dataDir: h.dataDir, executors: pipelineExecutors(h.deps), tickMs: 20, retryDelayMs: 10, waitDelayMs: 40, timeTickMs: 30 });
-    o.start();
-    const run = await createProduceRun(t.pool, { productName: 'Tükenmez kalem uçtan uca', audioMode: 'silent', plan: producePlan('silent') });
-    await o.startRun(run.runId);
-    await vi.waitFor(async () => expect((await getRunView(t.pool, run.runId))!.status).toBe('done'), { timeout: 200_000, interval: 500 });
-    o.stop();
-    expect(await getVideoView(t.pool, run.videoId)).toMatchObject({ status: 'needs_human', statusNote: PIPELINE_INCOMPLETE_NOTE('qc') });
-    expect(PIPELINE_INCOMPLETE_NOTE('qc')).toBe('Final video hazır ve otomatik kontrolden geçti. İnceleme ve "yayına hazır" kararı M5b\'de.');
+  const endToEnd = (name: string) => runEndToEnd(t, name);
+  const starts = async (runId: string, key: string) => (await t.pool.query("SELECT count(*)::int AS n FROM audit_log WHERE action = 'step.started' AND run_id = $1 AND data->>'key' = $2", [runId, key])).rows[0].n as number;
+
+  it('end to end (orchestrator, fake drivers): produce → … → review → finalize; the video is ready with its score; progress reaches 100 only at the end; frames deleted once', async () => {
+    expect(producePlan('silent').map((s) => s.key)).toEqual(['research', 'storyboard', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc', 'review', 'finalize']);
+    const { run } = await endToEnd('Tükenmez kalem uçtan uca');
+    const video = (await getVideoView(t.pool, run.videoId))!;
+    expect(video).toMatchObject({ status: 'ready', statusNote: null });
+    expect(video.score).toBeGreaterThanOrEqual(80);
     const steps = (await getRunView(t.pool, run.runId))!.steps;
     expect(steps.map((s) => [s.key, s.status])).toEqual(steps.map((s) => [s.key, 'done']));
+    expect(steps.find((s) => s.key === 'finalize')!.note).toBe(`Yayına hazır · ${formatScore(video.score!)} puan`);
+    expect((await latestArtifact(t.pool, run.runId, 'finish'))!.content).toMatchObject({ verdict: 'ready', round: 0, stop: null });
     expect((await t.pool.query("SELECT count(*)::int AS n FROM audit_log WHERE action = 'frames.deleted' AND run_id = $1", [run.runId])).rows[0].n).toBe(1);
-    const series = (await t.pool.query("SELECT payload FROM ui_events WHERE topic = 'runs' AND type = 'run.updated' AND payload->>'id' = $1 ORDER BY id", [run.runId])).rows.map((x) => x.payload.progress as number);
+    const events = (await t.pool.query("SELECT payload FROM ui_events WHERE topic = 'runs' AND type = 'run.updated' AND payload->>'id' = $1 ORDER BY id", [run.runId])).rows.map((x) => x.payload as { progress: number; status: string });
+    const series = events.map((x) => x.progress);
     expect(series).toEqual([...series].sort((a, b) => a - b));
-    await h.stop();
+    expect(events.filter((x) => x.progress >= 100).every((x) => x.status === 'done')).toBe(true);
+    expect(series.at(-1)).toBe(100);
   }, 240_000);
+
 });

@@ -3,10 +3,9 @@ import { formatClock, IMPLEMENTED_STEPS, normalizeProductName, producePlan, STEP
 
 describe('produce plan', () => {
   it('keeps only implemented steps, drops voice in silent mode and rescales weights to 100', () => {
-    expect(IMPLEMENTED_STEPS).toEqual(['research', 'storyboard', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc']);
+    expect(IMPLEMENTED_STEPS).toEqual(['research', 'storyboard', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc', 'review', 'finalize']);
     expect(producePlan('silent')).toEqual([
-      { key: 'research', weight: 10 }, { key: 'storyboard', weight: 8.75 }, { key: 'build', weight: 22.5 }, { key: 'draft_render', weight: 5 }, { key: 'draft_review', weight: 6.25 },
-      { key: 'final_render', weight: 32.5 }, { key: 'compose', weight: 12.5 }, { key: 'qc', weight: 2.5 },
+      { key: 'research', weight: 8.42 }, { key: 'storyboard', weight: 7.37 }, { key: 'build', weight: 18.95 }, { key: 'draft_render', weight: 4.21 }, { key: 'draft_review', weight: 5.26 }, { key: 'final_render', weight: 27.37 }, { key: 'compose', weight: 10.53 }, { key: 'qc', weight: 2.11 }, { key: 'review', weight: 12.63 }, { key: 'finalize', weight: 3.16 },
     ]);
     const all = producePlan('vo', STEP_KEYS);
     expect(all.map((s) => s.key)).toEqual([...STEP_KEYS]);

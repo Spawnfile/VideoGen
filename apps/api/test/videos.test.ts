@@ -41,7 +41,7 @@ describe('produce', () => {
     const v = (await app.inject({ url: `/api/videos/${videoId}`, headers: H })).json();
     expect(v.video).toMatchObject({ id: videoId, productName: 'Tükenmez kalem', status: 'queued', audioMode: 'silent' });
     expect(v.runs[0]).toMatchObject({ id: runId, status: 'queued' });
-    expect(v.runs[0].steps.map((s: { key: string }) => s.key)).toEqual(['research', 'storyboard', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc']);
+    expect(v.runs[0].steps.map((s: { key: string }) => s.key)).toEqual(['research', 'storyboard', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc', 'review', 'finalize']);
     expect((await app.inject({ url: '/api/videos', headers: H })).json()[0].id).toBe(videoId);
     // `until` (plan end for older smoke scenarios) only with the dev endpoints on.
     const early = { productName: 'Erken kalem', audioMode: 'silent', until: 'draft_review' };

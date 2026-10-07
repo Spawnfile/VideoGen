@@ -16,7 +16,7 @@ import { RESUME_PROMPT } from '../agents/manager.ts';
 import { contactSheet, extractFrame, probeVideo } from '../render/ffmpeg.ts';
 import { runStructured } from './agent-step.ts';
 import { currentEvents, finalSource, type FinalFramesMeta } from './final-steps.ts';
-import { LIMIT_NOTE } from './orchestrator.ts';
+import { LIMIT_NOTE } from './notes.ts';
 import { manifestFacts, numericGaps, qcFacts, recentHooks, retentionTimes, webCheckTargets, type WebTarget } from './review-inputs.ts';
 import { factsPrompt, retentionPrompt, visualPrompt } from './review-prompts.ts';
 import { labelOf } from './fix-round.ts';

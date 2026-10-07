@@ -26,11 +26,13 @@ const fx = (n: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '
 export function finalHarness(t: { pool: pg.Pool }) {
   const dataDir = mkdtempSync(join(tmpdir(), 'vg-final-h-'));
   const scene: SceneDeps = { pool: t.pool, render: new FakeRenderDriver({ ffmpeg: FFMPEG, delayMs: 1 }), locks: new ResourceLocks(), ffmpeg: FFMPEG, capability: () => ({ ok: true }), waitMs: 10, encodePreset: 'ultrafast' };
+  const reviews = new ReviewTargets();
   const manager = new SessionManager({
     pool: t.pool, dataDir, driver: new FakeClaudeDriver({ speed: 0 }), pluginDir: resolve(import.meta.dirname, '../../../claude-plugin'), sampleEveryMs: 50, pumpRetryMs: 30,
-    validator: ARTIFACT_VALIDATOR, memAvailableMb: () => 8000, runner: { flushMs: 5, resultWaitMs: 50, cancelGraceMs: 50, killGraceMs: 50 }, tools: sceneToolHost(scene),
+    validator: ARTIFACT_VALIDATOR, memAvailableMb: () => 8000, runner: { flushMs: 5, resultWaitMs: 50, cancelGraceMs: 50, killGraceMs: 50 },
+    tools: toolHosts(sceneToolHost(scene), reviewToolHost({ ffmpeg: FFMPEG, targets: reviews })),
   });
-  const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene };
+  const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene, reviews };
   async function run(name: string, through: StepKey[]) {
     const r = await createProduceRun(t.pool, { productName: name, audioMode: 'silent', plan: producePlan('silent') });
     const runDir = join(dataDir, 'runs', r.runId);
