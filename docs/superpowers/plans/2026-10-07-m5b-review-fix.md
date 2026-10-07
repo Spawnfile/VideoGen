@@ -19,8 +19,8 @@ Stüdyo'da üç reviewer kartı (boyut çubukları, kapı rozetleri, kanıt kare
 **Architecture:**
 - **Fixer `review` adımının içinde koşar** (yeni `StepKey` yok; spec §7.1 tablosu korunur). Döngü, M4c'nin `rewind` mekanizmasının final sürümüdür: `StepOutcome.rewind{loop:'final'}` → `rewindForReview(counter:'fix_round')`. Bu, taslak `round`'una dokunmaz.
 - **Kapsamı orchestrator hesaplar** (`fixScope`, spec §7.2 tablosu):
-  - Yalnızca metin (kanca, vuruş yazısı, SFX ipucu, parça etiketi): `compose → qc → review`. Final kareler yeniden kullanılır; final hash'i `name_tr`'ye duyarsızdır.
-  - Geometri, kamera ya da zamanlama: `build → … → review`. Build adımı bu turda ajansız, güvenilir build yapar.
+  - Storyboard alanı ya da parça etiketi (`name_tr`) değişikliği: `compose → qc → review`. Final kareler yeniden kullanılır; final hash'i `name_tr`'ye duyarsızdır.
+  - Sahne render alanı ya da `product.py` değişikliği (geometri, kamera, malzeme): `build → … → review`. Build adımı bu turda ajansız, güvenilir build yapar.
   - Puan < 70: `storyboard → … → review`.
 - **Karar deterministik** (K13 + devralınan D6): `panelScore` + `finalVerdict` saf fonksiyonlardır (`packages/shared`). Reviewer boyut puanı yazmaz.
 - **Kayıt:** `reviews` ve `findings` tabloları (migration 0008, §11.1) + replay için artefaktlar (`final_review_*`, `final_verdict`, `fix_report`).
@@ -124,28 +124,28 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
 | F2 | **Fixer `review` adımının içinde** koşar. Ayrı bir `fix` adımı yok | Spec §7.1 tablosu ve `STEP_KEYS` korunur. Replay kayıtlı artefaktlarla yapılır | Adım iki iş yapar; kartta "İnceleme" adı altında fixer görünür (not satırı ayırır) |
 | F3 | **`steps.fix_round`** ayrı sayaçtır; final `rewind` onu artırır, taslak `round`'una dokunmaz. Taslak dönüşleri run başına toplam ≤ 2 kalır (rework turunda sıfırlanmaz). Bu yüzden bir rework turunda taslak bütçesi tükenmişse ilk taslak "revise" kararı `needs_human` olur. Başlık: `fix_round > 0` ise "Düzeltme turu k/3 · %N", değilse taslak etiketi | Kullanıcı yönergesi (ayrı sayım); `rewindForReview`'ın canlılık koşulu artırılan sayaca bakar | Rework'te opus build bütçesi daha sıkı (bilinçli; 5 sa penceresi) |
 | F4 | **Deterministik karar.** Reviewer her kontrol için `{pass, score 0–1, evidence, fix_hint}` verir. Boyut puanı = Σ(puan × score); kapı = o kapının kontrollerinin hepsi geçti. Reviewer `dimension_scores` yazmaz. Sözleşme: pass ⇔ score ≥ 0,5; pass:false ise kanıt ve ipucu zorunlu. Önem derecesi yalnızca fixer sırası ve arayüz içindir. **Spec notu §7.4** | Devralınan D6 (M4c C4); K13 yalnızca kapı, toplam ve boyut tabanı der | "Geçmedi" bir kontrol varken K13 sağlanabilir: `ready` + açık küçük bulgular (finalize notu söyler) |
-| F5 | **Kontroller (`final@1`, 30 adet).** Toplam: LLM 83 + D6 12 + D7 5 = 100. Puansız kapı kontrolleri: G3, G5 (görsel), G2 (doğruluk). G4 kuralla: seslendirmesizde geçer. G1, G5 (flaş), G6 qc'den gelir | §8.1 ağırlıkları, §8.2 sahipliği | Puan dağılımı türetilmiştir; T12 gerçek koşudan sonra gözden geçirilir (§8.4) |
+| F5 | **Kontroller (`final@1`, 30 adet).** Toplam: LLM 83 + D6 12 + D7 5 = 100. Puansız kapı kontrolleri: G3, G5 (görsel), G2 (doğruluk). G4 M5b'de her zaman geçer: klon ses yok, klon kuralı M5c'de gelir. `vo` modlu bir video da G4 yüzünden düşmez. G1, G5 (flaş), G6 qc'den gelir | §8.1 ağırlıkları, §8.2 sahipliği | Puan dağılımı türetilmiştir; T12 gerçek koşudan sonra gözden geçirilir (§8.4) |
 | F6 | **AUTO kapısı düşerse** (§8.2): Plan `review` içeriyorsa `qc` `done` döner ("… İnceleme düzeltmeye gönderecek."). `review` LLM çalıştırmaz; tur özeti (toplam `null`) kaydedilir, karar `fix`, fixer'a qc bulguları gider. Değerlendirilmeyen LLM kontrolleri "bilinmiyor" sayılır (geçti sayılmaz). Plan `review` içermiyorsa (geliştirici `until:'qc'`) M5a gibi `needs_human` | §8.2 adım 1; E15 | — |
 | F7 | **Sınırda ikinci görsel review:** kapılar geçmiş ve toplam 78–82 ise bir kez, taze ve bağımsız bir `reviewer_visual` oturumu (`seq 2`). Kontrol başına skor ortalaması alınır; pass = ortalama ≥ 0,5; kapı kontrolleri için ikisinin de geçmesi gerekir | §8.3 | Ek opus oturumu (yalnızca sınırda) |
 | F8 | **Fan-out kapısı:** üç oturum başlamadan önce `UsageGate` sorulur; kapalıysa adım `waiting_limit` + not, açılınca üçü birden başlar. Adım durumu: herhangi bir reviewer limit bekliyorsa `waiting_limit`. Adım ilerlemesi üç oturumun ortalaması × 0,8 (son %20 toplam hesap ve fixer) | §6.4; P10; grilling F8 | — |
 | F9 | **Kare bütçesi:** adım 4×3 kontakt sayfası hazırlar (final müzikli varyant, 12 kare). Ek olarak rol + tur + sıra başına 12 tek kare (`extract_frames`, 1080×1920'den). İzlenme reviewer'ına 4×2 "kanca sayfası" (0, 0,5, 1, 2, 3 sn, `rehook_at`, `payoff_at`, son kare). `run_qc` kayıtlı `qc_report`'u döner (yeniden ölçmez). **Spec notu §8.2:** "saniyede 1 kare" yerine 12 + 12 + 8 (maliyet) | Devralınan C22; §6.3 | Görsel reviewer kısa bir kusuru kaçırabilir |
-| F10 | **Web doğrulaması** (`reviewer_facts`):<br>• Yalnızca videoda kullanılan iddialar (storyboard `claim_ids`).<br>• Hedefleri adım belirler: her sayısal iddianın kuralı sağlayan kaynakları (1 birincil, yoksa 2 bağımsız) + kalan (iddia, URL) çiftlerinden `sha(runId:fixRound)` tohumlu %30 (yukarı yuvarlanır); en çok 16.<br>• Reviewer her hedef için `web_checks{claim_id, url, reachable, supports, note_tr?}` döndürmek zorundadır.<br>• "Desteksiz" yalnızca ulaşılabilen bir kaynağın iddiayı taşımadığı ve hiçbir ulaşılabilen kaynağın desteklemediği durumdur. Erişilemeyen sayfa tek başına G2'yi düşürmez; araştırma alıntısı geçerli kalır.<br>• `reviewer_facts.maxTurns` 25 → 40 (spec notu §6.2) | §8.2 WEB; grilling F10 (ağ gürültüsü regresyon üretmesin) | Tohumlu örneklem kötü bir kaynağı kaçırabilir; sayısal iddialar her zaman denetlenir |
-| F11 | **Kapsamı adım hesaplar** (`fixScope`), fixer'ın beyanı yalnızca iddiadır. Alan grupları:<br>• `product.py` sha'sı, sahnenin render alanları (`name_tr` ve `recipe.note` hariç) ya da storyboard yapısı (zaman, parça, kamera, iddia, süre, kanca kalıbı, rehook/payoff) değiştiyse → **build**.<br>• Yalnızca overlay/SFX metni (`hook.text_tr`, `beats[].onscreen_text`, `beats[].sfx_cues`) ya da `parts[].name_tr` değiştiyse → **compose**.<br>• `cta`, `loop_strategy`, `version` hiçbir şey render etmez → **none**.<br>• Fixer `research`'ü değiştiremez: değiştirirse aynı oturuma hata döner; G2 düzeltmesi ekrandaki iddiayı çıkarmak ya da yeniden yazmaktır (compose).<br>• Beyan `storyboard` ve değişiklik yoksa → rework. Değişiklik yok ve beyan başka → dur (`unchanged`). Hesaplanan kapsam beyandan farklıysa hesaplanan kazanır (audit `fix.scope`).<br>`finalSource` hash'i `sceneRender(scene)` sha'sını kullanır: etiket adı final kareleri bayatlatmaz | §7.2 tablosu; grilling F11 (`cta` boşuna bir tur yakmasın) | Overlay'in okuduğu alan değişir de liste güncellenmezse fark kaçar → `props.ts:39–41` ile `sound.ts:28` T2 testinde sabitlenir |
-| F12 | **Build kapsamı:**<br>• Fixer kendi oturumunda `build_scene` + `render_preview_stills` ile doğrular. `checkAsync`: `product.py` ya da sahne render alanı değiştiyse güvenilir `buildScene` koşar; hatalar aynı oturuma döner (≤ 2).<br>• Rewind aralığı `build…review`. Build adımı bu turda **ajansızdır**: SpecStore'daki son sahne + `product.py` → `buildScene` + önizleme + artefaktlar.<br>• `draft_render` koşar; `draft_review` "final düzeltme turu: taslak incelemesi atlandı (§7.2)" notuyla `done` olur.<br>• `final_render` yeni hash'le başlarken run'ın diğer kare klasörlerini siler.<br>• **Rework (< 70):** rewind `storyboard…review`. Storyboard adımı başarısız bulguları çitli veri olarak alır. Build ajanlıdır: builder oturumu yeni storyboard ile sürdürülür.<br>• **Hash'ler:** `storyboard` ve `build` `inputHash`'ine `fixRound` + ilgili `fix_report`/`final_verdict` kimliği girer; aksi halde `reuse` eski çıktıyı döndürürdü | §7.2; grilling F12 (kritik delik) | — |
-| F13 | **Sürümler** (§11.1). Fixer artefaktlarından önce `versions` satırı eklenir (`reason 'fix:pending'`, parent = current, `round` = yeni fix turu): `artifacts.version_id` yabancı anahtar olduğu için. Fixer'ın spec artefaktları bu kimlikle yazılır. `rewindForReview` aynı transaction'da `reason`'ı kesinleştirir ve `videos.current_version_id`'yi değiştirir. Çökmede kalan yetim satır zararsızdır. `finalize` `best_version_id` yazar; `VIDEO_SQL` final ve puanı önce en iyi sürümden alır | Grilling F13 (sıralama) | — |
+| F10 | **Web doğrulaması** (`reviewer_facts`):<br>• Yalnızca videoda kullanılan iddialar (storyboard `claim_ids`).<br>• Hedefleri adım belirler: her sayısal iddianın kuralı sağlayan kaynakları (1 birincil, yoksa 2 bağımsız) + kalan (iddia, URL) çiftlerinden `runId:fixRound` metniyle tohumlanmış %30 (yukarı yuvarlanır); en çok 16.<br>• Reviewer her hedef için `web_checks{claim_id, url, reachable, supports, note_tr?}` döndürmek zorundadır.<br>• "Desteksiz" yalnızca ulaşılabilen bir kaynağın iddiayı taşımadığı ve hiçbir ulaşılabilen kaynağın desteklemediği durumdur. Erişilemeyen sayfa tek başına G2'yi düşürmez; araştırma alıntısı geçerli kalır.<br>• `reviewer_facts.maxTurns` 25 → 40 (spec notu §6.2) | §8.2 WEB; grilling F10 (ağ gürültüsü regresyon üretmesin) | Tohumlu örneklem kötü bir kaynağı kaçırabilir; sayısal iddialar her zaman denetlenir |
+| F11 | **Kapsamı adım hesaplar** (`fixScope`), fixer'ın beyanı yalnızca iddiadır. Alan grupları:<br>• **build** yalnızca iki durumda: `product.py` sha'sı değişti ya da sahnenin render alanları (`sceneRender`: `name_tr` ve `recipe.note` hariç her şey) değişti. Build ve Blender yalnızca sahneyi ve `product.py`'yi okur.<br>• **compose**: storyboard'un herhangi bir alanı (overlay/SFX metni, zaman, parça, iddia, kanca kalıbı, rehook/payoff) ya da `parts[].name_tr` değişti. Bunlar ya compose'un okuduğu props'a gider ya da yalnızca review'u etkiler; compose'un yeniden koşması turun sayılması için de gerekir. Storyboard/sahne tutarlılığını fixer'ın `checkAsync`'i `sceneRefErrors` ile denetler.<br>• `cta`, `loop_strategy`, `version` hiçbir şey render etmez ve review'u değiştirmez → **none**.<br>• Fixer `research`'ü değiştiremez: değiştirirse aynı oturuma hata döner; G2 düzeltmesi ekrandaki iddiayı çıkarmak ya da yeniden yazmaktır (compose).<br>• Beyan `storyboard` ve değişiklik yoksa → rework. Değişiklik yok ve beyan başka → dur (`unchanged`). Hesaplanan kapsam beyandan farklıysa hesaplanan kazanır (audit `fix.scope`).<br>`finalSource` hash'i `sceneRender(scene)` sha'sını kullanır: etiket adı final kareleri bayatlatmaz | §7.2 tablosu; grilling F11 (`cta` boşuna bir tur yakmasın) | Overlay'in okuduğu alan değişir de liste güncellenmezse fark kaçar → `props.ts:39–41` ile `sound.ts:28` T2 testinde sabitlenir |
+| F12 | **Build kapsamı:**<br>• Fixer kendi oturumunda `build_scene` + `render_preview_stills` ile doğrular. `checkAsync`: `product.py` ya da sahne render alanı değiştiyse güvenilir `buildScene` koşar; hatalar aynı oturuma döner (≤ 2).<br>• Rewind aralığı `build…review`. Build adımı bu turda **ajansızdır**: SpecStore'daki son sahne + `product.py` → `buildScene` + önizleme + artefaktlar.<br>• `draft_render` koşar; `draft_review` "final düzeltme turu: taslak incelemesi atlandı (§7.2)" notuyla `done` olur.<br>• `final_render` yeni hash'le başlarken run'ın diğer kare klasörlerini siler.<br>• **Rework (< 70):** rewind `storyboard…review`. Storyboard adımı başarısız bulguları çitli veri olarak alır. Build ajanlıdır: builder oturumu yeni storyboard ile sürdürülür.<br>• **Tur nedeni tek yerden:** `roundCause(pool, runId, fixRound)` → `{kind: 'compose'|'build'|'rework', verdictId, fixReportId, failed}`. Yalnızca `meta.fixRound === fixRound − 1` olan `final_verdict` ve `fix_report` artefaktlarını okur; bu iki artefakt meta'sında `fixRound` taşır. `kind`: verdict `rework` ya da fixer beyanı `storyboard` ve değişiklik yok → `rework`; aksi halde `fix_report.meta.scope`. Storyboard, build ve draft_review adımları modlarını ve `inputHash`'lerini **yalnızca** buradan alır (bağımsız inceleme B1).<br>• **Hash'ler:** `storyboard` ve `build` `inputHash`'ine `fixRound` + `roundCause` kimlikleri girer; aksi halde `reuse` eski çıktıyı döndürürdü | §7.2; grilling F12 (kritik delik) | — |
+| F13 | **Sürümler** (§11.1). Fixer artefaktlarından önce `versions` satırı eklenir (`reason 'fix:pending'`, parent = current, `round` = yeni fix turu): `artifacts.version_id` yabancı anahtar olduğu için. Kimlik deterministiktir: `uuid(sha(runId, 'fix', fixRound))` (v4 biçimine çevrilmiş sha); yeniden başlatma aynı satırı kullanır. Fixer'ın spec artefaktları bu kimlikle yazılır. `rewindForReview` aynı transaction'da `reason`'ı kesinleştirir ve `videos.current_version_id`'yi değiştirir. Çökmede kalan yetim satır zararsızdır. `finalize` `best_version_id` yazar; `VIDEO_SQL` final ve puanı önce en iyi sürümden alır | Grilling F13 (sıralama) | — |
 | F14 | **Regresyon ve salınım:**<br>• Regresyon yalnızca **izlenen** kontrollerde: kapı kontrolleri, ≥ 3 puanlı kontroller ve qc kapı kontrolleri. Önceki turda geçen bir izlenen kontrol düşerse bulgu `regressed` olur ve o tur "regresyonlu" sayılır; `pickBest` regresyonsuz turları tercih eder.<br>• Salınım: aynı kontrolün değerlendirildiği turlarda F→P→F görülürse döngü erken durur.<br>• **Spec notu §7.2:** "iki kez düzelip bozulma" beş review ister; ≤ 3 turda hiç tetiklenmez | §7.2; grilling F14 (0,55 → 0,45 oynaması gürültüdür) | Gerçek bir küçük regresyon en iyi sürüm seçimini etkilemez (bilinçli) |
 | F15 | **`loopAction`** sırası: `ready`; sonra `fixRound ≥ 3` → dur(`limit`); kullanım muhafızı kapalı → dur(`usage`); salınım → dur(`oscillation`); `rework`; `fix`. Dururken `review` `done` döner ve not gerekçeyi söyler; videonun durumuna `finalize` karar verir | §7.2; grilling risk 3 (tek run 5 sa penceresini aşmasın) | Kullanım sınırında video iyi ama hazır olmayan sürümde kalır; kullanıcı chat'ten sürdürür |
-| F16 | **`finalize`** (`heavy_cpu`, deterministik): tur özetlerinden `pickBest` (en yeni `ready`; yoksa regresyonsuz en yüksek toplam; eşitlikte geç tur). `best_version_id` yazılır; `finish` artefaktı `{bestVersionId, round, total, verdict, stop, openFindings}`; kare temizliği (`frames.deleted`). `ready` → `done` ("Yayına hazır · 87 puan · tur 1/3"). Değilse `needs_human` + gerekçe ("3 düzeltme turundan sonra eşik geçilemedi: en iyi sürüm tur 2 (76 puan). Açık bulgular: …"). Orchestrator'ın terminal süpürmesi güvenlik ağı olarak kalır. **M10 reddedildi:** v1'de `failed` bir run sürdürülemez; spec §7.6 dört terminal durumda da siler | §7.1 adım 11; §7.6 | — |
+| F16 | **`finalize`** (`heavy_cpu`, deterministik): tur özetlerinden `pickBest` (en yeni `ready`; yoksa regresyonsuz en yüksek toplam; eşitlikte geç tur). `best_version_id` yazılır; `finish` artefaktı `{bestVersionId, round, total, verdict, stop, openFindings}`; kare temizliği (`frames.deleted`). `ready` → `done` ("Yayına hazır · 87,5 puan"; tur > 0 ise sona " · düzeltme turu k/3"). Puan her yerde bir ondalık + virgül (`formatScore`, T1). `pickBest` toplamı `null` (AUTO düşmüş) turu −1 sayar. Değilse `needs_human` + gerekçe ("3 düzeltme turundan sonra eşik geçilemedi: en iyi sürüm tur 2 (76 puan). Açık bulgular: …"). Orchestrator'ın terminal süpürmesi güvenlik ağı olarak kalır. **M10 reddedildi:** v1'de `failed` bir run sürdürülemez; spec §7.6 dört terminal durumda da siler | §7.1 adım 11; §7.6 | — |
 | F17 | **M9** (çökme sonrası 64/32 örnek karışması): 32 örnekli yeniden deneme önceden hazır kareleri koruduysa `final_frames.meta.mixed64` + audit `render.final_mixed_samples` + adım notu ("ilk N kare 64 örnek"). Yeniden render yok | E5'i kabul eder, izlenebilir kılar | Reviewer kalite farkını fark edebilir; not bunu açıklar |
 | F18 | **İçe aktarılan SFX:** defterde `allowed` bir `sfx` varlığının başlığı ya da etiketi bir SFX adıyla eşleşirse (`matchSfx`) o ad için prosedürel sesin yerine geçer; eşleşenler arasında id sırasına göre ilki seçilir. Lisans kapısı kullanımda yine denetler | M5a ertelemesi | — |
 | F19 | **Fixer modeli (K12):** başarısız kontrollerden biri `visual` ya da `narrative` kategorisindeyse opus/high; yalnızca `factual` (D4/G2) ya da `technical` (qc) ise sonnet/high. Ayarlar'da fixer için model seçilmişse o kazanır (`StartRequest.model`) | K12; grilling F19 | — |
-| F20 | **Fake tetikleri:**<br>• `rötuş`: 0. turda görsel `text_readable` + `text_dwell` düşer (D5 < %60). Fixer vuruş yazısını kısaltır → compose → geçer.<br>• `geometri`: `mechanism_shot` + `parts_visible` düşer (D2 < %60). Fixer lensi değiştirir → build.<br>• `dengesiz`: izlenme `hook_frame0` + `hook_pattern` 0. ve 2. turda düşer, 1. turda geçer → salınım.<br>• `vasat`: tüm skorlar 0,55 → < 70 → rework.<br>• `sınırda`: görsel skorlar 0,7 (toplam 79,9); ikinci görsel `pass` → ortalama → ready.<br>• `değişmez`: `rötuş` gibi düşer ama fixer bir şey değiştirmez → dur.<br>Smoke'ta yalnızca normal akış ve `rötuş` | Devralınan C24 deseni; smoke bütçesi | — |
+| F20 | **Fake tetikleri:**<br>• `rötuş`: 0. turda görsel `text_readable` + `text_dwell` düşer (D5 < %60). Fixer vuruş yazısını kısaltır → compose → geçer.<br>• `geometri`: `mechanism_shot` + `parts_visible` 0,1 skorla düşer (D2 8,5 < 9). Fixer lensi değiştirir → build.<br>• `dengesiz`: izlenme `hook_frame0` + `hook_pattern` 0. ve 2. turda düşer (0,1/0,2 → D1 6,4), 1. turda geçer. Gerçek döngüde 1. tur `ready` biter; salınım tohumlanmış turlarla sınanır (T7 test 6).<br>• `vasat`: tüm skorlar 0,55 → < 70 → rework.<br>• `sınırda`: görsel skorlar 0,7 (toplam 79,9); ikinci görsel `pass` → ortalama → ready.<br>• `değişmez`: `rötuş` gibi düşer ama fixer bir şey değiştirmez → dur.<br>Smoke'ta yalnızca normal akış ve `rötuş` | Devralınan C24 deseni; smoke bütçesi | — |
 | F21 | **Test süresi:**<br>• `npm test`'e uçtan uca iki test girer. M5a'nın qc uçtan uca testi "Yayına hazır" testine dönüşür (±0). `rötuş` uçtan uca testi eklenir (+~25 sn: compose + qc + review bir kez daha).<br>• Build, rework ve salınım yolları stub yürütücülü orchestrator testleri ve adım testleriyle sınanır.<br>• Tahmin: `npm test` ~5,2 dk, smoke ~4,3 dk. Yeni bir "finale kadar" smoke koşusu yok: S2d'nin ikinci senaryosu `rötuş` olur | Kullanıcı yönergesi (süre bütçesi) | Build kapsamının tam uçtan uca testi yalnızca T12 gerçek koşusunda (bilinçli) |
 | F22 | **`reviews` / `findings`** (§11.1 + `seq`, `summary_tr`):<br>• Tur başına reviewer satırları + `reviewer_role 'orchestrator'` tur özeti (toplam, 9 boyut, 6 kapı, karar `ready|fix|rework`).<br>• Tekillik `(run_id, round, reviewer_role, seq)`; yazımlar `ON CONFLICT DO NOTHING` (replay).<br>• Önceki turların açık bulguları düzelince `fixed` + `fixed_in_version_id` olur.<br>• Audit: `review.recorded`, `review.verdict`, `fix.scope`, `loop.stop`, `version.created`.<br>• Replay artefaktları: `final_review_{visual,facts,retention,visual2}`, `final_verdict`, `fix_report` | §11.1, §11.2 | — |
 | F23 | **Bayatlık** (§8.3): `review`, LLM bütçesi harcamadan önce iki şeyi denetler: `final_video_music.meta.framesHash === finalSource().hash` ve `qc_report.meta.musicSha === music.blobSha`. Uymazsa `failed` ("final video güncel sahneyle uyuşmuyor (bayat artefakt, §8.3)") | §8.3; grilling eksik karar 1 | — |
 | F24 | **Replay anahtarları:**<br>• `review.inputHash` = sha(müzikli blob, qc_report id, `RUBRIC_VERSION`, `fixRound`). `reuse` yok (C7).<br>• Rol artefaktı `final_review_<rol>` aynı hash ile kaydedilir; yeniden başlayan adım yalnızca eksik rolün oturumunu açar.<br>• Oturum sürdürme `latestStepSession(stepId, role)` ile yapılır (adımda dört rol var) | Grilling eksik karar 2–3 | — |
 | F25 | **Kapanış gerçek koşusu** (GPU'lu makine): bir oturumda `test:blender` 19, Blender final int testi ve kalem pilotu kalibrasyonu (M5a bekleyenleri) + "tükenmez kalem" (K12 rolleri, seslendirmesiz) "yayına hazır"a kadar.<br>• Geçici DB `videogen_m5b_check`.<br>• Başlama koşulu 5 sa < %25 ve 7 gün < %70; koşu içinde 5 sa > %80 → iptal; başarısızlıkta tekrar yok.<br>• Video başına kullanım ölçülür.<br>• Son kod review'u tek bağımsız ajanla yapılır (model **opus**; kullanıcı kararı: Fable kullanılmaz) | M4c C30, M5a E19 | Bir build turu + opus fixer 5 sa payını zorlar: F15 `usage` durdurması + iptal kuralı |
-| F26 | **Sayı zinciri** (`npm test`): 355 → T1 361 → T2 365 → T3 369 → T4 373 → T5 377 → T6 380 → T7 387 → T8 393 → T9 396 → T10 399. Smoke 19/11 → T11 19/13 (iki M5b ekran testi atlanır). `test:render`, `test:blender` değişmez | Test sayıları | Sapma ledger'a `Ruling:` |
+| F26 | **Sayı zinciri** (`npm test`): 355 → T1 361 → T2 365 → T3 369 → T4 373 → T5 377 → T6 380 → T7 387 → T8 394 → T9 397 → T10 400. Smoke 19/11 → T11 19/13 (iki M5b ekran testi atlanır). `test:render`, `test:blender` değişmez | Test sayıları | Sapma ledger'a `Ruling:` |
 
 ## Kapsam dışı (gerekçeli)
 
@@ -155,7 +155,7 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
 | `claims` tablosu (§11.1), `provenance.json`, `claims.json` | M6 | Web doğrulama sonuçları `final_review_facts` artefaktında ve `findings`'te durur |
 | Karşılaştır sekmesi, sürüm geçmişi arayüzü, Review'lar sekmesi (kütüphane detayı) | M7 | M5b'de inceleme kartları Stüdyo'da |
 | Chat'ten "insan gerekli" videoyu sürdürme (`request_rerender`) | M7 | K15 yolu; `finalize` notu kullanıcıyı chat'e yönlendirir |
-| Fixer'ın araştırmayı (kaynakları) düzeltmesi | — | F11: fixer kaynak yazmaz; G2 ekrandaki iddiayla düzeltilir |
+| Fixer'ın araştırmayı (kaynakları) düzeltmesi | — | F11: fixer kaynak yazmaz (`ROLES.fixer.specWrite`'tan `research` çıkarılır, T5); G2 ekrandaki iddiayla düzeltilir |
 | §8.4 izlenme verisiyle ağırlık ayarı | İlk 10 yayın sonrası | Spec |
 | M4c ertelenen minorlar (M4, M6, M7, M8), M4a/M3 minorları | M7 | Kapsam |
 
@@ -188,7 +188,7 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
    - Testler: T3 "final loop … one transaction; a replay changes nothing", T7 "restart mid-panel …", T8 "restart after the fixer …".
 2. **Yanlış kapsam ya da bayat artefakt.**
    - Beklenen:
-     - Metin düzeltmesi final kareleri yeniden render etmez (`final_render` bir kez koşar).
+     - Storyboard ya da etiket düzeltmesi final kareleri yeniden render etmez (`final_render` bir kez koşar).
      - Geometri düzeltmesi build'den yeniden koşar ve eski kare klasörü silinir.
      - `cta`'ya dokunan "düzeltme" değişmemiş sayılır.
      - Bayat final hiç incelenmez; `build`/`storyboard` final turunda eski çıktıyı yeniden kullanmaz.
@@ -247,6 +247,7 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
 - `averageVisual(a, b) → FinalReview`.
 - `panelScore({ qc: QcReport; reviews: Partial<Record<FinalReviewerRole, FinalReview>> | null; g4: boolean }) → PanelScore { total|null; dimensions: Record<DimensionId, number|null>; gates: Record<GateId, boolean|null>; low; failedGates; failed: string[] }`.
 - `finalVerdict(s) → 'ready'|'fix'|'rework'`; `isBorderline(s)`.
+- `formatScore(n) → '87,5'`.
 - Sabitler: `READY_SCORE 80`, `REWORK_BELOW 70`, `DIMENSION_FLOOR 0.6`, `BORDERLINE [78,82]`, `FINAL_MAX_ROUNDS 3`.
 
 **Kontrol tablosu (`FINAL_CHECKS`; `ask_tr` soruları rubrik örnek kontrollerinden yazılır, §8.1):**
@@ -320,8 +321,8 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
   1. "FixReport: every failed check accounted for exactly once …": fixture geçerli; tur 2 + eksik `payoff` → `['round: 2 olmalı', 'payoff: addressed ya da not_addressed içinde olmalı']`; fazladan kimlik; `voice`.
   2. "fixScope: …":
      - Aynı durum ve anahtarları karışık sahne → `none`.
-     - Vuruş yazısı → `{compose, ['storyboard.text']}`; parça `name_tr` → `{compose, ['scene.labels']}`; `loop_strategy` → `none`.
-     - Lens → `{build, ['scene.render']}`; vuruş zamanı → `changed` içinde `storyboard.structure`; `productSha` → `{build, ['product.py']}`; araştırma → `changed ['research']`.
+     - Vuruş yazısı → `{compose, ['storyboard.text']}`; parça `name_tr` → `{compose, ['scene.labels']}`; `loop_strategy` → `none`; bir vuruştan `claim_id` çıkarma → `compose`.
+     - Lens → `{build, ['scene.render']}`; vuruş zamanı → `{compose, ['storyboard.structure']}`; `productSha` → `{build, ['product.py']}`; araştırma → `changed ['research']`.
   3. "history: regressions only on tracked checks …":
      - `tracked`: `hero_frame0` true, `materials` false, `no_third_party` true, `g6_layout` true, `d7_bitrate` false.
      - 0. tur `F:[text_readable, hero_frame0] P:[payoff, materials]`, 1. tur ters → `regressed ['payoff']`, `fixed ['text_readable','hero_frame0']`.
@@ -407,7 +408,7 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
   - Audit `step.rewind {loop}` + `version.created`.
 - `DONE_NOTE.review = 'Final video incelendi. Sonlandırma bu sürümde henüz yok.'` (geliştirici `until:'review'`).
 - `finalSource().specHash = sha(sceneRender(scene))` (F11).
-- `removeStaleFrames(dataDir, runId, keepHash16) → string[]`: `final/<hash>/frames` ve `scene.blend`; `compose`, `qc` ve tutulan hash'e dokunmaz. `final_render.run` render'dan önce çağırır; audit `frames.deleted {dirs, reason:'stale'}`.
+- `removeStaleFrames(dataDir, runId, keepHash16) → string[]`: `final/<hash>/frames` ve `scene.blend`; `compose`, `qc` ve tutulan hash'e dokunmaz. Yeni `StepExecutor.prepare?(ctx, hash)` kancası orchestrator'da `reuse`'dan sonra, `gated()`'dan **önce** çağrılır (disk ön kontrolü silinecek kareleri görmesin; bağımsız inceleme M2); `final_render.prepare` bunu çağırır; audit `frames.deleted {dirs, reason:'stale'}`.
 - `FinalFramesMeta.mixed64?`: `r.samples < 64 && r.skipped > 0` iken; audit `render.final_mixed_samples`; not ekine " · ilk N kare 64 örnek".
 - `decideQc(report, musicTitle, reviewed = false)`: kapı düşer ve `reviewed` ise `done` + "Otomatik kontrol geçmedi: …. İnceleme düzeltmeye gönderecek."; `qcExecutor` `ctx.plan.includes('review')` verir. `qc_report.meta += { musicSha }`.
 - `withImportedSfx(library, imported)` (F18); `composeSource` `listAssets(kind:'sfx', allowedOnly)` ile çağırır.
@@ -431,31 +432,32 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
 ### Task 5: MCP ve oturum katmanı — `run_qc`, final `extract_frames`, istek başına model, fixer'a sahne araçları
 
 **Files:**
-- Modify: `apps/worker/src/pipeline/review-tools.ts`, `packages/claude/src/mcp.ts`, `packages/claude/src/roles.ts`, `packages/claude/src/index.ts`, `apps/worker/src/agents/manager.ts`, `apps/worker/src/pipeline/scene-tools.ts`.
+- Modify: `apps/worker/src/pipeline/review-tools.ts`, `packages/claude/src/mcp.ts`, `packages/claude/src/roles.ts`, `packages/claude/src/index.ts`, `apps/worker/src/agents/manager.ts`, `apps/worker/src/pipeline/scene-tools.ts`, `apps/worker/src/pipeline/agent-step.ts`.
 - Test: `review-tools.test.ts` (+1), `packages/claude/test/mcp-frames.test.ts` (+1), `manager.test.ts` (+1), `scene-tools.test.ts` (+1).
 
 **Interfaces:**
 - `ReviewTarget += { role; seq; qc: QcReport|null }`. `ReviewTargets`:
   - `set(stepId, t)`: `role` varsayılanı `reviewer_visual`, `seq` 1 → taslak çağrısı değişmez.
   - `get(stepId, role = 'reviewer_visual')`; `delete(stepId, role?)` (rol yoksa adımın hepsi).
-  - Bütçe anahtarı `stepId:role:round:seq`.
+  - Bütçe anahtarı `stepId:role:round:seq`. **Final hedefleri `round: ctx.fixRound` ile kaydedilir** (review adımının `ctx.round`'u taslak turudur ve final turları boyunca değişmez; bağımsız inceleme I1).
 - `reviewToolHost`:
   - Üç reviewer rolü. `reviewer_visual` hedef olmadan da port alır (taslak davranışı); diğer roller yalnızca hedef kayıtlıysa.
   - Hedefin `qc`'si varsa `runQc`.
   - Hata metni "İncelenecek video yok." (M4c testi güncellenir).
 - `qcToolResult(r) → QcToolResult { pass; gates; scores; failed[{id,label,value,limit,at?}]; measures[...] }`: `measures` = puansız `d2_black`, `d3_freeze`, `d8_loop`.
 - `mcp.ts`: `run_qc` aracı (`versionId?` yok sayılır); `McpPorts.runQc?`; `supplied()` dalı.
-- `roles.ts`: `IMPLEMENTED_MCP += 'run_qc'`; `reviewer_facts.maxTurns = 40`.
+- `roles.ts`: `IMPLEMENTED_MCP += 'run_qc'`; `reviewer_facts.maxTurns = 40`; `fixer.specWrite = ['storyboard','scene']` (bağımsız inceleme M12).
 - `manager.ts`:
   - `StartRequest.model?: ModelAlias`. `start()` :149: `req.model` yalnızca `this.overrides[req.role]?.model` yoksa uygulanır.
   - `ToolHost` Pick'ine `runQc`; `ports()` `tracked(host?.runQc)`.
 - `sceneToolHost`: `builder` ya da `fixer`.
+- `runStructured` (`agent-step.ts`): `StructuredRequest.model?: ModelAlias` → `StartRequest.model`'e geçer.
 
 - [ ] **Step 1: Başarısız testler:**
   - "each final reviewer role has its own 12-frame budget per round and pass; run_qc returns the stored report; an unregistered role gets nothing":
     - Görsel ve izlenme için hedef var; bütçeler 10 ve 11.
     - `runQc` `failed`'da `d7_bitrate`'i, `measures`'ta `d3_freeze`'i verir.
-    - `reviewer_facts` hedefsiz → `{}`. Görsel `seq 2` için taze bütçe.
+    - `reviewer_facts` hedefsiz → `{}`. Görsel `seq 2` için taze bütçe; aynı rol `round` 2 (fixRound) ile yeniden kaydedilince taze bütçe.
   - "run_qc exists only where the worker supplied it and returns the report JSON": `maxTurns` 40.
   - "a per-request model (the fixer category, K12) applies unless Settings chose a model for that role": `make()` + kayıt sürücüsü; `setRoleOverrides({fixer:{model:'opus'}})` sonrası `opus`.
   - "the fixer gets build_scene and render_preview_stills (plan F12); reviewers and chat do not".
@@ -468,10 +470,11 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
 
 **Files:**
 - Create: `apps/worker/src/pipeline/review-inputs.ts`, `apps/worker/src/pipeline/review-prompts.ts`, `apps/worker/test/review-inputs.test.ts`.
-- Modify: `fake-scripts.ts` (yeni roller ve tetikler), `steps.ts` (`StepDeps.fakeScript` `extra`'sına `{ seq?; failed?; fixRound? }`), T1 fixture'ları (facts `web_checks` kalem hedefleriyle).
+- Modify: `fake-scripts.ts` (yeni roller ve tetikler), `steps.ts` (`StepDeps.fakeScript`'in `extra` tipi `{ styleId?; seq?; failed? }` olur; tur bilgisi `ctx.fixRound`'dan okunur), T1 fixture'ları (facts `web_checks` kalem hedefleriyle).
 
 **Interfaces:**
-- `webCheckTargets(research, storyboard, seed, max = 16) → { claim_id; url; why: 'numeric'|'sample' }[]` (F10; node:crypto sha256 sıralaması; tekrar eden çift tekilleştirilir).
+- `webCheckTargets(research, storyboard, seed, max = 16) → { claim_id; url; why: 'numeric'|'sample' }[]` (F10; node:crypto sha256 sıralaması; tekrar eden çift tekilleştirilir; tohum `runId:fixRound`). "Sayısal" tanımı `researchWarnings`'in kuralıdır (`artifacts.ts:71–79`).
+- `numericGaps(research, storyboard) → string[]`: videoda kullanılan ve kuralı sağlayan kaynağı olmayan sayısal iddialar. Boş değilse G2 deterministik olarak düşer (T7); reviewer'a bırakılmaz.
 - `retentionTimes(storyboard, durationS) → number[]`: `[0, 0.5, 1, 2, 3, rehook_at, payoff_at, son]`, son kareye sıkıştırılmış.
 - `manifestFacts({ events, beats, layout, fps, durationS }) → { maxEventGapS; eventGapAtS; minBeatDwellS; minLabelDwellS; maxLabelsAtOnce }`:
   - Olay zamanları: `events.json` kareleri ∪ vuruş başlangıçları ∪ 0 ve süre.
@@ -532,7 +535,7 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
      - Doğruluk isteminde her hedef URL.
   3. "fake final reviewers satisfy the contract; the pass panel scores ≥ 80 with the fake qc; rötuş fails D5 in round 0 only":
      - Fixture'lar `validateArtifact('FinalReview')` + `finalReviewRefErrors` (60 kare) temiz.
-     - `panelScore` → ready.
+     - `panelScore` (T1 testindeki gibi `buildQcReport` ile D6 12 / D7 4 qc) → ready, 87,5.
 - [ ] **Step 2:** uygula.
 - [ ] **Step 3:** `Tests 380 passed`.
 - [ ] **Step 4: Commit:** `feat(review): reviewer inputs (web targets, manifest and qc facts, hook sheet), the three reviewer prompts, fake reviewers and fixer`.
@@ -544,7 +547,7 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
 - Create: `apps/worker/src/pipeline/review-step.ts`, `apps/worker/test/review-step.test.ts`.
 - Modify:
   - `apps/worker/test/final-helpers.ts`: `panelHarness(t)` (aşağıda).
-  - `steps.ts`: `StepDeps.gate?: Pick<UsageGate,'allowsNewPipeline'|'resumeAt'>`, `StepDeps.fixer?` kancası (T8 doldurur).
+  - `steps.ts`: `StepDeps.gate?: Pick<UsageGate,'allowsNewPipeline'|'resumeAt'>`, `StepDeps.fixer?: typeof runFixer | null` (`null` = fixer yok → `no_fixer`). T7'de varsayılan `null`; T8'den sonra `pipelineExecutors` varsayılan olarak `runFixer` verir; `main.ts`'te ayrıca bağlanmaz.
   - `apps/worker/src/main.ts`: `gate: guard`.
 
 **Interfaces:**
@@ -555,21 +558,22 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
   2. Kayıtlı `final_verdict` (aynı hash) varsa karar yeniden verilir (oturum yok).
   3. Yoksa:
      - qc geçmediyse reviewer yok.
-     - Geçtiyse kontakt sayfası `review/final/r<k>/sheet.png` (4×3, `sheetTimes`, `contactSheet` 270×480 karo) + kanca sayfası (4×2).
+     - Geçtiyse kontakt sayfası `review/final/r<k>/sheet.png` (4×3, `sheetTimes`, `contactSheet` 270×480 karo) + kanca sayfası (4×2); ikisi de `final_review_sheet` artefaktı (meta `{fixRound, kind:'main'|'hook', times}`; taslağın `review_sheet` türüyle karışmaz).
      - `ReviewTargets` kayıtları (rol başına, `qc` ile).
      - Fan-out kapısı (F8): `deps.gate` kapalıysa `ctx.status('waiting_limit', LIMIT_NOTE)`, sinyal ve 5 sn yoklama ile açılmayı bekle.
      - Üç rol `Promise.all` ile `runStructured<FinalReview>`:
        - Şema `FinalReview`; `check: finalReviewRefErrors`; `initialResume`: `attempt > 1` ve `latestStepSession(stepId, role)`.
        - Kayıtlı `final_review_<rol>` (aynı hash) varsa o rol atlanır.
        - Durum ve ilerleme bölüştürülür (F8).
-  4. `panelScore` (`g4` = `ctx.audioMode === 'silent'`). `isBorderline` ise `seq 2` görsel (kayıtlı `final_review_visual2` varsa atlanır) → `averageVisual` → yeniden hesap.
+     - Rol başına `AbortController` (`ctx.signal`'e bağlı): bir rol başarısız olursa kardeş oturumlar iptal edilir (bağımsız inceleme M6).
+  4. `panelScore` (`g4 = true`; F5). `numericGaps` boş değilse G2 deterministik `false` olur: `claims_verified` bulgusu orchestrator satırına yazılır; kanıt, iddianın ilk vuruşunun başlangıç karesidir. `isBorderline` ise `seq 2` görsel (kayıtlı `final_review_visual2` varsa atlanır) → `averageVisual` → yeniden hesap.
   5. Tur geçmişi: `listRunReviews`'den önceki tur özetleri + bu tur → `checkHistory`.
   6. Kayıt: `recordReviewRound` (`orchestrator` tur satırı + rol satırları + bulgular: düşen kontrol, `regressed` ise o statüyle) + `final_verdict` artefaktı `{verdict, total, dimensions, gates, low, failed, regressed, fixed, oscillating}` + audit `review.verdict`.
   7. `loopAction({ verdict, fixRound: ctx.fixRound, oscillating, usageBlocked: !!deps.gate && !deps.gate.allowsNewPipeline() })`:
      - `ready` → `done` "Yayına hazır: N puan".
      - `stop` → `done` + `STOP_NOTE` + audit `loop.stop`.
      - `rework` → `insertVersion` + `rewind{to:'storyboard', loop:'final', version}`.
-     - `fix` → `deps.fixer?.(…)` yoksa `stop('no_fixer')`.
+     - `fix` → `deps.fixer` yoksa (`null`) `stop('no_fixer')`, varsa fixer.
 - `ReviewTargets` kayıtları `finally` içinde silinir.
 
 **Bakılacak yerler:** `steps.ts:380–441` (taslak incelemesinin bütün akışı: sayfa, kayıt, replay, `finally`), `final-steps.ts:211–251` (bayatlık + replay), `orchestrator.ts:LIMIT_NOTE`, `agent-step.ts:runAgentSession` (`ctx.progress`/`ctx.status` çağrıları; paralel oturumlar için sarmalanmış bağlam ver).
@@ -609,39 +613,41 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
 
 **Interfaces:**
 - `runFixer(deps, ctx, { verdict, panel, failed: string[], qc }) → StepOutcome`. Akış:
-  1. Kayıtlı `fix_report` (aynı hash) varsa adım 6'ya geç (replay).
-  2. `prev` = sürümün DB artefaktları (`storyboard`, `scene`, `research`, `product_py` blob sha'sı). SpecStore **değil** (grilling F2: çöken fixer spec yazmış olabilir).
-  3. `insertVersion(pending)`.
+  1. Kayıtlı `fix_report` (aynı hash) varsa adım 6'ya geç (replay). `fix_report` turun **commit işaretidir**: en son yazılır.
+  2. `prev` = her tür (`storyboard`, `scene`, `research`, `product_py`) için `version_id`'si bekleyen sürümden **farklı** olan en yeni DB artefaktı. SpecStore **değil** (grilling F2: çöken fixer spec yazmış olabilir).
+  3. `insertVersion(pending)`; kimlik deterministik `uuid(sha(runId,'fix',fixRound))` (F13).
   4. Fixer oturumu `runStructured<FixReport>`:
      - `model` = F19 kategorisi; istem `fixerPrompt`; `check: fixReportRefErrors`.
      - `checkAsync`: SpecStore'un son storyboard ve sahnesi `storyboardRefErrors` + `sceneRefErrors` (`steps.ts:214–225` deseni). `research` değiştiyse hata. Render alanı ya da `product.py` değiştiyse güvenilir `buildScene` (hatalar aynı oturuma).
      - `initialResume`: `latestStepSession(stepId,'fixer')`.
-  5. `fixScope(prev, next)` → kapsam; beyanla uyuşmazsa audit `fix.scope {claimed, computed, changed}`. `fix_report` artefaktı (meta `{scope, changed, versionId}`, sürüm id'siyle). Değişen spec'ler `persist` ile yeni sürüm kimliğiyle kaydedilir (idempotent: son artefakt içeriği aynıysa yazma).
+  5. `fixScope(prev, next)` → kapsam; beyanla uyuşmazsa audit `fix.scope {claimed, computed, changed}`. **Önce** değişen spec'ler (ve `product_py`) `persist` ile bekleyen sürüm kimliğiyle kaydedilir (idempotent: son artefakt içeriği aynıysa yazma). **Sonra** `fix_report` artefaktı yazılır (meta `{fixRound, scope, changed, versionId, claimed}`). Aradaki çökmede replay işaretsiz turu baştan yapar; fixer oturumu `initialResume` ile sürer, spec'ler zaten kayıtlıdır.
   6. Kapsam → çıktı: `compose` → `rewind{to:'compose'}`; `build` → `rewind{to:'build'}`; beyan `storyboard` ve değişiklik yok → rework (`rewind{to:'storyboard'}`); `none` → `done` + `STOP_NOTE.unchanged` + audit `loop.stop`. Hepsi `loop:'final', version:{id, reason:'fix:<scope>'}`.
 - `fixerPrompt({ name, failed, panel, qc, round })`. Zorunlu içerik:
   - Başarısız kontroller (kimlik, etiket, sahip, önem, kanıt kare/zaman/kırpma, ipucu) ve qc bulguları (değer/sınır) çitli verilir; reviewer özetleri verilmez.
   - Kanıt kare yolları `review/final/r<k>/`.
   - Kural metni: "Yalnızca bu bulguları düzelt. Ekran yazısı, kanca ve etiket adları → write_spec(storyboard/scene) (yeniden birleştirme, dakikalar). Kamera, zamanlama, geometri, malzeme → write_spec(scene) ve/veya scene/product.py, sonra build_scene ve render_preview_stills ile kontrol (final yeniden render, ~35 dk). Araştırmayı değiştirme; desteksiz bir iddiayı ekrandan çıkar ya da yumuşat. cta ve loop_strategy hiçbir şey çizmez. Düzeltemediğini not_addressed'e gerekçesiyle yaz."
   - FixReport alanları ve `round`.
-- **Storyboard adımı** (`fixRound > 0` ve son `final_verdict` `rework`):
+- **`roundCause`** (`fixer.ts`, F12): tek okuma noktası; aşağıdaki üç adım yalnızca bunu kullanır.
+- **Storyboard adımı** (`fixRound > 0` ve `roundCause.kind === 'rework'`):
   - Hash'e `fixRound` + verdict id girer.
   - İstem: `storyboardPrompt` + çitli "final incelemesi bulguları" (başarısız kontroller, ipuçları) + "storyboard'u bu bulgulara göre yeniden yaz".
 - **Build adımı** (sıra: taslak düzeltmesi > final yolu > ilk geçiş):
   - Taslak düzeltmesi: `round > 0` ve son `draft_review` `meta.round === round-1` ve `meta.fixRound === fixRound`.
-  - Final turunda ve son `fix_report.meta.scope === 'build'`: **ajansız**. SpecStore'un son sahnesi + `scene/product.py` → `buildScene` + `previewScene` + mevcut artefakt yazımı (`steps.ts:235–246`'yı `recordBuild` olarak ayır). Hata → `failed`.
-  - Final turunda ve son verdict `rework`: builder oturumu `latestStepSession(stepId,'builder')` ile sürdürülür; istem "Storyboard yeniden yazıldı …" + yeni storyboard (çitli).
-  - Hash'e `fixRound` + ilgili `fix_report`/verdict id girer.
-- **`draft_review`**: `fixRound > 0` ve son `fix_report.meta.scope === 'build'` → `done`, not "final düzeltme turu: taslak incelemesi atlandı (§7.2)". `draft_review` meta'sına `fixRound` eklenir.
+  - Final turunda ve `roundCause.kind === 'build'`: **ajansız**. SpecStore'un son sahnesi + `scene/product.py` → `buildScene` + `previewScene` + mevcut artefakt yazımı (`steps.ts:235–246`'yı `recordBuild` olarak ayır). Hata → `failed`.
+  - Final turunda ve `roundCause.kind === 'rework'`: builder oturumu `latestStepSession(stepId,'builder')` ile sürdürülür; istem "Storyboard yeniden yazıldı …" + yeni storyboard (çitli).
+  - Hash'e `fixRound` + `roundCause` kimlikleri girer.
+- **`draft_review`**: `fixRound > 0` ve `roundCause.kind === 'build'` → `done`, not "final düzeltme turu: taslak incelemesi atlandı (§7.2)". Bu kontrol bayat taslak kontrolünden (`steps.ts:433`) **önce** yapılır. `draft_review` meta'sına `fixRound` eklenir.
 
-- [ ] **Step 1: Başarısız testler** — `fixer.test.ts` (`panelHarness` + T6 fake'leri), 6 test:
+- [ ] **Step 1: Başarısız testler** — `fixer.test.ts` (`panelHarness` + T6 fake'leri), 7 test:
   1. "compose scope: the fixer shortens the beat text, the step records the fix report and the new storyboard under the new version, and rewinds to compose" (`rötuş`).
   2. "build scope: a lens change is built in the fixer session (build_scene), the step rewinds to build; the next build runs without a builder session and draft_review passes through" (`geometri`; ardından build ve draft_review yürütücüleri `fixRound 1` bağlamıyla).
   3. "an unchanged fix stops the loop (unchanged); a claimed scope smaller than the change is raised to the computed one (audited); a research edit goes back to the same session" (`değişmez` + elle yazılmış senaryolar).
   4. "fixer model by category: opus for visual/narrative failures, sonnet for qc- or facts-only (K12); the prompt carries only failed checks, fenced".
   5. "rework: the storyboard step gets the failed findings fenced and a new hash; the build continues its builder session with the new storyboard".
-  6. "restart after the fixer: the stored fix report replays the same rewind without a new session; a fixer that died after writing a spec still diffs against the reviewed version".
+  6. "restart after the fixer: the stored fix report replays the same rewind without a new session; a fixer that died after writing a spec still diffs against the reviewed version; the version id is the same after a restart".
+  7. "roundCause reads only the previous round: a build round followed by a rework round makes the next build agentic and the draft review run" (bağımsız inceleme B1).
 - [ ] **Step 2:** uygula.
-- [ ] **Step 3:** `Tests 393 passed`.
+- [ ] **Step 3:** `Tests 394 passed`.
 - [ ] **Step 4: Commit:** `feat(pipeline): fixer — failed-check prompt, category model, computed rerender scope, compose and build rounds, agent-free fix build, rework inputs`.
 
 ---
@@ -652,29 +658,30 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
 - Modify:
   - `packages/shared/src/pipeline.ts`: `IMPLEMENTED_STEPS += review, finalize`.
   - `steps.ts`: `pipelineExecutors`.
-  - `orchestrator.ts`: `DONE_NOTE.qc` kaldırılır; `PIPELINE_INCOMPLETE_NOTE('qc')` M5a metni yalnızca `until:'qc'` için kalır.
+  - `orchestrator.ts`: `finish()` `settleBest`'i çağırır (I6); `DONE_NOTE.qc` yeni metin: 'Final video hazır ve otomatik kontrolden geçti. İnceleme bu planda yok (geliştirici kipi).' (yalnızca `until:'qc'`).
   - `apps/worker/test/qc-step.test.ts`: uçtan uca test (M5a e2e → M5b).
   - `packages/shared/test/pipeline.test.ts`, `apps/api/test/videos.test.ts` (plan uzunluğu).
 
 **Interfaces:**
+- `settleBest(pool, runId)`: tur özetlerinden `pickBest` + `setBestVersion`. `finalize` ve orchestrator `finish()` (run `needs_human`/`failed` ve run'da en az bir `reviews` turu varsa) çağırır: finalize'a varmadan biten düzeltme turunda da kütüphane en iyi sürümü gösterir (bağımsız inceleme I6).
 - `finalizeExecutor(deps)` (`heavy_cpu`):
   - `inputHash` = sha(son `final_verdict` id, `fix_report` id).
   - Tur özetleri `listRunReviews` → `RoundChecks[]` + `regressed`; son durma nedeni son `final_verdict`/`fix_report`'tan.
-  - `pickBest` → `setBestVersion`; `finish` artefaktı.
+  - `settleBest`; `finish` artefaktı.
   - `removeRunFrames` + audit `frames.deleted`.
-  - Çıktı: `ready` → `done` "Yayına hazır · N puan · tur k/3"; değilse `needs_human` + gerekçe (`STOP_NOTE` + en iyi tur + puan + açık bulgu etiketleri (en çok 5) + "chat'ten sürdürebilirsiniz").
+  - Çıktı: `ready` → `done` "Yayına hazır · N puan[ · düzeltme turu k/3]" (F16); değilse `needs_human` + gerekçe (`STOP_NOTE` + en iyi tur + puan + açık bulgu etiketleri (en çok 5) + "chat'ten sürdürebilirsiniz").
   - Kayıtlı `finish` (aynı hash) → aynı karar.
 
 - [ ] **Step 1: Başarısız testler** (+3; M5a e2e testi dönüşür):
-  - **finalize**, "ready → best version, finish artifact, frames deleted, video ready ('Yayına hazır · 87,5 puan')": `panelHarness` + kayıtlı bir tur.
+  - **finalize**, "ready → best version, finish artifact, frames deleted, outcome done 'Yayına hazır · 87,5 puan'": `panelHarness` + kayıtlı bir tur; video durumu orchestrator testlerinde denetlenir.
   - **finalize**, "needs_human after the limit with the best non-regressed round and open findings; the oscillation and unchanged reasons; the library shows the best round": tohumlanmış turlar.
   - **qc-step**, "end to end (orchestrator, fake drivers): produce → … → review → finalize; the video is ready with its score; progress reaches 100 only at the end; frames deleted once" (M5a e2e'nin yerine; `producePlan('silent')` 10 adım).
   - **qc-step**, "end to end 'rötuş': one compose-scope round; final_render ran once (frames reused); version 2 is best; review note 'düzeltme turu 1/3'; ready":
     - `final_render` başlama sayısı 1.
     - compose ve qc adımlarının `fixRound` 1.
     - `getVideoView().score` ≥ 80.
-- [ ] **Step 2:** uygula; `main.ts` bağlantısı (gate, fixer kancası).
-- [ ] **Step 3:** `Tests 396 passed`. `npm test` süresini ledger'a yaz (F21 tahmini ~5,2 dk; > 6 dk ise `rötuş` e2e `test:render`'a taşınır, `Ruling:`).
+- [ ] **Step 2:** uygula. `main.ts` yalnızca `gate`'i verir; fixer `pipelineExecutors` varsayılanıdır (bağımsız inceleme I2).
+- [ ] **Step 3:** `Tests 397 passed`. `npm test` süresini ledger'a yaz (F21 tahmini ~5,2 dk; > 6 dk ise `rötuş` e2e `test:render`'a taşınır, `Ruling:`).
 - [ ] **Step 4: Commit:** `feat(pipeline): finalize — best version, frames cleanup, ready or a reasoned needs_human; the M5b plan end to end`.
 
 ---
@@ -694,7 +701,7 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
 - `finalRoundLabel(run)` → "Düzeltme turu k/3 · %N" (yalnızca aktif run). Başlık önce bunu, yoksa `draftRoundLabel`'ı gösterir (`data-testid="final-round"`).
 - `panelView(reviews: ReviewRecord[]) → { round; total; verdict; dimensions: { id; label; score; weight; low }[]; gates: { id; label; pass|null }[]; reviewers: { role; label; seq; summary; findings: { check; label; severity; timecode?; hint?; status; frameSha? }[] }[] } | null`:
   - Son turun görünümü; önceki turlar sayıyla.
-  - Kanıt karesi: reviewer'ın tek kareleri blob'a girmez. Kart kanıt zamanını gösterir ve tıklayınca oynatıcıyı o zamana sarar (`setActivePlayer` + `currentTime`). Ayrıca kontakt sayfası (`review_sheet` artefaktı, adım kaydeder) küçük resim olarak gösterilir.
+  - Kanıt karesi: reviewer'ın tek kareleri blob'a girmez. Kart kanıt zamanını gösterir ve tıklayınca oynatıcıyı o zamana sarar (`setActivePlayer` + `currentTime`). Ayrıca son turun `final_review_sheet` (main) artefaktı küçük resim olarak gösterilir. **Spec notu §13.1:** "kareli bulgular" tek tek kare dosyası yerine zaman kodu + oynatıcıyı sarma + kontakt sayfası.
 - `ReviewPanel`:
   - `region "İnceleme"`, `data-testid="review-panel"`.
   - Üstte toplam puan (`panel-score`) + karar rozeti ("yayına hazır" yeşil, "düzeltiliyor"/"insan gerekli" nötr).
@@ -710,7 +717,7 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
   - **web**, "finalRoundLabel shows 'Düzeltme turu 1/3 · %50' while a fix round runs and falls back to the draft label".
   - **web**, "panelView: bars scaled to the weight with the 60 % floor, gates with unknowns, reviewer cards ordered visual/facts/retention with the second visual merged, regressed findings marked".
 - [ ] **Step 2:** uygula (`frontend-design:frontend-design` yüklüyse; mevcut kart stili `card` sınıfı ve `QcCard` deseni).
-- [ ] **Step 3:** `Tests 399 passed`; `npm run typecheck`.
+- [ ] **Step 3:** `Tests 400 passed`; `npm run typecheck`.
 - [ ] **Step 4: Commit:** `feat(web): review panel with dimension bars, gate badges and reviewer findings, the fix-round line, ready state, library score`.
 
 ---
@@ -755,18 +762,18 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
   - `docs/superpowers/plans/2026-10-06-videogen-roadmap.md`, `README.md`.
   - Spec, yalnızca kanıtla:
     - §6.2 `reviewer_facts` 40 tur (F10);
-    - §7.2 kapsam hesabı, `fix_round`, salınım ve regresyon notu (F3, F11, F14);
+    - §7.2 kapsam hesabı, `fix_round`, salınım ve regresyon notu (F3, F11, F14); seslendirmesizde "SFX, müzik, seviye" satırına ulaşılamaz (fixer'ın yazabileceği ses spec'i yok; D6 düşüşü `unchanged` ile durur; M5c `AudioPlan` ile açar);
     - §7.4 Review'da `dimension_scores` hesaplanır (F4), FixReport;
     - §8.2 kare bütçesi ve web hedefleri (F9, F10);
     - §8.3 sınırda ikinci review;
     - §11.1 `reviews`/`findings` + `steps.fix_round` notu;
     - §12.1 "Düzeltme turu k/3";
-    - §13.1 inceleme paneli ve kütüphane puanı;
+    - §13.1 inceleme paneli, kütüphane puanı, "kareli bulgular" biçimi;
     - §16.2 S2 M5b biçimi;
     - §18 video başına kullanım.
 
 - [ ] **Step 1: Tam doğrulama** (GPU'lu makinede): `npm run typecheck && npm test && npm run test:blender && npm run test:render && npm run test:smoke`.
-  - Beklenen: `npm test` 399; `test:blender` `Ran 19 tests … OK`; `test:render` 10; smoke 19 / 13.
+  - Beklenen: `npm test` 400; `test:blender` `Ran 19 tests … OK`; `test:render` 10; smoke 19 / 13.
   - Sonrasında `/tmp/videogen-smoke`, `~/.vg-render-test-*` yok; 5173/5180/5190 boş.
 - [ ] **Step 2: Kalem pilotu kalibrasyonu** (M5a'dan bekliyor): `docs/m5/real-check.md` §1 komutu.
   - Çıkış 3; en az 7 kimlik `✗`.
@@ -793,7 +800,7 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
   - `m5b-summary.md` (M5a özeti biçiminde): §1 ne çalışıyor … §10 M5c için notlar, §11 sınırlar.
   - Checklist'te "3 reviewer …", "Fixer döngüsü …", "Bir ürün uçtan uca 'yayına hazır'; smoke S2 tam sürüm" işaretlenir; kalibrasyon maddesi Step 2 sonucuna göre.
   - Runbook §7 metinleri: "Otomatik kontrol geçmedi … İnceleme düzeltmeye gönderecek", `STOP_NOTE`'ların hepsi, "final video güncel sahneyle uyuşmuyor", "düzeltme turu hiçbir şeyi değiştirmedi", "kullanım sınırı yakın; yeni düzeltme turu başlatılmadı".
-- [ ] **Step 6: `main`:** kullanıcı tercihiyle dal `main`'e fast-forward ya da `--no-ff` birleştirilir; `npm run typecheck && npm test` → 399; push.
+- [ ] **Step 6: `main`:** kullanıcı tercihiyle dal `main`'e fast-forward ya da `--no-ff` birleştirilir; `npm run typecheck && npm test` → 400; push.
 - [ ] **Step 7: Kullanıcıya Türkçe rapor:**
   - Maddeler / Doğrulama / Bilmen gerekenler.
   - Ruling'ler, ertelenen minorlar, video başına kullanım, reviewer isabeti.
@@ -829,12 +836,12 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
 - `fixScope` / `sceneRender` (T2) → `finalSource` (T4) → `runFixer` (T8).
 - `rewindForReview(counter, version)` (T3) ← `rewind{loop, version}` (T4) ← `review` / fixer (T7/T8).
 - `insertVersion` (T3) ← T7 rework, T8 fix. `ReviewTargets.set/get(stepId, role)` (T5) ← T7.
-- `StepDeps.fakeScript` `extra{styleId?, seq?, failed?}` (T6) ← T7/T8.
+- `StepDeps.fakeScript` `extra{styleId?, seq?, failed?}` (T6) ← T7/T8; `roundCause` (T8) ← storyboard, build, draft_review.
 - `StepContext.fixRound/plan` (T4) ← T7/T8/T9 ve `decideQc`.
 
 **4. Review Focus eşlemesi:** 5 maddenin her biri test adlarıyla en az bir teste bağlı.
 
-**5. Sayılar:** T1 6, T2 4, T3 4, T4 4, T5 4, T6 3, T7 7, T8 6, T9 3 (+1 test yerine geçer), T10 3 → 355 + 44 = **399**. Smoke: iki yeni atlanan ekran testi → 19 / 13.
+**5. Sayılar:** T1 6, T2 4, T3 4, T4 4, T5 4, T6 3, T7 7, T8 7, T9 3 (+1 test yerine geçer), T10 3 → 355 + 45 = **400**. Smoke: iki yeni atlanan ekran testi → 19 / 13.
 
 **6. Bilinen riskler:**
 - `npm test` süresi (~5,2 dk) ve smoke (~4,3 dk). Eşik: `npm test` > 6 dk ise `rötuş` e2e `test:render`'a taşınır.
@@ -864,3 +871,11 @@ Hiçbir karar spec'teki bir K kararını değiştirmez. Spec metninden sapan ayr
 | 1 | Yazar | "rötuş" tek bir minor kontrolle düşerse K13 yine `ready` verir: fake düzeltme turu hiç oluşmaz | Fake tetikleri bir boyutu %60'ın altına indirecek şekilde tasarlandı (F20) |
 | 1 | Yazar | `ReviewTargets` imzası değişirse M4c testleri bozulur | `set(stepId, t)` geriye uyumlu (rol varsayılanı), hata metni tek satır güncellenir |
 | 1 | Yazar | Kullanıcı kararı: planda kod bloğu yok | Plan imza, kural, bakılacak yer ve test beklentisi biçimine çevrildi |
+| 2 | Bağımsız inceleme (salt okunur, model `opus`) | **B1:** storyboard, build ve draft_review "en son" `fix_report`/verdict'ten mod seçiyordu; build turunu izleyen rework turu yanlış yolu seçerdi | `roundCause` (yalnızca önceki tur; meta `fixRound`), T8 test 7 |
+| 2 | Bağımsız inceleme | I1: final hedefleri taslak `round`'uyla anahtarlanırsa sonraki turda kare bütçesi biter | `round: ctx.fixRound` (T5) + test |
+| 2 | Bağımsız inceleme | I2: fixer bağlantısı üç yerde farklı tanımlıydı; `rötuş` e2e `no_fixer` ile durabilirdi | `pipelineExecutors` varsayılanı `runFixer`; `null` = yok |
+| 2 | Bağımsız inceleme | I3: `fix_report` spec'lerden önce yazılırsa çökme sonrası replay eski storyboard'la tur yakar; bekleyen sürüm kimliği deterministik değil; `prev` belirsiz | Önce spec'ler, en son `fix_report`; deterministik sürüm kimliği; `prev` tanımı |
+| 2 | Bağımsız inceleme | I4: G4 = "seslendirmesiz" kuralı `vo` videoyu ulaşılamaz yapar | M5b'de G4 her zaman geçer (klon ses yok) |
+| 2 | Bağımsız inceleme | I5: render edilmeyen storyboard alanları build'e gidiyordu (G2 düzeltmesi build turu yakardı) | Build yalnızca sahne render alanı ya da `product.py`; storyboard değişikliği compose |
+| 2 | Bağımsız inceleme | I6: finalize'a varmadan biten turlarda en iyi sürüm kayboluyordu | `settleBest` `finish()`'te de |
+| 2 | Bağımsız inceleme | M1–M12: fake skorları; disk ön kontrolü (`prepare` kancası); `until:'qc'` notu; puan biçimi ve `null` toplam; `runStructured.model` ve `extra` tipi; kardeş oturumların iptali; belirsiz test beklentileri; geçişin bayatlık kontrolünden önce olması; deterministik sayısal G2 (`numericGaps`) ve tohum yazımı; `final_review_sheet`; spec notları (§13.1, §7.2 ses satırı); fixer'dan `research` yazma yetkisi | Hepsi işlendi; T8'e 1 test eklendi, sayı zinciri 400 |
