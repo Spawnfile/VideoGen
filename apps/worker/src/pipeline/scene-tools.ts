@@ -25,6 +25,8 @@ export interface SceneDeps {
   capability: () => Capability;
   probe?: Probe;
   waitMs?: number;
+  /** Delivery encode preset (spec §7.5 slow; smoke ultrafast). */
+  encodePreset?: string;
 }
 export interface SceneBuild {
   ok: boolean;

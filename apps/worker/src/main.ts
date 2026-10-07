@@ -55,7 +55,7 @@ const manager = new SessionManager({
   archive: (s) => archiveTranscript({ pool, dataDir: config.dataDir, ...s }),
   validator: ARTIFACT_VALIDATOR,
   tools: toolHosts(
-    sceneToolHost({ pool, render, locks, probe, ffmpeg: config.render.ffmpeg, capability: () => renderCapability }),
+    sceneToolHost({ pool, render, locks, probe, ffmpeg: config.render.ffmpeg, encodePreset: config.render.encodePreset, capability: () => renderCapability }),
     reviewToolHost({ ffmpeg: config.render.ffmpeg, targets: reviews }),
   ),
 });
@@ -63,7 +63,7 @@ const orchestrator = new Orchestrator({
   pool, dataDir: config.dataDir, probe, locks, gate: guard,
   executors: pipelineExecutors({
     pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined, reviews,
-    scene: { pool, render, locks, probe, ffmpeg: config.render.ffmpeg, capability: () => renderCapability },
+    scene: { pool, render, locks, probe, ffmpeg: config.render.ffmpeg, encodePreset: config.render.encodePreset, capability: () => renderCapability },
   }),
 });
 const chat = new ChatService({ pool, manager });
