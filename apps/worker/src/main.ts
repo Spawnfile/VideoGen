@@ -17,6 +17,8 @@ import { startHeartbeat } from './heartbeat.ts';
 import { fakePipelineScript } from './pipeline/fake-scripts.ts';
 import { Orchestrator } from './pipeline/orchestrator.ts';
 import { SystemProbe } from './pipeline/resources.ts';
+import { FakeAudioDriver, PythonAudioDriver, type AudioDriver } from './audio/driver.ts';
+import { runPreflight } from './pipeline/preflight.ts';
 import { BlenderRenderDriver, FakeRenderDriver, type Capability, type RenderDriver } from './render/driver.ts';
 import { ResourceLocks } from './render/locks.ts';
 import { ReviewTargets, reviewToolHost, toolHosts } from './pipeline/review-tools.ts';
@@ -44,6 +46,10 @@ const renderAudit = (action: string, data: Record<string, unknown>) => appendAud
 const render: RenderDriver = config.render.driver === 'fake'
   ? new FakeRenderDriver({ ffmpeg: config.render.ffmpeg })
   : new BlenderRenderDriver({ blender: config.render.blender, bwrap: config.render.bwrap, dataDir: config.dataDir, home: homedir(), audit: renderAudit });
+// M5c: the voice CLI child (K22: only under the orchestrator's GPU lock); the fake render driver comes with the fake TTS.
+const audio: AudioDriver = config.render.driver === 'fake'
+  ? new FakeAudioDriver({ ffmpeg: config.render.ffmpeg })
+  : new PythonAudioDriver({ ...config.audio, dataDir: config.dataDir, audit: renderAudit });
 const locks = new ResourceLocks();
 const probe = new SystemProbe(config.dataDir);
 let renderCapability: Capability = { ok: false, reason: 'denetlenmedi' };
@@ -60,7 +66,7 @@ const manager = new SessionManager({
   ),
 });
 const orchestrator = new Orchestrator({
-  pool, dataDir: config.dataDir, probe, locks, gate: guard,
+  pool, dataDir: config.dataDir, probe, locks, gate: guard, preflight: runPreflight({ pool, audio, dataDir: config.dataDir }),
   executors: pipelineExecutors({
     pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined, reviews, gate: guard,
     scene: { pool, render, locks, probe, ffmpeg: config.render.ffmpeg, encodePreset: config.render.encodePreset, capability: () => renderCapability },

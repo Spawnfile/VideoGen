@@ -28,6 +28,8 @@ export interface OrchestratorDeps {
   locks?: ResourceLocks;
   /** Plan C25 (spec §6.4, M4a minor 4): no new run starts while the usage guard blocks pipelines. */
   gate?: Pick<UsageGate, 'allowsNewPipeline' | 'resumeAt'>;
+  /** Plan M5c H11: a reason (Turkish) why the run cannot start, found before any step or LLM session; wired in main.ts only. */
+  preflight?: (ctx: RunContext) => Promise<string | null>;
   owner?: string;
   capacity?: Partial<Record<Resource, number>>;
   leaseMs?: number;
@@ -140,7 +142,23 @@ export class Orchestrator {
     if (!(await claimQueuedRun(this.d.pool, runId, await latestUsageMark(this.d.pool)))) return;
     await updateVideo(this.d.pool, ctx.videoId, { status: 'running', statusNote: null });
     await this.audit('run.started', runId, { data: { videoId: ctx.videoId, plan: ctx.run.plan.map((s) => s.key) } });
+    const why = await this.preflightReason(ctx);
+    if (why) {
+      await this.d.pool.query("UPDATE steps SET status = 'skipped', note = 'durduruldu: ön kontrol' WHERE run_id = $1 AND status = 'pending'", [runId]);
+      await this.audit('run.preflight_failed', runId, { data: { reason: why } });
+      return this.finish(runId, 'needs_human', why);
+    }
     await this.advance(runId);
+  }
+
+  /** A preflight that itself throws must not strand the run: it is logged and the run starts (steps report their own reasons). */
+  private async preflightReason(ctx: RunContext): Promise<string | null> {
+    if (!this.d.preflight) return null;
+    try { return await this.d.preflight(ctx); } catch (e) {
+      this.log(`preflight ${ctx.run.id} failed (${errorTag(e)})`);
+      await this.audit('run.preflight_error', ctx.run.id, { data: { error: errorTag(e) } });
+      return null;
+    }
   }
 
   /** Plan C25: the run stays queued with the reason on the video; audited once per reason (the note is the marker, it survives a restart). */

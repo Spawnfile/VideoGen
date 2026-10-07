@@ -33,7 +33,7 @@ Doğrulama: `uv pip install --dry-run -r requirements.freeze.txt` temiz bir 3.12
   - `freyavoice/freya-tts` @ `d124e07493615208f58bdd21d432736849ee4230` (config.json, model.safetensors)
   - `openbmb/VoxCPM2` @ `32279effe8c19989596f05d353d1447f51d9e915` (yalnızca `audiovae.pth`, Freya VAE'si)
   - `mobiuslabsgmbh/faster-whisper-large-v3-turbo` @ `0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf` (ASR; `align.WHISPER_REVISION` olarak koda sabitlendi)
-- Freya venv: `~/videogen-data/venvs/freya` (torch==2.6.0, voxcpm==2.0.3 --no-deps, FreyaTTS kaynağı `~/videogen-data/src/FreyaTTS` @ 146d36c, `.pth` ile).
+- Freya venv: `~/videogen-data/venvs/freya` (Python 3.12 — `audio_service` `requires-python >=3.12,<3.13`; torch==2.6.0, voxcpm==2.0.3 --no-deps, FreyaTTS kaynağı `~/videogen-data/src/FreyaTTS` @ 146d36c, `.pth` ile).
 - `align.transcribe_words` Whisper'ı sabit revizyonla (`revision=0a363e91…`) ve açık bir hub önbelleğiyle (`download_root`) yükler: açık argüman > `$HF_HOME/hub` > varsayılan `~/videogen-data/models/hf/hub`. `HF_HOME` bu makinede yalnızca `~/.bashrc`'nin etkileşimli bölümünde export edildiği için etkileşimsiz bir işçi onu görmez; servis `HF_HOME`/`download_root`'u kendisi vermelidir (aksi hâlde varsayılana yeniden indirir). Mevcut ağırlıklar taşınmadı.
 
 ## Ses CLI'ı (M5c, Görev 3)

@@ -13,6 +13,7 @@ import { registerChatRoutes } from './routes/chat.ts';
 import { registerMediaRoutes } from './routes/media.ts';
 import { registerRoleRoutes } from './routes/roles.ts';
 import { registerVideoRoutes } from './routes/videos.ts';
+import { registerVoiceRoutes } from './routes/voice.ts';
 import { registerSse } from './sse.ts';
 
 const round4 = (n: number | null): number | null => (n === null ? null : Math.round(n * 10_000) / 10_000);
@@ -72,6 +73,7 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
   registerMediaRoutes(app, { pool: deps.pool, dataDir: deps.config.dataDir });
   registerRoleRoutes(app, { pool: deps.pool, devEndpoints: deps.config.devEndpoints });
   registerChannelRoutes(app, { pool: deps.pool });
+  registerVoiceRoutes(app, { pool: deps.pool });
   registerSse(app, deps);
 
   if (existsSync(join(deps.config.webDist, 'index.html'))) {

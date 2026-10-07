@@ -19,7 +19,7 @@ export async function removePidFile(dataDir: string, pid: number): Promise<void>
   await rm(join(dirOf(dataDir), `${pid}.json`), { force: true });
 }
 
-const LEADER: Record<PidKind, RegExp> = { claude: /claude/, render: /bwrap|blender|ffmpeg|chrome|render-cli/ };
+const LEADER: Record<PidKind, RegExp> = { claude: /claude/, render: /bwrap|blender|ffmpeg|chrome|render-cli|voice_cli/ };
 
 /** The pid may have been reused by an unrelated process: only a leader that still looks like the recorded kind is killed. */
 function cmdlineMatches(pid: number, kind: PidKind): boolean {

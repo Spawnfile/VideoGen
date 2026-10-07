@@ -16,6 +16,8 @@ export interface Config {
   chatIdleMs: number;
   /** M4b: Blender, bubblewrap and ffmpeg ('fake': committed pen outputs and ffmpeg test stills, spec §16.1). */
   render: { driver: 'real' | 'fake'; blender: string; bwrap: string; ffmpeg: string; encodePreset: string };
+  /** M5c: the voice CLI (`python -m audio_service.voice_cli`), its Freya venv and the offline weights (spec §9, plan H2/H7). */
+  audio: { python: string; freyaPython: string; modelsDir: string; hfHome: string };
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -40,6 +42,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       ffmpeg: env.VG_FFMPEG ?? 'ffmpeg',
       /** x264 preset of the final delivery encode (plan E8); smoke runs `ultrafast`. */
       encodePreset: env.VG_ENCODE_PRESET ?? 'slow',
+    },
+    audio: {
+      python: env.VG_AUDIO_PYTHON ?? resolve(import.meta.dirname, '../../../python/audio_service/.venv/bin/python'),
+      freyaPython: env.VG_FREYA_PYTHON ?? join(homedir(), 'videogen-data/venvs/freya/bin/python'),
+      modelsDir: env.VG_MODELS_DIR ?? join(homedir(), 'videogen-data/models'),
+      hfHome: env.VG_HF_HOME ?? join(homedir(), 'videogen-data/models/hf'),
     },
   };
 }

@@ -2,10 +2,12 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import type { Resource, StepKey } from '@videogen/shared';
-import { claimJob, createProduceRun, enqueueJob, getRunView, getVideoView, listRunSteps, updateRun, updateStep } from '@videogen/db';
+import { DEFAULT_NARRATOR, type Resource, type StepKey } from '@videogen/shared';
+import { claimJob, createProduceRun, insertAsset, insertBlob, enqueueJob, getRunContext, getRunView, getVideoView, listRunSteps, updateRun, updateStep } from '@videogen/db';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
+import type { AudioDriver } from '../src/audio/driver.ts';
 import { Orchestrator, type OrchestratorDeps } from '../src/pipeline/orchestrator.ts';
+import { preflightFor, runPreflight } from '../src/pipeline/preflight.ts';
 import type { Probe, ResourceSnapshot } from '../src/pipeline/resources.ts';
 import type { StepContext, StepExecutor, StepOutcome } from '../src/pipeline/types.ts';
 
@@ -192,5 +194,66 @@ describe('Orchestrator', () => {
     expect((await getRunView(t.pool, r.runId))!.steps[0]).toMatchObject({ progress: 70, progressSource: 'agent' });
     release();
     await vi.waitFor(async () => expect(await runStatus(r.runId)).toBe('done'));
+  });
+  it('preflight: preflightFor says why a reviewed silent plan without music or a VO plan without a working voice cannot start (a dev plan without review passes); wired into startRun the run ends needs_human before the first step with the reason and audit run.preflight_failed; a passing preflight starts the run', async () => {
+    const ok = { ok: true as const };
+    const no = { ok: false as const, reason: 'Python bulunamadı (python)' };
+    const reviewed: StepKey[] = ['research', 'storyboard', 'build', 'review', 'finalize'];
+    const NO_MUSIC = 'Seslendirmesiz video için izinli bir müzik parçası gerekli (node bin/assets.mjs add --kind music …) ya da Seslendirmeli kipi seçin.';
+    expect(preflightFor({ audioMode: 'silent', plan: reviewed, musicCount: 0, voice: ok })).toBe(NO_MUSIC);
+    expect(preflightFor({ audioMode: 'silent', plan: reviewed, musicCount: 1, voice: ok })).toBeNull();
+    expect(preflightFor({ audioMode: 'silent', plan: ['research', 'storyboard', 'build'], musicCount: 0, voice: no })).toBeNull();
+    expect(preflightFor({ audioMode: 'vo', plan: ['research', 'storyboard', 'voice', 'build', 'review'], musicCount: 0, voice: no })).toBe('Seslendirme kullanılamıyor: Python bulunamadı (python)');
+    expect(preflightFor({ audioMode: 'vo', plan: ['research', 'storyboard', 'voice', 'build', 'review'], musicCount: 0, voice: ok })).toBeNull();
+    expect(preflightFor({ audioMode: 'vo', plan: ['research', 'storyboard', 'build'], musicCount: 0, voice: no })).toBeNull();
+
+    // runPreflight reads the ledger and the driver; a stored narrator choice is what the driver is asked about.
+    const asked: string[] = [];
+    const audio = { kind: 'fake', capabilities: async (v) => { asked.push(v.engine); return no; }, voice: async () => { throw new Error('unused'); } } as AudioDriver;
+    const pf = runPreflight({ pool: t.pool, audio, narrator: async () => DEFAULT_NARRATOR });
+    const mk = async (audioMode: 'silent' | 'vo', keys: StepKey[], name: string) => {
+      const r = await createProduceRun(t.pool, { productName: name, audioMode, plan: keys.map((key) => ({ key, weight: 10 })) });
+      return r;
+    };
+    const silent = await mk('silent', reviewed, 'Kalem P1');
+    expect(await pf((await getRunContext(t.pool, silent.runId))!)).toBe(NO_MUSIC);
+    expect(asked).toEqual([]);
+    const vo = await mk('vo', ['research', 'storyboard', 'voice'], 'Kalem P2');
+    expect(await pf((await getRunContext(t.pool, vo.runId))!)).toBe('Seslendirme kullanılamıyor: Python bulunamadı (python)');
+    expect(asked).toEqual(['chatterbox']);
+    await insertBlob(t.pool, { sha256: 'd'.repeat(64), path: 'media/d', bytes: 1, mime: 'audio/wav' });
+    await insertAsset(t.pool, { kind: 'music', title: 'Parça', blobSha: 'd'.repeat(64), licenseSpdx: 'CC0-1.0', author: 'X', allowed: true });
+    expect(await pf((await getRunContext(t.pool, silent.runId))!)).toBeNull();
+
+    // Wired into startRun: the run stops before the first step, no executor runs, the steps are skipped with a note.
+    const research = exec('research');
+    const o = orch({ research, storyboard: exec('storyboard') }, { preflight: async () => 'Seslendirme kullanılamıyor: deneme' });
+    const r = await produce('Kalem P3');
+    await o.startRun(r.runId);
+    expect(await runStatus(r.runId)).toBe('needs_human');
+    expect(research.calls).toBe(0);
+    expect((await getRunView(t.pool, r.runId))!.steps.map((s) => [s.status, s.note])).toEqual([['skipped', 'durduruldu: ön kontrol'], ['skipped', 'durduruldu: ön kontrol']]);
+    expect(await getVideoView(t.pool, r.videoId)).toMatchObject({ status: 'needs_human', statusNote: 'Seslendirme kullanılamıyor: deneme' });
+    const pre = await t.pool.query("SELECT data FROM audit_log WHERE run_id = $1 AND action = 'run.preflight_failed'", [r.runId]);
+    expect(pre.rows.map((x) => x.data)).toEqual([{ reason: 'Seslendirme kullanılamıyor: deneme' }]);
+
+    // A passing preflight starts the run as before.
+    const o2 = orch({ research: exec('research'), storyboard: exec('storyboard') }, { preflight: async () => null });
+    const r2 = await produce('Kalem P4');
+    await o2.startRun(r2.runId);
+    await vi.waitFor(async () => expect(await runStatus(r2.runId)).toBe('done'));
+    expect(await actions(r2.runId)).not.toContain('run.preflight_failed');
+
+    o.stop();
+    o2.stop(); // one orchestrator at a time: a second one would claim the next run's jobs
+    // A preflight that throws is fail-open: the run still starts and the error is audited.
+    const research3 = exec('research');
+    const o3 = orch({ research: research3, storyboard: exec('storyboard') }, { preflight: async () => { throw new Error('boom'); }, log: () => {} });
+    const r3 = await produce('Kalem P5');
+    await o3.startRun(r3.runId);
+    await vi.waitFor(async () => expect(await runStatus(r3.runId)).toBe('done'));
+    expect(research3.calls).toBe(1);
+    const err = await t.pool.query("SELECT data FROM audit_log WHERE run_id = $1 AND action = 'run.preflight_error'", [r3.runId]);
+    expect(err.rows.map((x) => x.data)).toEqual([{ error: expect.any(String) }]);
   });
 });
