@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import type pg from 'pg';
 import {
-  ACTIVE_STEP_STATUSES, DRAFT_MAX_RETURNS, etaSeconds, expectedSeconds, overallPercent, STEP_LABELS, timeCurvePercent,
+  ACTIVE_STEP_STATUSES, DRAFT_MAX_RETURNS, etaSeconds, FINAL_MAX_ROUNDS, expectedSeconds, overallPercent, STEP_LABELS, STOP_NOTE, timeCurvePercent,
   type ProgressSource, type ProgressStep, type Resource, type RunStatus, type StepKey,
 } from '@videogen/shared';
 import {
@@ -57,6 +57,7 @@ const NOT_YET: Partial<Record<StepKey, string>> = {
 /** M5a ends with the automatic gates (K13: "yayına hazır" needs the M5b review); a dev run may end at the draft review. */
 const DONE_NOTE: Partial<Record<StepKey, string>> = {
   draft_review: 'Taslak hazır ve incelendi. Final render bu sürümde henüz yok.',
+  review: 'Final video incelendi. Sonlandırma bu sürümde henüz yok.',
   qc: 'Final video hazır ve otomatik kontrolden geçti. İnceleme ve "yayına hazır" kararı M5b\'de.',
 };
 export const PIPELINE_INCOMPLETE_NOTE = (last: StepKey) => DONE_NOTE[last] ?? `${STEP_LABELS[last]} hazır. ${NOT_YET[last] ?? 'Sonraki adımlar bu sürümde henüz yok.'}`;
@@ -251,7 +252,7 @@ export class Orchestrator {
     // Status changes of one step apply in order (a late "waiting_gpu" must not overwrite the "running" that followed it).
     let statuses = Promise.resolve();
     return {
-      runId: step.runId, stepId: step.id, key: step.key, attempt, round: step.round, videoId: ctx.videoId, productId: ctx.productId, productName: ctx.productName,
+      runId: step.runId, stepId: step.id, key: step.key, attempt, round: step.round, fixRound: step.fixRound, plan: ctx.run.plan.map((p) => p.key), videoId: ctx.videoId, productId: ctx.productId, productName: ctx.productName,
       audioMode: ctx.audioMode, versionId: ctx.versionId, runDir: join(this.d.dataDir, 'runs', step.runId), signal,
       progress: (pct, source) => { void this.stepProgress(step.id, pct, source); },
       status: (s, note) => { statuses = statuses.then(() => this.stepStatus(step.id, s, note)).catch(() => {}); },
@@ -265,8 +266,16 @@ export class Orchestrator {
       const hash = await ex.inputHash(ctx);
       await updateStep(this.d.pool, step.id, { inputHash: hash });
       if (await ex.reuse?.(ctx, hash)) outcome = { status: 'done', note: 'önceki geçerli çıktı kullanıldı' };
-      else if (ex.resource !== 'claude' && this.d.locks) outcome = await this.gated(ex, ctx, () => ex.run(ctx, hash));
-      else outcome = await ex.run(ctx, hash);
+      else {
+        // Plan F12: before the gate, so its disk pre-check does not count frames this very step is about to delete.
+        // Housekeeping only: a failing prepare is logged and never fails the step.
+        try {
+          await ex.prepare?.(ctx, hash);
+        } catch (e) {
+          this.log(`prepare ${step.key} ${step.id} failed (${errorTag(e)})`);
+        }
+        outcome = ex.resource !== 'claude' && this.d.locks ? await this.gated(ex, ctx, () => ex.run(ctx, hash)) : await ex.run(ctx, hash);
+      }
     } catch (e) {
       outcome = ctx.signal.aborted ? { status: 'cancelled' } : { status: 'failed', error: errorTag(e) };
     }
@@ -325,19 +334,31 @@ export class Orchestrator {
     return this.finish(step.runId, 'failed', `${STEP_LABELS[step.key]}: ${o.error}`);
   }
 
-  /** Plan C6: the draft review sends the run back to `to`; past DRAFT_MAX_RETURNS the run stops for a human with the reason. */
+  /**
+   * Plan C6/F3: a review sends the run back to `to`. The draft review counts `round` (≤ DRAFT_MAX_RETURNS, stops for a human); the final
+   * review counts `fix_round` (≤ FINAL_MAX_ROUNDS) and past the limit settles done with the reason: `finalize` decides the video's state.
+   */
   private async rewind(step: StepRecord, attempt: number, job: JobRecord, o: Extract<StepOutcome, { status: 'rewind' }>): Promise<void> {
     const { pool } = this.d;
+    const final = o.loop === 'final';
     const target = (await listRunSteps(pool, step.runId)).find((s) => s.key === o.to);
     if (!target || target.ordinal >= step.ordinal) return this.settle(step, attempt, job, { status: 'failed', error: `geçersiz geri dönüş: ${o.to}`, retry: false });
-    if (step.round >= DRAFT_MAX_RETURNS) return this.settle(step, attempt, job, { status: 'needs_human', reason: o.reason });
-    const round = step.round + 1;
-    const note = `taslak turu ${round}/${DRAFT_MAX_RETURNS}: ${o.reason}`.slice(0, 300);
-    if (!(await rewindForReview(pool, { runId: step.runId, stepId: step.id, jobId: job.id, round: step.round, fromOrdinal: target.ordinal, toOrdinal: step.ordinal, note }))) {
+    const counter = final ? step.fixRound : step.round;
+    if (final ? counter >= FINAL_MAX_ROUNDS : counter >= DRAFT_MAX_RETURNS) {
+      // A version row the review inserted for this round stays orphaned here (F13: harmless).
+      return this.settle(step, attempt, job, final ? { status: 'done', note: `${STOP_NOTE.limit}: ${o.reason}`.slice(0, 300) } : { status: 'needs_human', reason: o.reason });
+    }
+    const round = counter + 1;
+    const note = `${final ? `düzeltme turu ${round}/${FINAL_MAX_ROUNDS}` : `taslak turu ${round}/${DRAFT_MAX_RETURNS}`}: ${o.reason}`.slice(0, 300);
+    if (!(await rewindForReview(pool, {
+      runId: step.runId, stepId: step.id, jobId: job.id, round: counter, fromOrdinal: target.ordinal, toOrdinal: step.ordinal, note,
+      ...(final ? { counter: 'fix_round' as const } : {}), ...(o.version ? { version: o.version } : {}),
+    }))) {
       await finishJob(pool, job.id, 'cancelled');
       return;
     }
-    await this.audit('step.rewind', step.runId, { stepId: step.id, data: { key: step.key, to: o.to, round, reason: o.reason } });
+    await this.audit('step.rewind', step.runId, { stepId: step.id, data: { key: step.key, to: o.to, round, reason: o.reason, ...(final ? { loop: 'final' } : {}) } });
+    if (o.version) await this.audit('version.created', step.runId, { stepId: step.id, data: { versionId: o.version.id, reason: o.version.reason, fixRound: round } });
     await this.recompute(step.runId);
     return this.advance(step.runId);
   }

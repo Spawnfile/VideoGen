@@ -56,6 +56,24 @@ export interface SoundPlan {
 /** The stored verdict and today's policy (review #3: a tightened license list or a cleared attribution also blocks). */
 const permitted = (a: AssetRecord) => a.allowed && licenseVerdict({ spdx: a.licenseSpdx, attribution: a.attribution }).allowed;
 
+/**
+ * Plan F18: an allowed SFX imported into the ledger whose title or tag names a library sound (matchSfx) takes that sound's place; among several
+ * the smallest id wins. The library's own assets are never candidates; the license gate still checks at use (soundPlan).
+ */
+export function withImportedSfx(library: Record<SfxName, AssetRecord>, imported: AssetRecord[]): Record<SfxName, AssetRecord> {
+  const own = new Set(Object.values(library).map((a) => a.id));
+  const out = { ...library };
+  const claimed = new Set<SfxName>();
+  for (const a of [...imported].sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0))) {
+    if (own.has(a.id) || a.kind !== 'sfx' || !permitted(a)) continue;
+    const name = [a.title, ...a.tags].map(matchSfx).find((n): n is SfxName => n !== null && !claimed.has(n));
+    if (!name) continue;
+    claimed.add(name);
+    out[name] = a;
+  }
+  return out;
+}
+
 /** Spec §9: the render refuses an asset that is not in the ledger or not allowed (checked again here, at use). */
 export function soundPlan(cues: SfxCue[], library: Record<SfxName, AssetRecord>, music: AssetRecord | null): SoundPlan {
   const out = cues.map((c) => {

@@ -38,7 +38,7 @@ export function finalHarness(t: { pool: pg.Pool }) {
     }
     const steps = await listRunSteps(t.pool, r.runId);
     const ctx = (key: StepKey): StepContext => ({
-      runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt: 1, round: 0, videoId: r.videoId, productId: r.productId, productName: name, audioMode: 'silent',
+      runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt: 1, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode: 'silent',
       versionId: r.versionId, runDir, signal: new AbortController().signal, progress: () => {}, status: () => {}, session: () => {},
     });
     const ex = { build: buildExecutor(deps), final_render: finalRenderExecutor(deps), compose: composeExecutor(deps) } as const;

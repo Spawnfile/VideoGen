@@ -51,7 +51,7 @@ async function built(deps: StepDeps, name = 'Tükenmez kalem') {
   }
   const steps = await listRunSteps(t.pool, r.runId);
   const ctx = (key: 'build' | 'draft_render', round = 0, attempt = 1): StepContext => ({
-    runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt, round, videoId: r.videoId, productId: r.productId, productName: name, audioMode: 'silent', versionId: r.versionId, runDir,
+    runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt, round, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode: 'silent', versionId: r.versionId, runDir,
     signal: new AbortController().signal, progress: () => {}, status: () => {}, session: () => {},
   });
   const b = buildExecutor(deps);

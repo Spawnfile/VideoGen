@@ -1,4 +1,4 @@
-import { closeSync, existsSync, fstatSync, openSync, readdirSync, readSync, rmSync } from 'node:fs';
+import { closeSync, existsSync, fstatSync, openSync, readdirSync, readSync, rmSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 export const framePath = (dir: string, f: number) => join(dir, `f${String(f).padStart(5, '0')}.png`);
@@ -35,6 +35,26 @@ export function removeRunFrames(dataDir: string, runId: string): string[] {
   if (!existsSync(root)) return [];
   const removed: string[] = [];
   for (const h of readdirSync(root)) {
+    rmSync(join(root, h, 'scene.blend'), { force: true });
+    const dir = join(root, h, 'frames');
+    if (!existsSync(dir)) continue;
+    rmSync(dir, { recursive: true, force: true });
+    removed.push(relative(dataDir, dir));
+  }
+  return removed;
+}
+
+/**
+ * Plan F12: a new final render starts with the hash `keepHash16`; this run's other `final/<hash>/` frame dirs (and their .blend copies) are
+ * stale and go. `compose`, `qc` and the kept hash are never touched. Returns the deleted frame dirs relative to dataDir.
+ */
+export function removeStaleFrames(dataDir: string, runId: string, keepHash16: string): string[] {
+  const root = join(dataDir, 'runs', runId, 'final');
+  if (!existsSync(root)) return [];
+  const removed: string[] = [];
+  for (const h of readdirSync(root)) {
+    // Only `final/<16 hex>` directories are frame dirs of a render hash; anything else (compose, qc, a stray file) stays.
+    if (!/^[0-9a-f]{16}$/.test(h) || h === keepHash16 || !statSync(join(root, h)).isDirectory()) continue;
     rmSync(join(root, h, 'scene.blend'), { force: true });
     const dir = join(root, h, 'frames');
     if (!existsSync(dir)) continue;

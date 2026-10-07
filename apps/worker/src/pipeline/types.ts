@@ -7,6 +7,10 @@ export interface StepContext {
   attempt: number;
   /** Draft review round of this step (plan C6): 0 on the first pass, +1 each time the review sends the run back. */
   round: number;
+  /** Final review loop round of this step (plan F3): its own counter, separate from the draft `round`. */
+  fixRound: number;
+  /** The run's step keys in order (qc hands a failed gate to the review only when the plan has one: plan F6). */
+  plan: StepKey[];
   videoId: string;
   productId: string;
   productName: string;
@@ -29,7 +33,13 @@ export type StepOutcome =
   | { status: 'failed'; error: string; retry?: boolean }
   | { status: 'cancelled' }
   /** Plan C6 (spec §7.1 step 6): send the run back to the earlier step `to`; the orchestrator reruns `to`…this step in the next round. */
-  | { status: 'rewind'; to: StepKey; reason: string };
+  | {
+    status: 'rewind'; to: StepKey; reason: string;
+    /** 'draft' (default, the draft review: `round`) or 'final' (the final review: `fixRound`, plan F3). */
+    loop?: 'draft' | 'final';
+    /** Plan F13: the pending `versions` row of this fix round; the rewind makes it the video's current version. */
+    version?: { id: string; reason: string };
+  };
 
 export interface StepExecutor {
   key: StepKey;
@@ -39,5 +49,7 @@ export interface StepExecutor {
   inputHash(ctx: StepContext): Promise<string>;
   /** Spec §14 idempotency: true when a valid output for this input already exists. */
   reuse?(ctx: StepContext, inputHash: string): Promise<boolean>;
+  /** Runs after `reuse` said no and before the resource gate (plan F12): housekeeping the §6.4 disk pre-check must see (stale frames). */
+  prepare?(ctx: StepContext, inputHash: string): Promise<void>;
   run(ctx: StepContext, inputHash: string): Promise<StepOutcome>;
 }

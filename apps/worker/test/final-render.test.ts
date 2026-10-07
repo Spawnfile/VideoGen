@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, truncateSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { producePlan } from '@videogen/shared';
 import { createProduceRun, findArtifact, insertArtifact, listRunSteps, updateRun } from '@videogen/db';
 import { FakeClaudeDriver, SpecStore } from '@videogen/claude';
@@ -50,7 +50,7 @@ async function built(deps: StepDeps, name = 'Tükenmez kalem') {
   const steps = await listRunSteps(t.pool, r.runId);
   const progress: number[] = [];
   const ctx = (key: 'build' | 'final_render', attempt = 1): StepContext => ({
-    runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt, round: 0, videoId: r.videoId, productId: r.productId, productName: name, audioMode: 'silent',
+    runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode: 'silent',
     versionId: r.versionId, runDir, signal: new AbortController().signal, progress: (p) => { if (key === 'final_render') progress.push(p); }, status: () => {}, session: () => {},
   });
   const b = buildExecutor(deps);
@@ -94,6 +94,38 @@ describe('final render: driver, step and frame cleanup', () => {
     truncateSync(framePath(join(runDir, meta.dir), 700), 20);
     expect(await ex.reuse!(ctx('final_render'), hash)).toBe(false);
     expect(await ex.run(ctx('final_render', 2), hash)).toEqual({ status: 'done', note: '1351 kare · EEVEE 64 örnek · 0 dk · 1350 kare önceden hazırdı' });
+  });
+
+  it('a new render removes this run\'s stale frame dirs (plan F12); a 32-sample retry after kept 64-sample frames is recorded (M9)', async () => {
+    const { deps, render } = setup();
+    const { r, ctx, runDir } = await built(deps);
+    const stale = join(runDir, 'final', 'deadbeefdeadbeef');
+    mkdirSync(join(stale, 'frames'), { recursive: true });
+    writeFileSync(join(stale, 'frames', 'f00000.png'), 'x');
+    writeFileSync(join(stale, 'scene.blend'), 'b');
+    const compose = join(runDir, 'final', 'compose', 'c0ffee');
+    mkdirSync(compose, { recursive: true });
+    writeFileSync(join(compose, 'layout.json'), '{}');
+    mkdirSync(join(runDir, 'final', 'notes', 'frames'), { recursive: true }); // not a hash dir: survives
+    writeFileSync(join(runDir, 'final', 'stray.txt'), 'x');
+    const ex = finalRenderExecutor(deps);
+    const hash = await ex.inputHash(ctx('final_render'));
+    // a dir of the hash about to render is kept: it is the resume point
+    mkdirSync(join(runDir, 'final', hash.slice(0, 16), 'frames'), { recursive: true });
+    await ex.prepare!(ctx('final_render'), hash);
+    expect([existsSync(join(stale, 'frames')), existsSync(join(stale, 'scene.blend')), existsSync(join(compose, 'layout.json')), existsSync(join(runDir, 'final', hash.slice(0, 16), 'frames')), existsSync(join(runDir, 'final', 'notes', 'frames')), existsSync(join(runDir, 'final', 'stray.txt'))]).toEqual([false, false, true, true, true, true]);
+    const audit = async (action: string) => (await t.pool.query('SELECT data FROM audit_log WHERE run_id = $1 AND action = $2', [r.runId, action])).rows.map((x) => x.data);
+    expect(await audit('frames.deleted')).toEqual([{ dirs: [`runs/${r.runId}/final/deadbeefdeadbeef/frames`], reason: 'stale' }]);
+    const real = render.final.bind(render);
+    vi.spyOn(render, 'final').mockImplementation(async (o) => ({ ...(await real(o)), samples: 32, skipped: 700 }));
+    expect(await ex.run(ctx('final_render'), hash)).toEqual({ status: 'done', note: '1351 kare · EEVEE 32 örnek · 0 dk · 700 kare önceden hazırdı · ilk 700 kare 64 örnek' });
+    const meta = (await findArtifact(t.pool, { runId: r.runId, kind: 'final_frames', inputHash: hash }))!.meta as FinalFramesMeta;
+    expect(meta).toMatchObject({ samples: 32, skipped: 700, mixed64: 700 });
+    expect(await audit('render.final_mixed_samples')).toEqual([{ frames: 700, samples: 32 }]);
+    // an ordinary 64-sample resume is not mixed
+    vi.spyOn(render, 'final').mockImplementation(async (o) => ({ ...(await real(o)), samples: 64, skipped: 10 }));
+    await ex.run(ctx('final_render', 2), hash);
+    expect(((await t.pool.query("SELECT meta FROM artifacts WHERE run_id = $1 AND kind = 'final_frames' ORDER BY created_at DESC LIMIT 1", [r.runId])).rows[0].meta as FinalFramesMeta).mixed64).toBeUndefined();
   });
 
   it('deletes only this run\'s frames when the run ends (done or cancelled), never its scene files or another run\'s frames', async () => {

@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { QcReportSchema, producePlan, type QcReport } from '@videogen/shared';
+import { QcReportSchema, producePlan, type QcReport, type StepKey } from '@videogen/shared';
 import { createProduceRun, getRunView, getVideoView, insertArtifact, latestArtifact } from '@videogen/db';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
 import { decideQc, qcExecutor } from '../src/pipeline/final-steps.ts';
@@ -31,6 +31,7 @@ describe('qc step and the M5a plan', () => {
     expect(out).toMatchObject({ status: 'done', note: expect.stringMatching(/^G1 ✓ G5 ✓ G6 ✓ · D6 \d+\/12 · D7 \d\/5/) });
     const rep = (await latestArtifact(t.pool, r.runId, 'qc_report'))!;
     expect(QcReportSchema.safeParse(rep.content).success).toBe(true);
+    expect(rep.meta).toEqual({ pass: true, musicSha: (await latestArtifact(t.pool, r.runId, 'final_video_music'))!.blobSha });
     expect((rep.content as { tiktok: { id: string }[] }).tiktok.map((c) => c.id)).toContain('g1_color');
     // The ledger is shared by this file's tests but the blob lives in this harness's data dir: take the late track out again.
     await t.pool.query("UPDATE assets SET allowed = false WHERE title = 'Geç yatak'");
@@ -44,7 +45,12 @@ describe('qc step and the M5a plan', () => {
     await insertArtifact(t.pool, { runId: r.runId, kind: 'layout', inputHash: composeHash, content: { width: 1080, height: 1920, fps: 30, frames: [{ frame: 90, boxes: [{ kind: 'beat', box: [24, 1480, 900, 1560] }] }] } });
     const ex = qcExecutor(h.deps);
     expect(await ex.run(ctx('qc'), await ex.inputHash(ctx('qc')))).toEqual({ status: 'needs_human', reason: 'Otomatik kontrol geçmedi: Güvenli alan: 1 kutu dışarıda (3,0 sn).' });
-    expect(decideQc((await latestArtifact(t.pool, r.runId, 'qc_report'))!.content as QcReport, null)).toMatchObject({ status: 'needs_human' });
+    const report = (await latestArtifact(t.pool, r.runId, 'qc_report'))!.content as QcReport;
+    expect(decideQc(report, null)).toMatchObject({ status: 'needs_human' });
+    // plan F6: with a review in the plan the failed gate goes to the review (done), not to a human
+    expect(decideQc(report, null, true)).toEqual({ status: 'done', note: 'Otomatik kontrol geçmedi: Güvenli alan: 1 kutu dışarıda (3,0 sn). İnceleme düzeltmeye gönderecek.' });
+    const withReview = { ...ctx('qc'), plan: ['qc', 'review'] as StepKey[] };
+    expect(await ex.run(withReview, await ex.inputHash(withReview))).toMatchObject({ status: 'done', note: expect.stringMatching(/İnceleme düzeltmeye gönderecek\.$/) });
     await h.stop();
   }, 240_000);
 

@@ -42,7 +42,7 @@ async function context(deps: StepDeps, name = 'Tükenmez kalem', audioMode: 'vo'
   const calls = { progress: [] as number[], status: [] as string[], sessions: [] as string[] };
   const abort = new AbortController();
   const ctx = (i: 0 | 1): StepContext => ({
-    runId: r.runId, stepId: steps[i]!.id, key: steps[i]!.key, attempt: 1, round: 0, videoId: r.videoId, productId: r.productId, productName: name.trim(), audioMode,
+    runId: r.runId, stepId: steps[i]!.id, key: steps[i]!.key, attempt: 1, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name.trim(), audioMode,
     versionId: r.versionId, runDir: join(deps.dataDir, 'runs', r.runId), signal: abort.signal,
     progress: (p) => { calls.progress.push(p); }, status: (s) => { calls.status.push(s); }, session: (id) => { calls.sessions.push(id); },
   });

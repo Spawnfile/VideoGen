@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  buildQcReport, CHANNEL_STYLES, evaluateQc, formatClock, QC_CHECKS, qcFailures, QcReportSchema, RUBRIC_VERSION, SceneEventsSchema, validateArtifact, type QcReport,
+  buildQcReport, CHANNEL_STYLES, evaluateQc, formatClock, QC_CHECKS, qcFailures, QcReportSchema, RUBRIC_VERSION, SceneEventsSchema, sceneRender, validateArtifact, type QcReport, type SceneEvents, type Storyboard,
 } from '@videogen/shared';
 import { appendAudit, findArtifact, getBlob, insertArtifact, latestArtifact, listAssets } from '@videogen/db';
 import { parseGlb } from '@videogen/scene3d';
@@ -13,9 +13,9 @@ import { ensureSfxLibrary } from '../assets.ts';
 import { masterVariant, mixTrack } from '../render/audio.ts';
 import { RenderError } from '../render/driver.ts';
 import { draftProbeErrors, encodeDelivery, extractFrame, FINAL_ENCODE, probeVideo } from '../render/ffmpeg.ts';
-import { missingFrames } from '../render/frames.ts';
+import { missingFrames, removeStaleFrames } from '../render/frames.ts';
 import { probeQc } from '../render/qc.ts';
-import { LicenseError, pickMusic, planSfx, soundPlan, type SoundPlan } from './sound.ts';
+import { LicenseError, pickMusic, planSfx, soundPlan, withImportedSfx, type SoundPlan } from './sound.ts';
 import { record, sha, type StepDeps } from './steps.ts';
 import type { StepExecutor, StepOutcome } from './types.ts';
 
@@ -23,15 +23,19 @@ import type { StepExecutor, StepOutcome } from './types.ts';
 export const FINAL_RENDER = { engine: 'BLENDER_EEVEE', samples: 64, raytracing: true, view: 'AgX Punchy', width: 1080, height: 1920, fps: 30, frames: 'png-rgba8' } as const;
 
 /** `final_frames` artifact meta (plan E6): the frames stay in the run directory, never in the blob store. */
-export interface FinalFramesMeta { dir: string; frames: number; skipped: number; samples: number; renderer: string; renderMs: number }
+export interface FinalFramesMeta {
+  dir: string; frames: number; skipped: number; samples: number; renderer: string; renderMs: number;
+  /** Plan F17 (M9): a 32-sample retry kept this many 64-sample frames from the crashed attempt. */
+  mixed64?: number;
+}
 
-/** Plan E16: the latest scene .blend and spec of the run, and the final render's input hash. */
+/** Plan E16/F11: the latest scene .blend and spec of the run, and the final render's input hash (blind to the part labels and recipe notes: they render nothing). */
 export async function finalSource(deps: Pick<StepDeps, 'pool' | 'dataDir'>, runId: string): Promise<{ hash: string; blendPath: string; blendSha: string; specHash: string; lastFrame: number } | null> {
   const [blend, scene] = await Promise.all(['scene_blend', 'scene'].map((k) => latestArtifact(deps.pool, runId, k)));
   const s = scene ? validateArtifact('SceneSpec', scene.content) : null;
   const blob = blend?.blobSha ? await getBlob(deps.pool, blend.blobSha) : null;
   if (!s?.ok || !blob) return null;
-  const specHash = sha(s.value);
+  const specHash = sha(sceneRender(s.value));
   return { hash: sha({ step: 'final_render', blend: blob.sha256, spec: specHash, style: s.value.style_id, render: FINAL_RENDER }), blendPath: join(deps.dataDir, blob.path), blendSha: blob.sha256, specHash, lastFrame: s.value.frames };
 }
 
@@ -49,6 +53,13 @@ export function finalRenderExecutor(deps: StepDeps): StepExecutor {
       const m = a?.meta as FinalFramesMeta | undefined;
       return !!m && missingFrames(join(ctx.runDir, m.dir), m.frames - 1).length === 0;
     },
+    // Best effort: a directory that cannot be deleted must not stop the render (the next render retries).
+    async prepare(ctx, hash) {
+      try {
+        const dirs = removeStaleFrames(deps.dataDir, ctx.runId, hash.slice(0, 16));
+        if (dirs.length) await appendAudit(deps.pool, { actorType: 'orchestrator', action: 'frames.deleted', runId: ctx.runId, stepId: ctx.stepId, data: { dirs, reason: 'stale' } });
+      } catch { /* housekeeping only */ }
+    },
     async run(ctx, hash) {
       const scene = deps.scene;
       if (!scene) return { status: 'failed', error: 'render yapılandırılmadı', retry: false };
@@ -64,10 +75,13 @@ export function finalRenderExecutor(deps: StepDeps): StepExecutor {
           runDir: ctx.runDir, blendPath: blend, outDir: join(work, 'frames'), lastFrame: src.lastFrame, owner: ctx.stepId, signal: ctx.signal,
           onProgress: (done, total) => ctx.progress(Math.min(99, (done / total) * 100), 'render'),
         });
-        const meta: FinalFramesMeta = { dir: join(rel, 'frames'), frames: r.frames, skipped: r.skipped, samples: r.samples, renderer: r.renderer, renderMs: r.ms };
+        // Plan F17 (M9): the retry after a crash renders at 32 samples but keeps the frames the crashed 64-sample attempt finished.
+        const mixed = r.samples < FINAL_RENDER.samples && r.skipped > 0;
+        const meta: FinalFramesMeta = { dir: join(rel, 'frames'), frames: r.frames, skipped: r.skipped, samples: r.samples, renderer: r.renderer, renderMs: r.ms, ...(mixed ? { mixed64: r.skipped } : {}) };
         const a = await insertArtifact(deps.pool, { runId: ctx.runId, stepId: ctx.stepId, versionId: ctx.versionId, kind: 'final_frames', inputHash: hash, meta });
         await appendAudit(deps.pool, { actorType: 'orchestrator', action: 'artifact.created', runId: ctx.runId, stepId: ctx.stepId, subjectType: 'artifact', subjectId: a.id, data: { kind: 'final_frames', frames: r.frames, skipped: r.skipped } });
-        return { status: 'done', note: `${r.frames} kare · EEVEE ${r.samples} örnek · ${Math.round(r.ms / 60_000)} dk${r.skipped ? ` · ${r.skipped} kare önceden hazırdı` : ''}` };
+        if (mixed) await appendAudit(deps.pool, { actorType: 'orchestrator', action: 'render.final_mixed_samples', runId: ctx.runId, stepId: ctx.stepId, data: { frames: r.skipped, samples: r.samples } });
+        return { status: 'done', note: `${r.frames} kare · EEVEE ${r.samples} örnek · ${Math.round(r.ms / 60_000)} dk${r.skipped ? ` · ${r.skipped} kare önceden hazırdı` : ''}${mixed ? ` · ilk ${r.skipped} kare ${FINAL_RENDER.samples} örnek` : ''}` };
       } catch (e) {
         if (e instanceof RenderError && e.kind !== 'aborted') return { status: 'failed', error: e.message, retry: false };
         throw e;
@@ -89,6 +103,23 @@ export interface ComposeSource {
   files: Map<string, string>;
 }
 
+/** Python's `round` (banker's: .5 goes to the even integer), which is what Blender's events_manifest used for the frames. */
+function pyRound(x: number): number {
+  const f = Math.floor(x);
+  const d = x - f;
+  return d < 0.5 ? f : d > 0.5 ? f + 1 : f % 2 === 0 ? f : f + 1;
+}
+
+/**
+ * Review T2: build.py's events_manifest wrote the `label_in` events from the storyboard of that build; a compose-scope fix moves beats and
+ * parts without a rebuild. So they are derived again from the current storyboard (same id, `round(t_start * fps)` frame) and the other
+ * event types (explode, lock, zoom: scene render fields) stay as built. Sorted like build.py: frame, then id.
+ */
+export function currentEvents(stored: SceneEvents['events'], beats: Storyboard['beats'], fps: number): SceneEvents['events'] {
+  const labels = beats.flatMap((b) => b.parts.map((pid) => ({ id: `label_in:${b.id}:${pid}`, type: 'label_in' as const, frame: pyRound(b.t_start * fps), part_id: pid })));
+  return [...stored.filter((e) => e.type !== 'label_in'), ...labels].sort((a, b) => a.frame - b.frame || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
 /** Plan E16: everything compose reads, and its input hash (frames, GLB, overlay props, template, master/encode settings, sound plan). */
 export async function composeSource(deps: StepDeps, runId: string, videoId: string): Promise<ComposeSource | { error: string } | null> {
   const ffmpeg = deps.scene?.ffmpeg ?? 'ffmpeg';
@@ -103,11 +134,11 @@ export async function composeSource(deps: StepDeps, runId: string, videoId: stri
   if (!frames?.inputHash || !meta || !current || !s?.ok || !b?.ok || !ev?.success || !yfov || !glbBlob) return null;
   const { glbUrl: _g, framesUrl: _f, ...props } = finalProps({ glbUrl: '', framesUrl: '', yfov, scene: s.value, storyboard: b.value, style: CHANNEL_STYLES[s.value.style_id] });
   const durationS = (props.frames + 1) / 30;
-  const library = await ensureSfxLibrary(deps.pool, deps.dataDir, ffmpeg);
+  const library = withImportedSfx(await ensureSfxLibrary(deps.pool, deps.dataDir, ffmpeg), await listAssets(deps.pool, { kind: 'sfx', allowedOnly: true }));
   const music = pickMusic(await listAssets(deps.pool, { kind: 'music', allowedOnly: true }), videoId);
   let sound: SoundPlan;
   try {
-    sound = soundPlan(planSfx({ events: ev.data.events, beats: b.value.beats, fps: 30, durationS }), library, music);
+    sound = soundPlan(planSfx({ events: currentEvents(ev.data.events, b.value.beats, 30), beats: b.value.beats, fps: 30, durationS }), library, music);
   } catch (e) {
     if (e instanceof LicenseError) return { error: `lisans kapısı: ${e.message}` };
     throw e;
@@ -197,9 +228,15 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
   };
 }
 
-/** Plan E15: gates decide (needs_human until the fixer of M5b); the D6/D7 checks that cost points go into the note. */
-export function decideQc(r: QcReport, musicTitle: string | null): StepOutcome {
-  if (!r.pass) return { status: 'needs_human', reason: `Otomatik kontrol geçmedi: ${qcFailures(r).join('; ')}.` };
+/**
+ * Plan E15/F6: gates decide. A failed gate stops the run for a human, unless the plan has the review (`reviewed`): then the step is done
+ * and the review hands the failures to the fixer. The D6/D7 checks that cost points go into the note.
+ */
+export function decideQc(r: QcReport, musicTitle: string | null, reviewed = false): StepOutcome {
+  if (!r.pass) {
+    const why = `Otomatik kontrol geçmedi: ${qcFailures(r).join('; ')}.`;
+    return reviewed ? { status: 'done', note: `${why} İnceleme düzeltmeye gönderecek.` } : { status: 'needs_human', reason: why };
+  }
   const soft = r.music.filter((c) => !c.pass && QC_CHECKS[c.id].points > 0).map((c) => `${QC_CHECKS[c.id].label_tr} ${c.value}`);
   return {
     status: 'done',
@@ -229,10 +266,11 @@ export function qcExecutor(deps: StepDeps): StepExecutor {
       // asset ledger, which is not staleness).
       const current = await finalSource(deps, ctx.runId);
       if (!current || (music.meta as { framesHash?: string } | null)?.framesHash !== current.hash) return { status: 'failed', error: 'final video güncel sahneyle uyuşmuyor (bayat artefakt, §8.3)', retry: false };
+      const reviewed = ctx.plan.includes('review');
       const musicTitle = (music.meta as { music?: string | null } | null)?.music ?? null;
       const stored = await findArtifact(deps.pool, { runId: ctx.runId, kind: 'qc_report', inputHash: hash });
       const replay = stored ? QcReportSchema.safeParse(stored.content) : null;
-      if (replay?.success) return decideQc(replay.data, musicTitle);
+      if (replay?.success) return decideQc(replay.data, musicTitle, reviewed);
       const file = async (s: string) => join(deps.dataDir, (await getBlob(deps.pool, s))!.path);
       ctx.status('running', 'ölçülüyor: görüntü ve ses');
       const m = await probeQc(scene.ffmpeg, await file(music.blobSha), { edges: !layout, signal: ctx.signal });
@@ -245,8 +283,8 @@ export function qcExecutor(deps: StepDeps): StepExecutor {
       await mkdir(dir, { recursive: true });
       const qcFile = join(dir, 'qc.json');
       await writeFile(qcFile, JSON.stringify({ report, measure: { music: m, tiktok: t } }, null, 2));
-      await record(deps, ctx, { kind: 'qc_report', file: qcFile, content: report, inputHash: hash, meta: { pass: report.pass } });
-      return decideQc(report, musicTitle);
+      await record(deps, ctx, { kind: 'qc_report', file: qcFile, content: report, inputHash: hash, meta: { pass: report.pass, musicSha: music.blobSha } });
+      return decideQc(report, musicTitle, reviewed);
     },
   };
 }

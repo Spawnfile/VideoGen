@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { AssetRecord } from '@videogen/db';
-import { LicenseError, matchSfx, pickMusic, planSfx, soundPlan, type SfxCue } from '../src/pipeline/sound.ts';
+import { LicenseError, matchSfx, pickMusic, planSfx, soundPlan, withImportedSfx, type SfxCue } from '../src/pipeline/sound.ts';
 import { masterAudio, masterVariant, measureLoudnorm, mixTrack, parseLoudnormJson } from '../src/render/audio.ts';
 import { encodeDelivery, fakeFinal, muxVariant } from '../src/render/ffmpeg.ts';
 
@@ -29,6 +29,23 @@ describe('sound plan, mix, mastering and the two variants', () => {
     const locks = planSfx({ events: [1, 2, 3, 4, 5].map((s) => ({ id: `l${s}`, type: 'part_lock' as const, frame: s * 30 })), beats: [], fps: 30, durationS: 40 });
     expect(locks.filter((c) => c.name === 'click').map((c) => c.atMs)).toEqual([1000, 2000, 3000]);
     expect([matchSfx('Whoosh'), matchSfx('kapak çıt sesi'), matchSfx('tık'), matchSfx('müzik')]).toEqual(['whoosh', 'snap', 'click', null]);
+  });
+
+  it('an imported allowed SFX whose title or tag names a library sound replaces the procedural one; a disallowed one never does', () => {
+    const imported = [
+      asset({ id: 'z-whoosh', title: 'Büyük whoosh efekti' }), asset({ id: 'b-whoosh', title: 'Hızlı vuş' }), asset({ id: 'a-click', title: 'Düğme', tags: ['Click'] }),
+      asset({ id: 'c-thud', title: 'thud', allowed: false }), asset({ id: 'd-nc', title: 'snap', licenseSpdx: 'CC-BY-NC-4.0' }), asset({ id: 'm-song', kind: 'music', title: 'tick' }), asset({ id: 'n-plain', title: 'Ambiyans' }),
+    ];
+    const out = withImportedSfx(lib, imported);
+    expect([out.whoosh.id, out.click.id]).toEqual(['b-whoosh', 'a-click']);
+    expect([out.thud.id, out.snap.id, out.tick.id, out.swoosh.id]).toEqual(['sfx-thud', 'sfx-snap', 'sfx-tick', 'sfx-swoosh']);
+    // an asset whose first named sound is already claimed takes its next candidate
+    const spill = withImportedSfx(lib, [asset({ id: 'a-1', title: 'tık' }), asset({ id: 'a-2', title: 'tık', tags: ['snap'] })]);
+    expect([spill.click.id, spill.snap.id]).toEqual(['a-1', 'a-2']);
+    expect(withImportedSfx(lib, Object.values(lib))).toEqual(lib);
+    expect(withImportedSfx(lib, [])).toEqual(lib);
+    // the plan then uses the imported asset for that sound
+    expect(soundPlan([{ atMs: 0, name: 'whoosh', source: 'hook' }], out, null).cues[0]).toMatchObject({ assetId: 'b-whoosh' });
   });
 
   it('picks music deterministically among allowed tracks only, and refuses any disallowed asset in the plan (spec §9 license gate)', () => {

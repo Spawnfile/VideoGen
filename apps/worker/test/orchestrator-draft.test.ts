@@ -1,9 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { PlanStep, Resource, StepKey } from '@videogen/shared';
-import { claimJob, createProduceRun, enqueueJob, getRunView, getVideoView, listRunSteps, updateRun, updateStep } from '@videogen/db';
+import { claimJob, createProduceRun, enqueueJob, getRunView, getVideoView, insertVersion, listRunSteps, updateRun, updateStep } from '@videogen/db';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
 import { Orchestrator, PIPELINE_INCOMPLETE_NOTE, type OrchestratorDeps } from '../src/pipeline/orchestrator.ts';
 import type { Probe } from '../src/pipeline/resources.ts';
@@ -19,11 +20,11 @@ afterEach(async () => { for (const o of orchs.splice(0)) o.stop(); await t.pool.
 const LOOP: PlanStep[] = [{ key: 'build', weight: 66.67 }, { key: 'draft_render', weight: 14.81 }, { key: 'draft_review', weight: 18.52 }];
 const OK_PROBE: Probe = { snapshot: async () => ({ memAvailableMb: 8000, swapUsedPct: 0, diskFreeMb: 50_000, vramFreeMb: 6000, ollamaModels: [] }) };
 
-function exec(key: StepKey, o: { resource?: Resource; run?: (ctx: StepContext) => Promise<StepOutcome> } = {}): StepExecutor & { rounds: number[] } {
+function exec(key: StepKey, o: { resource?: Resource; run?: (ctx: StepContext) => Promise<StepOutcome> } = {}): StepExecutor & { rounds: number[]; fixRounds: number[] } {
   const e = {
-    key, resource: o.resource ?? 'claude', rounds: [] as number[],
+    key, resource: o.resource ?? 'claude', rounds: [] as number[], fixRounds: [] as number[],
     inputHash: async (ctx: StepContext) => `h-${key}-${ctx.round}`,
-    run: async (ctx: StepContext) => { e.rounds.push(ctx.round); return o.run ? o.run(ctx) : { status: 'done' as const }; },
+    run: async (ctx: StepContext) => { e.rounds.push(ctx.round); e.fixRounds.push(ctx.fixRound); return o.run ? o.run(ctx) : { status: 'done' as const }; },
   };
   return e;
 }
@@ -67,6 +68,58 @@ describe('Orchestrator: draft loop, GPU door, usage gate', () => {
     await vi.waitFor(async () => expect(await runStatus(r.runId)).toBe('needs_human'), { timeout: 10_000 });
     expect(build.rounds).toEqual([0, 1, 2]);
     expect(await getVideoView(t.pool, r.videoId)).toMatchObject({ status: 'needs_human', statusNote: '2 taslak turundan sonra açık bulgu: Mekanizma çekimi' });
+  });
+
+  it('a final review rewind (plan F3) reruns compose…review with fix_round + 1 and the new version; past three rounds the review settles done; progress monotone', async () => {
+    const plan: PlanStep[] = [{ key: 'compose', weight: 30 }, { key: 'qc', weight: 20 }, { key: 'review', weight: 40 }, { key: 'finalize', weight: 10 }];
+    const versions: (string | null)[] = [];
+    const planSeen: StepKey[][] = [];
+    // reuse → prepare → gate → run (plan F12), prepare on every attempt, never after a reuse hit, and a throwing prepare does not fail the step
+    const trace: string[] = [];
+    const logged: string[] = [];
+    const compose = exec('compose', { resource: 'heavy_cpu', run: async (ctx) => { trace.push('compose.run'); versions.push(ctx.versionId); planSeen.push(ctx.plan); return { status: 'done' }; } });
+    compose.reuse = async () => { trace.push('compose.reuse'); return false; };
+    compose.prepare = async () => { trace.push('compose.prepare'); throw new Error('disk busy'); };
+    const qc = exec('qc', { resource: 'heavy_cpu', run: async (ctx) => { trace.push('qc.run'); return ctx.fixRound === 0 && ctx.attempt === 1 ? { status: 'failed', error: 'flaky' } : { status: 'done' }; } });
+    qc.reuse = async (ctx) => { trace.push('qc.reuse'); return ctx.fixRound === 2; };
+    qc.prepare = async () => { trace.push('qc.prepare'); };
+    const probe: Probe = { snapshot: async () => { trace.push('gate'); return OK_PROBE.snapshot(); } };
+    const review = exec('review', {
+      run: async (ctx) => {
+        const id = randomUUID();
+        await insertVersion(t.pool, { id, videoId: ctx.videoId, parentVersionId: ctx.versionId, round: ctx.fixRound + 1, reason: 'fix:pending' });
+        return { status: 'rewind', to: 'compose', reason: 'yazı okunmuyor', loop: 'final', version: { id, reason: 'fix:compose' } };
+      },
+    });
+    const finalize = exec('finalize');
+    const o = orch({ compose, qc, review, finalize }, { locks: new ResourceLocks(), probe, log: (m) => logged.push(m) });
+    const r = await produce('Kalem final döngü', plan);
+    await o.startRun(r.runId);
+    await vi.waitFor(async () => expect(await runStatus(r.runId)).toBe('done'), { timeout: 15_000 });
+    expect([compose.fixRounds, review.fixRounds]).toEqual([[0, 1, 2, 3], [0, 1, 2, 3]]);
+    expect([compose.rounds, review.rounds]).toEqual([[0, 0, 0, 0], [0, 0, 0, 0]]);
+    expect(finalize.fixRounds).toEqual([0]); // the rewind range is compose…review: finalize never counts rounds
+    expect(new Set(versions).size).toBe(4);
+    const order = trace.filter((x, i) => !(x === 'gate' && trace[i - 1] === 'gate'));
+    const cRound = ['compose.reuse', 'compose.prepare', 'gate', 'compose.run'];
+    const qRound = ['qc.reuse', 'qc.prepare', 'gate', 'qc.run'];
+    expect(order).toEqual([
+      ...cRound, ...qRound, ...qRound, // round 0: qc fails once and its retry runs reuse/prepare/gate again
+      ...cRound, ...qRound,
+      ...cRound, 'qc.reuse', // round 2: the reuse hit skips prepare, the gate and run
+      ...cRound, ...qRound,
+    ]);
+    expect(logged.filter((m) => /^prepare compose .* failed/.test(m))).toHaveLength(4);
+    expect(planSeen[0]).toEqual(['compose', 'qc', 'review', 'finalize']);
+    const steps = (await getRunView(t.pool, r.runId))!.steps;
+    expect(steps.find((s) => s.key === 'review')).toMatchObject({ status: 'done', note: '3 düzeltme turundan sonra eşik geçilemedi: yazı okunmuyor' });
+    const acts = await actions(r.runId);
+    expect(acts.filter((a) => a === 'step.rewind')).toHaveLength(3);
+    expect(acts.filter((a) => a === 'version.created')).toHaveLength(3);
+    expect((await t.pool.query("SELECT data FROM audit_log WHERE run_id = $1 AND action = 'step.rewind' ORDER BY seq", [r.runId])).rows[2].data).toMatchObject({ loop: 'final', round: 3 });
+    expect((await t.pool.query('SELECT current_version_id FROM videos WHERE id = $1', [r.videoId])).rows[0].current_version_id).toBe(versions.at(-1));
+    const series = await progressSeries(r.runId);
+    expect(series).toEqual([...series].sort((a, b) => a - b));
   });
 
   it('a GPU step waits for the shared lock with its queue position, runs when it is free, and a cancel while waiting leaves no waiter', async () => {
