@@ -17,6 +17,15 @@ export interface BuildToolResult {
 export interface StillsToolResult { contact_sheet: string; stills: string[]; renderer: string }
 /** extract_frames result (plan C22): PNG paths relative to the run directory and the frame budget left for this review round. */
 export interface FramesToolResult { frames: { time: number; frame: number; path: string }[]; remaining: number }
+/** run_qc result (plan M5b F9): the stored qc report for the final under review, not a re-measurement. `measures` are the unscored D2/D3/D8 inputs. */
+export interface QcToolCheck { id: string; variant: 'music' | 'tiktok'; label: string; value: string; limit: string; at?: number }
+export interface QcToolResult {
+  pass: boolean;
+  gates: Record<string, boolean>;
+  scores: { D6: number; D7: number };
+  failed: QcToolCheck[];
+  measures: (QcToolCheck & { pass: boolean })[];
+}
 export interface FrameCrop { x: number; y: number; w: number; h: number }
 
 export interface McpPorts {
@@ -29,6 +38,8 @@ export interface McpPorts {
   previewStills?(o: { frames?: number[] }): Promise<StillsToolResult>;
   /** M4c, draft review sessions only: spec §6.3 extract_frames on the draft under review (K27: our own frame tool). */
   extractFrames?(o: { times: number[]; crop?: FrameCrop }): Promise<FramesToolResult>;
+  /** M5b, final reviewers only (a target with a qc report registered): spec §6.3 run_qc. */
+  runQc?(): Promise<QcToolResult>;
 }
 
 const ok = (text: string): ToolResult => ({ content: [{ type: 'text', text }] });
@@ -115,6 +126,18 @@ export function videogenTools(o: { role: RoleDef; runDir: string; ports: McpPort
       },
     },
     {
+      name: 'run_qc',
+      description: 'The automatic quality report of the final video under review (already measured, not re-run): gates G1/G5/G6, the D6/D7 scores, the failed checks with value and limit, and the unscored measurements (black frames, freezes, loop similarity) that are yours to judge. versionId is ignored: you always get the version under review.',
+      shape: { versionId: z.string().optional() },
+      handler: async () => {
+        try {
+          return json(await o.ports.runQc!());
+        } catch (e) {
+          return fail((e as Error).message);
+        }
+      },
+    },
+    {
       name: 'register_artifact',
       description: 'Store a file from the run directory in the content-addressed media store; returns its sha256.',
       shape: { path: z.string(), kind: z.string().max(64) },
@@ -126,8 +149,8 @@ export function videogenTools(o: { role: RoleDef; runDir: string; ports: McpPort
     },
   ];
   const owned = new Set(o.role.mcp.filter((n) => (IMPLEMENTED_MCP as readonly string[]).includes(n)));
-  // Scene and frame tools exist only where the worker supplied their ports (a build or draft review step), never in chat or elsewhere.
+  // Scene, frame and qc tools exist only where the worker supplied their ports (a build or draft review step), never in chat or elsewhere.
   const supplied = (n: string) =>
-    n === 'build_scene' ? !!o.ports.buildScene : n === 'render_preview_stills' ? !!o.ports.previewStills : n === 'extract_frames' ? !!o.ports.extractFrames : true;
+    n === 'build_scene' ? !!o.ports.buildScene : n === 'render_preview_stills' ? !!o.ports.previewStills : n === 'extract_frames' ? !!o.ports.extractFrames : n === 'run_qc' ? !!o.ports.runQc : true;
   return all.filter((t) => owned.has(t.name) && supplied(t.name));
 }

@@ -148,6 +148,23 @@ describe('SessionManager', () => {
     await vi.waitFor(async () => expect(await stuck()).toBe(1), { timeout: 3000 }); // silent and idle again: the warning comes back
   });
 
+  it('a per-request model (the fixer category, K12) applies unless Settings chose a model for that role', async () => {
+    const m = make();
+    const model = async (id: string) => (await t.pool.query("SELECT data->>'model' AS m FROM audit_log WHERE session_id = $1 AND action = 'agent.session.queued'", [id])).rows[0].m as string;
+    const first = await m.start({ kind: 'pipeline', role: 'fixer', prompt: 'p', model: 'sonnet' });
+    const none = await m.start({ kind: 'pipeline', role: 'fixer', prompt: 'p' });
+    m.setRoleOverrides({ fixer: { model: 'opus' } });
+    const pinned = await m.start({ kind: 'pipeline', role: 'fixer', prompt: 'p', model: 'sonnet' });
+    m.setRoleOverrides({ fixer: { model: 'haiku' } });
+    const other = await m.start({ kind: 'pipeline', role: 'fixer', prompt: 'p', model: 'sonnet' });
+    expect(await Promise.all([first, none, pinned, other].map(model))).toEqual(['sonnet', 'opus', 'opus', 'haiku']);
+    // A retry (resume) keeps the requested alias, with Settings still winning.
+    m.setRoleOverrides({});
+    const again = (await m.retry(first))!;
+    const retried = (await m.retry(none))!;
+    expect(await Promise.all([again, retried].map(model))).toEqual(['sonnet', 'opus']);
+  });
+
   it('cancelling a session aborts the signal its tools received', async () => {
     let seen: ToolSession | null = null;
     const m = make({ tools: { ports: (s) => { seen = s; return {}; } } });

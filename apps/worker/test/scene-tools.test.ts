@@ -108,4 +108,14 @@ describe('scene tools', () => {
     expect(sheet.contact_sheet).toMatch(/^scene\/builds\/b\d+\/stills-\d+\/preview\.png$/);
     expect(gpu).toEqual([null]); // free GPU: no wait, only the "running" signal
   });
+
+  it('the fixer gets build_scene and render_preview_stills (plan F12); reviewers and chat do not', async () => {
+    cap = { ok: true };
+    const host = sceneToolHost(deps());
+    const base = { sessionId: 's', runDir: await runDir(), signal: new AbortController().signal, gpuWait: () => {} };
+    expect(Object.keys(host.ports({ ...base, role: 'fixer', runId: 'r', stepId: 's' })).sort()).toEqual(['buildScene', 'previewStills']);
+    expect(host.ports({ ...base, role: 'fixer', runId: null, stepId: null })).toEqual({});
+    for (const role of ['reviewer_visual', 'reviewer_facts', 'reviewer_retention', 'chat'] as const) expect(host.ports({ ...base, role, runId: 'r', stepId: 's' })).toEqual({});
+    expect((await host.ports({ ...base, role: 'fixer', runId: 'r', stepId: 's' }).buildScene!()).ok).toBe(true);
+  });
 });

@@ -3,7 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import type pg from 'pg';
-import { classifyLiveness, type Liveness, type RateLimitInfoLike, type RoleName, type SessionKind, type SessionStatus } from '@videogen/shared';
+import { classifyLiveness, type Liveness, type ModelAlias, type RateLimitInfoLike, type RoleName, type SessionKind, type SessionStatus } from '@videogen/shared';
 import { appendAudit, getSession, insertSession, publishEvent, publishLive, toSessionView, updateSession } from '@videogen/db';
 import {
   allowedTools, disallowedTools, evaluateToolUse, FILE_WRITE_TOOLS, groupAlive, killGroup, memAvailableMb, permissiveValidator,
@@ -62,6 +62,8 @@ export interface StartRequest {
   fakeScript?: FakeScript;
   /** false: the caller resumes a rate-limited session itself (pipeline steps); the manager does not open its own child. */
   autoResume?: boolean;
+  /** Per-request model (the fixer picks opus or sonnet by failure category, K12); Settings' model for the role wins over it. */
+  model?: ModelAlias;
 }
 export interface ManagerEvents {
   onTurnComplete?(sessionId: string, r: { turn: number; text: string | null; structured: unknown }): void | Promise<void>;
@@ -84,7 +86,7 @@ export interface ToolSession {
   /** GPU queue position / pre-check reason while a tool waits; null when it runs (plan B8). */
   gpuWait(w: { position?: number; reason?: string } | null): void;
 }
-export interface ToolHost { ports(s: ToolSession): Pick<McpPorts, 'buildScene' | 'previewStills' | 'extractFrames'> }
+export interface ToolHost { ports(s: ToolSession): Pick<McpPorts, 'buildScene' | 'previewStills' | 'extractFrames' | 'runQc'> }
 
 export const RESUME_PROMPT = 'Önceki oturum kesildi. Durumu kontrol et ve göreve kaldığın yerden devam et.';
 
@@ -146,7 +148,8 @@ export class SessionManager {
   async start(req: StartRequest): Promise<string> {
     const id = req.id ?? randomUUID();
     const claudeSessionId = req.claudeSessionId ?? id;
-    const def = resolveRole(req.role, this.overrides);
+    const resolved = resolveRole(req.role, this.overrides);
+    const def = req.model && !this.overrides[req.role]?.model ? { ...resolved, model: req.model } : resolved;
     const runDir = req.kind === 'chat' ? join(this.d.dataDir, 'chat', req.threadId ?? id) : join(this.d.dataDir, 'runs', req.runId ?? `adhoc-${id}`);
     await mkdir(runDir, { recursive: true });
     await insertSession(this.d.pool, {
@@ -155,7 +158,7 @@ export class SessionManager {
     });
     await appendAudit(this.d.pool, {
       actorType: 'orchestrator', action: 'agent.session.queued', sessionId: id, subjectType: 'role', subjectId: def.role,
-      data: { kind: req.kind, model: def.model, effort: def.effort, resume: !!req.resume, claudeSessionId, parentSessionId: req.parentSessionId ?? null },
+      data: { kind: req.kind, model: def.model, requestedModel: req.model ?? null, effort: def.effort, resume: !!req.resume, claudeSessionId, parentSessionId: req.parentSessionId ?? null },
     });
     await this.publish(id);
     this.queue.push({ id, req: { ...req, claudeSessionId }, def, runDir });
@@ -194,7 +197,10 @@ export class SessionManager {
     const rec = await getSession(this.d.pool, id);
     if (!rec) return null;
     if (this.live.has(id) || this.queue.some((p) => p.id === id)) await this.cancel(id);
-    const nid = await this.start({ kind: rec.kind, role: rec.role, prompt: RESUME_PROMPT, runId: rec.runId, threadId: rec.threadId, claudeSessionId: rec.claudeSessionId, resume: true, parentSessionId: id });
+    // The session row's model is overwritten by the driver's init (a full id); the requested alias lives in the queued audit.
+    const q = await this.d.pool.query("SELECT data->>'requestedModel' AS m FROM audit_log WHERE session_id = $1 AND action = 'agent.session.queued' ORDER BY id LIMIT 1", [id]);
+    const model = (q.rows[0]?.m ?? undefined) as ModelAlias | undefined;
+    const nid = await this.start({ kind: rec.kind, role: rec.role, prompt: RESUME_PROMPT, ...(model ? { model } : {}), runId: rec.runId, threadId: rec.threadId, claudeSessionId: rec.claudeSessionId, resume: true, parentSessionId: id });
     await appendAudit(this.d.pool, { actorType: reason === 'user' ? 'user' : 'orchestrator', action: 'agent.session.retry', sessionId: nid, data: { from: id, reason } });
     return nid;
   }
@@ -302,6 +308,7 @@ export class SessionManager {
       buildScene: tracked(host?.buildScene),
       previewStills: tracked(host?.previewStills),
       extractFrames: tracked(host?.extractFrames),
+      runQc: tracked(host?.runQc),
       reportProgress: async (pct, message) => {
         const v = Math.min(99, Math.max(this.progress.get(id) ?? 0, Math.round(pct)));
         this.progress.set(id, v);

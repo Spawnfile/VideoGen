@@ -130,11 +130,11 @@ export function toToolResult(runDir: string, b: SceneBuild): BuildToolResult {
   };
 }
 
-/** MCP ports for build sessions (spec §6.3). Only the builder of a run gets them; GPU waits show on the agent card (plan B8). */
+/** MCP ports for build sessions (spec §6.3). Only the builder and the fixer of a run get them; GPU waits show on the agent card (plan B8). */
 export function sceneToolHost(d: SceneDeps): ToolHost {
   return {
     ports(s) {
-      if (s.role !== 'builder' || !s.runId) return {};
+      if ((s.role !== 'builder' && s.role !== 'fixer') || !s.runId) return {};
       return {
         buildScene: async (): Promise<BuildToolResult> => {
           try {

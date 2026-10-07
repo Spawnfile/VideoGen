@@ -3,8 +3,8 @@ import type { Effort, ModelAlias, RoleName } from '@videogen/shared';
 export const SPEC_KINDS = ['research', 'storyboard', 'scene', 'audio'] as const;
 export type SpecKind = (typeof SPEC_KINDS)[number];
 
-/** MCP tools that exist. M4b adds the scene tools, M4c extract_frames; render_draft stays out (plan B7: the draft_render step makes the draft); run_qc, tts_* … arrive in M5. */
-export const IMPLEMENTED_MCP = ['report_progress', 'get_context', 'read_spec', 'write_spec', 'register_artifact', 'build_scene', 'render_preview_stills', 'extract_frames'] as const;
+/** MCP tools that exist. M4b adds the scene tools, M4c extract_frames, M5b run_qc; render_draft stays out (plan B7: the draft_render step makes the draft); tts_* … arrive in M5. */
+export const IMPLEMENTED_MCP = ['report_progress', 'get_context', 'read_spec', 'write_spec', 'register_artifact', 'build_scene', 'render_preview_stills', 'extract_frames', 'run_qc'] as const;
 
 export interface RoleDef {
   role: RoleName;
@@ -32,9 +32,9 @@ export const ROLES: Record<RoleName, RoleDef> = {
   builder: { role: 'builder', model: 'opus', effort: 'high', maxTurns: 60, tools: [...READ, 'Write', 'Edit'], bash: true, subagents: true, mcp: ['build_scene', 'render_preview_stills', 'read_spec', 'write_spec', 'report_progress', 'register_artifact', 'get_context'], writeDirs: ['scene'], specWrite: ['scene'], outputSchema: 'SceneSpec' },
   audio_director: { role: 'audio_director', model: 'sonnet', effort: 'medium', maxTurns: 25, tools: [...READ], bash: false, subagents: false, mcp: ['tts_synthesize', 'align_captions', 'search_assets', 'read_spec', 'write_spec', 'get_context'], writeDirs: [], specWrite: ['audio'], outputSchema: 'AudioPlan' },
   reviewer_visual: { role: 'reviewer_visual', model: 'opus', effort: 'high', maxTurns: 25, tools: [...READ], bash: false, subagents: false, mcp: ['extract_frames', 'run_qc', 'get_context'], writeDirs: [], specWrite: [], outputSchema: 'Review' },
-  reviewer_facts: { role: 'reviewer_facts', model: 'sonnet', effort: 'high', maxTurns: 25, tools: [...READ, 'WebFetch', 'WebSearch'], bash: false, subagents: false, mcp: ['read_spec', 'extract_frames', 'get_context'], writeDirs: [], specWrite: [], outputSchema: 'Review' },
+  reviewer_facts: { role: 'reviewer_facts', model: 'sonnet', effort: 'high', maxTurns: 40, tools: [...READ, 'WebFetch', 'WebSearch'], bash: false, subagents: false, mcp: ['read_spec', 'extract_frames', 'get_context'], writeDirs: [], specWrite: [], outputSchema: 'Review' },
   reviewer_retention: { role: 'reviewer_retention', model: 'sonnet', effort: 'high', maxTurns: 20, tools: [...READ], bash: false, subagents: false, mcp: ['extract_frames', 'run_qc', 'read_spec', 'get_context'], writeDirs: [], specWrite: [], outputSchema: 'Review' },
-  fixer: { role: 'fixer', model: 'opus', effort: 'high', maxTurns: 40, tools: [...READ, 'Write', 'Edit'], bash: true, subagents: false, mcp: ['write_spec', 'read_spec', 'build_scene', 'render_preview_stills', 'report_progress', 'register_artifact', 'get_context'], writeDirs: null, specWrite: ['research', 'storyboard', 'scene', 'audio'], outputSchema: 'FixReport' },
+  fixer: { role: 'fixer', model: 'opus', effort: 'high', maxTurns: 40, tools: [...READ, 'Write', 'Edit'], bash: true, subagents: false, mcp: ['write_spec', 'read_spec', 'build_scene', 'render_preview_stills', 'report_progress', 'register_artifact', 'get_context'], writeDirs: null, specWrite: ['storyboard', 'scene'], outputSchema: 'FixReport' },
   chat: { role: 'chat', model: 'opus', effort: 'high', maxTurns: null, tools: [...READ], bash: false, subagents: false, mcp: ALL_MCP, writeDirs: [], specWrite: ['research', 'storyboard', 'scene', 'audio'], outputSchema: null },
   summarizer: { role: 'summarizer', model: 'haiku', effort: 'low', maxTurns: 3, tools: [], bash: false, subagents: false, mcp: [], writeDirs: [], specWrite: [], outputSchema: null },
 };

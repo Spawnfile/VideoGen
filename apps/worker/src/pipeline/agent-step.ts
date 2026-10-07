@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { outputJsonSchema, validateArtifact, type ArtifactSchemaName, type RoleName } from '@videogen/shared';
+import { outputJsonSchema, validateArtifact, type ArtifactSchemaName, type ModelAlias, type RoleName } from '@videogen/shared';
 import type { FakeScript } from '@videogen/claude';
 import { RESUME_PROMPT, type SessionManager, type StartRequest } from '../agents/manager.ts';
 import type { RunEnd } from '../agents/runner.ts';
@@ -62,6 +62,8 @@ export interface StructuredRequest<T> {
   /** Fake driver only. */
   fakeScript?: (attempt: number) => FakeScript | undefined;
   maxFixes?: number;
+  /** Per-request model (K12 fixer category); Settings' choice for the role still wins. */
+  model?: ModelAlias;
 }
 export type StructuredResult<T> =
   | { ok: true; value: T; sessionIds: string[] }
@@ -84,6 +86,7 @@ export async function runStructured<T>(r: StructuredRequest<T>): Promise<Structu
       id, kind: 'pipeline', role: r.role, prompt, runId: r.ctx.runId, stepId: r.ctx.stepId, outputFormat, autoResume: false,
       ...(resume ? { claudeSessionId: resume.claudeSessionId, resume: true, parentSessionId: resume.parent } : {}),
       fakeScript: r.fakeScript?.(attempt),
+      ...(r.model ? { model: r.model } : {}),
     }, r.ctx);
     if (run.end.status === 'cancelled' || r.ctx.signal.aborted) return { ok: false, cancelled: true, error: 'durduruldu', sessionIds: ids };
     const next: Resume = { claudeSessionId: resume?.claudeSessionId ?? id, parent: id };
