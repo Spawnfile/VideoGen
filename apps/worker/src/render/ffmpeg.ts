@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 
-const run = (ffmpeg: string, args: string[], signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
-  execFile(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', ...args], { timeout: 60_000, signal }, (err, _o, stderr) => {
+const run = (ffmpeg: string, args: string[], signal?: AbortSignal, timeoutMs = 60_000) => new Promise<void>((resolve, reject) => {
+  execFile(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', ...args], { timeout: timeoutMs, signal, maxBuffer: 16 * 1024 * 1024 }, (err, _o, stderr) => {
     if (err) reject(new Error(`ffmpeg: ${String(stderr).split('\n').filter(Boolean).at(-1) ?? (err as Error).message}`));
     else resolve();
   });
@@ -120,4 +120,32 @@ export function fakeFinal(ffmpeg: string, out: string, o: { frames: number; sign
     '-frames:v', String(o.frames), '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '14',
     '-pix_fmt', 'yuv420p', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', out,
   ], o.signal);
+}
+
+/** ffmpeg at info level for analysis filters (loudnorm JSON, ebur128, *detect); resolves with stderr. */
+export function capture(ffmpeg: string, args: string[], signal?: AbortSignal, timeoutMs = 600_000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(ffmpeg, ['-hide_banner', '-nostats', ...args], { timeout: timeoutMs, signal, maxBuffer: 64 * 1024 * 1024 }, (err, _o, stderr) => {
+      if (err) reject(new Error(`ffmpeg: ${String(stderr).split('\n').filter(Boolean).at(-1) ?? (err as Error).message}`));
+      else resolve(String(stderr));
+    });
+  });
+}
+
+/** Spec §7.5 delivery (plan E8): H.264 High, CRF 17, GOP 60 (2 s), yuv420p tv bt709, faststart; the variants copy this stream. */
+export const FINAL_ENCODE = { codec: 'libx264', profile: 'high', crf: 17, gop: 60, keyintMin: 30, pixFmt: 'yuv420p', color: 'bt709/tv', faststart: true } as const;
+
+export function encodeDelivery(ffmpeg: string, master: string, out: string, o: { preset: string; signal?: AbortSignal }): Promise<void> {
+  return run(ffmpeg, [
+    '-i', master, '-an', '-c:v', 'libx264', '-profile:v', 'high', '-preset', o.preset,
+    // ultrafast turns CABAC and 8x8 DCT off, which makes x264 signal Constrained Baseline despite -profile:v high (G1 wants High).
+    '-x264-params', 'cabac=1:8x8dct=1', '-crf', String(FINAL_ENCODE.crf), '-g', String(FINAL_ENCODE.gop),
+    '-keyint_min', String(FINAL_ENCODE.keyintMin), '-sc_threshold', '0', '-pix_fmt', 'yuv420p', '-colorspace', 'bt709', '-color_primaries', 'bt709',
+    '-color_trc', 'bt709', '-color_range', 'tv', '-movflags', '+faststart', out,
+  ], o.signal, 1_800_000);
+}
+
+/** Spec §7.6 variants: the same video stream (-c:v copy) with AAC 48 kHz stereo; faststart. */
+export function muxVariant(ffmpeg: string, video: string, audio: string, out: string, signal?: AbortSignal): Promise<void> {
+  return run(ffmpeg, ['-i', video, '-i', audio, '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2', '-shortest', '-movflags', '+faststart', out], signal, 300_000);
 }
