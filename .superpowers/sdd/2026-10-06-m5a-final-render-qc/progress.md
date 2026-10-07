@@ -41,3 +41,6 @@ docs/superpowers/plans/2026-10-06-m5a-final-render-qc.md
   - Ruling: variant chips are a `role="group"` (aria-label on a plain div is ignored).
   - Ruling: screens add `studio-qc.png` (panel scrolled to the QC card) and `studio-player.png` (player element): the production panel scrolls on its own, so `fullPage` cannot reach below the player.
   - Screens read: Final tab selected (teal), chips centred, QC card gates ✓ and scores, library final cover (9:16) and "· 0:45".
+- T12 (partial, cloud container): Step 1 without Blender (npm test 355, smoke 19/11, render 5 without Blender); Steps 2–3 need the GPU machine and the pilot file → docs/m5/real-check.md.
+- Final review (one independent reviewer, read-only): no Critical; Important #1 (compose intermediates never cleaned) and #2 (compose hash drift between inputHash/run/qc when the ledger changes) fixed; Minor #3 (use-time license policy), #4 (TP loop ≤ 3), #5 (`-vn`), #6 (layout matched by compose hash, edge scan without a manifest), #7 (unbreakable words), #8 (re-import audits `asset.exists`) fixed with tests; #9 (mixed 64/32-sample frames after a crash) and #10 (frames deleted on `failed`) deferred to M5b (accepted by E5/E6).
+- Autosquash: tree identical. Merge: user asked for a fast-forward of main to this branch (no PR).
