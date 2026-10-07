@@ -19,6 +19,7 @@ import { currentEvents, finalSource, type FinalFramesMeta } from './final-steps.
 import { LIMIT_NOTE } from './orchestrator.ts';
 import { manifestFacts, numericGaps, qcFacts, recentHooks, retentionTimes, webCheckTargets, type WebTarget } from './review-inputs.ts';
 import { factsPrompt, retentionPrompt, visualPrompt } from './review-prompts.ts';
+import { labelOf } from './fix-round.ts';
 import { failure, record, sha, sheetTimes, type StepDeps } from './steps.ts';
 import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
 
@@ -114,8 +115,7 @@ function withGapGate(s: PanelScore, gaps: string[]): PanelScore {
   };
 }
 
-const label = (id: string) => (id in FINAL_CHECKS ? FINAL_CHECKS[id as FinalCheckId].label_tr : QC_CHECKS[id as keyof typeof QC_CHECKS]?.label_tr ?? id);
-const openLabels = (failed: string[]) => `${failed.slice(0, 5).map(label).join(', ')}${failed.length > 5 ? ` (+${failed.length - 5})` : ''}`;
+export const openLabels = (failed: string[]) => `${failed.slice(0, 5).map(labelOf).join(', ')}${failed.length > 5 ? ` (+${failed.length - 5})` : ''}`;
 
 /** The fan-out gate (plan F8): wait, with the signal and a poll, until a new pipeline session may start. false: the run was cancelled meanwhile. */
 async function awaitGate(deps: StepDeps, ctx: StepContext, pollMs: number): Promise<boolean> {

@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type pg from 'pg';
 import {
-  CHANNEL_STYLES, DRAFT_CHECK_IDS, DRAFT_CHECKS, DRAFT_GATES, DRAFT_MAX_RETURNS, DRAFT_RUBRIC_VERSION, draftDecision, formatClock, HOOK_PATTERN_LABELS,
+  canonical, CHANNEL_STYLES, DRAFT_CHECK_IDS, DRAFT_CHECKS, DRAFT_GATES, DRAFT_MAX_RETURNS, DRAFT_RUBRIC_VERSION, draftDecision, formatClock, HOOK_PATTERN_LABELS,
   normalizeProductName, reviewRefErrors, sceneRefErrors, storyboardRefErrors, validateArtifact,
   type AudioMode, type BuildReport, type ChannelStyleId, type DraftCheckId, type ProductResearch, type Review, type SceneSpec, type StepKey, type Storyboard,
 } from '@videogen/shared';
@@ -16,9 +16,10 @@ import { fenced } from './fence.ts';
 import { ARTIFACT_VALIDATOR } from './validator.ts';
 import { RESUME_PROMPT, type SessionManager, type UsageGate } from '../agents/manager.ts';
 import { putBlob } from '../media.ts';
-import { RenderError } from '../render/driver.ts';
+import { RenderError, type BuildFiles } from '../render/driver.ts';
 import { contactSheet, draftProbeErrors, extractFrame, probeVideo } from '../render/ffmpeg.ts';
 import type { ReviewTargets } from './review-tools.ts';
+import { causeKey, reworkBuildPrompt, reworkStoryboardPrompt, roundCause, roundFindings } from './fix-round.ts';
 import type { FixerRun } from './review-step.ts';
 import { runStructured } from './agent-step.ts';
 import { composeExecutor, finalRenderExecutor, qcExecutor } from './final-steps.ts';
@@ -78,9 +79,11 @@ export function storyboardPrompt(name: string, mode: AudioMode, research: Produc
   ].join('\n');
 }
 
-async function persist(deps: StepDeps, ctx: StepContext, kind: SpecKind, value: unknown, inputHash: string): Promise<void> {
+/** `latest`: the SpecStore already holds this value as its newest version (the fixer's own write): record that version instead of writing a copy. */
+export async function persist(deps: StepDeps, ctx: StepContext, kind: SpecKind, value: unknown, inputHash: string, o: { latest?: boolean } = {}): Promise<void> {
   const store = new SpecStore(join(ctx.runDir, 'spec'), ARTIFACT_VALIDATOR);
-  const w = await store.write(kind, value);
+  const head = o.latest ? await store.read(kind) : null;
+  const w = head && canonical(head.value) === canonical(value) ? { version: head.version } : await store.write(kind, value);
   if ('errors' in w) throw new Error(`spec ${kind}: ${w.errors.join('; ')}`);
   const file = join(ctx.runDir, 'spec', kind, `v${String(w.version).padStart(4, '0')}.json`);
   const blob = await putBlob(deps.pool, deps.dataDir, file);
@@ -117,21 +120,32 @@ export function researchExecutor(deps: StepDeps): StepExecutor {
   };
 }
 
+/** The cause of this round when it is a rework (F12: the storyboard step has no other mode); null on a first pass. */
+async function reworkCause(deps: StepDeps, ctx: StepContext) {
+  const cause = ctx.fixRound > 0 ? await roundCause(deps.pool, ctx.runId, ctx.fixRound) : null;
+  return cause?.kind === 'rework' ? cause : null;
+}
+
 export function storyboardExecutor(deps: StepDeps): StepExecutor {
   return {
     key: 'storyboard',
     resource: 'claude',
     async inputHash(ctx) {
       const research = await latestArtifact(deps.pool, ctx.runId, 'research');
-      return sha({ step: 'storyboard', research: research?.id ?? null, audioMode: ctx.audioMode, schema: SCHEMA_VERSION.storyboard });
+      // Plan F12: a rework round is a new input (the verdict it answers), so it never reuses the previous storyboard.
+      const rework = await reworkCause(deps, ctx);
+      return sha({ step: 'storyboard', research: research?.id ?? null, audioMode: ctx.audioMode, schema: SCHEMA_VERSION.storyboard, ...(rework ? { fixRound: ctx.fixRound, cause: causeKey(rework) } : {}) });
     },
     reuse: (ctx, hash) => reusable(deps, ctx, 'storyboard', hash),
     async run(ctx, hash) {
       const art = await latestArtifact(deps.pool, ctx.runId, 'research');
       const research = art ? validateArtifact('ProductResearch', art.content) : null;
       if (!research?.ok) return { status: 'failed', error: 'araştırma çıktısı yok', retry: false };
+      const rework = await reworkCause(deps, ctx);
+      const findings = rework ? await roundFindings(deps.pool, ctx.runId, ctx.fixRound - 1, rework.failed) : null;
       const r = await runStructured<Storyboard>({
-        manager: deps.manager, ctx, role: 'storyboarder', prompt: storyboardPrompt(ctx.productName, ctx.audioMode, research.value), schema: 'Storyboard',
+        manager: deps.manager, ctx, role: 'storyboarder', schema: 'Storyboard',
+        prompt: storyboardPrompt(ctx.productName, ctx.audioMode, research.value) + (findings ? `\n\n${reworkStoryboardPrompt(findings)}` : ''),
         check: (s) => [...storyboardRefErrors(s, research.value), ...(s.audio_mode === ctx.audioMode ? [] : [`audio_mode ${ctx.audioMode} olmalı`])],
         fakeScript: deps.fakeScript ? (n) => deps.fakeScript!('storyboarder', ctx, n) : undefined,
       });
@@ -188,7 +202,9 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
       const style = await getChannelStyle(deps.pool);
       // Plan C8: a fix round is a new input (the review it answers), so it never reuses the previous round's build.
       const review = ctx.round > 0 ? await latestArtifact(deps.pool, ctx.runId, 'draft_review') : null;
-      return sha({ step: 'build', storyboard: storyboard?.id ?? null, style: style.id, schema: SCHEMA_VERSION.scene, round: ctx.round, review: review?.id ?? null });
+      // Plan F12: the same for a final round: its cause (a compose-only round never gets here, a build round has the same storyboard as the last build).
+      const cause = ctx.fixRound > 0 ? await roundCause(deps.pool, ctx.runId, ctx.fixRound) : null;
+      return sha({ step: 'build', storyboard: storyboard?.id ?? null, style: style.id, schema: SCHEMA_VERSION.scene, round: ctx.round, review: review?.id ?? null, ...(ctx.fixRound > 0 ? { fixRound: ctx.fixRound, cause: causeKey(cause) } : {}) });
     },
     async reuse(ctx, hash) {
       const scene = await findArtifact(deps.pool, { runId: ctx.runId, kind: 'scene', inputHash: hash });
@@ -210,14 +226,19 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
       let last: SceneBuild | null = null;
       const reviewArt = ctx.round > 0 ? await latestArtifact(deps.pool, ctx.runId, 'draft_review') : null;
       const review = reviewArt ? validateArtifact('Review', reviewArt.content) : null;
-      const fixes = review?.ok ? draftFixPrompt(review.value, ctx.round - 1) : null;
-      // Plan B15 + C8: a restarted attempt, or a draft fix round, continues the step's own builder session (it knows product.py).
-      const prior = ctx.attempt > 1 || fixes ? await latestStepSession(deps.pool, ctx.stepId) : null;
+      // Order (plan F12): a draft fix of this very final round > the final round's own mode (build: agent-free, rework: the builder again) > the first pass.
+      const rm = reviewArt?.meta as { round?: number; fixRound?: number } | null;
+      const draftFix = review?.ok && rm?.round === ctx.round - 1 && (rm.fixRound ?? 0) === ctx.fixRound;
+      const cause = ctx.fixRound > 0 && !draftFix ? await roundCause(deps.pool, ctx.runId, ctx.fixRound) : null;
+      if (cause?.kind === 'build') return buildWithoutAgent(deps, ctx, hash, scene, style);
+      const fixes = draftFix && review?.ok ? draftFixPrompt(review.value, ctx.round - 1) : cause?.kind === 'rework' ? reworkBuildPrompt(storyboard.value) : null;
+      // Plan B15 + C8: a restarted attempt, a draft fix round or a rework round continues the step's own builder session (it knows product.py).
+      const prior = ctx.attempt > 1 || fixes ? await latestStepSession(deps.pool, ctx.stepId, 'builder') : null;
       const resumePrompt = fixes ? (ctx.attempt > 1 ? `${RESUME_PROMPT}\n\n${fixes}` : fixes) : RESUME_PROMPT;
       const fresh = buildPrompt(ctx.productName, style.id, storyboard.value, research.value) + (fixes ? `\n\n${fixes}` : '');
       const r = await runStructured<SceneSpec>({
         manager: deps.manager, ctx, role: 'builder', prompt: fresh, schema: 'SceneSpec',
-        initialResume: prior?.role === 'builder' ? { claudeSessionId: prior.claudeSessionId, parent: prior.id, prompt: resumePrompt } : undefined,
+        initialResume: prior ? { claudeSessionId: prior.claudeSessionId, parent: prior.id, prompt: resumePrompt } : undefined,
         check: (s) => sceneRefErrors(s, storyboard.value, style.id),
         // Plan B6: the structured SceneSpec is canonical; the step builds it itself with the final scene/product.py.
         checkAsync: async (s) => {
@@ -235,24 +256,41 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
       if (!r.ok) return failure(r);
       const built = last as SceneBuild | null;
       if (!built?.ok || !built.files) return { status: 'failed', error: 'güvenilir build sonucu yok', retry: false };
-      const preview = await previewScene(scene, {
-        runDir: ctx.runDir, owner: ctx.stepId, signal: ctx.signal,
-        onWait: (w) => ctx.status('waiting_gpu', w.reason ?? `GPU sırası: ${w.position}`), onRun: () => ctx.status('running', null),
-      });
-      await persist(deps, ctx, 'scene', r.value, hash);
-      const put = async (kind: string, file: string, content?: unknown, meta?: unknown) => {
-        const blob = await putBlob(deps.pool, deps.dataDir, file);
-        const a = await insertArtifact(deps.pool, { runId: ctx.runId, stepId: ctx.stepId, versionId: ctx.versionId, kind, blobSha: blob.sha256, content, inputHash: hash, meta });
-        await appendAudit(deps.pool, { actorType: 'orchestrator', action: 'artifact.created', runId: ctx.runId, stepId: ctx.stepId, subjectType: 'artifact', subjectId: a.id, data: { kind, sha256: blob.sha256 } });
-      };
-      await put('product_py', join(ctx.runDir, 'scene', 'product.py'));
-      for (const [k, kind] of BUILD_FILE_KINDS) await put(kind, built.files[k]);
-      for (const [k, kind] of BUILD_JSON_KINDS) await put(kind, built.files[k], JSON.parse(await readFile(built.files[k], 'utf8')));
-      await put('preview_sheet', preview.sheet, undefined, { frames: preview.stills.length, renderer: preview.renderer });
-      const rep = built.report!;
-      return { status: 'done', note: `${rep.parts.length} parça · ${rep.triangles.toLocaleString('tr-TR')} üçgen · ${rep.warnings.length ? `${rep.warnings.length} uyarı` : 'uyarı yok'}${style.chosen ? '' : ' · kanal kimliği geçici'}` };
+      return recordBuild(deps, ctx, hash, scene, { spec: r.value, built, chosen: style.chosen });
     },
   };
+}
+
+/** Plan F12: a final round whose fix touched the scene (build scope): the step builds the SpecStore's latest scene and `scene/product.py` itself, no agent. */
+async function buildWithoutAgent(deps: StepDeps, ctx: StepContext, hash: string, scene: SceneDeps, style: { chosen: boolean }): Promise<StepOutcome> {
+  const rec = await new SpecStore(join(ctx.runDir, 'spec'), ARTIFACT_VALIDATOR).read('scene');
+  const spec = validateArtifact('SceneSpec', rec?.value);
+  if (!spec.ok) return { status: 'failed', error: `sahne spec'i geçersiz ya da yok: ${spec.errors.join('; ')}`, retry: false };
+  const built = await buildScene(scene, { runDir: ctx.runDir, owner: ctx.stepId, signal: ctx.signal });
+  if (ctx.signal.aborted) return { status: 'cancelled' };
+  if (!built.ok || !built.files) return { status: 'failed', error: `build_scene: ${built.errors.join('; ') || 'güvenilir build sonucu yok'}`, retry: false };
+  return recordBuild(deps, ctx, hash, scene, { spec: spec.value, built, chosen: style.chosen, latest: true });
+}
+
+/** The build step's own previews and artifact writes after a trusted build (the agentic path and the agent-free fix round share them). */
+async function recordBuild(deps: StepDeps, ctx: StepContext, hash: string, scene: SceneDeps, o: { spec: SceneSpec; built: SceneBuild; chosen: boolean; latest?: boolean }): Promise<StepOutcome> {
+  const built = o.built as SceneBuild & { files: BuildFiles };
+  const preview = await previewScene(scene, {
+    runDir: ctx.runDir, owner: ctx.stepId, signal: ctx.signal,
+    onWait: (w) => ctx.status('waiting_gpu', w.reason ?? `GPU sırası: ${w.position}`), onRun: () => ctx.status('running', null),
+  });
+  await persist(deps, ctx, 'scene', o.spec, hash, { latest: o.latest });
+  const put = async (kind: string, file: string, content?: unknown, meta?: unknown) => {
+    const blob = await putBlob(deps.pool, deps.dataDir, file);
+    const a = await insertArtifact(deps.pool, { runId: ctx.runId, stepId: ctx.stepId, versionId: ctx.versionId, kind, blobSha: blob.sha256, content, inputHash: hash, meta });
+    await appendAudit(deps.pool, { actorType: 'orchestrator', action: 'artifact.created', runId: ctx.runId, stepId: ctx.stepId, subjectType: 'artifact', subjectId: a.id, data: { kind, sha256: blob.sha256 } });
+  };
+  await put('product_py', join(ctx.runDir, 'scene', 'product.py'));
+  for (const [k, kind] of BUILD_FILE_KINDS) await put(kind, built.files[k]);
+  for (const [k, kind] of BUILD_JSON_KINDS) await put(kind, built.files[k], JSON.parse(await readFile(built.files[k], 'utf8')));
+  await put('preview_sheet', preview.sheet, undefined, { frames: preview.stills.length, renderer: preview.renderer });
+  const rep = built.report!;
+  return { status: 'done', note: `${rep.parts.length} parça · ${rep.triangles.toLocaleString('tr-TR')} üçgen · ${rep.warnings.length ? `${rep.warnings.length} uyarı` : 'uyarı yok'}${o.chosen ? '' : ' · kanal kimliği geçici'}` };
 }
 
 /** Artifact file → media store → `artifacts` row → audit (the draft steps; the build keeps its own `put`). */
@@ -413,7 +451,7 @@ async function reviewDraft(deps: StepDeps, ctx: StepContext, hash: string, d: { 
     if (!r.ok) return { outcome: failure(r) };
     const file = join(dir, 'review.json');
     await writeFile(file, JSON.stringify(r.value, null, 2));
-    await record(deps, ctx, { kind: 'draft_review', file, content: r.value, inputHash: hash, meta: { round: ctx.round, verdict: draftDecision(r.value).verdict, draftArtifactId: d.draftId } });
+    await record(deps, ctx, { kind: 'draft_review', file, content: r.value, inputHash: hash, meta: { round: ctx.round, fixRound: ctx.fixRound, verdict: draftDecision(r.value).verdict, draftArtifactId: d.draftId } });
     return { review: r.value };
   } finally {
     deps.reviews?.delete(ctx.stepId);
@@ -427,10 +465,13 @@ export function draftReviewExecutor(deps: StepDeps): StepExecutor {
     resource: 'claude',
     async inputHash(ctx) {
       const d = await latestArtifact(deps.pool, ctx.runId, 'draft_video');
-      return sha({ step: 'draft_review', draft: d?.id ?? null, draftHash: d?.inputHash ?? null, rubric: DRAFT_RUBRIC_VERSION, round: ctx.round });
+      const cause = ctx.fixRound > 0 ? await roundCause(deps.pool, ctx.runId, ctx.fixRound) : null;
+      return sha({ step: 'draft_review', draft: d?.id ?? null, draftHash: d?.inputHash ?? null, rubric: DRAFT_RUBRIC_VERSION, round: ctx.round, ...(ctx.fixRound > 0 ? { fixRound: ctx.fixRound, cause: causeKey(cause) } : {}) });
     },
     // No `reuse`: a stored review is replayed in run(), so a "revise" is never turned into "done" (grilling C7).
     async run(ctx, hash) {
+      // Plan F12, spec §7.2: the final fix round of a build change re-renders the draft but does not review it again (before the stale-draft check).
+      if (ctx.fixRound > 0 && (await roundCause(deps.pool, ctx.runId, ctx.fixRound))?.kind === 'build') return { status: 'done', note: 'final düzeltme turu: taslak incelemesi atlandı (§7.2)' };
       if (!deps.scene) return { status: 'failed', error: 'render yapılandırılmadı', retry: false };
       const draft = await latestArtifact(deps.pool, ctx.runId, 'draft_video');
       const meta = draft?.meta as DraftMeta | null | undefined;
