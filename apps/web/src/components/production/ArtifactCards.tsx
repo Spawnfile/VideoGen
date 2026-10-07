@@ -6,7 +6,7 @@ import { buildFacts } from '../../lib/production-view.ts';
 const DIFFICULTY: Record<ProductResearch['difficulty'], string> = { procedural: 'prosedürel modellenebilir', needs_asset: 'hazır 3D varlık gerekir', too_hard: 'modellenemiyor' };
 const card = 'rounded-card border border-line/60 bg-paper px-4 py-3 shadow-subtle';
 
-function useContent<T>(id: string | null) {
+export function useContent<T>(id: string | null) {
   return useQuery({ queryKey: ['artifact', id], enabled: !!id, staleTime: Number.POSITIVE_INFINITY, queryFn: async () => (await api.artifact(id!)).content as T });
 }
 

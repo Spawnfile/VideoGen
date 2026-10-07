@@ -1,14 +1,12 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { blobUrl } from '../../lib/api.ts';
 import { setActivePlayer } from '../../lib/player.ts';
-import type { DraftPick } from '../../lib/production-view.ts';
+import { playerTabs, type DraftPick, type FinalPick, type PlayerTab } from '../../lib/production-view.ts';
 
 const DraftPlayer = lazy(() => import('./DraftPlayer.tsx'));
-type Tab = 'live' | 'mp4';
-const TABS: [Tab, string][] = [['live', 'Taslak'], ['mp4', 'Taslak MP4']];
 
-/** The rendered draft, streamed from the media endpoint with HTTP Range (spec §13.1 Final tab's mechanism, used for the draft in M4). */
-function Mp4({ sha, cover }: { sha: string; cover: string | null }) {
+/** An MP4 streamed from the media endpoint with HTTP Range (spec §13.1 Final tab; the draft MP4 uses the same element). */
+function Mp4({ sha, cover, testId }: { sha: string; cover: string | null; testId: string }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const v = ref.current;
@@ -23,7 +21,7 @@ function Mp4({ sha, cover }: { sha: string; cover: string | null }) {
   return (
     <video
       ref={ref}
-      data-testid="draft-video"
+      data-testid={testId}
       src={blobUrl(sha)}
       poster={cover ? blobUrl(cover) : undefined}
       controls
@@ -34,15 +32,45 @@ function Mp4({ sha, cover }: { sha: string; cover: string | null }) {
   );
 }
 
-/** Player tabs (spec §13.1): "Taslak MP4" is selected first, so no WebGL or 1.4 MB chunk loads until "Taslak" is opened (grilling C26). */
-export function DraftTabs({ pick }: { pick: DraftPick }) {
-  const [tab, setTab] = useState<Tab>('mp4');
-  if (!pick.videoSha) return null;
+/** Plan E18: the final in its two variants (spec §7.6): with music, and without (the sound is added in the TikTok app). */
+function FinalPanel({ final }: { final: FinalPick }) {
+  const [variant, setVariant] = useState<'music' | 'tiktok'>('music');
+  const sha = variant === 'music' ? final.musicSha! : (final.tiktokSha ?? final.musicSha!);
+  return (
+    <div className="flex flex-col gap-2">
+      <Mp4 key={sha} sha={sha} cover={final.coverSha} testId="final-video" />
+      <div className="flex justify-center gap-1" role="group" aria-label="Varyant">
+        {([['music', 'Müzikli'], ['tiktok', 'Müziksiz']] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            data-testid="variant-chip"
+            aria-pressed={variant === id}
+            disabled={id === 'tiktok' && !final.tiktokSha}
+            onClick={() => setVariant(id)}
+            className={`rounded-full px-3 py-1 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink disabled:opacity-40 ${variant === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Player tabs (spec §13.1): "Final" first when a final exists, else "Taslak MP4"; the live "Taslak" only mounts when opened, so no
+ * WebGL or 1.4 MB chunk loads before (grilling C26).
+ */
+export function DraftTabs({ pick, final }: { pick: DraftPick; final: FinalPick }) {
+  const { tabs, initial } = playerTabs({ final: !!final.musicSha, draft: !!pick.videoSha });
+  const [tab, setTab] = useState<PlayerTab>(initial);
+  if (!tabs.length) return null;
   return (
     <section aria-label="Taslak oynatıcı" data-testid="draft-tabs" className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <div role="tablist" aria-label="Oynatıcı" className="flex gap-1">
-        {TABS.map(([id, label]) => (
+        {tabs.map(([id, label]) => (
           <button
             key={id}
             type="button"
@@ -60,8 +88,10 @@ export function DraftTabs({ pick }: { pick: DraftPick }) {
         <span className="ml-auto text-[12px] text-ink-3">Boşluk oynat · J/L ±5 sn · K durdur</span>
       </div>
       <div role="tabpanel" id="draft-panel" aria-labelledby={`draft-tab-${tab}`} className="mx-auto w-full max-w-[320px]">
-        {tab === 'mp4' ? (
-          <Mp4 sha={pick.videoSha} cover={pick.coverSha} />
+        {tab === 'final' ? (
+          <FinalPanel final={final} />
+        ) : tab === 'mp4' ? (
+          <Mp4 sha={pick.videoSha!} cover={pick.coverSha} testId="draft-video" />
         ) : (
           <Suspense fallback={<p className="py-10 text-center text-[13px] text-ink-3">Oynatıcı yükleniyor…</p>}>
             <DraftPlayer pick={pick} />

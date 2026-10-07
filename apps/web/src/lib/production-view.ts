@@ -1,4 +1,7 @@
-import { CHANNEL_STYLES, DRAFT_MAX_RETURNS, draftRound, type ArtifactMeta, type BuildReport, type ProgressSource, type RunView, type SceneSpec, type StepView, type VideoStatus, type VideoUsage, type VideoView } from '@videogen/shared/browser';
+import {
+  CHANNEL_STYLES, DIMENSIONS, DRAFT_MAX_RETURNS, draftRound, formatClock, GATES, QC_CHECKS, type ArtifactMeta, type BuildReport, type ProgressSource, type QcReport,
+  type RunView, type SceneSpec, type StepView, type VideoStatus, type VideoUsage, type VideoView,
+} from '@videogen/shared/browser';
 import { formatElapsed, formatTokens } from './trace-view.ts';
 
 const ACTIVE = new Set(['queued', 'running', 'waiting_gpu', 'waiting_limit', 'waiting_disk']);
@@ -74,4 +77,31 @@ export function draftRoundLabel(run: RunView | null | undefined): string {
   if (!isRunActive(run)) return '';
   const d = draftRound(run!.steps);
   return d ? `Taslak turu ${d.round}/${DRAFT_MAX_RETURNS} · %${d.percent}` : '';
+}
+
+/** The latest final artifacts of a run (spec §13.1 Final tab, plan E18). */
+export interface FinalPick { musicSha: string | null; tiktokSha: string | null; coverSha: string | null; qcId: string | null }
+export function pickFinal(list: ArtifactMeta[], runId: string | null): FinalPick {
+  const find = (kind: string) => list.find((a) => a.kind === kind && (!runId || a.runId === runId)) ?? null;
+  return { musicSha: find('final_video_music')?.blobSha ?? null, tiktokSha: find('final_video_tiktok')?.blobSha ?? null, coverSha: find('final_cover')?.blobSha ?? null, qcId: find('qc_report')?.id ?? null };
+}
+
+export type PlayerTab = 'final' | 'mp4' | 'live';
+/** Final first when it exists (spec §13.1); the draft tabs stay (C26: the live draft only mounts when opened). */
+export function playerTabs(o: { final: boolean; draft: boolean }): { tabs: [PlayerTab, string][]; initial: PlayerTab } {
+  const tabs: [PlayerTab, string][] = [...(o.final ? [['final', 'Final'] as [PlayerTab, string]] : []), ...(o.draft ? [['mp4', 'Taslak MP4'], ['live', 'Taslak']] as [PlayerTab, string][] : [])];
+  return { tabs, initial: o.final ? 'final' : 'mp4' };
+}
+
+/** The QC card's lines: gate marks, the D6/D7 scores, every failed check (value, limit, time). */
+export function qcLines(r: QcReport): { gates: string; scores: string; failures: string[] } {
+  const mark = (b: boolean) => (b ? '✓' : '✗');
+  const failures = [...r.music, ...r.tiktok.filter((c) => !r.music.some((m) => m.id === c.id))]
+    .filter((c) => !c.pass)
+    .map((c) => `${QC_CHECKS[c.id].label_tr}: ${c.value} (${c.limit})${c.at !== undefined ? ` · ${formatClock(c.at)}` : ''}`);
+  return {
+    gates: `${GATES.G1.label_tr} ${mark(r.gates.G1)} · ${GATES.G5.label_tr} ${mark(r.gates.G5)} · ${GATES.G6.label_tr} ${mark(r.gates.G6)}`,
+    scores: `${DIMENSIONS.D6.label_tr} ${r.scores.D6}/12 · ${DIMENSIONS.D7.label_tr} ${r.scores.D7}/5`,
+    failures,
+  };
 }

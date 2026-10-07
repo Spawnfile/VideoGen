@@ -143,13 +143,21 @@ const VIDEO_SQL = `
         OR abs(extract(epoch FROM (usage_end->>'fiveHourResetsAt')::timestamptz - (usage_start->>'fiveHourResetsAt')::timestamptz)) < 60)
     GROUP BY video_id)
   SELECT v.*, p.name AS product_name, p.difficulty, lr.id AS latest_run_id, u.sessions, u.tokens, u.cost, w.d AS five_hour_delta,
-    dv.blob_sha AS draft_sha, dv.duration_ms AS draft_ms, dc.blob_sha AS cover_sha
+    dv.blob_sha AS draft_sha, dv.duration_ms AS draft_ms, dc.blob_sha AS cover_sha,
+    fm.blob_sha AS final_sha, fm.duration_ms AS final_ms, ft.blob_sha AS tiktok_sha, fc.blob_sha AS final_cover_sha
   FROM videos v JOIN products p ON p.id = v.product_id
   LEFT JOIN LATERAL (SELECT id FROM runs r WHERE r.video_id = v.id ORDER BY r.created_at DESC LIMIT 1) lr ON true
   LEFT JOIN LATERAL (SELECT a.blob_sha, a.duration_ms FROM artifacts a JOIN runs r ON r.id = a.run_id
     WHERE r.video_id = v.id AND a.kind = 'draft_video' ORDER BY a.created_at DESC LIMIT 1) dv ON true
   LEFT JOIN LATERAL (SELECT a.blob_sha FROM artifacts a JOIN runs r ON r.id = a.run_id
     WHERE r.video_id = v.id AND a.kind = 'draft_cover' ORDER BY a.created_at DESC LIMIT 1) dc ON true
+  -- Plan E18: the newest music variant, and the TikTok variant and cover of the same compose (same run and input hash).
+  LEFT JOIN LATERAL (SELECT a.blob_sha, a.duration_ms, a.input_hash, a.run_id FROM artifacts a JOIN runs r ON r.id = a.run_id
+    WHERE r.video_id = v.id AND a.kind = 'final_video_music' ORDER BY a.created_at DESC LIMIT 1) fm ON true
+  LEFT JOIN LATERAL (SELECT a.blob_sha FROM artifacts a
+    WHERE a.run_id = fm.run_id AND a.kind = 'final_video_tiktok' AND a.input_hash = fm.input_hash ORDER BY a.created_at DESC LIMIT 1) ft ON true
+  LEFT JOIN LATERAL (SELECT a.blob_sha FROM artifacts a
+    WHERE a.run_id = fm.run_id AND a.kind = 'final_cover' AND a.input_hash = fm.input_hash ORDER BY a.created_at DESC LIMIT 1) fc ON true
   LEFT JOIN u ON u.video_id = v.id
   LEFT JOIN w ON w.video_id = v.id`;
 
@@ -159,6 +167,7 @@ function toVideo(r: Record<string, any>): VideoView {
     difficulty: r.difficulty, latestRunId: r.latest_run_id, createdAt: iso(r.created_at)!, updatedAt: iso(r.updated_at)!,
     usage: { sessions: r.sessions ?? 0, tokens: Number(r.tokens ?? 0), costUsd: num(r.cost), fiveHourDelta: num(r.five_hour_delta) },
     draft: r.draft_sha ? { videoSha: r.draft_sha, coverSha: r.cover_sha ?? null, durationS: Math.round(Number(r.draft_ms ?? 0) / 100) / 10 } : null,
+    final: r.final_sha ? { musicSha: r.final_sha, tiktokSha: r.tiktok_sha ?? null, coverSha: r.final_cover_sha ?? null, durationS: Math.round(Number(r.final_ms ?? 0) / 100) / 10 } : null,
   };
 }
 export async function getVideoView(db: Queryable, id: string): Promise<VideoView | null> {

@@ -122,3 +122,24 @@ test('M4c screen: library with draft covers and lengths', async ({ page }) => {
   await page.waitForTimeout(400);
   await page.screenshot({ path: shot('library-draft.png', 'm4') });
 });
+
+test('M5a screen: studio final tab and the QC card', async ({ page, request }) => {
+  test.setTimeout(240_000);
+  const { videoId } = await produceVia(request, 'Tükenmez kalem', 'silent');
+  await page.goto(`/?video=${videoId}`);
+  await expect(page.getByTestId('qc-card')).toBeVisible({ timeout: 200_000 });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: shot('studio-final.png', 'm5'), fullPage: true });
+  await page.getByTestId('draft-tabs').screenshot({ path: shot('studio-player.png', 'm5') });
+  // The production panel scrolls on its own (fullPage cannot reach below the player): the variant chips and the QC card.
+  await page.getByTestId('qc-card').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: shot('studio-qc.png', 'm5') });
+});
+
+test('M5a screen: library with final covers', async ({ page }) => {
+  await page.goto('/library');
+  await expect(page.getByTestId('library-cover').first()).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: shot('library-final.png', 'm5') });
+});

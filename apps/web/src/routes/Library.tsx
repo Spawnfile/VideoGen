@@ -23,7 +23,11 @@ export function Library({ go }: { go: (url: string) => void }) {
         <p className="text-[13px] text-ink-2">Henüz video yok. Stüdyo'da bir ürün adı yazıp üretimi başlatın.</p>
       )}
       <ul className="flex flex-col divide-y divide-line rounded-card border border-line/60 bg-paper shadow-subtle">
-        {videos.map((v) => (
+        {videos.map((v) => {
+          // Plan E18: the final's cover and length first, the draft's until a final exists.
+          const cover = v.final?.coverSha ?? v.draft?.coverSha;
+          const len = v.final?.durationS ?? v.draft?.durationS;
+          return (
           <li key={v.id}>
             <button
               type="button"
@@ -34,19 +38,20 @@ export function Library({ go }: { go: (url: string) => void }) {
             >
               <span aria-hidden className={`size-2 shrink-0 rounded-full ${DOT[videoTone(v.status)]}`} />
               <span aria-hidden className="h-12 w-[27px] shrink-0 overflow-hidden rounded-[4px] bg-inset">
-                {v.draft?.coverSha && <img data-testid="library-cover" src={blobUrl(v.draft.coverSha)} alt="" loading="lazy" className="size-full object-cover" />}
+                {cover && <img data-testid="library-cover" src={blobUrl(cover)} alt="" loading="lazy" className="size-full object-cover" />}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[14px] font-medium">{v.productName}</span>
                 <span className="block truncate text-[12px] text-ink-2">{VIDEO_STATUS_LABEL[v.status]}{v.statusNote ? ` · ${v.statusNote}` : ''}</span>
               </span>
               <span className="shrink-0 text-right text-[12px] tabular-nums text-ink-3">
-                <span className="block">{formatDay(v.createdAt)}{v.draft ? <span data-testid="library-duration"> · {formatClock(v.draft.durationS)}</span> : null}</span>
+                <span className="block">{formatDay(v.createdAt)}{len !== undefined ? <span data-testid="library-duration"> · {formatClock(len)}</span> : null}</span>
                 <span className="block">{formatUsage(v.usage)}</span>
               </span>
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </div>
   );

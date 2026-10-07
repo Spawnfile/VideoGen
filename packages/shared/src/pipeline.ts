@@ -71,6 +71,8 @@ export interface RunView {
 export interface VideoUsage { sessions: number; tokens: number; costUsd: number | null; fiveHourDelta: number | null }
 /** The latest draft of a video (library cover and length, spec §13.1). */
 export interface VideoDraft { videoSha: string; coverSha: string | null; durationS: number }
+/** The newest final of a video (spec §13.1 library, plan E18): the music variant with the TikTok variant and cover of the same compose. */
+export interface VideoFinal { musicSha: string; tiktokSha: string | null; coverSha: string | null; durationS: number }
 export interface VideoView {
   id: string;
   productId: string;
@@ -85,6 +87,7 @@ export interface VideoView {
   updatedAt: string;
   usage: VideoUsage;
   draft: VideoDraft | null;
+  final: VideoFinal | null;
 }
 export interface ArtifactMeta { id: string; runId: string; stepId: string | null; versionId: string | null; kind: string; blobSha: string | null; createdAt: string }
 

@@ -65,6 +65,11 @@ const env = {
 for (const k of ['ANTHROPIC_API_KEY', 'CLAUDECODE']) delete env[k];
 
 run('npx', ['tsx', 'packages/db/src/migrate-cli.ts'], { env });
+// M5a: an allowed CC0 test bed in the asset ledger (plan E17), so the smoke final has music.
+const bed = join(SMOKE_DIR, 'bed.wav');
+run(env.VG_FFMPEG, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'anoisesrc=d=20:c=brown:r=48000:a=0.3:seed=5', '-ac', '2', bed]);
+writeFileSync(join(SMOKE_DIR, 'bed.txt'), 'CC0 1.0 (VideoGen smoke test bed)');
+run('node', ['bin/assets.mjs', 'add', '--kind', 'music', '--file', bed, '--title', 'Smoke yatağı', '--license', 'CC0-1.0', '--author', 'VideoGen', '--license-text', join(SMOKE_DIR, 'bed.txt')], { env });
 // Always build: a stale apps/web/dist would make the smoke test an old bundle (the API serves files present at start).
 run('npm', ['run', 'build']);
 
