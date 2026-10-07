@@ -1,10 +1,24 @@
 /** Spec §13.4 keyboard shortcuts: Space play/pause · J back 5 s · K pause · L forward 5 s · N new production. */
-export interface PlayerControl { toggle(): void; pause(): void; seekBy(seconds: number): void }
+export interface PlayerControl { kind: 'final' | 'draft'; toggle(): void; pause(): void; seekBy(seconds: number): void; seekTo(seconds: number): void }
 export type ShortcutAction = 'toggle' | 'back' | 'pause' | 'forward' | 'new';
 
 let active: PlayerControl | null = null;
 /** The player on screen registers itself (one at a time: the visible draft tab). */
-export function setActivePlayer(c: PlayerControl | null): void { active = c; }
+export function setActivePlayer(c: PlayerControl | null): void {
+  active = c;
+  if (c?.kind === 'final' && pendingSeek !== null) { const s = pendingSeek; pendingSeek = null; c.seekTo(s); }
+}
+let pendingSeek: number | null = null;
+let showFinal: (() => void) | null = null;
+/** The tab strip registers how to open the Final tab. */
+export function setShowFinal(fn: (() => void) | null): void { showFinal = fn; }
+/** Review evidence times belong to the final: switch to the Final tab if needed, then seek there. The draft player is never seeked. */
+export function seekFinal(seconds: number): void {
+  if (active?.kind === 'final') { active.seekTo(seconds); return; }
+  if (!showFinal) return;
+  pendingSeek = seconds;
+  showFinal();
+}
 export function activePlayer(): PlayerControl | null { return active; }
 
 const KEYS: Record<string, ShortcutAction> = { ' ': 'toggle', j: 'back', k: 'pause', l: 'forward', n: 'new' };

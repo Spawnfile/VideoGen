@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { AgentSessionView, ArtifactMeta, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, RoleName, RunView, TraceRow, UsageSnapshot, VideoView } from '@videogen/shared/browser';
+import type { AgentSessionView, ArtifactMeta, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VideoView } from '@videogen/shared/browser';
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
@@ -46,6 +46,7 @@ export const api = {
   },
   videos: () => getFresh<VideoView[]>('/api/videos'),
   video: (id: string) => getFresh<{ video: VideoView; runs: RunView[]; artifacts: ArtifactMeta[] }>(`/api/videos/${id}`),
+  reviews: (id: string) => get<ReviewRecord[]>(`/api/videos/${id}/reviews`),
   run: (id: string) => getFresh<RunView>(`/api/runs/${id}`),
   cancelRun: (id: string) => send<{ accepted: boolean }>('POST', `/api/runs/${id}/cancel`),
   artifact: (id: string) => get<ArtifactMeta & { content: unknown }>(`/api/artifacts/${id}`),

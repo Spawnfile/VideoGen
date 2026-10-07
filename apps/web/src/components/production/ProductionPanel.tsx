@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { api } from '../../lib/api.ts';
-import { pickDraft, pickFinal } from '../../lib/production-view.ts';
+import { panelView, pickDraft, pickFinal, pickReviewSheet } from '../../lib/production-view.ts';
 import { latestRunOf, pipeline, seedRuns, seedVideos, useStore } from '../../lib/stores.ts';
 import { BuildCard, ResearchCard, ReviewCard, StoryboardCard } from './ArtifactCards.tsx';
 import { DraftTabs } from './DraftTabs.tsx';
 import { QcCard } from './QcCard.tsx';
+import { ReviewPanel } from './ReviewPanel.tsx';
 import { StepList } from './StepList.tsx';
 import { VideoHeader } from './VideoHeader.tsx';
 
@@ -20,6 +21,10 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
     enabled: !!videoId,
     queryFn: async () => { const r = await api.video(videoId!); seedVideos([r.data.video], r.eventId); seedRuns(r.data.runs, r.eventId); return r.data.artifacts; },
   });
+  // The final review rounds follow the same trigger (a round lands when the review step is done) and the video's status.
+  const reviews = useQuery({ queryKey: ['reviews', videoId, doneSteps, video?.status], enabled: !!videoId, queryFn: () => api.reviews(videoId!) });
+  const panel = useMemo(() => panelView(reviews.data ?? [], run?.id), [reviews.data, run?.id]);
+  const sheet = useMemo(() => (panel ? pickReviewSheet(detail.data ?? [], panel.runId, panel.round) : null), [panel, detail.data]);
   const latest = useMemo(() => {
     const list = detail.data ?? [];
     const find = (kind: string) => list.find((a) => a.kind === kind && (!run || a.runId === run.id)) ?? null;
@@ -44,6 +49,7 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
       <BuildCard reportId={latest.report} sceneId={latest.scene} sheetSha={latest.sheet} />
       <ReviewCard artifactId={latest.draft.reviewId} />
       <QcCard artifactId={latest.final.qcId} />
+      <ReviewPanel reviews={reviews.data ?? []} runId={run?.id ?? null} status={video.status} sheetSha={sheet} canSeek={!!latest.final.musicSha} failed={reviews.isError} />
     </div>
   );
 }

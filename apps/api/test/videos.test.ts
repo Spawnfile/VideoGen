@@ -1,7 +1,7 @@
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadConfig } from '@videogen/shared';
-import { insertArtifact, maxEventId, readEventsAfter, updateRun } from '@videogen/db';
+import { insertArtifact, maxEventId, readEventsAfter, recordReviewRound, updateRun } from '@videogen/db';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
 import { buildApp } from '../src/app.ts';
 import { EventHub } from '../src/event-hub.ts';
@@ -87,5 +87,32 @@ describe('runs and artifacts', () => {
     expect((await app.inject({ method: 'POST', url: `/api/runs/${runId}/cancel`, headers: H })).statusCode).toBe(409);
     const a = await insertArtifact(t.pool, { runId, kind: 'research', content: { interpretation: 'zımba' } });
     expect((await app.inject({ url: `/api/artifacts/${a.id}`, headers: H })).json()).toMatchObject({ id: a.id, kind: 'research', content: { interpretation: 'zımba' } });
+  });
+
+  it('GET /api/videos/:id/reviews returns the rounds with findings; 404 for an unknown video', async () => {
+    const { videoId, runId } = (await produce({ productName: 'Delgeç', audioMode: 'silent' })).json();
+    expect((await app.inject({ url: `/api/videos/${videoId}/reviews`, headers: H })).json()).toEqual([]);
+    const finding = { checkId: 'mechanism_shot', severity: 'major', dimension: 'D2', gate: null, evidence: { frame: 30, timecode: 1 }, fixHint: 'yakınlaştır', status: 'open' as const };
+    await recordReviewRound(t.pool, {
+      runId, round: 0, versionId: null, fixed: [],
+      rows: [
+        { reviewerRole: 'orchestrator', seq: 1, rubricVersion: 'final@1', total: 76, dimensionScores: { D2: 9 }, gates: { G1: true }, verdict: 'fix', summaryTr: 'Toplam 76,0 puan', findings: [] },
+        { reviewerRole: 'reviewer_visual', seq: 1, rubricVersion: 'final@1', dimensionScores: { D2: 9 }, gates: { G3: true }, summaryTr: 'özet', findings: [finding] },
+      ],
+    });
+    const r = await app.inject({ url: `/api/videos/${videoId}/reviews`, headers: H });
+    expect(r.statusCode).toBe(200);
+    const body = r.json();
+    expect(body.map((x: { round: number; reviewerRole: string }) => [x.round, x.reviewerRole])).toEqual([[0, 'orchestrator'], [0, 'reviewer_visual']]);
+    expect(body[0]).toMatchObject({ total: 76, verdict: 'fix', runId });
+    expect(body[1].findings).toMatchObject([{ checkId: 'mechanism_shot', fixHint: 'yakınlaştır', evidence: { timecode: 1 } }]);
+    // Artifact metadata carries `meta` only for the review contact sheets.
+    await insertArtifact(t.pool, { runId, kind: 'research', content: {}, meta: { secret: 1 } });
+    await insertArtifact(t.pool, { runId, kind: 'final_review_sheet', meta: { kind: 'main', fixRound: 0 } });
+    const arts = (await app.inject({ url: `/api/videos/${videoId}`, headers: H })).json().artifacts as { kind: string; meta?: unknown }[];
+    expect(arts.find((a) => a.kind === 'research')).not.toHaveProperty('meta');
+    expect(arts.find((a) => a.kind === 'final_review_sheet')!.meta).toEqual({ kind: 'main', fixRound: 0 });
+    expect((await app.inject({ url: '/api/videos/00000000-0000-4000-8000-000000000000/reviews', headers: H })).statusCode).toBe(404);
+    expect((await app.inject({ url: '/api/videos/nope/reviews', headers: H })).statusCode).toBe(404);
   });
 });

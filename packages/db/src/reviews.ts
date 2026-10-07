@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
+import type { FindingRecord, ReviewRecord } from '@videogen/shared';
 import type { Queryable } from './client.ts';
 import { appendAudit } from './audit.ts';
 
@@ -12,15 +13,7 @@ export interface NewReview {
   total?: number | null; dimensionScores?: unknown; gates?: unknown; verdict?: string | null; summaryTr?: string | null;
   findings: NewFinding[];
 }
-export interface FindingRecord {
-  id: string; checkId: string; severity: string; dimension: string | null; gate: string | null; evidence: unknown; fixHint: string | null;
-  status: string; fixedInVersionId: string | null;
-}
-export interface ReviewRecord {
-  id: string; videoId: string; versionId: string | null; runId: string; stepId: string | null; round: number; reviewerRole: string; seq: number; sessionId: string | null;
-  rubricVersion: string; total: number | null; dimensionScores: unknown; gates: unknown; verdict: string | null; summaryTr: string | null; createdAt: string;
-  findings: FindingRecord[];
-}
+export type { FindingRecord, ReviewRecord };
 
 /**
  * Plan F22: one round of the final review in one transaction. Rows are unique per (run, round, role, seq) and written with

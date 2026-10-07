@@ -3,7 +3,7 @@ import type pg from 'pg';
 import { z } from 'zod';
 import { AUDIO_MODES, IMPLEMENTED_STEPS, producePlan, STEP_KEYS } from '@videogen/shared';
 import {
-  appendAudit, createProduceRun, getArtifact, getRun, getRunView, getVideoView, isUuid, listArtifacts, listRunViews, listVideoViews, publishRunAndVideo,
+  appendAudit, createProduceRun, getArtifact, getRun, getRunView, getVideoView, isUuid, listArtifacts, listVideoReviews, listRunViews, listVideoViews, publishRunAndVideo,
 } from '@videogen/db';
 import { sendCommand } from './notify.ts';
 
@@ -36,6 +36,12 @@ export function registerVideoRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
     const v = isUuid(id(req)) ? await getVideoView(pool, id(req)) : null;
     if (!v) return reply.code(404).send({ error: 'not found' });
     return { video: v, runs: await listRunViews(pool, v.id), artifacts: await listArtifacts(pool, v.id) };
+  });
+
+  app.get('/api/videos/:id/reviews', async (req, reply) => {
+    const v = isUuid(id(req)) ? await getVideoView(pool, id(req)) : null;
+    if (!v) return reply.code(404).send({ error: 'not found' });
+    return listVideoReviews(pool, v.id);
   });
 
   app.get('/api/runs/:id', async (req, reply) => {

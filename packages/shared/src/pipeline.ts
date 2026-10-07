@@ -93,7 +93,19 @@ export interface VideoView {
   /** The panel total of the best version's final review (newest round while there is no best version); null before a scored review. */
   score: number | null;
 }
-export interface ArtifactMeta { id: string; runId: string; stepId: string | null; versionId: string | null; kind: string; blobSha: string | null; createdAt: string }
+/** `meta` is only listed for `final_review_sheet` (the Studio tells the main contact sheet from the hook sheet by it). */
+export interface ArtifactMeta { id: string; runId: string; stepId: string | null; versionId: string | null; kind: string; blobSha: string | null; createdAt: string; meta?: Record<string, unknown> | null }
+
+export interface FindingRecord {
+  id: string; checkId: string; severity: string; dimension: string | null; gate: string | null; evidence: unknown; fixHint: string | null;
+  status: string; fixedInVersionId: string | null;
+}
+/** One reviewer's (or the orchestrator's) row of a final review round with its findings (GET /api/videos/:id/reviews). */
+export interface ReviewRecord {
+  id: string; videoId: string; versionId: string | null; runId: string; stepId: string | null; round: number; reviewerRole: string; seq: number; sessionId: string | null;
+  rubricVersion: string; total: number | null; dimensionScores: unknown; gates: unknown; verdict: string | null; summaryTr: string | null; createdAt: string;
+  findings: FindingRecord[];
+}
 
 export const VIDEO_STATUS_LABEL: Record<VideoStatus, string> = {
   queued: 'sırada', running: 'üretiliyor', ready: 'yayına hazır', needs_human: 'insan gerekli', failed: 'başarısız', cancelled: 'durduruldu', published: 'yayında',

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { formatClock, VIDEO_STATUS_LABEL } from '@videogen/shared/browser';
+import { formatClock, formatScore, VIDEO_STATUS_LABEL } from '@videogen/shared/browser';
 import { api, blobUrl } from '../lib/api.ts';
 import { formatDay, formatUsage, videoTone } from '../lib/production-view.ts';
 import { pipeline, seedVideos, useStore, videoList } from '../lib/stores.ts';
@@ -42,7 +42,7 @@ export function Library({ go }: { go: (url: string) => void }) {
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[14px] font-medium">{v.productName}</span>
-                <span className="block truncate text-[12px] text-ink-2">{VIDEO_STATUS_LABEL[v.status]}{v.statusNote ? ` · ${v.statusNote}` : ''}</span>
+                <span className="block truncate text-[12px] text-ink-2">{VIDEO_STATUS_LABEL[v.status]}{v.score !== null ? <span data-testid="library-score" className="tabular-nums"> · {formatScore(v.score)} puan</span> : null}{v.statusNote ? ` · ${v.statusNote}` : ''}</span>
               </span>
               <span className="shrink-0 text-right text-[12px] tabular-nums text-ink-3">
                 <span className="block">{formatDay(v.createdAt)}{len !== undefined ? <span data-testid="library-duration"> · {formatClock(len)}</span> : null}</span>

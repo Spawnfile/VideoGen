@@ -29,7 +29,7 @@ export default function DraftPlayer({ pick }: { pick: DraftPick }) {
     if (!p || !props) return;
     const on = (e: { detail: { frame: number } }) => setFrame(e.detail.frame);
     p.addEventListener('frameupdate', on);
-    setActivePlayer({ toggle: () => p.toggle(), pause: () => p.pause(), seekBy: (s) => p.seekTo(Math.max(0, Math.min(props.frames, p.getCurrentFrame() + Math.round(s * 30)))) });
+    setActivePlayer({ kind: 'draft', toggle: () => p.toggle(), pause: () => p.pause(), seekBy: (s) => p.seekTo(Math.max(0, Math.min(props.frames, p.getCurrentFrame() + Math.round(s * 30)))), seekTo: (s) => p.seekTo(Math.max(0, Math.min(props.frames, Math.round(s * 30)))) });
     return () => { p.removeEventListener('frameupdate', on); setActivePlayer(null); };
   }, [props]);
   if (!props) return <p className="py-10 text-center text-[13px] text-ink-3">Taslak yükleniyor…</p>;

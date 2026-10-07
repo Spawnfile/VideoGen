@@ -1,23 +1,25 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { blobUrl } from '../../lib/api.ts';
-import { setActivePlayer } from '../../lib/player.ts';
+import { setActivePlayer, setShowFinal } from '../../lib/player.ts';
 import { playerTabs, type DraftPick, type FinalPick, type PlayerTab } from '../../lib/production-view.ts';
 
 const DraftPlayer = lazy(() => import('./DraftPlayer.tsx'));
 
 /** An MP4 streamed from the media endpoint with HTTP Range (spec §13.1 Final tab; the draft MP4 uses the same element). */
-function Mp4({ sha, cover, testId }: { sha: string; cover: string | null; testId: string }) {
+function Mp4({ sha, cover, testId, kind }: { sha: string; cover: string | null; testId: string; kind: 'final' | 'draft' }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const v = ref.current;
     if (!v) return;
     setActivePlayer({
+      kind,
       toggle: () => { if (v.paused) void v.play(); else v.pause(); },
       pause: () => v.pause(),
       seekBy: (s) => { v.currentTime = Math.max(0, Math.min(Number.isFinite(v.duration) ? v.duration : 0, v.currentTime + s)); },
+      seekTo: (s) => { v.currentTime = Math.max(0, Number.isFinite(v.duration) ? Math.min(v.duration, s) : s); },
     });
     return () => setActivePlayer(null);
-  }, [sha]);
+  }, [sha, kind]);
   return (
     <video
       ref={ref}
@@ -38,7 +40,7 @@ function FinalPanel({ final }: { final: FinalPick }) {
   const sha = variant === 'music' ? final.musicSha! : (final.tiktokSha ?? final.musicSha!);
   return (
     <div className="flex flex-col gap-2">
-      <Mp4 key={sha} sha={sha} cover={final.coverSha} testId="final-video" />
+      <Mp4 key={sha} sha={sha} cover={final.coverSha} testId="final-video" kind="final" />
       <div className="flex justify-center gap-1" role="group" aria-label="Varyant">
         {([['music', 'Müzikli'], ['tiktok', 'Müziksiz']] as const).map(([id, label]) => (
           <button
@@ -65,6 +67,12 @@ function FinalPanel({ final }: { final: FinalPick }) {
 export function DraftTabs({ pick, final }: { pick: DraftPick; final: FinalPick }) {
   const { tabs, initial } = playerTabs({ final: !!final.musicSha, draft: !!pick.videoSha });
   const [tab, setTab] = useState<PlayerTab>(initial);
+  const hasFinal = !!final.musicSha;
+  useEffect(() => {
+    if (!hasFinal) return;
+    setShowFinal(() => setTab('final'));
+    return () => setShowFinal(null);
+  }, [hasFinal]);
   if (!tabs.length) return null;
   return (
     <section aria-label="Taslak oynatıcı" data-testid="draft-tabs" className="flex flex-col gap-3">
@@ -91,7 +99,7 @@ export function DraftTabs({ pick, final }: { pick: DraftPick; final: FinalPick }
         {tab === 'final' ? (
           <FinalPanel final={final} />
         ) : tab === 'mp4' ? (
-          <Mp4 sha={pick.videoSha!} cover={pick.coverSha} testId="draft-video" />
+          <Mp4 sha={pick.videoSha!} cover={pick.coverSha} testId="draft-video" kind="draft" />
         ) : (
           <Suspense fallback={<p className="py-10 text-center text-[13px] text-ink-3">Oynatıcı yükleniyor…</p>}>
             <DraftPlayer pick={pick} />
