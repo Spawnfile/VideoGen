@@ -5,6 +5,8 @@ export * from './agents.ts';
 export * from './artifacts.ts';
 export * from './pipeline.ts';
 export * from './progress.ts';
+export * from './qc.ts';
 export * from './review.ts';
+export * from './rubric.ts';
 export * from './scene.ts';
 export * from './styles.ts';
