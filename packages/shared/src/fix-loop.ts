@@ -1,20 +1,21 @@
-import type { ProductResearch, Storyboard, FixReport } from './artifacts.ts';
+import type { AudioMode, ProductResearch, Storyboard, FixReport } from './artifacts.ts';
 import { FINAL_CHECKS, FINAL_MAX_ROUNDS, type FinalCheckId } from './final-review.ts';
 import { QC_CHECKS, type QcCheckId } from './qc.ts';
 import type { SceneSpec } from './scene.ts';
+import type { AudioPlan } from './voice.ts';
 
 /** Plan F3/F11/F14/F15: the pure logic of the final fix loop. Types only from artifacts.ts (no value cycle). */
 export const RERENDER_SCOPES = ['compose', 'voice', 'build', 'storyboard'] as const;
 export type RerenderScope = (typeof RERENDER_SCOPES)[number];
 
-/** Every failed check is accounted for exactly once; the round matches; voice is not in reach before M5c. */
-export function fixReportRefErrors(r: FixReport, o: { round: number; failed: string[] }): string[] {
+/** Every failed check is accounted for exactly once; the round matches; voice only exists in a voice-over video. */
+export function fixReportRefErrors(r: FixReport, o: { round: number; failed: string[]; audioMode: AudioMode }): string[] {
   const out: string[] = [];
   if (r.round !== o.round) out.push(`round: ${o.round} olmalı`);
   const listed = [...r.addressed.map((a) => a.check_id), ...r.not_addressed.map((n) => n.check_id)];
   for (const id of o.failed) if (!listed.includes(id)) out.push(`${id}: addressed ya da not_addressed içinde olmalı`);
   for (const id of new Set(listed)) if (!o.failed.includes(id)) out.push(`${id}: başarısız kontroller arasında değil`);
-  if (r.rerender_scope === 'voice') out.push("rerender_scope: seslendirme kapsamı M5c'de");
+  if (r.rerender_scope === 'voice' && o.audioMode === 'silent') out.push('rerender_scope: seslendirmesiz videoda voice yok');
   return out;
 }
 
@@ -33,35 +34,50 @@ export function sceneRender(scene: SceneSpec): unknown {
   return { ...scene, parts: scene.parts.map((p) => ({ ...p, name_tr: null, recipe: { ...p.recipe, note: null } })) };
 }
 
-export type ScopeChange = 'product.py' | 'scene.render' | 'storyboard.structure' | 'scene.labels' | 'storyboard.text' | 'research';
-export interface ScopeInput { storyboard: Storyboard; scene: SceneSpec; research: ProductResearch; productSha: string }
+export type ScopeChange = 'product.py' | 'scene.render' | 'storyboard.structure' | 'scene.labels' | 'storyboard.text' | 'research'
+  | 'storyboard.vo' | 'storyboard.timing' | 'audio';
+export interface ScopeInput { storyboard: Storyboard; scene: SceneSpec; research: ProductResearch; productSha: string; audio: AudioPlan | null; audioMode: AudioMode }
 
 /** On-screen text the overlay and the SFX list read: the hook line, each beat's text and its SFX cue words (props.ts draftProps, sound.ts planSfx). */
 function storyboardText(s: Storyboard): unknown {
   return { hook: s.hook.text_tr, beats: s.beats.map((b) => ({ text: b.onscreen_text.tr, sfx: b.sfx_cues })) };
 }
-/** Everything else the storyboard says (timing, parts, claims, camera, pattern, VO …) except the fields nothing reads: version, cta, loop_strategy. */
+/** The voice-over lines: in a VO video the voice step reads them (H12). */
+const storyboardVo = (s: Storyboard): unknown => s.beats.map((b) => b.vo_text ?? null);
+/** The clock: duration, beat bounds, the two re-hook/payoff marks. In a VO video the voice step owns it (H12). */
+const storyboardTiming = (s: Storyboard): unknown => ({ duration_s: s.duration_s, rehook_at: s.rehook_at, payoff_at: s.payoff_at, beats: s.beats.map((b) => [b.t_start, b.t_end]) });
+/** The audio plan without its version counter (a bump alone changes nothing audible). */
+const audioPlan = (a: AudioPlan | null): unknown => { if (!a) return null; const { version: _v, ...rest } = a; return rest; };
+/** Everything else the storyboard says (parts, claims, camera, pattern …) except the fields nothing reads: version, cta, loop_strategy. */
 function storyboardStructure(s: Storyboard): unknown {
-  const { version: _v, cta: _c, loop_strategy: _l, hook, beats, ...rest } = s;
-  return { ...rest, hook: { pattern: hook.pattern }, beats: beats.map(({ onscreen_text: _t, sfx_cues: _s, ...b }) => b) };
+  // Dropped: fields nothing reads (version, cta, loop_strategy), the clock (storyboardTiming), the VO lines (storyboardVo) and the on-screen text (storyboardText).
+  const { version: _v, cta: _c, loop_strategy: _l, ...noUnread } = s;
+  const { duration_s: _d, rehook_at: _r, payoff_at: _p, ...noClock } = noUnread;
+  const { hook, beats, ...rest } = noClock;
+  return { ...rest, hook: { pattern: hook.pattern }, beats: beats.map(({ t_start: _a, t_end: _b, vo_text: _vo, onscreen_text: _t, sfx_cues: _s, ...b }) => b) };
 }
 const labels = (scene: SceneSpec) => scene.parts.map((p) => ({ id: p.id, name_tr: p.name_tr }));
 
 /**
- * F11: the step computes the scope, the fixer's own claim is only a claim. build = product.py or the scene's render fields changed;
- * compose = any other storyboard field or a part label; none = nothing that renders or is reviewed. A research change is reported but has no scope (the fixer may not change it).
+ * F11/H12: the step computes the scope, the fixer's own claim is only a claim. voice = a VO video's vo_text or beat timing changed (wins over build: the rewind goes to the earliest step; `changed` lists both);
+ * build = product.py or the scene's render fields changed; compose = any other storyboard field, a part label or the audio plan; none = nothing that renders or is reviewed.
+ * In a silent video timing/vo changes only recompose. A research change is reported but has no scope (the fixer may not change it).
  */
-export function fixScope(i: { prev: ScopeInput; next: ScopeInput }): { scope: 'none' | 'compose' | 'build'; changed: ScopeChange[] } {
+export function fixScope(i: { prev: ScopeInput; next: ScopeInput }): { scope: 'none' | 'compose' | 'voice' | 'build'; changed: ScopeChange[] } {
   const differs = (f: (x: ScopeInput) => unknown) => canonical(f(i.prev)) !== canonical(f(i.next));
   const changed: ScopeChange[] = [];
   if (i.prev.productSha !== i.next.productSha) changed.push('product.py');
   if (differs((x) => sceneRender(x.scene))) changed.push('scene.render');
   if (differs((x) => storyboardStructure(x.storyboard))) changed.push('storyboard.structure');
+  if (differs((x) => storyboardVo(x.storyboard))) changed.push('storyboard.vo');
+  if (differs((x) => storyboardTiming(x.storyboard))) changed.push('storyboard.timing');
   if (differs((x) => labels(x.scene))) changed.push('scene.labels');
   if (differs((x) => storyboardText(x.storyboard))) changed.push('storyboard.text');
+  if (differs((x) => audioPlan(x.audio))) changed.push('audio');
   if (differs((x) => x.research)) changed.push('research');
-  const scope = changed.some((c) => c === 'product.py' || c === 'scene.render') ? 'build'
-    : changed.some((c) => c !== 'research') ? 'compose' : 'none';
+  const voiceChanged = i.next.audioMode === 'vo' && changed.some((c) => c === 'storyboard.vo' || c === 'storyboard.timing');
+  const buildChanged = changed.some((c) => c === 'product.py' || c === 'scene.render');
+  const scope = voiceChanged ? 'voice' : buildChanged ? 'build' : changed.some((c) => c !== 'research') ? 'compose' : 'none';
   return { scope, changed };
 }
 
@@ -109,7 +125,7 @@ export function checkHistory(rounds: RoundChecks[]): { regressed: string[]; fixe
   return { regressed, fixed, oscillating };
 }
 
-export type LoopStop = 'limit' | 'oscillation' | 'unchanged' | 'usage' | 'no_fixer';
+export type LoopStop = 'limit' | 'oscillation' | 'unchanged' | 'usage' | 'no_fixer' | 'declaration';
 /** Turkish reasons shown on the step card and by finalize (runbook §7). */
 export const STOP_NOTE: Record<LoopStop, string> = {
   limit: `${FINAL_MAX_ROUNDS} düzeltme turundan sonra eşik geçilemedi`,
@@ -117,13 +133,15 @@ export const STOP_NOTE: Record<LoopStop, string> = {
   unchanged: 'düzeltme turu hiçbir şeyi değiştirmedi',
   usage: 'kullanım sınırı yakın; yeni düzeltme turu başlatılmadı',
   no_fixer: 'düzeltme yapacak ajan bağlı değil',
+  declaration: 'AI beyanı eksik (G4): klon ses için AI etiketi gerekli; düzeltme turu bunu çözemez',
 };
 
 export type LoopAction = { kind: 'ready' | 'fix' | 'rework' } | { kind: 'stop'; reason: LoopStop };
 
-/** F15 order: ready; round limit; usage guard; oscillation; rework; fix. */
-export function loopAction(i: { verdict: 'ready' | 'fix' | 'rework'; fixRound: number; oscillating: boolean; usageBlocked: boolean }): LoopAction {
+/** F15 order: ready; G4 declaration (no fix round can add the label); round limit; usage guard; oscillation; rework; fix. */
+export function loopAction(i: { verdict: 'ready' | 'fix' | 'rework'; fixRound: number; oscillating: boolean; usageBlocked: boolean; declarationFailed: boolean }): LoopAction {
   if (i.verdict === 'ready') return { kind: 'ready' };
+  if (i.declarationFailed) return { kind: 'stop', reason: 'declaration' };
   if (i.fixRound >= FINAL_MAX_ROUNDS) return { kind: 'stop', reason: 'limit' };
   if (i.usageBlocked) return { kind: 'stop', reason: 'usage' };
   if (i.oscillating) return { kind: 'stop', reason: 'oscillation' };

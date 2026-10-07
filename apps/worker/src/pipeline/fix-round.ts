@@ -10,7 +10,7 @@ import type { FixFinding } from './review-step.ts';
 export interface FixMeta {
   /** The reviewed round (`final_verdict` carries the same number). */
   fixRound: number;
-  scope: 'none' | 'compose' | 'build';
+  scope: 'none' | 'compose' | 'voice' | 'build';
   changed: string[];
   versionId: string;
   claimed: FixReport['rerender_scope'];
@@ -18,7 +18,7 @@ export interface FixMeta {
 
 /** Plan F12: why the current round exists. Read only from the previous round's artifacts, so an older round never leaks in (independent review B1). */
 export interface RoundCause {
-  kind: 'compose' | 'build' | 'rework';
+  kind: 'compose' | 'voice' | 'build' | 'rework';
   verdictId: string;
   fixReportId: string | null;
   failed: string[];
@@ -48,7 +48,7 @@ export async function roundCause(pool: pg.Pool, runId: string, fixRound: number)
   if (!report) return null;
   const { scope, claimed } = report.meta;
   if (scope === 'none' && claimed === 'storyboard') return { kind: 'rework', verdictId: verdict.id, fixReportId: report.id, failed };
-  if (scope === 'compose' || scope === 'build') return { kind: scope, verdictId: verdict.id, fixReportId: report.id, failed };
+  if (scope === 'compose' || scope === 'voice' || scope === 'build') return { kind: scope, verdictId: verdict.id, fixReportId: report.id, failed };
   return null;
 }
 

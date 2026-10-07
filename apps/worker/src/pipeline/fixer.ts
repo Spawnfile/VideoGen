@@ -68,12 +68,13 @@ async function readNext(ctx: StepContext, prev: Prev): Promise<{ next: ScopeInpu
   ];
   if (errors.length || !storyboard.ok || !scene.ok) return { errors };
   const productSha = (await sha256(join(ctx.runDir, 'scene', 'product.py'))) ?? prev.productSha ?? '';
-  return { next: { storyboard: storyboard.value, scene: scene.value, research: research?.ok ? research.value : prev.research, productSha } };
+  return { next: { storyboard: storyboard.value, scene: scene.value, research: research?.ok ? research.value : prev.research, productSha, audio: null, audioMode: ctx.audioMode } };
 }
 
-/** The outcome of a recorded fix round (also the replay): compose/build rewind, a claimed rewrite without change is a rework, nothing changed stops the loop. */
+/** The outcome of a recorded fix round (also the replay): compose/voice/build rewind, a claimed rewrite without change is a rework, nothing changed stops the loop. */
 async function outcomeOf(deps: StepDeps, ctx: StepContext, input: Parameters<FixerRun>[2], m: FixMeta, replay: boolean): Promise<StepOutcome> {
-  const to = m.scope === 'build' ? 'build' : m.scope === 'compose' ? 'compose' : m.claimed === 'storyboard' ? 'storyboard' : null;
+  // 'voice' rewinds like the others; the voice step and the fixer's real voice handling are T8 (no VO run exists before it).
+  const to = m.scope === 'build' ? 'build' : m.scope === 'compose' ? 'compose' : m.scope === 'voice' ? 'voice' : m.claimed === 'storyboard' ? 'storyboard' : null;
   if (to) {
     const reason = `fix:${to === 'storyboard' ? 'rework' : to}`;
     return { status: 'rewind', to, loop: 'final', reason: `düzeltme (${to}): ${openLabels(input.findings.map((f) => f.check_id))}`, version: { id: input.versionId, reason } };
@@ -100,9 +101,9 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
   const prev = await loadPrev(deps.pool, ctx.runId, versionId);
   if (!prev) return { status: 'failed', error: 'düzeltilecek storyboard, sahne ya da araştırma çıktısı yok', retry: false };
   const style = await getChannelStyle(deps.pool);
-  const prevInput: ScopeInput = { storyboard: prev.storyboard, scene: prev.scene, research: prev.research, productSha: prev.productSha ?? '' };
+  const prevInput: ScopeInput = { storyboard: prev.storyboard, scene: prev.scene, research: prev.research, productSha: prev.productSha ?? '', audio: null, audioMode: ctx.audioMode };
 
-  let computed: { next: ScopeInput; scope: 'none' | 'compose' | 'build'; changed: string[] } | null = null;
+  let computed: { next: ScopeInput; scope: 'none' | 'compose' | 'voice' | 'build'; changed: string[] } | null = null;
   // The fixer may not touch the research; a render change is built by the step itself (trusted), and its errors go back to the same session.
   const checkAsync = async (): Promise<{ errors: string[]; fatal?: string }> => {
     const n = await readNext(ctx, prev);
@@ -127,12 +128,12 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
     manager: deps.manager, ctx, role: 'fixer', schema: 'FixReport', model: fixerModel(failed),
     prompt: fixerPrompt({ name: ctx.productName, round, reviewedRound: ctx.fixRound, findings }),
     initialResume: prior ? { claudeSessionId: prior.claudeSessionId, parent: prior.id, prompt: RESUME_PROMPT } : undefined,
-    check: (v) => fixReportRefErrors(v, { round, failed }),
+    check: (v) => fixReportRefErrors(v, { round, failed, audioMode: ctx.audioMode }),
     checkAsync,
     fakeScript: deps.fakeScript ? (n) => deps.fakeScript!('fixer', ctx, n, { failed }) : undefined,
   });
   if (!r.ok) return failure(r);
-  const done = computed as { next: ScopeInput; scope: 'none' | 'compose' | 'build'; changed: string[] } | null;
+  const done = computed as { next: ScopeInput; scope: 'none' | 'compose' | 'voice' | 'build'; changed: string[] } | null;
   if (!done) return { status: 'failed', error: 'düzeltme kapsamı hesaplanamadı', retry: false };
 
   const claimed = r.value.rerender_scope;

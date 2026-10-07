@@ -193,7 +193,7 @@ describe('review inputs, prompts and fake reviewers', () => {
       const f = fakePipelineScript('fixer', ctx(name), 0, { failed: [...failed] });
       const report = validateArtifact('FixReport', f.structured);
       expect(report.ok, name).toBe(true);
-      expect(fixReportRefErrors(report.ok ? report.value : (null as never), { round: 1, failed: [...failed] })).toEqual([]);
+      expect(fixReportRefErrors(report.ok ? report.value : (null as never), { round: 1, failed: [...failed], audioMode: 'silent' })).toEqual([]);
       const written = validateArtifact(kind, JSON.parse(Object.values(f.files!)[0]!));
       expect(written.ok, `${name} ${written.ok ? '' : written.errors.join('; ')}`).toBe(true);
     }

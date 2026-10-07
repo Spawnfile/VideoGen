@@ -1,0 +1,12 @@
+{
+  "round": 1,
+  "addressed": [
+    { "check_id": "text_readable", "change_summary_tr": "Seslendirme cümlesi kısaltıldı; okunuşu kolaylaştırıldı", "files": ["storyboard.json"] },
+    { "check_id": "text_dwell", "change_summary_tr": "Yazı ve ses aynı vuruşa oturtuldu", "files": ["storyboard.json"] }
+  ],
+  "not_addressed": [
+    { "check_id": "payoff", "reason": "Ödül anı mevcut kurguda zaten net; değişiklik gerekmedi" }
+  ],
+  "rerender_scope": "voice",
+  "spec_diffs": ["beats.1.vo_text.tr kısaltıldı"]
+}

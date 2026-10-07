@@ -189,7 +189,7 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
 
   async function act(ctx: StepContext, hash: string, v: StoredVerdict, findings: FixFinding[], replay = false): Promise<StepOutcome> {
     const usageBlocked = !!deps.gate && !deps.gate.allowsNewPipeline();
-    const a = loopAction({ verdict: v.verdict, fixRound: ctx.fixRound, oscillating: v.oscillating.length > 0, usageBlocked });
+    const a = loopAction({ verdict: v.verdict, fixRound: ctx.fixRound, oscillating: v.oscillating.length > 0, usageBlocked, declarationFailed: false });
     if (a.kind === 'ready') return { status: 'done', note: `Yayına hazır: ${formatScore(v.total!)} puan` };
     const stop = async (reason: LoopStop): Promise<StepOutcome> => {
       // A replay of a stored verdict decides again but does not audit the same stop twice.
