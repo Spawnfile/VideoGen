@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { IMPLEMENTED_STEPS, producePlan, type AudioMode } from '@videogen/shared';
+import { producePlan, type AudioMode, type StepKey } from '@videogen/shared';
 import { createProduceRun, getBlob, getRunView, getVideoView, insertArtifact, insertSession, listArtifacts, listRunSteps, setChannelStyle } from '@videogen/db';
 import { FakeClaudeDriver, SpecStore, type ClaudeDriver, type FakeScript, type SessionSpec } from '@videogen/claude';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
@@ -17,7 +17,7 @@ import { FakeRenderDriver, type Capability } from '../src/render/driver.ts';
 import { ResourceLocks } from '../src/render/locks.ts';
 
 /** The M4 plan (research … draft_review): these end-to-end tests are about the draft loop and keep the M4 notes. */
-const M4_STEPS = IMPLEMENTED_STEPS.slice(0, 5);
+const M4_STEPS: StepKey[] = ['research', 'storyboard', 'build', 'draft_render', 'draft_review'];
 
 let t: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => { t = await createTestDb(); });

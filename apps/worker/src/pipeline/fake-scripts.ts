@@ -42,9 +42,8 @@ export function fakePipelineScript(role: PipelineRole, ctx: StepContext, attempt
     const fail = /umutsuz|[iı]nat[çc][ıi]/.test(name) || (/kusurlu/.test(name) && ctx.round === 0);
     return { fixture: 'basic', structured: load(fail ? 'review-revise' : 'review-pass') };
   }
-  const board = load('storyboard-kalem') as { beats: { onscreen_text: { tr: string } }[] };
-  if (ctx.audioMode !== 'vo') return { fixture: 'basic', structured: board };
-  return { fixture: 'basic', structured: { ...board, audio_mode: 'vo', beats: board.beats.map((b) => ({ ...b, vo_text: { tr: b.onscreen_text.tr } })) } };
+  // A VO storyboard comes with realistic Turkish vo_text on every beat (estimateVoS 36–52 s; the kalem beats keep their times).
+  return { fixture: 'basic', structured: load(ctx.audioMode === 'vo' ? 'storyboard-kalem-vo' : 'storyboard-kalem') };
 }
 
 type Tweak = { score: number; frame?: number; hint?: string };

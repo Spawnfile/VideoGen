@@ -68,7 +68,7 @@ const manager = new SessionManager({
 const orchestrator = new Orchestrator({
   pool, dataDir: config.dataDir, probe, locks, gate: guard, preflight: runPreflight({ pool, audio, dataDir: config.dataDir }),
   executors: pipelineExecutors({
-    pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined, reviews, gate: guard,
+    pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined, reviews, gate: guard, audio,
     scene: { pool, render, locks, probe, ffmpeg: config.render.ffmpeg, encodePreset: config.render.encodePreset, capability: () => renderCapability },
   }),
 });

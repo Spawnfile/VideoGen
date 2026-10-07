@@ -167,6 +167,9 @@ describe('pipeline end to end (fake driver)', () => {
     expect(run.steps.map((s) => [s.status, !!s.sessionId])).toEqual([['done', true], ['done', true]]);
     expect(run.steps[1]!.note).toBe('7 vuruş · 45 sn · kanca: Şaşırtıcı sayı');
     expect(await getVideoView(t.pool, r.videoId)).toMatchObject({ status: 'needs_human', statusNote: 'Storyboard hazır. Sahne kurulumu ve taslak render bu sürümde henüz yok.', difficulty: 'procedural' });
-    expect(((await latestArtifact(t.pool, r.runId, 'storyboard'))!.content as { audio_mode: string }).audio_mode).toBe('vo');
+    // The fake VO storyboard carries realistic Turkish vo_text (storyboard-kalem-vo.json), not the on-screen text.
+    const board = (await latestArtifact(t.pool, r.runId, 'storyboard'))!.content as { audio_mode: string; beats: { vo_text: { tr: string } }[] };
+    expect(board.audio_mode).toBe('vo');
+    expect(board.beats[0]!.vo_text.tr).toBe('Bu küçücük bilye, elindeki kalemin bütün yazma işini tek başına yapıyor.');
   });
 });

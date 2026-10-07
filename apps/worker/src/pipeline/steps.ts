@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type pg from 'pg';
 import {
   canonical, CHANNEL_STYLES, DRAFT_CHECK_IDS, DRAFT_CHECKS, DRAFT_GATES, DRAFT_MAX_RETURNS, DRAFT_RUBRIC_VERSION, draftDecision, formatClock, HOOK_PATTERN_LABELS,
-  normalizeProductName, reviewRefErrors, sceneRefErrors, storyboardRefErrors, validateArtifact,
+  normalizeProductName, reviewRefErrors, sceneRefErrors, storyboardRefErrors, storyboardVoErrors, validateArtifact,
   type AudioMode, type BuildReport, type ChannelStyleId, type DraftCheckId, type ProductResearch, type Review, type SceneSpec, type StepKey, type Storyboard,
 } from '@videogen/shared';
 import { appendAudit, findArtifact, getBlob, getChannelStyle, insertArtifact, latestArtifact, latestStepSession, setProductDifficulty } from '@videogen/db';
@@ -15,6 +15,7 @@ import { draftProps, type DraftProps } from '@videogen/remotion/props';
 import { fenced } from './fence.ts';
 import { ARTIFACT_VALIDATOR } from './validator.ts';
 import { RESUME_PROMPT, type SessionManager, type UsageGate } from '../agents/manager.ts';
+import type { AudioDriver } from '../audio/driver.ts';
 import { putBlob } from '../media.ts';
 import { RenderError, type BuildFiles } from '../render/driver.ts';
 import { contactSheet, draftProbeErrors, extractFrame, probeVideo } from '../render/ffmpeg.ts';
@@ -25,6 +26,7 @@ import { finalizeExecutor } from './finalize-step.ts';
 import { reviewExecutor, type FixerRun } from './review-step.ts';
 import { runStructured } from './agent-step.ts';
 import { composeExecutor, finalRenderExecutor, qcExecutor } from './final-steps.ts';
+import { voiceExecutor } from './voice-step.ts';
 import { buildScene, previewScene, type SceneBuild, type SceneDeps } from './scene-tools.ts';
 import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
 
@@ -49,6 +51,8 @@ export interface StepDeps {
   gate?: Pick<UsageGate, 'allowsNewPipeline' | 'resumeAt'>;
   /** M5b: the fixer the final review runs for a `fix` verdict (T8); null or absent: no fixer, the loop stops (`no_fixer`). */
   fixer?: FixerRun | null;
+  /** M5c: the TTS + alignment driver of the voice step (absent: the step fails with a reason). */
+  audio?: AudioDriver;
 }
 
 export const sha = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
@@ -77,19 +81,23 @@ export function storyboardPrompt(name: string, mode: AudioMode, research: Produc
     'Kurallar: süre 35–55 sn; vuruşlar 0 sn\'den duration_s\'ye boşluksuz ve bitişik; ilk vuruşta kahraman nesne ve kanca yazısı (en çok 60 karakter);',
     'kanca kalıbı şunlardan biri: question, number, misconception, reveal, contrast; ikinci kanca (rehook_at) sürenin %40–60\'ında, ödül (payoff_at) %70\'ten sonra;',
     `parça ve iddia kimlikleri yalnızca araştırmadakiler; kamera lensi 50–135 mm; audio_mode: "${mode}"; version: 1.`,
+    ...(mode === 'vo' ? ["vo_text Türkçe, sembolsüz, rakamlar ve birimler serbest (0,7 mm, %50); kısa cümleler; toplam anlatım ~50 sn'yi geçmesin; ilk cümle kancadır, ilk kelime hemen başlar."] : []),
     'Sonucu yapılandırılmış çıktı (Storyboard şeması) olarak döndür.',
   ].join('\n');
 }
 
-/** `latest`: the SpecStore already holds this value as its newest version (the fixer's own write): record that version instead of writing a copy. */
-export async function persist(deps: StepDeps, ctx: StepContext, kind: SpecKind, value: unknown, inputHash: string, o: { latest?: boolean } = {}): Promise<void> {
+/**
+ * `latest`: the SpecStore already holds this value as its newest version (the fixer's own write): record that version instead of writing a copy.
+ * `meta`: extra artifact meta next to `specVersion` (the voice step's retimedFrom/voiceHash).
+ */
+export async function persist(deps: StepDeps, ctx: StepContext, kind: SpecKind, value: unknown, inputHash: string, o: { latest?: boolean; meta?: Record<string, unknown> } = {}): Promise<void> {
   const store = new SpecStore(join(ctx.runDir, 'spec'), ARTIFACT_VALIDATOR);
   const head = o.latest ? await store.read(kind) : null;
   const w = head && canonical(head.value) === canonical(value) ? { version: head.version } : await store.write(kind, value);
   if ('errors' in w) throw new Error(`spec ${kind}: ${w.errors.join('; ')}`);
   const file = join(ctx.runDir, 'spec', kind, `v${String(w.version).padStart(4, '0')}.json`);
   const blob = await putBlob(deps.pool, deps.dataDir, file);
-  const meta = await insertArtifact(deps.pool, { runId: ctx.runId, stepId: ctx.stepId, versionId: ctx.versionId, kind, blobSha: blob.sha256, content: value, inputHash, meta: { specVersion: w.version } });
+  const meta = await insertArtifact(deps.pool, { runId: ctx.runId, stepId: ctx.stepId, versionId: ctx.versionId, kind, blobSha: blob.sha256, content: value, inputHash, meta: { specVersion: w.version, ...o.meta } });
   await appendAudit(deps.pool, { actorType: 'orchestrator', action: 'artifact.created', runId: ctx.runId, stepId: ctx.stepId, subjectType: 'artifact', subjectId: meta.id, data: { kind, sha256: blob.sha256, specVersion: w.version } });
 }
 
@@ -148,7 +156,7 @@ export function storyboardExecutor(deps: StepDeps): StepExecutor {
       const r = await runStructured<Storyboard>({
         manager: deps.manager, ctx, role: 'storyboarder', schema: 'Storyboard',
         prompt: storyboardPrompt(ctx.productName, ctx.audioMode, research.value) + (findings ? `\n\n${reworkStoryboardPrompt(findings)}` : ''),
-        check: (s) => [...storyboardRefErrors(s, research.value), ...(s.audio_mode === ctx.audioMode ? [] : [`audio_mode ${ctx.audioMode} olmalı`])],
+        check: (s) => [...storyboardRefErrors(s, research.value), ...(s.audio_mode === ctx.audioMode ? [] : [`audio_mode ${ctx.audioMode} olmalı`]), ...(ctx.audioMode === 'vo' ? storyboardVoErrors(s) : [])],
         fakeScript: deps.fakeScript ? (n) => deps.fakeScript!('storyboarder', ctx, n) : undefined,
       });
       if (!r.ok) return failure(r);
@@ -492,7 +500,7 @@ export function draftReviewExecutor(deps: StepDeps): StepExecutor {
 
 export function pipelineExecutors(deps: StepDeps): Partial<Record<StepKey, StepExecutor>> {
   return {
-    research: researchExecutor(deps), storyboard: storyboardExecutor(deps), build: buildExecutor(deps),
+    research: researchExecutor(deps), storyboard: storyboardExecutor(deps), voice: voiceExecutor(deps), build: buildExecutor(deps),
     draft_render: draftRenderExecutor(deps), draft_review: draftReviewExecutor(deps),
     final_render: finalRenderExecutor(deps), compose: composeExecutor(deps), qc: qcExecutor(deps),
     // T8: `fixer: null` means no fixer; unset means the real one.
