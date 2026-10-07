@@ -1,13 +1,14 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { averageVisual, FinalReviewSchema, panelScore, STOP_NOTE, type FinalReview, type ProductResearch, type Storyboard } from '@videogen/shared';
-import { insertArtifact, insertVersion, latestArtifact, listRunReviews, recordReviewRound } from '@videogen/db';
+import { insertArtifact, insertAsset, insertVersion, latestArtifact, listRunReviews, recordReviewRound } from '@videogen/db';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
 import { LIMIT_NOTE } from '../src/pipeline/orchestrator.ts';
 import { fakePipelineScript } from '../src/pipeline/fake-scripts.ts';
 import { webCheckTargets } from '../src/pipeline/review-inputs.ts';
-import { fixVersionId, reviewExecutor, type FixerRun } from '../src/pipeline/review-step.ts';
+import { putBlob } from '../src/media.ts';
+import { fixVersionId, reviewExecutor, reviewVoice, roundChecks, g4Hint, type FixerRun } from '../src/pipeline/review-step.ts';
 import { panelHarness, qcReportFailing } from './final-helpers.ts';
 
 let t: Awaited<ReturnType<typeof createTestDb>>;
@@ -356,4 +357,60 @@ describe('review step (final panel)', () => {
     for (const role of ['reviewer_visual', 'reviewer_facts', 'reviewer_retention'] as const) expect(m.deps.reviews!.get(cm.stepId, role)).toBeUndefined();
     expect(await listRunReviews(t.pool, mp.r.runId)).toEqual([]);
   }, 180_000);
+  it('G4 is a rule: a VO final with the preset voice passes, a clone without its label or a VO final without a voice_track fails G4 (G4 finding on the orchestrator row, loop stops with \'declaration\', no fixer session), a silent final passes', async () => {
+    const h = setup();
+    const p = await h.prepare('Tükenmez kalem', { vo: true });
+    const track = (over: Record<string, unknown>) => ({ ...fx('voice-track-kalem'), provider: { engine: 'chatterbox', model: 'chatterbox-ml-v3', voice: { kind: 'preset', id: 'hazir' }, aigc_label: false, ...over } });
+    const addTrack = (stem: string, provider: Record<string, unknown>) => insertArtifact(t.pool, { runId: p.r.runId, kind: 'voice_track', content: track(provider), inputHash: `vt-${stem}`, meta: { stemSha: stem } });
+    const g4 = async (stem: string | null, mode: 'vo' | 'silent' = 'vo') => (await reviewVoice(h.deps.pool, { runId: p.r.runId, audioMode: mode, voiceStemSha: stem })).g4;
+    // H8: the track is the one whose stem the reviewed final was mixed with, not the newest
+    const file = join(h.dataDir, 'ref.wav');
+    writeFileSync(file, 'ref');
+    const blob = await putBlob(t.pool, h.dataDir, file);
+    const ref = (await insertAsset(t.pool, { kind: 'voice_ref', title: 'Benim sesim', blobSha: blob.sha256, licenseSpdx: 'LicenseRef-Own-Voice', author: 'ben', allowed: true }))!;
+    const clone = { voice: { kind: 'clone', asset_id: ref.id } };
+    await addTrack('stem-preset', {});
+    await addTrack('stem-clone-label', { ...clone, aigc_label: true });
+    await addTrack('stem-clone', clone);
+    await addTrack('stem-newest-preset', {});
+    // two tracks with one stem: the newest decides
+    await addTrack('stem-tie', {});
+    await addTrack('stem-tie', clone);
+    expect(await g4('stem-preset')).toBe(true);
+    expect(await g4('stem-clone-label')).toBe(true);
+    expect(await g4('stem-clone')).toBe(false); // clone without its AI label
+    expect(await g4(null)).toBe(false); // VO final that records no stem
+    expect(await g4('stem-unknown')).toBe(false); // no track made with that stem
+    expect(await g4('stem-tie')).toBe(false); // the newer one is the unlabelled clone
+    expect(await g4(null, 'silent')).toBe(true);
+    expect(g4Hint(null)).toContain('voice_track yok');
+    expect(g4Hint(fx('voice-track-kalem'))).toContain('AI etiketi gerekli');
+    await t.pool.query('UPDATE assets SET allowed = false WHERE id = $1', [ref.id]);
+    expect(await g4('stem-clone-label')).toBe(false); // the reference's permission was withdrawn
+    await t.pool.query('UPDATE assets SET allowed = true, license_spdx = $2 WHERE id = $1', [ref.id, 'CC0-1.0']);
+    expect(await g4('stem-clone-label')).toBe(false); // not an own-voice licence
+
+    // The panel: the reviewed final carries the unlabelled clone's stem (a newer preset track exists too)
+    await t.pool.query("UPDATE artifacts SET meta = meta || '{\"voiceStemSha\":\"stem-clone\"}'::jsonb WHERE run_id = $1 AND kind = 'final_video_music'", [p.r.runId]);
+    const fixer = vi.fn(async () => ({ status: 'done', note: 'fixer stub' }) as const);
+    h.deps.fixer = fixer;
+    const ex = reviewExecutor(h.deps);
+    const c = p.ctx('review');
+    expect(await ex.run(c, await ex.inputHash(c))).toEqual({ status: 'done', note: `${STOP_NOTE.declaration}: 87,5 puan` });
+    expect(fixer).not.toHaveBeenCalled();
+    const rows = await listRunReviews(t.pool, p.r.runId);
+    expect(rows[0]).toMatchObject({ reviewerRole: 'orchestrator', total: 87.5, verdict: 'fix' });
+    expect(rows[0]!.gates).toMatchObject({ G4: false, G1: true, G2: true });
+    expect(rows[0]!.findings.map((f) => [f.checkId, f.gate, f.severity, f.evidence, f.fixHint])).toEqual([
+      ['d7_bitrate', null, 'minor', expect.anything(), null],
+      ['G4', 'G4', 'blocker', null, "Klon ses için AI etiketi gerekli; anlatıcı sesini Ayarlar'dan değiştirin ya da etiketi açın"],
+    ]);
+    expect((await stored(p.r.runId, 'final_verdict')).content).toMatchObject({ verdict: 'fix', failed: ['d7_bitrate'] }); // G4 is a gate, not a check id
+    expect(roundChecks(rows)[0]!.failed).toEqual(['d7_bitrate']); // nor does the loop's history carry it
+    expect((await t.pool.query("SELECT data FROM audit_log WHERE run_id = $1 AND action = 'loop.stop'", [p.r.runId])).rows.map((x) => x.data)).toEqual([expect.objectContaining({ reason: 'declaration', fixRound: 0 })]);
+    expect(await h.sessionRoles(c.stepId)).toHaveLength(3); // the panel ran; no fixer session
+    // the reviewers of a VO final read its narration (the track of the reviewed stem)
+    expect(h.specs.find((x) => x.role === 'reviewer_facts')!.prompt).toContain('Seslendirme metinleri ve Whisper transkripti');
+    expect(h.specs.find((x) => x.role === 'reviewer_retention')!.prompt).toContain('İlk seslendirme cümlesi');
+  }, 120_000);
 });

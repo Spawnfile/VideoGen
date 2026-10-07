@@ -1,5 +1,5 @@
-import { mkdirSync, existsSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { STOP_NOTE, formatScore } from '@videogen/shared';
 import { appendAudit, getVideoView, insertArtifact, insertVersion, recordReviewRound } from '@videogen/db';
@@ -9,6 +9,7 @@ import { finalizeExecutor } from '../src/pipeline/finalize-step.ts';
 import { fixVersionId, reviewExecutor } from '../src/pipeline/review-step.ts';
 import { panelHarness } from './final-helpers.ts';
 
+const fx = (n: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${n}.json`), 'utf8'));
 let t: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => { t = await createTestDb(); });
 afterAll(async () => { await t.drop(); });
@@ -65,7 +66,7 @@ describe('finalize step (plan T9)', () => {
     const fin = (await t.pool.query("SELECT content, input_hash FROM artifacts WHERE run_id = $1 AND kind = 'finish'", [p.r.runId])).rows;
     expect(fin).toHaveLength(1);
     expect(fin[0].input_hash).toBe(hash);
-    expect(fin[0].content).toEqual({ bestVersionId: p.r.versionId, round: 0, total: 87.5, verdict: 'ready', stop: null, openFindings: ['d7_bitrate'] });
+    expect(fin[0].content).toEqual({ bestVersionId: p.r.versionId, round: 0, total: 87.5, verdict: 'ready', stop: null, openFindings: ['d7_bitrate'], aigcLabel: false });
     expect(existsSync(frames)).toBe(false);
     expect(await count(p.r.runId, "audit_log WHERE run_id = $1 AND action = 'frames.deleted'")).toBe(1);
 
@@ -73,6 +74,20 @@ describe('finalize step (plan T9)', () => {
     expect(await ex.run(c, hash)).toEqual({ status: 'done', note: 'Yayına hazır · 87,5 puan' });
     expect(await count(p.r.runId, "artifacts WHERE run_id = $1 AND kind = 'finish'")).toBe(1);
     expect(await count(p.r.runId, "audit_log WHERE run_id = $1 AND action = 'frames.deleted'")).toBe(1);
+
+    // H8: a cloned narrator voice ships with the AI label: the flag is on the finish and the note says so. The track is the one the BEST version's
+    // music final was mixed with, not the newest one (a later round's preset track).
+    const clone = await seed('Klon ses', [{ total: 85, verdict: 'ready', failed: [] }]);
+    const track = (voice: object, stem: string) => insertArtifact(t.pool, { runId: clone.p.r.runId, kind: 'voice_track', inputHash: `vt-${stem}`, meta: { stemSha: stem }, content: { ...fx('voice-track-kalem'), provider: { engine: 'chatterbox', model: 'm', voice, aigc_label: true } } });
+    await insertArtifact(t.pool, { runId: clone.p.r.runId, kind: 'final_video_music', versionId: clone.p.r.versionId, inputHash: 'c-best', meta: { voiceStemSha: 'stem-clone' } });
+    await track({ kind: 'clone', asset_id: '6b0f6f0e-65c0-4d3c-9d5e-3b1d2f4a7c11' }, 'stem-clone');
+    await track({ kind: 'preset', id: 'hazir' }, 'stem-newer');
+    expect(await clone.run()).toEqual({ status: 'done', note: `Yayına hazır · ${formatScore(85)} puan · AI etiketi zorunlu (klon ses)` });
+    expect((await t.pool.query("SELECT content FROM artifacts WHERE run_id = $1 AND kind = 'finish'", [clone.p.r.runId])).rows[0].content).toMatchObject({ aigcLabel: true });
+    // a G4 stop: needs_human with its reason; the gate finding is not an open check
+    const decl = await seed('Beyan eksik', [{ total: 85, verdict: 'fix', failed: [] }]);
+    await appendAudit(t.pool, { actorType: 'orchestrator', action: 'loop.stop', runId: decl.p.r.runId, data: { reason: 'declaration', fixRound: 0, verdict: 'fix', total: 85 } });
+    expect(await decl.run()).toMatchObject({ status: 'needs_human', reason: expect.stringContaining(`${STOP_NOTE.declaration}: en iyi sürüm tur 0`) });
   }, 180_000);
 
   it('needs_human after the limit with the best non-regressed round and open findings; the oscillation and unchanged reasons; the library shows the best round', async () => {

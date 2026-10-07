@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { isNumericClaim, QC_CHECKS, researchWarnings, type FinalReviewerRole, type ProductResearch, type QcReport, type Storyboard } from '@videogen/shared';
+import { isNumericClaim, QC_CHECKS, researchWarnings, type FinalReviewerRole, type ProductResearch, type QcReport, type Storyboard, type VoiceTrack } from '@videogen/shared';
 import type { Queryable } from '@videogen/db';
 
 /** Plan F10: one URL of one claim the facts reviewer must open. */
@@ -118,4 +118,20 @@ export function qcFacts(role: FinalReviewerRole, qc: QcReport): QcFact[] {
     const c = qc.music.find((x) => x.id === id);
     return c ? [{ id, label: QC_CHECKS[id].label_tr, value: String(c.value), limit: String(c.limit), ...(c.at !== undefined ? { at: c.at } : {}) }] : [];
   });
+}
+
+/** What the reviewers may know of the narration (H14): the script and the Whisper transcript per beat with line CER, the first spoken sentence, the pace. Measurements only: no audio, no builder or fixer text. */
+export interface VoInputs {
+  lines: { beat_id: string; t_start: number; vo_text: string; asr_tr: string; cer: number; claim_ids: string[] }[];
+  first: { text: string; asr_tr: string; first_word_s: number };
+  pace: number;
+}
+
+export function voInputs(track: VoiceTrack, storyboard: Storyboard): VoInputs {
+  const beat = new Map(storyboard.beats.map((b) => [b.id, b]));
+  const lines = track.lines.map((l) => ({
+    beat_id: l.beat_id, t_start: l.start_ms / 1000, vo_text: beat.get(l.beat_id)?.vo_text?.tr ?? l.text_tr, asr_tr: l.asr_tr, cer: l.cer, claim_ids: beat.get(l.beat_id)?.claim_ids ?? [],
+  }));
+  const first = lines[0];
+  return { lines, first: { text: first?.vo_text ?? '', asr_tr: first?.asr_tr ?? '', first_word_s: track.facts.first_word_s }, pace: track.facts.syllables_per_s };
 }

@@ -1,12 +1,12 @@
-import { FINAL_MAX_ROUNDS, formatScore, pickBest, STOP_NOTE, type LoopStop } from '@videogen/shared';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { aigcRequired, FINAL_MAX_ROUNDS, formatScore, pickBest, STOP_NOTE, VoiceTrackSchema, type LoopStop } from '@videogen/shared';
 import { appendAudit, findArtifact, latestArtifact, listRunReviews, setBestVersion } from '@videogen/db';
 import type pg from 'pg';
 import { removeRunFrames } from '../render/frames.ts';
-import { openLabels, roundChecks } from './review-step.ts';
+import { openLabels, roundChecks, voiceTrackFor } from './review-step.ts';
 import { record, sha, type StepDeps } from './steps.ts';
 import type { StepExecutor, StepOutcome } from './types.ts';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 
 /** What the `finish` artifact stores (plan F16). */
 export interface Finish {
@@ -16,6 +16,8 @@ export interface Finish {
   verdict: 'ready' | 'fix' | 'rework';
   stop: LoopStop | null;
   openFindings: string[];
+  /** M6 must send the AI-generated flag when the narrator voice is a clone (H8, spec §10). */
+  aigcLabel: boolean;
 }
 
 /**
@@ -38,7 +40,7 @@ const STOPS = Object.keys(STOP_NOTE) as LoopStop[];
  */
 export function finalizeExecutor(deps: StepDeps): StepExecutor {
   const outcome = (f: Finish): StepOutcome => {
-    if (f.verdict === 'ready') return { status: 'done', note: `Yayına hazır · ${formatScore(f.total!)} puan${f.round > 0 ? ` · düzeltme turu ${f.round}/${FINAL_MAX_ROUNDS}` : ''}` };
+    if (f.verdict === 'ready') return { status: 'done', note: `Yayına hazır · ${formatScore(f.total!)} puan${f.round > 0 ? ` · düzeltme turu ${f.round}/${FINAL_MAX_ROUNDS}` : ''}${f.aigcLabel ? ' · AI etiketi zorunlu (klon ses)' : ''}` };
     const open = f.openFindings.length ? ` Açık bulgular: ${openLabels(f.openFindings)}.` : '';
     return {
       status: 'needs_human',
@@ -59,6 +61,14 @@ export function finalizeExecutor(deps: StepDeps): StepExecutor {
     return null;
   }
 
+  /** H8: a cloned narrator voice must go out with the AI label (M6 sends the flag). The track is the one the best version's music final was mixed with; the newest track only when that final records no stem. */
+  async function aigcLabel(runId: string, versionId: string | null): Promise<boolean> {
+    const final = versionId ? (await deps.pool.query("SELECT meta FROM artifacts WHERE run_id = $1 AND kind = 'final_video_music' AND version_id = $2 ORDER BY created_at DESC, id DESC LIMIT 1", [runId, versionId])).rows[0] : undefined;
+    const stem = (final?.meta as { voiceStemSha?: string } | undefined)?.voiceStemSha ?? null;
+    const track = stem ? await voiceTrackFor(deps.pool, runId, stem) : VoiceTrackSchema.safeParse((await latestArtifact(deps.pool, runId, 'voice_track'))?.content).data ?? null;
+    return !!track && aigcRequired({ engine: track.provider.engine, voice: track.provider.voice });
+  }
+
   return {
     key: 'finalize',
     resource: 'heavy_cpu',
@@ -75,7 +85,7 @@ export function finalizeExecutor(deps: StepDeps): StepExecutor {
         const ready = best.verdict === 'ready';
         finish = {
           bestVersionId: best.versionId, round: best.round, total: best.total, verdict: best.verdict, stop: ready ? null : await stopReason(ctx.runId, rounds.at(-1)!.round),
-          openFindings: best.failed,
+          openFindings: best.failed, aigcLabel: await aigcLabel(ctx.runId, best.versionId),
         };
         const dir = join(ctx.runDir, 'review', 'final');
         await mkdir(dir, { recursive: true });

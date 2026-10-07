@@ -3,11 +3,11 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   averageVisual, checksOf, FINAL_CHECK_IDS, FINAL_CHECKS, FINAL_REVIEWER_ROLES, finalReviewRefErrors, finalVerdict, formatScore, GATE_IDS, isBorderline, loopAction,
-  checkHistory, panelScore, QC_CHECKS, QcReportSchema, RUBRIC_VERSION, SceneEventsSchema, scoreReview, STOP_NOTE, validateArtifact,
-  type FinalCheckId, type FinalReview, type FinalReviewerRole, type LoopStop, type PanelScore, type ProductResearch, type QcReport, type RoundChecks, type SceneSpec, type Storyboard,
+  checkHistory, g4Gate, licenseVerdict, panelScore, QC_CHECKS, QcReportSchema, RUBRIC_VERSION, SceneEventsSchema, scoreReview, STOP_NOTE, validateArtifact, VoiceTrackSchema,
+  type AudioMode, type FinalCheckId, type FinalReview, type FinalReviewerRole, type LoopStop, type PanelScore, type ProductResearch, type QcReport, type RoundChecks, type SceneSpec, type Storyboard, type VoiceTrack,
 } from '@videogen/shared';
 import {
-  appendAudit, findArtifact, getBlob, insertVersion, latestArtifact, latestStepSession, listRunReviews, recordReviewRound,
+  appendAudit, findArtifact, getBlob, insertVersion, latestArtifact, latestStepSession, listAssets, listRunReviews, recordReviewRound,
   type NewFinding, type NewReview, type ReviewRecord,
 } from '@videogen/db';
 import type pg from 'pg';
@@ -17,7 +17,7 @@ import { contactSheet, extractFrame, probeVideo } from '../render/ffmpeg.ts';
 import { runStructured } from './agent-step.ts';
 import { currentEvents, finalSource, type FinalFramesMeta } from './final-steps.ts';
 import { LIMIT_NOTE } from './notes.ts';
-import { manifestFacts, numericGaps, qcFacts, recentHooks, retentionTimes, webCheckTargets, type WebTarget } from './review-inputs.ts';
+import { manifestFacts, numericGaps, qcFacts, recentHooks, retentionTimes, voInputs, webCheckTargets, type VoInputs, type WebTarget } from './review-inputs.ts';
 import { factsPrompt, retentionPrompt, visualPrompt } from './review-prompts.ts';
 import { labelOf } from './fix-round.ts';
 import { failure, record, sha, sheetTimes, type StepDeps } from './steps.ts';
@@ -95,7 +95,8 @@ export function roundChecks(rows: ReviewRecord[]): (RoundChecks & { regressed: b
     const mine = rows.filter((r) => r.round === round && r.seq === 1);
     const orch = mine.find((r) => r.reviewerRole === 'orchestrator');
     if (!orch) return [];
-    const failed = [...new Set(mine.flatMap((r) => r.findings.map((f) => f.checkId)))];
+    // G4 is a gate finding (declaration), not a check id: the history and the open findings never carry it.
+    const failed = [...new Set(mine.flatMap((r) => r.findings.map((f) => f.checkId)).filter((id) => id !== 'G4'))];
     const reviewed = FINAL_REVIEWER_ROLES.filter((role) => mine.some((r) => r.reviewerRole === role)).flatMap((role) => checksOf(role) as string[]);
     return [{
       round, versionId: orch.versionId, total: orch.total, verdict: (orch.verdict ?? 'fix') as Verdict,
@@ -114,6 +115,34 @@ function withGapGate(s: PanelScore, gaps: string[]): PanelScore {
     failed: [...llm, ...s.failed.filter((id) => !(id in FINAL_CHECKS))],
   };
 }
+
+/**
+ * H8: the voice track a final was mixed with (its compose recorded `meta.voiceStemSha`; the newest track may belong to a later voice round).
+ * Two tracks with one stem: the newest. An invalid stored track reads as none.
+ */
+export async function voiceTrackFor(pool: pg.Pool, runId: string, stemSha: string | null): Promise<VoiceTrack | null> {
+  if (!stemSha) return null;
+  const { rows } = await pool.query("SELECT content FROM artifacts WHERE run_id = $1 AND kind = 'voice_track' AND meta->>'stemSha' = $2 ORDER BY created_at DESC, id DESC LIMIT 1", [runId, stemSha]);
+  const parsed = rows[0] ? VoiceTrackSchema.safeParse(rows[0].content) : null;
+  return parsed?.success ? parsed.data : null;
+}
+
+export interface ReviewVoiceOptions { runId: string; audioMode: AudioMode; voiceStemSha: string | null }
+
+/** The track of the reviewed final and G4 as a rule over it. A reference that was withdrawn or is not an own-voice licence no longer counts as permitted. */
+export async function reviewVoice(pool: pg.Pool, o: ReviewVoiceOptions): Promise<{ track: VoiceTrack | null; g4: boolean }> {
+  if (o.audioMode === 'silent') return { track: null, g4: true };
+  const track = await voiceTrackFor(pool, o.runId, o.voiceStemSha);
+  const voice = track?.provider.voice;
+  const ref = voice?.kind === 'clone' ? (await listAssets(pool, { kind: 'voice_ref' })).find((a) => a.id === voice.asset_id) : undefined;
+  const refPermitted = !!ref && ref.allowed && licenseVerdict({ spdx: ref.licenseSpdx, attribution: ref.attribution, kind: ref.kind }).allowed;
+  return { track, g4: g4Gate({ audioMode: o.audioMode, track, refPermitted }) };
+}
+
+/** What the G4 finding tells: no matching track is a pipeline fault, otherwise the clone's label or reference is the problem. */
+export const g4Hint = (track: VoiceTrack | null) => (track
+  ? "Klon ses için AI etiketi gerekli; anlatıcı sesini Ayarlar'dan değiştirin ya da etiketi açın"
+  : 'seslendirme izi bulunamadı: incelenen final ile eşleşen voice_track yok');
 
 export const openLabels = (failed: string[]) => `${failed.slice(0, 5).map(labelOf).join(', ')}${failed.length > 5 ? ` (+${failed.length - 5})` : ''}`;
 
@@ -176,7 +205,7 @@ function panelContexts(ctx: StepContext, active: FinalReviewerRole[], o: { sessi
 
 interface Inputs {
   video: string; durationS: number; frames: number; sheetRel: string; sheetTimes: number[]; hookRel: string; hookTimes: number[];
-  storyboard: Storyboard; scene: SceneSpec; research: ProductResearch; qc: QcReport; targets: WebTarget[]; mixed64?: number;
+  storyboard: Storyboard; scene: SceneSpec; research: ProductResearch; qc: QcReport; targets: WebTarget[]; mixed64?: number; vo?: VoInputs; g4: boolean;
 }
 
 /**
@@ -189,7 +218,7 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
 
   async function act(ctx: StepContext, hash: string, v: StoredVerdict, findings: FixFinding[], replay = false): Promise<StepOutcome> {
     const usageBlocked = !!deps.gate && !deps.gate.allowsNewPipeline();
-    const a = loopAction({ verdict: v.verdict, fixRound: ctx.fixRound, oscillating: v.oscillating.length > 0, usageBlocked, declarationFailed: false });
+    const a = loopAction({ verdict: v.verdict, fixRound: ctx.fixRound, oscillating: v.oscillating.length > 0, usageBlocked, declarationFailed: v.gates.G4 === false });
     if (a.kind === 'ready') return { status: 'done', note: `Yayına hazır: ${formatScore(v.total!)} puan` };
     const stop = async (reason: LoopStop): Promise<StepOutcome> => {
       // A replay of a stored verdict decides again but does not audit the same stop twice.
@@ -251,6 +280,8 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
       const sessions = new Map<string, string | null>();
       let inputs: Inputs | null = null;
       let gaps: string[] = [];
+      // H8/H14: the narration the reviewed final carries (reviewers read its script and transcript) and G4, decided once for both panel scores.
+      const { track, g4 } = await reviewVoice(deps.pool, { runId: ctx.runId, audioMode: ctx.audioMode, voiceStemSha: ((music.meta ?? {}) as { voiceStemSha?: string }).voiceStemSha ?? null });
       if (qc.data.pass) {
         const probe = await probeVideo(scene.ffmpeg, join(deps.dataDir, blob.path), ctx.signal);
         const frames = (await latestArtifact(deps.pool, ctx.runId, 'final_frames'))?.meta as FinalFramesMeta | null;
@@ -258,6 +289,7 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
           video: join(deps.dataDir, blob.path), durationS: probe.durationS, frames: probe.frames, sheetRel: `${rel}/sheet.png`, sheetTimes: sheetTimes(probe.durationS),
           hookRel: `${rel}/hook.png`, hookTimes: retentionTimes(storyboard.value, probe.durationS), storyboard: storyboard.value, scene: sceneSpec.value, research: research.value,
           qc: qc.data, targets: webCheckTargets(research.value, storyboard.value, `${ctx.runId}:${ctx.fixRound}`), ...(frames?.mixed64 ? { mixed64: frames.mixed64 } : {}),
+          ...(track ? { vo: voInputs(track, storyboard.value) } : {}), g4,
         };
         gaps = numericGaps(research.value, storyboard.value);
         try {
@@ -270,7 +302,7 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
       }
 
       const merged = reviews && second ? { ...reviews, reviewer_visual: averageVisual(reviews.reviewer_visual!, second) } : reviews;
-      const score = withGapGate(panelScore({ qc: qc.data, reviews: merged, g4: true }), gaps);
+      const score = withGapGate(panelScore({ qc: qc.data, reviews: merged, g4 }), gaps);
       const prior = roundChecks((await listRunReviews(deps.pool, ctx.runId)).filter((r) => r.round < ctx.fixRound));
       const evaluated = reviews ? FINAL_REVIEWER_ROLES.flatMap((role) => checksOf(role) as string[]) : [];
       const passed = [...evaluated, ...QC_JUDGED].filter((id) => !score.failed.includes(id));
@@ -298,6 +330,8 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
           evidence: { frame, timecode: Math.round((frame / FPS) * 100) / 100 }, fixHint: `Kaynağı yetersiz sayısal iddia: ${gaps[0]}. Ekrandaki iddiayı çıkar ya da yeniden yaz.`,
         });
       }
+      // G4 is a gate, not a check id: a finding on the orchestrator row without evidence (the fixer cannot add the label; loopAction stops with 'declaration').
+      if (!g4) orchestrator.push({ checkId: 'G4', severity: 'blocker', dimension: null, gate: 'G4', evidence: null, fixHint: g4Hint(track), status: 'open' });
       rows.push({
         reviewerRole: 'orchestrator', seq: 1, rubricVersion: RUBRIC_VERSION, stepId: ctx.stepId, total: score.total, dimensionScores: score.dimensions, gates: score.gates, verdict,
         summaryTr: score.total === null ? 'Otomatik kapı geçmedi; reviewer çalışmadı.' : `Toplam ${formatScore(score.total)} puan · karar: ${verdict}`, findings: orchestrator,
@@ -377,11 +411,11 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
       const common = { name: ctx.productName, durationS: i.durationS, frames: i.frames, times: i.sheetTimes, sheet: i.sheetRel };
       return {
         reviewer_visual: visualPrompt({
-          ...common, storyboard: i.storyboard, scene: i.scene, qc: qcFacts('reviewer_visual', i.qc), hooks: await recentHooks(deps.pool, ctx.videoId), ...(i.mixed64 ? { mixed64: i.mixed64 } : {}),
+          ...common, storyboard: i.storyboard, scene: i.scene, qc: qcFacts('reviewer_visual', i.qc), hooks: await recentHooks(deps.pool, ctx.videoId), ...(i.mixed64 ? { mixed64: i.mixed64 } : {}), ...(i.vo ? { vo: i.vo } : {}),
           facts: manifestFacts({ events: ev?.success ? currentEvents(ev.data.events, i.storyboard.beats, FPS) : [], beats: i.storyboard.beats, layout: (layout?.content as LayoutManifest | null) ?? null, fps: FPS, durationS: i.durationS }),
         }),
-        reviewer_facts: factsPrompt({ ...common, research: i.research, storyboard: i.storyboard, targets: i.targets }),
-        reviewer_retention: retentionPrompt({ ...common, storyboard: i.storyboard, qc: qcFacts('reviewer_retention', i.qc), hookSheet: i.hookRel, hookTimes: i.hookTimes }),
+        reviewer_facts: factsPrompt({ ...common, research: i.research, storyboard: i.storyboard, targets: i.targets, ...(i.vo ? { vo: i.vo } : {}) }),
+        reviewer_retention: retentionPrompt({ ...common, storyboard: i.storyboard, qc: qcFacts('reviewer_retention', i.qc), hookSheet: i.hookRel, hookTimes: i.hookTimes, ...(i.vo ? { vo: i.vo } : {}) }),
       };
     };
     const register = (role: FinalReviewerRole, seq: number) => deps.reviews?.set(ctx.stepId, {
@@ -440,7 +474,7 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
 
     // §8.3: a total within 78–82 (gates passed) earns one independent second visual review; its output is stored like the others.
     const gaps = numericGaps(i.research, i.storyboard);
-    const first = withGapGate(panelScore({ qc: i.qc, reviews, g4: true }), gaps);
+    const first = withGapGate(panelScore({ qc: i.qc, reviews, g4: i.g4 }), gaps);
     if (!isBorderline(first)) return { reviews, second: null };
     let second = await have(SECOND_KIND, 'reviewer_visual');
     if (!second) {
