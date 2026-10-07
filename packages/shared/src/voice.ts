@@ -121,10 +121,15 @@ export function estimateVoS(s: Storyboard): number {
 const trNum = (n: number) => n.toFixed(1).replace('.', ',');
 
 /** `minS: false` skips the 36 s lower bound (the fixer's check only applies the character rule and the 52 s upper bound, H6). */
+/** Longest beat on-screen text of a VO video: two lines at 52 px in the top band (T6). */
+export const VO_ONSCREEN_MAX = 52;
+
 export function storyboardVoErrors(s: Storyboard, o: { minS?: boolean } = {}): string[] {
   if (s.audio_mode !== 'vo') return [];
   const out: string[] = [];
   s.beats.forEach((b, i) => { for (const e of voTextErrors(b.vo_text?.tr ?? '')) out.push(`beats.${i}.vo_text: ${e}`); });
+  // Top band of a VO final holds two 52 px lines (G6: a third would run into the label area).
+  s.beats.forEach((b) => { if (b.onscreen_text.tr.length > VO_ONSCREEN_MAX) out.push(`vuruş ${b.id}: ekran yazısı seslendirmeli videoda en çok ${VO_ONSCREEN_MAX} karakter (üst bant iki satır)`); });
   const est = estimateVoS(s);
   if (est > VO_MAX_S) out.push(`seslendirme tahmini ${trNum(est)} sn: en çok ${VO_MAX_S} sn olmalı; VO metnini kısaltın`);
   else if (o.minS !== false && est < VO_MIN_S) out.push(`seslendirme tahmini ${trNum(est)} sn: en az ${VO_MIN_S} sn olmalı; VO metnini uzatın`);

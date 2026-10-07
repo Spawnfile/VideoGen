@@ -72,7 +72,7 @@ export interface QcMeasure {
   edgeBands: { maxDensity: number; at: number | null };
 }
 /** A text box of layout.json outside the safe area (G6 manifest check). Box: [x0, y0, x1, y1] px at 1080×1920. */
-export interface LayoutIssue { frame: number; kind: 'hook' | 'beat' | 'label'; id?: string; box: [number, number, number, number] }
+export interface LayoutIssue { frame: number; kind: 'hook' | 'beat' | 'label' | 'caption'; id?: string; box: [number, number, number, number] }
 
 export const QcCheckResultSchema = z.object({ id: z.enum(QC_CHECK_IDS), pass: z.boolean(), value: z.string(), limit: z.string(), at: z.number().min(0).optional() });
 export type QcCheckResult = z.infer<typeof QcCheckResultSchema>;

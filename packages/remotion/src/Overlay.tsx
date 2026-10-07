@@ -1,13 +1,15 @@
 import React from 'react';
 import { interpolate } from 'remotion';
-import { activeBeat, DRAFT_FPS, draftLayout, type DraftProps, type LabelBox } from './props.ts';
+import type { CaptionPage } from '@videogen/shared/browser';
+import { activeBeat, activeCaption, DRAFT_FPS, draftLayout, type DraftProps, type LabelBox } from './props.ts';
 
 /** The text layer shared by Draft3D and Final3D (plan E7): label lines and plates, the hook on beat 0, then the fading beat line. */
-export const Overlay: React.FC<{ p: Pick<DraftProps, 'width' | 'height' | 'hook' | 'beats' | 'text'>; frame: number; labels: LabelBox[] }> = ({ p, frame, labels }) => {
+export const Overlay: React.FC<{ p: Pick<DraftProps, 'width' | 'height' | 'hook' | 'beats' | 'text'> & { captions?: CaptionPage[] }; frame: number; labels: LabelBox[] }> = ({ p, frame, labels }) => {
   const s = p.width / 1080;
   const L = draftLayout(p.width, p.height);
   const beat = activeBeat(p.beats, frame / DRAFT_FPS);
   const fade = beat ? interpolate(frame - Math.round(beat.beat.t_start * DRAFT_FPS), [0, 6], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) : 0;
+  const cap = activeCaption(p.captions, (frame * 1000) / DRAFT_FPS);
   const plate = { background: p.text.plate, padding: `${6 * s}px ${14 * s}px`, borderRadius: 10 * s, boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone' } as const;
   return (
     <>
@@ -31,8 +33,15 @@ export const Overlay: React.FC<{ p: Pick<DraftProps, 'width' | 'height' | 'hook'
           <span style={plate}>{p.hook}</span>
         </div>
       ) : beat ? (
-        <div data-text="beat" style={{ position: 'absolute', left: L.safe.left, bottom: L.lineBottom, width: L.safe.right - L.safe.left, opacity: fade, fontSize: L.lineFont, fontWeight: 500, lineHeight: 1.25, color: p.text.color, overflowWrap: 'anywhere' }}>
+        <div data-text="beat" style={{ position: 'absolute', left: L.safe.left, ...(p.captions?.length ? { top: L.hookTop } : { bottom: L.lineBottom }), width: L.safe.right - L.safe.left, opacity: fade, fontSize: L.lineFont, fontWeight: 500, lineHeight: 1.25, color: p.text.color, overflowWrap: 'anywhere' }}>
           <span style={plate}>{beat.beat.text}</span>
+        </div>
+      ) : null}
+      {cap ? (
+        <div data-text="caption" style={{ position: 'absolute', left: L.safe.left, bottom: L.lineBottom, width: L.safe.right - L.safe.left, fontSize: L.lineFont, fontWeight: 500, lineHeight: 1.25, color: p.text.color, overflowWrap: 'anywhere' }}>
+          <span style={plate}>{cap.page.words.map((w, i) => (
+            <React.Fragment key={i}>{i ? ' ' : ''}<span style={i === cap.word ? { color: p.text.line } : undefined}>{w.text}</span></React.Fragment>
+          ))}</span>
         </div>
       ) : null}
     </>

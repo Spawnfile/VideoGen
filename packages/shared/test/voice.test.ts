@@ -93,6 +93,10 @@ describe('voice contracts', () => {
     expect(storyboardVoErrors(withChars(300))).toEqual(['seslendirme tahmini 23,5 sn: en az 36 sn olmalı; VO metnini uzatın']);
     expect(storyboardVoErrors(withChars(300), { minS: false })).toEqual([]); // the fixer's check has no lower bound
     expect(storyboardVoErrors(withChars(800), { minS: false })).toHaveLength(1);
+    const wide = withChars(602);
+    const longOnscreen = { ...wide, beats: wide.beats.map((b, i) => (i === 2 ? { ...b, onscreen_text: { tr: 'k'.repeat(53) } } : b)) };
+    expect(storyboardVoErrors(longOnscreen)).toEqual([`vuruş ${wide.beats[2]!.id}: ekran yazısı seslendirmeli videoda en çok 52 karakter (üst bant iki satır)`]);
+    expect(storyboardVoErrors({ ...wide, beats: wide.beats.map((b) => ({ ...b, onscreen_text: { tr: 'k'.repeat(52) } })) })).toEqual([]);
     // the 52 s boundary: 7 × 100 chars = 51.96 s passes, 7 × 101 = 52.03 s does not (withChars rounds up per beat)
     expect(storyboardVoErrors(withChars(700))).toEqual([]);
     expect(storyboardVoErrors(withChars(701))).toHaveLength(1);
