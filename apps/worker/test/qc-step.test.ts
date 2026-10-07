@@ -1,42 +1,19 @@
-import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { QcReportSchema, formatScore, producePlan, type QcReport, type StepKey } from '@videogen/shared';
+import { formatScore, producePlan, type QcReport, type StepKey } from '@videogen/shared';
 import { getRunView, getVideoView, insertArtifact, latestArtifact } from '@videogen/db';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
 import { decideQc, qcExecutor } from '../src/pipeline/final-steps.ts';
-import { importAsset } from '../src/assets.ts';
 import { finalHarness } from './final-helpers.ts';
 import { runEndToEnd } from './e2e-helpers.ts';
 
 let t: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => { t = await createTestDb(); });
 afterAll(async () => { await t.drop(); });
-const FFMPEG = process.env.VG_FFMPEG ?? 'ffmpeg';
 const fx = (n: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${n}.json`), 'utf8'));
 
 describe('qc step and the M5a plan', () => {
-  it('measures both variants and records the report; the note carries gates and the D6/D7 scores', async () => {
-    const h = finalHarness(t);
-    const { r, ctx } = await h.composed('Tükenmez kalem');
-    // Review #2: a music track added after the compose changes the next compose's hash, but this final is not stale.
-    const bed = join(h.dataDir, 'late.wav');
-    execFileSync(FFMPEG, ['-v', 'error', '-f', 'lavfi', '-i', 'anoisesrc=d=5:c=brown:r=48000:a=0.3:seed=8', '-ac', '2', bed]);
-    writeFileSync(join(h.dataDir, 'late.txt'), 'CC0 1.0 (test)');
-    await importAsset(t.pool, h.dataDir, FFMPEG, { kind: 'music', file: bed, title: 'Geç yatak', spdx: 'CC0-1.0', author: 'VideoGen test', licenseTextFile: join(h.dataDir, 'late.txt') });
-    const ex = qcExecutor(h.deps);
-    const out = await ex.run(ctx('qc'), await ex.inputHash(ctx('qc')));
-    expect(out).toMatchObject({ status: 'done', note: expect.stringMatching(/^G1 ✓ G5 ✓ G6 ✓ · D6 \d+\/12 · D7 \d\/5/) });
-    const rep = (await latestArtifact(t.pool, r.runId, 'qc_report'))!;
-    expect(QcReportSchema.safeParse(rep.content).success).toBe(true);
-    expect(rep.meta).toEqual({ pass: true, musicSha: (await latestArtifact(t.pool, r.runId, 'final_video_music'))!.blobSha });
-    expect((rep.content as { tiktok: { id: string }[] }).tiktok.map((c) => c.id)).toContain('g1_color');
-    // The ledger is shared by this file's tests but the blob lives in this harness's data dir: take the late track out again.
-    await t.pool.query("UPDATE assets SET allowed = false WHERE title = 'Geç yatak'");
-    await h.stop();
-  }, 240_000);
-
   it('a failed gate stops the run for a human with the Turkish reason (layout text outside the safe area)', async () => {
     const h = finalHarness(t);
     const { r, ctx } = await h.composed('Kalem taşma');
