@@ -19,6 +19,9 @@ export function fixReportRefErrors(r: FixReport, o: { round: number; failed: str
   return out;
 }
 
+/** H12 `buildChanged`: the scope changes that need a new build of the scene (shared by the fixer's trusted build and the build/draft steps' voice-round paths). */
+export const rendersChanged = (changed: readonly string[]): boolean => changed.some((c) => c === 'product.py' || c === 'scene.render');
+
 /** JSON with sorted keys: equal values give equal strings whatever the key order. */
 export function canonical(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(canonical).join(',')}]`;
@@ -76,7 +79,7 @@ export function fixScope(i: { prev: ScopeInput; next: ScopeInput }): { scope: 'n
   if (differs((x) => audioPlan(x.audio))) changed.push('audio');
   if (differs((x) => x.research)) changed.push('research');
   const voiceChanged = i.next.audioMode === 'vo' && changed.some((c) => c === 'storyboard.vo' || c === 'storyboard.timing');
-  const buildChanged = changed.some((c) => c === 'product.py' || c === 'scene.render');
+  const buildChanged = rendersChanged(changed);
   const scope = voiceChanged ? 'voice' : buildChanged ? 'build' : changed.some((c) => c !== 'research') ? 'compose' : 'none';
   return { scope, changed };
 }

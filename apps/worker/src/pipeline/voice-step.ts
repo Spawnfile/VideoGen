@@ -9,7 +9,7 @@ import { appendAudit, findArtifact, getArtifact, getAsset, getBlob, getNarratorV
 import { fileSha256 } from '../media.ts';
 import { RenderError } from '../render/driver.ts';
 import { capture } from '../render/ffmpeg.ts';
-import { causeKey, roundCause } from './fix-round.ts';
+import { roundCause, voiceCauseKey } from './fix-round.ts';
 import { persist, record, sha, type StepDeps } from './steps.ts';
 import type { StepExecutor, StepOutcome } from './types.ts';
 
@@ -84,11 +84,11 @@ export function voiceExecutor(deps: StepDeps, hooks: { stem?: typeof buildStem; 
   const hashOf = async (ctx: Parameters<StepExecutor['inputHash']>[0]) => {
     const src = await voiceSource(deps, ctx.runId);
     if (!src) return sha({ step: 'voice', missing: true });
-    // `rebuild` is a result of this step and stays out of the hash: a restart before settle would otherwise write a second track.
+    // `rebuild` is a result of this step and stays out of the hash (voiceCauseKey): a restart before settle would otherwise write a second track.
     const cause = ctx.fixRound > 0 ? await roundCause(deps.pool, ctx.runId, ctx.fixRound) : null;
     return sha({
       step: 'voice', source: src.source.id, narrator: src.narrator, pin: hooks.pin ?? { chatterbox: CHATTERBOX_PIN, freya: FREYA_PIN }, lead: LINE_LEAD_S, gap: LINE_GAP_S,
-      ...(ctx.fixRound > 0 ? { fixRound: ctx.fixRound, cause: causeKey(cause) } : {}),
+      ...(ctx.fixRound > 0 ? { fixRound: ctx.fixRound, cause: voiceCauseKey(cause) } : {}),
     });
   };
   return {

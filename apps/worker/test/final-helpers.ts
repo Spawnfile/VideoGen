@@ -86,10 +86,11 @@ export function panelHarness(t: { pool: pg.Pool }) {
   });
   const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene, reviews };
   /** `qc`: the check ids that fail in the qc report (a gate id makes the AUTO gate fail). */
-  async function prepare(name: string, o: { qc?: string[]; musicShaInQc?: string } = {}) {
-    const r = await createProduceRun(t.pool, { productName: name, audioMode: 'silent', plan: producePlan('silent', [...IMPLEMENTED_STEPS, 'review']) });
+  async function prepare(name: string, o: { qc?: string[]; musicShaInQc?: string; vo?: boolean } = {}) {
+    const mode = o.vo ? 'vo' : 'silent';
+    const r = await createProduceRun(t.pool, { productName: name, audioMode: mode, plan: producePlan(mode, [...IMPLEMENTED_STEPS, 'review']) });
     const runDir = join(dataDir, 'runs', r.runId);
-    for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', 'storyboard-kalem'], ['scene', 'scene-kalem']] as const) await insertArtifact(t.pool, { runId: r.runId, kind, content: fx(f) });
+    for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', o.vo ? 'storyboard-kalem-vo' : 'storyboard-kalem'], ['scene', 'scene-kalem']] as const) await insertArtifact(t.pool, { runId: r.runId, kind, content: fx(f) });
     const dir = join(runDir, 'final', 'compose');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'scene.blend'), 'blend');
@@ -103,7 +104,7 @@ export function panelHarness(t: { pool: pg.Pool }) {
     const qc = await insertArtifact(t.pool, { runId: r.runId, kind: 'qc_report', content: report, inputHash: 'qc-hash', meta: { pass: report.pass, musicSha: o.musicShaInQc ?? music.sha256 } });
     const steps = await listRunSteps(t.pool, r.runId);
     const ctx = (key: StepKey, over: Partial<StepContext> = {}): StepContext => ({
-      runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt: 1, round: 0, fixRound: 0, plan: ['qc', 'review'], videoId: r.videoId, productId: r.productId, productName: name, audioMode: 'silent',
+      runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt: 1, round: 0, fixRound: 0, plan: ['qc', 'review'], videoId: r.videoId, productId: r.productId, productName: name, audioMode: mode,
       versionId: r.versionId, runDir, signal: new AbortController().signal, progress: () => {}, status: () => {}, session: () => {}, ...over,
     });
     return { r, ctx, runDir, musicSha: music.sha256, qcId: qc.id, report };

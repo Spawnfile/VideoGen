@@ -48,7 +48,7 @@ describe('extract_frames MCP tool', () => {
     runQc.mockRejectedValueOnce(new Error('İncelenecek video yok.'));
     expect(await tool.handler({})).toMatchObject({ isError: true });
     // The fixer may write storyboard and scene specs but not research.
-    expect(ROLES.fixer.specWrite).toEqual(['storyboard', 'scene']);
+    expect(ROLES.fixer.specWrite).toEqual(['storyboard', 'scene', 'audio']);
     const write = videogenTools({ role: ROLES.fixer, runDir: d, ports: base(), specs: new SpecStore(join(d, 'spec')) }).find((t) => t.name === 'write_spec')!;
     const denied = await write.handler({ kind: 'research', content: {} });
     expect([denied.isError, denied.content[0]!.text]).toEqual([true, 'the fixer role cannot write the research spec']);
