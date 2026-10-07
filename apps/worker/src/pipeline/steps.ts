@@ -14,11 +14,12 @@ import { bundleHash, DRAFT_RENDER } from '@videogen/remotion/hash';
 import { draftProps, type DraftProps } from '@videogen/remotion/props';
 import { fenced } from './fence.ts';
 import { ARTIFACT_VALIDATOR } from './validator.ts';
-import { RESUME_PROMPT, type SessionManager } from '../agents/manager.ts';
+import { RESUME_PROMPT, type SessionManager, type UsageGate } from '../agents/manager.ts';
 import { putBlob } from '../media.ts';
 import { RenderError } from '../render/driver.ts';
 import { contactSheet, draftProbeErrors, extractFrame, probeVideo } from '../render/ffmpeg.ts';
 import type { ReviewTargets } from './review-tools.ts';
+import type { FixerRun } from './review-step.ts';
 import { runStructured } from './agent-step.ts';
 import { composeExecutor, finalRenderExecutor, qcExecutor } from './final-steps.ts';
 import { buildScene, previewScene, type SceneBuild, type SceneDeps } from './scene-tools.ts';
@@ -41,6 +42,10 @@ export interface StepDeps {
   scene?: SceneDeps;
   /** M4c: where the draft_review step registers the draft for extract_frames (plan C22; absent: the reviewer has the contact sheet only). */
   reviews?: ReviewTargets;
+  /** M5b: the final review's fan-out waits for this gate (plan F8) and a new fix round needs it open (F15); absent: always open. */
+  gate?: Pick<UsageGate, 'allowsNewPipeline' | 'resumeAt'>;
+  /** M5b: the fixer the final review runs for a `fix` verdict (T8); null or absent: no fixer, the loop stops (`no_fixer`). */
+  fixer?: FixerRun | null;
 }
 
 export const sha = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
