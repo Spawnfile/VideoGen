@@ -1,0 +1,102 @@
+{
+  "rubric_version": "final@1",
+  "reviewer_role": "reviewer_visual",
+  "checks": [
+    {
+      "id": "hero_frame0",
+      "pass": true,
+      "score": 1
+    },
+    {
+      "id": "mechanism_shot",
+      "pass": true,
+      "score": 1
+    },
+    {
+      "id": "parts_visible",
+      "pass": true,
+      "score": 1
+    },
+    {
+      "id": "materials",
+      "pass": true,
+      "score": 0.5
+    },
+    {
+      "id": "no_intersection",
+      "pass": true,
+      "score": 0.5
+    },
+    {
+      "id": "contrast",
+      "pass": true,
+      "score": 1
+    },
+    {
+      "id": "event_density",
+      "pass": true,
+      "score": 1
+    },
+    {
+      "id": "no_freeze",
+      "pass": true,
+      "score": 0.6
+    },
+    {
+      "id": "smooth_motion",
+      "pass": true,
+      "score": 1
+    },
+    {
+      "id": "labels_correct",
+      "pass": true,
+      "score": 0.9
+    },
+    {
+      "id": "text_readable",
+      "pass": false,
+      "score": 0.3,
+      "evidence": {
+        "frame": 36,
+        "timecode": 1.2
+      },
+      "fix_hint": "Alt yazı arka planda zayıf kalıyor; plaka opaklığını artır."
+    },
+    {
+      "id": "text_dwell",
+      "pass": false,
+      "score": 0.3,
+      "evidence": {
+        "frame": 45,
+        "timecode": 1.5
+      },
+      "fix_hint": "Vuruş yazısı çok kısa kalıyor; yazıyı kısalt ya da süreyi uzat."
+    },
+    {
+      "id": "no_slop",
+      "pass": true,
+      "score": 1
+    },
+    {
+      "id": "no_genai_look",
+      "pass": true,
+      "score": 1
+    },
+    {
+      "id": "fresh_hook",
+      "pass": true,
+      "score": 0.5
+    },
+    {
+      "id": "no_third_party",
+      "pass": true,
+      "score": 1
+    },
+    {
+      "id": "honest_cg",
+      "pass": true,
+      "score": 1
+    }
+  ],
+  "summary_tr": "Yazı okunurluğu ve kalma süresi yetersiz; geri kalanı iyi."
+}

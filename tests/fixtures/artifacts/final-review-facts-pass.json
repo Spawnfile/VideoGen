@@ -1,0 +1,51 @@
+{
+  "rubric_version": "final@1",
+  "reviewer_role": "reviewer_facts",
+  "checks": [
+    {
+      "id": "claims_supported",
+      "pass": true,
+      "score": 1
+    },
+    {
+      "id": "info_density",
+      "pass": true,
+      "score": 1
+    },
+    {
+      "id": "mechanism_explained",
+      "pass": true,
+      "score": 1
+    },
+    {
+      "id": "engineer_insight",
+      "pass": true,
+      "score": 0.5
+    },
+    {
+      "id": "storyboard_match",
+      "pass": true,
+      "score": 0.5
+    },
+    {
+      "id": "claims_verified",
+      "pass": true,
+      "score": 1
+    }
+  ],
+  "web_checks": [
+    {
+      "claim_id": "bilye-capi",
+      "url": "https://en.wikipedia.org/wiki/Ballpoint_pen",
+      "reachable": true,
+      "supports": true
+    },
+    {
+      "claim_id": "tungsten-karbur",
+      "url": "https://en.wikipedia.org/wiki/Ballpoint_pen",
+      "reachable": true,
+      "supports": true
+    }
+  ],
+  "summary_tr": "Ekrandaki iddialar kaynaklarla uyumlu; mühendislik notu daha özgül olabilir."
+}

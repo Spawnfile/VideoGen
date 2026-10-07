@@ -1,0 +1,42 @@
+{
+  "rubric_version": "final@1",
+  "reviewer_role": "reviewer_retention",
+  "checks": [
+    {
+      "id": "hook_frame0",
+      "pass": true,
+      "score": 1
+    },
+    {
+      "id": "hook_pattern",
+      "pass": true,
+      "score": 0.5
+    },
+    {
+      "id": "open_question",
+      "pass": true,
+      "score": 1
+    },
+    {
+      "id": "hook_text_short",
+      "pass": true,
+      "score": 1
+    },
+    {
+      "id": "loop_seam",
+      "pass": true,
+      "score": 0.6
+    },
+    {
+      "id": "rehook",
+      "pass": true,
+      "score": 0.8
+    },
+    {
+      "id": "payoff",
+      "pass": true,
+      "score": 1
+    }
+  ],
+  "summary_tr": "Kanca ilk karede güçlü; kanca kalıbı ve döngü dikişi daha net olabilir."
+}

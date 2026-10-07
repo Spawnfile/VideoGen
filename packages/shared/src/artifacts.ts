@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { FinalReviewSchema, type FinalReview } from './final-review.ts';
 import { ReviewSchema, type Review } from './review.ts';
 import { SceneSpecSchema, type SceneSpec } from './scene.ts';
 
@@ -142,9 +143,9 @@ export function storyboardRefErrors(s: Storyboard, r: ProductResearch): string[]
   return out;
 }
 
-export const ARTIFACT_SCHEMAS = { ProductResearch: ProductResearchSchema, Storyboard: StoryboardSchema, SceneSpec: SceneSpecSchema, Review: ReviewSchema } as const;
+export const ARTIFACT_SCHEMAS = { ProductResearch: ProductResearchSchema, Storyboard: StoryboardSchema, SceneSpec: SceneSpecSchema, Review: ReviewSchema, FinalReview: FinalReviewSchema } as const;
 export type ArtifactSchemaName = keyof typeof ARTIFACT_SCHEMAS;
-export interface ArtifactValues { ProductResearch: ProductResearch; Storyboard: Storyboard; SceneSpec: SceneSpec; Review: Review }
+export interface ArtifactValues { ProductResearch: ProductResearch; Storyboard: Storyboard; SceneSpec: SceneSpec; Review: Review; FinalReview: FinalReview }
 export type ArtifactValue<N extends ArtifactSchemaName> = ArtifactValues[N];
 
 /** JSON Schema for the SDK's outputFormat. Refinements are not expressible there; validateArtifact re-checks them. */
