@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { AgentSessionView, ArtifactMeta, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VideoView } from '@videogen/shared/browser';
+import type { AgentSessionView, ArtifactMeta, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, NarratorVoice, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VideoView, VoiceEngine } from '@videogen/shared/browser';
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
@@ -52,7 +52,16 @@ export const api = {
   artifact: (id: string) => get<ArtifactMeta & { content: unknown }>(`/api/artifacts/${id}`),
   channelStyle: () => get<ChannelStyleState>('/api/channel-style'),
   setChannelStyle: (id: ChannelStyleId) => send<ChannelStyleState>('PUT', '/api/channel-style', { id }),
+  narratorVoice: () => get<NarratorVoiceState>('/api/narrator-voice'),
+  setNarratorVoice: (voice: NarratorVoice) => send<NarratorVoiceState>('PUT', '/api/narrator-voice', voice),
 };
+
+/** GET/PUT /api/narrator-voice (K17: `chosen:false` = the provisional default is in use). */
+export interface NarratorVoiceState {
+  voice: NarratorVoice;
+  chosen: boolean;
+  options: { engine: VoiceEngine; voices: { kind: 'preset' | 'clone'; id?: string; asset_id?: string; label_tr: string }[] }[];
+}
 
 export interface ChannelStyleState {
   id: ChannelStyleId;

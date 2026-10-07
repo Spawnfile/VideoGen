@@ -194,7 +194,7 @@ export interface NewArtifact {
   durationMs?: number | null; width?: number | null; height?: number | null; codec?: string | null;
 }
 export type ArtifactRecord = Omit<ArtifactMeta, 'meta'> & { content: unknown; inputHash: string | null; meta: unknown };
-const toMeta = (r: Record<string, any>): ArtifactMeta => ({ id: r.id, runId: r.run_id, stepId: r.step_id, versionId: r.version_id, kind: r.kind, blobSha: r.blob_sha, createdAt: iso(r.created_at)!, ...(r.kind === 'final_review_sheet' ? { meta: r.meta } : {}) });
+const toMeta = (r: Record<string, any>): ArtifactMeta => ({ id: r.id, runId: r.run_id, stepId: r.step_id, versionId: r.version_id, kind: r.kind, blobSha: r.blob_sha, createdAt: iso(r.created_at)!, ...(r.kind === 'final_review_sheet' || r.kind === 'voice_track' ? { meta: r.meta } : {}) });
 const toArtifact = (r: Record<string, any>): ArtifactRecord => ({ ...toMeta(r), content: r.content, inputHash: r.input_hash, meta: r.meta });
 
 export async function insertArtifact(db: Queryable, a: NewArtifact): Promise<ArtifactMeta> {

@@ -1,8 +1,9 @@
 import {
   CHANNEL_STYLES, DIMENSION_FLOOR, DIMENSION_IDS, DIMENSIONS, DRAFT_MAX_RETURNS, draftRound, FINAL_CHECKS, FINAL_MAX_ROUNDS, finalRound, formatClock, GATE_IDS, GATES, QC_CHECKS,
   type ArtifactMeta, type BuildReport, type DimensionId, type FinalCheckId, type FinalReviewerRole, type GateId, type ProgressSource, type QcReport, type ReviewRecord,
-  type RunView, type SceneSpec, type StepView, type VideoStatus, type VideoUsage, type VideoView,
+  type RunView, type SceneSpec, type StepView, type VideoStatus, type VideoUsage, type VideoView, type VoiceTrack,
 } from '@videogen/shared/browser';
+import type { NarratorVoiceState } from './api.ts';
 import { formatElapsed, formatTokens } from './trace-view.ts';
 
 const ACTIVE = new Set(['queued', 'running', 'waiting_gpu', 'waiting_limit', 'waiting_disk']);
@@ -142,10 +143,11 @@ function toFinding(f: ReviewRecord['findings'][number]): PanelFinding {
   const ev = f.evidence as { timecode?: unknown; value?: unknown; limit?: unknown; at?: unknown } | null;
   const def = FINAL_CHECKS[f.checkId as FinalCheckId] as (typeof FINAL_CHECKS)[FinalCheckId] | undefined;
   const qc = (QC_CHECKS as Record<string, { label_tr: string } | undefined>)[f.checkId];
+  const gate = f.checkId === 'G4' ? 'AI beyanı (G4)' : undefined; // GATES.G4 reads just "Beyan"; the finding needs the AI-declaration context // the orchestrator's rule finding (voice/AI-label declaration)
   const time = typeof ev?.timecode === 'number' ? ev.timecode : typeof ev?.at === 'number' ? ev.at : undefined;
   const measured = ev && ev.value !== undefined && ev.limit !== undefined ? `${String(ev.value)} / ${String(ev.limit)}` : null;
   const hint = f.fixHint ?? measured;
-  return { id: f.id, check: f.checkId, label: def?.label_tr ?? qc?.label_tr ?? f.checkId, severity: f.severity, ...(time !== undefined ? { timecode: time } : {}), ...(hint ? { hint } : {}), status: f.status };
+  return { id: f.id, check: f.checkId, label: def?.label_tr ?? qc?.label_tr ?? gate ?? f.checkId, severity: f.severity, ...(time !== undefined ? { timecode: time } : {}), ...(hint ? { hint } : {}), status: f.status };
 }
 
 /**
@@ -192,4 +194,57 @@ export function reviewBadge(verdict: string | null, status: VideoStatus): { text
 export function pickReviewSheet(list: ArtifactMeta[], runId: string | null, round: number): string | null {
   const a = list.find((x) => x.kind === 'final_review_sheet' && (!runId || x.runId === runId) && x.meta?.kind === 'main' && x.meta?.fixRound === round);
   return a?.blobSha ?? null;
+}
+
+/** The newest voice_track of the run and the stem it names (meta.stemSha); no stem when none matches. */
+export function pickVoice(list: ArtifactMeta[], runId: string | null): { voiceTrack: string | null; voiceStem: string | null } {
+  const track = list.find((a) => a.kind === 'voice_track' && (!runId || a.runId === runId)) ?? null;
+  const want = (track?.meta as { stemSha?: unknown } | undefined)?.stemSha;
+  const stem = typeof want === 'string' ? list.find((a) => a.kind === 'voice_stem' && a.blobSha === want) : undefined;
+  return { voiceTrack: track?.id ?? null, voiceStem: stem?.blobSha ?? null };
+}
+
+/** Produce bar hint of the VO mode (K17: the narrator voice is chosen in Settings). */
+export const PRODUCE_VO_HINT = "Anlatım yerel TTS ile; ses seçimi Ayarlar'da";
+
+const ENGINE_NAME: Record<string, string> = { chatterbox: 'Chatterbox', freya: 'Freya' };
+const trDec = (n: number) => (Number.isFinite(n) ? n.toFixed(1).replace('.', ',') : '–');
+/** Spec §8.1: a line whose ASR round trip misses more than 3 % of the characters is flagged. */
+const CER_WARN = 0.03;
+
+export interface VoiceViewModel {
+  title: string; provisional: boolean; lines: number; duration: string; worstCer: string; firstWord: string; pace: string; aigc: boolean;
+  rows: { beat: string; text: string; cer: string; warn: boolean }[];
+}
+/** The Seslendirme card (plan T10): engine and voice, the provisional K17 mark, the facts of the track and one row per line; null without a track. */
+export function voiceView(track: VoiceTrack | null, o: { chosen: boolean }): VoiceViewModel | null {
+  // An invalid stored payload draws no card rather than throwing in render.
+  if (!track || !track.provider || !track.facts || !Array.isArray(track.lines)) return null;
+  const { engine, voice } = track.provider;
+  const who = voice.kind === 'clone' ? 'klon ses' : voice.id === 'hazir' ? 'hazır ses' : voice.id === 'leyla' ? 'Leyla' : voice.id;
+  return {
+    title: `Seslendirme · ${ENGINE_NAME[engine] ?? engine} · ${who}`,
+    provisional: !o.chosen,
+    lines: track.lines.length,
+    duration: `${trDec(track.duration_ms / 1000)} sn`,
+    worstCer: `%${trDec(track.facts.max_cer * 100)}`,
+    firstWord: `${trDec(track.facts.first_word_s)} sn`,
+    pace: `${trDec(track.facts.syllables_per_s)} hece/sn`,
+    aigc: voice.kind === 'clone',
+    rows: track.lines.map((l) => ({ beat: l.beat_id, text: l.text_tr, cer: `%${trDec(l.cer * 100)}`, warn: l.cer > CER_WARN })),
+  };
+}
+
+export interface NarratorItem { key: string; label: string; value: NarratorVoiceState['voice']; selected: boolean; provisional: boolean }
+/** Settings → Anlatıcı sesi: the flat option list; the selected one is marked provisional until the user chooses. */
+export function narratorOptions(s: NarratorVoiceState): { items: NarratorItem[]; hasClone: boolean; note: string } {
+  const items = s.options.flatMap((g) => g.voices.map((v): NarratorItem => {
+    const value = (v.kind === 'clone' ? { engine: g.engine, voice: { kind: 'clone', asset_id: v.asset_id! } } : { engine: g.engine, voice: { kind: 'preset', id: v.id! } }) as NarratorVoiceState['voice'];
+    const selected = s.voice.engine === g.engine && s.voice.voice.kind === v.kind && (v.kind === 'clone' ? (s.voice.voice as { asset_id: string }).asset_id === v.asset_id : (s.voice.voice as { id: string }).id === v.id);
+    return {
+      key: `${g.engine}:${v.kind}:${v.asset_id ?? v.id}`, value, selected, provisional: selected && !s.chosen,
+      label: `${ENGINE_NAME[g.engine] ?? g.engine} · ${v.kind === 'clone' ? `klon: ${v.label_tr}` : v.label_tr}`,
+    };
+  }));
+  return { items, hasClone: items.some((i) => i.value.voice.kind === 'clone'), note: s.chosen ? '' : 'Henüz seçilmedi: geçici varsayılan' };
 }

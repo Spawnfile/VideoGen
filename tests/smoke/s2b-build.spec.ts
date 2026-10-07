@@ -55,7 +55,7 @@ test('S2b: the channel identity chosen in Settings is the style of the next buil
   test.setTimeout(90_000);
   await page.goto('/settings');
   const group = page.getByRole('radiogroup', { name: 'Kanal kimliği' });
-  await expect(page.getByText('Henüz seçilmedi')).toBeVisible(); // the note sits above the options
+  await expect(page.getByText('Henüz seçilmedi: geçici olarak')).toBeVisible(); // the channel note sits above the options (the narrator voice section has its own)
   await group.getByRole('radio', { name: /Beyaz laboratuvar/ }).click();
   await expect(group.getByRole('radio', { name: /Beyaz laboratuvar/ })).toHaveAttribute('aria-checked', 'true');
   const { videoId } = await produceVia(request, 'Beyaz kalem', 'silent', 'draft_review');

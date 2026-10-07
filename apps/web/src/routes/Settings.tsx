@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { ChannelStyleSection } from '../components/settings/ChannelStyleSection.tsx';
+import { NarratorVoiceSection } from '../components/settings/NarratorVoiceSection.tsx';
 import { RolesSection } from '../components/settings/RolesSection.tsx';
 import { api, useClaudeStatus, type ClaudePhase } from '../lib/api.ts';
 import { ago } from '../lib/format.ts';
@@ -62,6 +63,7 @@ export function Settings() {
         </button>
       </section>
       <ChannelStyleSection />
+      <NarratorVoiceSection />
       <RolesSection />
     </div>
   );

@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react';
 import type { AudioMode } from '@videogen/shared/browser';
 import { api } from '../../lib/api.ts';
+import { PRODUCE_VO_HINT } from '../../lib/production-view.ts';
 
 const MODES: { id: AudioMode; label: string; hint: string }[] = [
   { id: 'silent', label: 'Seslendirmesiz', hint: 'Anlatımı ekran yazısı ve efekt sesleri taşır' },
-  { id: 'vo', label: 'Seslendirmeli', hint: 'Storyboard seslendirme metni de içerir; ses üretimi sonraki sürümde' },
+  { id: 'vo', label: 'Seslendirmeli', hint: PRODUCE_VO_HINT },
 ];
 
 export function ProduceBar({ onCreated }: { onCreated: (videoId: string) => void }) {

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { api } from '../../lib/api.ts';
-import { panelView, pickDraft, pickFinal, pickReviewSheet } from '../../lib/production-view.ts';
+import { panelView, pickDraft, pickFinal, pickReviewSheet, pickVoice } from '../../lib/production-view.ts';
 import { latestRunOf, pipeline, seedRuns, seedVideos, useStore } from '../../lib/stores.ts';
 import { BuildCard, ResearchCard, ReviewCard, StoryboardCard } from './ArtifactCards.tsx';
 import { DraftTabs } from './DraftTabs.tsx';
@@ -9,6 +9,7 @@ import { QcCard } from './QcCard.tsx';
 import { ReviewPanel } from './ReviewPanel.tsx';
 import { StepList } from './StepList.tsx';
 import { VideoHeader } from './VideoHeader.tsx';
+import { VoiceCard } from './VoiceCard.tsx';
 
 export function ProductionPanel({ videoId }: { videoId: string | null }) {
   const state = useStore(pipeline);
@@ -31,7 +32,7 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
     const pick = (kind: string) => find(kind)?.id ?? null;
     return {
       research: pick('research'), storyboard: pick('storyboard'), report: pick('build_report'), scene: pick('scene'), sheet: find('preview_sheet')?.blobSha ?? null,
-      draft: pickDraft(list, run?.id ?? null), final: pickFinal(list, run?.id ?? null),
+      ...pickVoice(list, run?.id ?? null), draft: pickDraft(list, run?.id ?? null), final: pickFinal(list, run?.id ?? null),
     };
   }, [detail.data, run]);
 
@@ -46,6 +47,7 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
       {run && <StepList run={run} />}
       <ResearchCard artifactId={latest.research} />
       <StoryboardCard artifactId={latest.storyboard} />
+      <VoiceCard trackId={latest.voiceTrack} stemSha={latest.voiceStem} />
       <BuildCard reportId={latest.report} sceneId={latest.scene} sheetSha={latest.sheet} />
       <ReviewCard artifactId={latest.draft.reviewId} />
       <QcCard artifactId={latest.final.qcId} />

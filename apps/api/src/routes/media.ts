@@ -15,6 +15,8 @@ export function registerMediaRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
     const blob = await getBlob(deps.pool, sha);
     if (!blob || !existsSync(join(deps.dataDir, blob.path))) return reply.code(404).send({ error: 'not found' });
     // Content-addressed: the bytes behind a sha never change (send's own cache-control, so it is not overwritten).
-    return reply.type(blob.mime).sendFile(blob.path, deps.dataDir, { maxAge: 365 * 24 * 3600 * 1000, immutable: true });
+    // `contentType: false`: the stored mime wins over send's extension lookup (which says audio/x-flac for the voice stem).
+    const type = /^text\/|^application\/json$/.test(blob.mime) && !/charset/i.test(blob.mime) ? `${blob.mime}; charset=utf-8` : blob.mime;
+    return reply.type(type).sendFile(blob.path, deps.dataDir, { maxAge: 365 * 24 * 3600 * 1000, immutable: true, contentType: false });
   });
 }
