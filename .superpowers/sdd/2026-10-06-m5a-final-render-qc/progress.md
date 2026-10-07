@@ -1,0 +1,43 @@
+docs/superpowers/plans/2026-10-06-m5a-final-render-qc.md
+
+# M5a progress (inline execution, cloud container, no GPU)
+
+- Ruling: branch is `claude/elegant-keller-bgsue7` (session-designated) instead of `m5a-final-render-qc`.
+- Ruling: environment — Node 24.21 (/opt/node24), ffmpeg 7.0.2 static (/opt/ffmpeg7; ffprobe is the system 6.1.1), Postgres 16 on 5433 instead of docker postgres:17. Baseline 312 passed.
+- T1 done: 318 passed.
+- T2 done: 323 passed. CLI add/list verified end to end on a local DB. Removed the plan's unused `root` in bin/assets.mjs.
+- T3 done (code + 2 tests). Ruling: no Blender/GPU in this container — `npm run test:blender` not run; final_main/complete_png verified with stub bpy/gpu modules (fresh, resume after truncation, all skipped → no bpy calls, non-NVIDIA → 3). Run test:blender (19) on the GPU machine in T12.
+- T4 done: 327 passed.
+  - Ruling: test plan uses `producePlan('silent', ['research','storyboard','build','final_render'])` — IMPLEMENTED_STEPS only gains final_render in T10.
+  - Ruling: added `final` to the hand-written RenderDriver objects in draft-render-step.test.ts and test-render/draft-step.int.test.ts (typecheck).
+  - Ruling: cleanupFrames swallows+logs fs errors (must not break finish/cancel).
+  - test:render final int test needs Blender/GPU → T12.
+- T5 done: 331 passed; draft.int.test.ts (real Chrome, VG_REMOTION_GL=swangle) 2 passed.
+- T6 done: 333 passed. Real Chrome (swangle): final-compose.int 2 passed, draft.int 2 + draft-step.int 1 passed.
+  - Ruling: final-compose.int fixture used `drawbox … color=red@1:t=fill` on RGBA — drawbox leaves alpha at 0 (square invisible); added `:replace=1`.
+  - Ruling: final-compose.int keeps its temp dir when VG_KEEP=1 (debugging aid).
+  - Ruling: `--frames-dir` check in render-cli sits with the other argument checks (before try), same exit code 2.
+  - Added `compose` to the hand-written RenderDriver objects in tests (typecheck).
+- T7 done: 338 passed.
+  - Ruling (bug found): x264 `-preset ultrafast` turns CABAC/8x8dct off and signals "Constrained Baseline" even with `-profile:v high` → the smoke (VG_ENCODE_PRESET=ultrafast) would fail G1 g1_video. encodeDelivery now always passes `-x264-params cabac=1:8x8dct=1` (no-op on slow).
+  - Mastering measurement: the test's steady noise+sine input (−39.9 LUFS, LRA 0.0) → output −14.02 LUFS, TP −11.1, loudnorm **dynamic**: ffmpeg treats measured_LRA=0 as "not given". A signal with LRA 0.6 (−25.6 LUFS) → −14.01 LUFS, **linear**. Real music/SFX mixes have LRA > 0.
+- T8 done: 341 passed. compose-step.test.ts 3 tests in 36 s; full `npm test` 2 min 13 s (< 3 min: stays in npm test).
+  - Ruling: compose-step test plan lists `final_render`, `compose` explicitly (same reason as T4).
+  - Note for the report: compose intermediates (master.mp4, video.mp4, mix-*.wav, *.wav) stay in runs/<id>/final/compose/<hash16>/ after being copied to the blob store; only frames are cleaned (E6). Candidate for M5b finalize cleanup.
+- T9 done: 347 passed.
+  - Ruling (bug): probeQc key-frame list parsed with `split('\n').map(Number)`: the trailing empty line became a fake key at 0 (max GOP = whole file) and ffprobe's first line "0.000000," became NaN. Now trimmed, empty lines dropped, parseFloat.
+  - Ruling (bug): drawbox cannot move (`t` in its expressions is the box thickness, not time). fakeFinal (T6) was a frozen picture (d3_freeze failed over the whole fake final) → the bar is now an overlay of a second colour source. The pilot-like fixture had the same problem (whole clip frozen) → overlay too; its freeze is now the intended 5.9–7.23 s.
+  - Ruling: pilot-like fixture loud/quiet alternation 2 s → 4 s and 0.02 → 0.03 (2 s periods are smoothed by the 3 s short-term window: LRA was 6.0, so d6_lra did not fail).
+  - Pilot-like clip measured: I −29.3 LUFS, LRA 16.9 LU, TP −15.0 dBFS, first audio 0.811 s, silence 7.02–8.32 s, freeze 5.9–7.23 s, edge density 0.181 @ 2 s, GOP 250, loop SSIM 0.974 → all 7 pilot errors + G1 fail.
+  - Clean fake 36 s final: I −14.3, LRA 0.1, TP −3.3, first audio 0, GOP 60, loop SSIM 0.888 (d8_loop content dependent), 40 kbps (d7_bitrate, flat content: expected per E17).
+- T10 done: 351 passed; smoke 17 passed / 9 skipped (2.2 min).
+  - The temporary T4/T8 plan rulings are gone: final-render.test.ts is back on producePlan('silent'); compose-step.test.ts uses the shared finalHarness.
+  - Ruling: qc-step.test.ts `decideQc({ ...(x as never) })` does not typecheck (spread of never) → `x as QcReport`.
+  - Ruling (perf): full `npm test` was 5.0 min. qc_probe's picture pass (signalstats/blackdetect/freezedetect) now runs at 540 wide: 16.1 s → 5.6 s on a 36 s 1080p final, identical YAVG and freeze result. Full `npm test` 4 min 7 s. Kept the final-step tests in `npm test` (they are the only end-to-end coverage of the M5a pipeline) despite the 3 min guideline.
+  - Ruling: smoke "S2a: Durdur" now expects 8 cancelled steps (full plan), plan said it would not change.
+  - Environment: smoke needs `docker compose` → session shim (scratchpad, not in the repo); `bash -lc 'command -v ffmpeg'` found the system 6.1 → /usr/local/bin/ffmpeg → ffmpeg 7.0.2; /opt/vgshim (nvidia-smi shim of an earlier session) on PATH for the GPU pre-check.
+- T11 done: 355 passed (npm test 4 min 43 s); smoke 19 passed / 11 skipped (3.8 min: over the 3 min target — S2a, S2d and the M5a screen run to the final; scenarios not shortened); M5a screens 2 passed.
+  - Ruling (bug found by the smoke final, fixups to T7/T8): the AAC encode of a variant overshot the mastering limiter by 0.6–1.1 dB (smoke QC card: true peak −0.4 dBTP, D6 10/12). Turning the WAV down afterwards cost loudness (−15.2 LUFS, D6 8/12). Final: master to −2 dBTP; `masterVariant` measures the AAC result and, over −1.3 dBTP, masters the mix again with the limiter lowered by the overshoot (+0.3 dB). Smoke QC card now: gates ✓, Ses 12/12, Teknik cila 4/5 (fake bitrate, expected).
+  - Ruling: variant chips are a `role="group"` (aria-label on a plain div is ignored).
+  - Ruling: screens add `studio-qc.png` (panel scrolled to the QC card) and `studio-player.png` (player element): the production panel scrolls on its own, so `fullPage` cannot reach below the player.
+  - Screens read: Final tab selected (teal), chips centred, QC card gates ✓ and scores, library final cover (9:16) and "· 0:45".

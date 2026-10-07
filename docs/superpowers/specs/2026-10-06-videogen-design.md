@@ -394,6 +394,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 - **Remotion:** Tek bir paylaşılan çalışma alanı kullanılır; şablon değişmedikçe bundle tekrar alınmaz. `renderMedia` için `inputProps`, `concurrency: 2`, `onProgress` ve `cancelSignal` kullanılır. `chromiumOptions.gl='angle'` sadece ThreeCanvas'ta. Remotion Studio asla gömülmez (sürükleme kaynak koda `translate` yazıyor).
 - **M4c taslağı:** 540×960, 30 fps, h264 CRF 18 `veryfast`, `yuv420p` + tv + bt709, sessiz; kapak 0. kare 270×480. Render worker'da değil `packages/remotion/src/render-cli.ts` çocuk sürecinde (süreç grubu + `render` PID dosyası; iptal, zaman aşımı 600 sn ve yeniden başlatma Chrome'u da öldürür); Chrome/WebGL hatası bir kez `concurrency 1` ile yeniden denenir. GLB tek seferlik jetonlu bir 127.0.0.1 yolundan sunulur. Bundle `<dataDir>/cache/remotion/<bundleHash>` altında önbelleğe alınır. Çıktı ffprobe ile doğrulanır; uymayan taslak kaydedilmez (`render.draft_rejected`). GL `VG_REMOTION_GL` ile seçilebilir (varsayılan `angle`).
 - **Kodlama:** H.264 High, CRF 16–18, preset slow, `yuv420p`, `color_range tv`, bt709, GOP ≤ 2 sn, `faststart`, AAC 48 kHz. `yuvj420p` veya pc range çıktıları **otomatik reddedilir**.
+- **M5a final (plan E5–E8):** Blender `final_cli.py` `.blend`'in kendi ayarlarıyla (EEVEE 64, raytracing, AgX Punchy) `film_transparent` RGBA PNG `fNNNNN.png` yazar; her kare geçici adla yazılıp yeniden adlandırılır, imzası ve IEND'i tam olan kare yeniden başlatmada atlanır (`VG_SKIPPED`). İlerleme `Fra:` yerine kare başına `VG_PROGRESS done total`. Çökme bir kez `--samples 32` ile yeniden denenir (§14), ikincisi `failed`. Kareler blob deposuna girmez (`runs/<id>/final/<hash16>/frames`). `Final3D` (Remotion) kareyi kanal stilinin arka planına bindirir ve taslakla **aynı** `Overlay`/`labelsAt`'ı kullanır (WebGL yok); kareler ve GLB tek seferlik jetonlu 127.0.0.1 yolundan sunulur. **Kodlama zinciri iki aşamalıdır:** Remotion → sessiz `master.mp4` (CRF 14, `fast`) → tek ffmpeg teslim kodlaması (`libx264 -profile:v high -crf 17 -preset slow -g 60 -keyint_min 30 -sc_threshold 0`, yuv420p/tv/bt709, faststart; `-x264-params cabac=1:8x8dct=1`: `ultrafast` preset'i aksi halde Constrained Baseline işaretler) → iki varyant `-c:v copy` + AAC 48 kHz. Teslim preset'i `VG_ENCODE_PRESET` (varsayılan `slow`, smoke `ultrafast`).
 
 ### 7.6 Ses ve iki varyant
 
@@ -406,6 +407,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 - **Seslendirmesiz mod:** Her vuruşu metin ve SFX taşır.
 - **SFX:** `events.json`'dan otomatik cue çıkarılır. Örneğin `explode_start` → whoosh, `part_lock` → click/snap. Başlangıç zamanı ±1 kare doğrulukta; aynı ses 10 sn içinde en fazla 3 kez çalınır.
 - **Mastering (ffmpeg, `compose` adımında):** Sidechain ducking ile müzik konuşma altında 10–14 dB düşer. İki geçişli `loudnorm` ile −14 LUFS / −1 dBTP hedeflenir; sonuç `ebur128` ile doğrulanır. Not: −14 LUFS resmi bir TikTok değeri değil, kanal konvansiyonudur.
+- **M5a (seslendirmesiz, plan E10–E12):** SFX prosedürel CC0 kütüphaneden (ffmpeg ile üretilir, defterde `allowed`): `explode_start→whoosh`, `part_lock→click`, `label_in→tick`, `zoom→swoosh`; storyboard `sfx_cues` kelimeleri kütüphane adlarıyla eşleşirse vuruş başına; 0. ms'de kanca `whoosh`'u; aynı 2 kare içinde tek cue. Müzik yalnızca defterde `allowed` parçalardan, video kimliğinin hash'iyle seçilir; yatak −18 dB, 1 sn giriş / 2 sn çıkış; izinli müzik yoksa müzikli varyant SFX'ten ibarettir ve qc notu bunu söyler. Mastering −14 LUFS'u, AAC kodlamasının sınırlayıcıyı 0,5–1,1 dB taşırdığı ölçüldüğü için **−2 dBTP** hedefiyle yapar; teslim dosyası ölçülür, −1,3 dBTP'yi aşarsa karışım sınırlayıcı aşım kadar indirilerek bir kez daha masterlanır (loudness korunur). Ducking ve VO M5c.
 - **Varyantlar:** Remotion videoyu **bir kez ve sessiz** render eder. Ses iki varyant için ayrı ayrı mux'lanır (`-c:v copy`):
   - `final_music.mp4` → asıl sürüm; Shorts ve arşiv için
   - `final_tiktok.mp4` → müziksiz; TikTok'a varsayılan olarak bu gider
@@ -420,9 +422,13 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
   Toplam ~25–40 MB/video.
 
+  M5a: kareleri orchestrator run terminal duruma geçince siler (`frames.deleted` audit; iptal edilen run'da son çalışan iş bittiğinde). M5b'de fixer turları kareleri yeniden kullanacağı için temizlik `finalize`'a taşınır.
+
 ## 8. Kalite sistemi
 
 ### 8.1 Rubrik (sürümlü, `packages/shared/rubric.yaml`)
+
+*M5a notu (plan E2–E4):* rubrik YAML yerine tipli modüldür: `packages/shared/src/rubric.ts` (`final@1`, kapı/boyut tabloları, sahipler) + `qc.ts` (sabit QC kontrol kimlikleri, `QC_LIMITS`, saf `evaluateQc`). Otomatik puanlar yalnızca orchestrator'ın boyutlarında: D6 12 (loudness 4, true peak 2, LRA 1, ilk ses 2, sessizlik 3), D7 5 (GOP 2, bitrate 1, faststart 1, kapak 1); D2/D3/D8 ölçümleri puansızdır (reviewer'a girdi). LRA ≤ 11 LU kanal konvansiyonudur ve yalnızca ≥ 10 sn içerikte uygulanır (kısa kliplerde güvenilmez).
 
 **Kapılar.** Biri bile başarısız olursa video yayına hazır sayılmaz:
 
@@ -474,6 +480,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 - Reviewer'lar ayrı ve izole oturumlarda çalışır. Builder'ın düşüncesini görmezler; her bulguyu kare ve zaman koduyla kanıtlamak zorundadırlar.
 - Sınırdaki puanlarda (78–82) ikinci, bağımsız bir görsel review çalışır. Puanların ortalaması alınır.
 - **Kalibrasyon:** Kalem pilotu (`~/icinde-ne-var/pilot-kalem/remotion/out/icinde-ne-var-kalem.mp4`) bilinen kötü örnek olarak kullanılır. Rubrik bu videoda en az şu 7 hatayı yakalamalı: −23,4 LUFS, LRA 20,6, ilk ses 0,79 sn, sessizlikler, donmalar, renk etiketleri, güvenli alan ihlalleri. Yakalamıyorsa rubrik hatalı sayılır.
+  M5a: `qc-cli` (`apps/worker/src/render/qc-cli.ts`) ile ölçülür. Pilot benzeri sentetik klip (14 sn; −29,3 LUFS, LRA 16,9, ilk ses 0,81 sn, sessizlik, 1,3 sn donma, yuvj420p/pc, bantta metin izi) 7 hatanın hepsinde düşer (`apps/worker/test/qc.test.ts`); gerçek pilot dosyasıyla doğrulama GPU'lu makinede (`docs/m5/real-check.md` §1).
 - **Bayat artefakt koruması:** Her render için `sha256(spec + src + lock)` kaydedilir. Hash'i güncel spec'le uyuşmayan bir artefakt review edilmez.
 
 ### 8.4 Sonradan ayarlama
@@ -491,6 +498,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | Müzik | `assets` defteri: başlık, kaynak URL, SPDX lisansı, yazar, atıf metni, lisansın anlık görüntüsü, sha256. Sadece Pixabay Content License, CC0 ve CC-BY-4.0 kabul edilir; NC, ND, SA ve YouTube Audio Library standart lisansı engellenir. Kürasyon arayüzden elle yapılır | Ücretli API yok; MusicGen ve YuE çıktıları ticari değil |
 | Lisans kapısı | Render, defterde olmayan veya izin verilmeyen bir varlığı **reddeder**. CC-BY atıfları açıklama metnine otomatik eklenir | |
 | Klon ses | Seçilirse G4 kapısı AI etiketini zorunlu tutar ve bitirme kartı bunu hatırlatır | TikTok AIGC kuralı |
+
+*M5a notu (plan E13):* `assets` defteri (migration 0007) içe aktarımda lisansı denetler: `CC0-1.0`, `CC-BY-4.0` (atıf metni zorunlu), `LicenseRef-Pixabay` izinli; diğerleri `allowed=false` + `asset.rejected` audit'iyle kaydedilir. Lisans metninin anlık görüntüsü blob'dur. İçe aktarma `node bin/assets.mjs add …` (arayüz kürasyonu M7). Ses planı varlığı kullanım anında yeniden denetler (`LicenseError`). Atıf `audio_plan`'da saklanır; açıklama metnine eklenmesi M6.
 
 ## 10. Yayın
 
@@ -530,7 +539,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | `agent_events` | id (bigserial), session_id, seq, type, subtype, parent_tool_use_id, tool_use_id, task_id, payload, ts |
 | `reviews` / `findings` | review: version_id, round, reviewer_role, session_id, rubric_version, total, dimension_scores, gates, verdict · finding: check_id, severity, gate, evidence (kare, zaman kodu, kırpma), fix_hint, status (`open`/`fixed`/`regressed`/`wontfix`), fixed_in_version_id |
 | `claims` | video_id, version_id, text_tr, sources (jsonb), status, verified_at |
-| `assets` | kind (`music`/`sfx`/`model3d`/`hdri`/`font`/`voice_ref`), title, blob_sha, license_spdx, source_url, author, attribution, license_snapshot_sha, allowed, platforms |
+| `assets` | kind (`music`/`sfx`/`model3d`/`hdri`/`font`/`voice_ref`), title, blob_sha, license_spdx, source_url, author, attribution, license_snapshot_sha, allowed, platforms | + M5a: tags, duration_ms, created_at; (blob_sha, kind) tekil (0007) |
 | `publications` | version_id, variant, platform, mode, publish_id, status, error_code, requested_at, completed_at, finished_in_app_at, url |
 | `usage_snapshots` | ts, source, five_hour_util, five_hour_resets_at, seven_day_util, seven_day_resets_at, status, raw |
 | `chat_threads` | id, video_id, title, claude_session_id, created_at |
@@ -625,7 +634,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
   - **Üst bar:** ürün giriş alanı (Perplexity'deki ana arama kutusu gibi; teal halo), ses modu çipleri (Seslendirmeli / Seslendirmesiz), "Üret".
   - **Sol üretim paneli** (~%44):
     - başlık: ürün, durum rozeti, genel yüzde çubuğu ve ETA
-    - player sekmeleri: **Taslak** (`@remotion/player`, spec'ten canlı) · **Final** (HTML5 video, Range) · **Karşılaştır** (sürümleri yan yana veya A/B oynatma) — M4c: "Taslak MP4" (HTML5 + Range, **varsayılan**) ve "Taslak" (`@remotion/player`, lazy parça, yalnızca sekme açıkken mount) uygulandı; Final ve Karşılaştır M5/M7
+    - player sekmeleri: **Taslak** (`@remotion/player`, spec'ten canlı) · **Final** (HTML5 video, Range) · **Karşılaştır** (sürümleri yan yana veya A/B oynatma) — M4c: "Taslak MP4" (HTML5 + Range, **varsayılan**) ve "Taslak" (`@remotion/player`, lazy parça, yalnızca sekme açıkken mount) uygulandı; Final ve Karşılaştır M5/M7 — M5a: "Final" (final varken varsayılan; "Müzikli/Müziksiz" varyant çipi) ve otomatik kontrol kartı (kapılar, D6/D7, başarısız kontroller); kütüphane kapak ve süreyi önce finalden alır
     - adım listesi (ThinkingState "Steps" diliyle)
     - agent kartları
   - **Sağ chat paneli:**
@@ -737,6 +746,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | S8 | Performans | 4× CPU yavaşlatmasında adım listesi ve iz kaydırma p95 ≤ 16,8 ms; boştayken CPU bütçesi |
 
 **M4 biçimi (M4c):** S2 final yerine taslakla koşar (`tests/smoke/s2c-draft.spec.ts`): ürün → research → storyboard → build → taslak → inceleme; taslak MP4 Range ile akar; kütüphanede kapak ve süre görünür, satır Stüdyo'da açılır ve Space ile oynar; "kusurlu" ürün bir kez build'e döner ("Taslak turu 1/2"), ilerleme geri gitmez. Tam smoke 17 geçti / 9 atlandı, 1,8 dk.
+
+**M5a biçimi:** S2a (arayüzden "Üret") ve S2d (`tests/smoke/s2d-final.spec.ts`) finale ve otomatik kapılara kadar koşar: final_render (fake kareler) → compose (gerçek ffmpeg teslim kodlaması `ultrafast`, ses, iki varyant) → qc; video `insan gerekli`, not "Final video hazır ve otomatik kontrolden geçti."; QC kartı kapıları ve puanları gösterir; kütüphaneden final iki varyantta Range ile oynar; terminal run'ın kareleri silinir. Eski senaryolar plan sonunu geliştirici `until: 'draft_review'` ile seçer. Tam smoke 19 geçti / 11 atlandı, 3,8 dk (hedef 3 dk aşıldı: iki senaryo ve bir ekran testi finale kadar koşar).
 
 **İzolasyon:**
 - Aynı container'da ayrı bir `videogen_smoke` veritabanı kullanılır; her koşuda oluşturulup silinir (M3: Playwright `webServer.gracefulShutdown` SIGTERM; verilmezse süreç grubu SIGKILL'lenir ve temizlik hiç çalışmaz).

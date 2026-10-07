@@ -11,7 +11,7 @@
 | M2 İskelet | `plans/2026-10-06-m2-skeleton.md` | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m2/report.md` |
 | M3 Canlı agent katmanı | `plans/2026-10-06-m3a-agent-runtime.md` (M3a) + `plans/2026-10-06-m3b-live-ui.md` (M3b) | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m3/report.md` |
 | M4 Dikey dilim | `plans/2026-10-06-m4a-pipeline-core.md` (M4a) + `plans/2026-10-06-m4b-scene-core.md` (M4b) + M4c (sırada) | Devam ediyor (M4a ve M4b tamam, `main`'e birleştirildi; M4c sırada: taslak render, inceleme, player, ilk gerçek ürün) | 2026-10-06 | | `docs/m4/m4a-summary.md`, `docs/m4/m4b-summary.md` |
-| M5 Final ve kalite | `plans/2026-10-06-m5a-final-render-qc.md` (M5a) + M5b + M5c | M5a planı yazıldı (12 görev, self-review'lu); uygulama sırada | 2026-10-06 | | |
+| M5 Final ve kalite | `plans/2026-10-06-m5a-final-render-qc.md` (M5a) + M5b + M5c | M5a uygulandı (T1–T11 + T12 kısmi, bulut konteynerinde; GPU ve gerçek ürün doğrulaması bekliyor, `main`'e birleştirilmedi); M5b, M5c sırada | 2026-10-06 | | `docs/m5/m5a-summary.md` |
 | M6 Yayın | M5 sonrası | Plan yok | | | |
 | M7 Sertleştirme | M6 sonrası | Plan yok | | | |
 
@@ -83,13 +83,13 @@
 ## M5 — Final render ve kalite *(plan M4 sonrası)*
 
 - [ ] voice adımı: TTS servisi (GPU kilidi altında yükle/boşalt), hizalama, storyboard'un yeniden zamanlanması
-- [ ] Blender final render (`Fra:` ilerlemesi, GPU doğrulaması, OOM'da düşük ayarla yeniden deneme)
-- [ ] compose: Remotion katmanı, SFX cue'ları, müzik defteri ve lisans kapısı, mastering, iki varyant
-- [ ] İçerik adresli medya deposu, kare temizliği, disk muhafızı
-- [ ] qc_probe otomatik kapıları
+- [ ] Blender final render (`Fra:` ilerlemesi, GPU doğrulaması, OOM'da düşük ayarla yeniden deneme) · kod M5a T3/T4 (`VG_PROGRESS` kare ilerlemesi, NVIDIA denetimi, 32 örnekle bir yeniden deneme, devam); `test:blender` ve Blender int testi GPU'lu makinede bekliyor
+- [x] compose: Remotion katmanı, SFX cue'ları, müzik defteri ve lisans kapısı, mastering, iki varyant · M5a T2, T5–T8 · 2026-10-07 (seslendirmesiz; VO ve ducking M5c)
+- [x] İçerik adresli medya deposu, kare temizliği, disk muhafızı · M4b (`putBlob`), M5a T4 (terminal run'da kare temizliği; `extraDiskMb` 2000/600) · 2026-10-07
+- [x] qc_probe otomatik kapıları · M5a T1, T9, T10 (G1, G5 flaş, G6 manifest/kenar; D6 12, D7 5; rubrik `final@1`) · 2026-10-07
 - [ ] 3 reviewer (görsel, doğruluk, izlenme) + boyut sahipliği + puanlama
 - [ ] Fixer döngüsü (≤ 3 tur, kapsam seçimi, regresyon ve salınım tespiti)
-- [ ] Kalibrasyon: rubrik kalem pilotunun 7 hatasını yakalıyor
+- [ ] Kalibrasyon: rubrik kalem pilotunun 7 hatasını yakalıyor · pilot benzeri sentetik klipte 7/7 (M5a T9); gerçek pilot dosyasıyla `qc-cli` GPU'lu makinede bekliyor (`docs/m5/real-check.md` §1)
 - [ ] Bir ürün uçtan uca "yayına hazır"; smoke S2 tam sürüm
 
 ## M6 — Yayın *(plan M5 sonrası)*
@@ -139,3 +139,6 @@
 | 2026-10-06 | 🚦 Swap / GPU ön kontrol eşiği (spec §6.4 `swap < %90`) | Kural değişmedi (plan B2): M4b sırasında swap %0; dolarsa GPU önizlemesi/taslağı gerekçeyle bekler ve kartta yazar. Kullanıcı isterse eşik değiştirilebilir | `docs/m4/m4b-summary.md` §7 |
 | 2026-10-06 | M4 plan bölme | M4 → M4a + M4b + M4c (bağımsız grilling incelemesi: tek planda 12 görev sınırı aşılıyordu) | `plans/2026-10-06-m4b-scene-core.md` "Kapsam ve bölme" |
 | 2026-10-06 | M4b uygulama ve birleştirme (kullanıcı kararı) | T1–T10 uygulandı; gerçek Claude doğrulaması ve bağımsız son review atlandı (kullanım limiti); M4a + M4b `main`'e birleştirildi | `docs/m4/m4b-summary.md` §6 |
+| 2026-10-07 | M5 plan bölme | M5 → M5a (final, ses, otomatik kapılar) + M5b (reviewer'lar, fixer, "yayına hazır") + M5c (seslendirme) | `plans/2026-10-06-m5a-final-render-qc.md` E1 |
+| 2026-10-07 | M5a uygulama (bulut konteyneri, GPU'suz; inline yürütme, her görevden sonra self-review) | T1–T11 uygulandı; `npm test` 355, smoke 19/11, render (Blender'sız) 5; Blender testleri, gerçek pilot kalibrasyonu ve ilk gerçek ürün GPU'lu makinede bekliyor; `main`'e birleştirilmedi (kullanıcı onayı) | `docs/m5/m5a-summary.md`, `docs/m5/real-check.md` |
+| 2026-10-07 | M5a rubrik modülü (E2), LRA eşiği (E4), kare temizliği (E6), kodlama zinciri (E8), müzik yoksa davranış (E11) | Plandaki gibi; ek: teslim kodlaması her preset'te High profil, mastering −2 dBTP + AAC sonrası denetim | spec §7.5, §7.6, §8.1 notları |
