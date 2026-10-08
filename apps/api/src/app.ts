@@ -4,10 +4,11 @@ import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import type { ClaudeAuth, Config, GuardState, UsageSnapshot } from '@videogen/shared';
-import { appendAudit, maxEventId, verifyAudit } from '@videogen/db';
+import { appendAudit, maxEventId } from '@videogen/db';
 import type { EventHub } from './event-hub.ts';
 import { registerGuard } from './guard.ts';
 import { registerAgentRoutes } from './routes/agents.ts';
+import { registerAuditRoutes } from './routes/audit.ts';
 import { registerChannelRoutes } from './routes/channel.ts';
 import { registerChatRoutes } from './routes/chat.ts';
 import { registerMediaRoutes } from './routes/media.ts';
@@ -65,8 +66,7 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
     return reply.code(202).send({ accepted: true });
   });
 
-  app.get('/api/audit/verify', async () => verifyAudit(deps.pool));
-
+  registerAuditRoutes(app, { pool: deps.pool });
   registerAgentRoutes(app, deps);
   registerChatRoutes(app, deps);
   registerVideoRoutes(app, { pool: deps.pool, devEndpoints: deps.config.devEndpoints });

@@ -20,7 +20,15 @@ export const auditLog = pgTable(
     prevHash: text('prev_hash').notNull().default(''),
     hash: text('hash').notNull().default(''),
   },
-  (t) => [uniqueIndex('audit_log_seq_uq').on(t.seq)],
+  // Migration 0010 (plan M7 Y4): the audit explorer's filters walk these newest first by seq; the chain trigger is untouched.
+  (t) => [
+    uniqueIndex('audit_log_seq_uq').on(t.seq),
+    index('audit_log_run_seq_idx').on(t.runId, t.seq),
+    index('audit_log_session_seq_idx').on(t.sessionId, t.seq),
+    index('audit_log_subject_seq_idx').on(t.subjectType, t.subjectId, t.seq),
+    index('audit_log_action_seq_idx').on(t.action, t.seq),
+    index('audit_log_ts_idx').on(t.ts),
+  ],
 );
 
 export const uiEvents = pgTable(
@@ -142,6 +150,8 @@ export const blobs = pgTable('blobs', {
   bytes: bigint('bytes', { mode: 'number' }).notNull(),
   mime: text('mime').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  /** Plan M7 Y10: refreshed by every putBlob; garbage collection ages blobs by this, not created_at. */
+  touchedAt: timestamp('touched_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const products = pgTable(
@@ -174,17 +184,21 @@ export const videos = pgTable(
   (t) => [index('videos_updated_idx').on(t.updatedAt)],
 );
 
-export const versions = pgTable('versions', {
-  id: uuid('id').primaryKey(),
-  videoId: uuid('video_id').notNull().references(() => videos.id),
-  parentVersionId: uuid('parent_version_id').references((): AnyPgColumn => versions.id),
-  round: integer('round').notNull().default(0),
-  specHash: text('spec_hash'),
-  srcHash: text('src_hash'),
-  reason: text('reason').notNull(),
-  createdBySessionId: uuid('created_by_session_id'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const versions = pgTable(
+  'versions',
+  {
+    id: uuid('id').primaryKey(),
+    videoId: uuid('video_id').notNull().references(() => videos.id),
+    parentVersionId: uuid('parent_version_id').references((): AnyPgColumn => versions.id),
+    round: integer('round').notNull().default(0),
+    specHash: text('spec_hash'),
+    srcHash: text('src_hash'),
+    reason: text('reason').notNull(),
+    createdBySessionId: uuid('created_by_session_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('versions_video_round_idx').on(t.videoId, t.round)],
+);
 
 export const runs = pgTable(
   'runs',
@@ -297,6 +311,10 @@ export const assets = pgTable(
     tags: jsonb('tags').notNull().default([]),
     durationMs: integer('duration_ms'),
     createdAt: timestamp('created_at', { withTimezone: true, precision: 6 }).notNull().defaultNow(),
+    /** Plan M7 Y8 (migration 0010): a revocation is final; use-time checks read `allowed AND revoked_at IS NULL`. */
+    revokedAt: timestamp('revoked_at', { withTimezone: true, precision: 6 }),
+    revokeReason: text('revoke_reason'),
+    updatedAt: timestamp('updated_at', { withTimezone: true, precision: 6 }),
   },
   (t) => [index('assets_kind_idx').on(t.kind, t.allowed), uniqueIndex('assets_blob_kind_uq').on(t.blobSha, t.kind)],
 );
@@ -390,4 +408,21 @@ export const claims = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, precision: 6 }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('claims_version_claim_uq').on(t.versionId, t.claimId)],
+);
+
+/** Plan M7 Y4: backup, blob GC and orphan report runs. Never deleted (0010 REVOKE); at most one `running` row at a time. */
+export const maintenanceRuns = pgTable(
+  'maintenance_runs',
+  {
+    id: uuid('id').primaryKey(),
+    kind: text('kind').notNull(),
+    status: text('status').notNull().default('running'),
+    startedAt: timestamp('started_at', { withTimezone: true, precision: 6 }).notNull().defaultNow(),
+    endedAt: timestamp('ended_at', { withTimezone: true, precision: 6 }),
+    detail: jsonb('detail'),
+  },
+  (t) => [
+    uniqueIndex('maintenance_one_running').on(sql`(true)`).where(sql`status = 'running'`),
+    index('maintenance_runs_kind_idx').on(t.kind, t.startedAt),
+  ],
 );

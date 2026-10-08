@@ -18,3 +18,4 @@ export * from './scene.ts';
 export * from './styles.ts';
 export * from './voice.ts';
 export * from './publish.ts';
+export * from './audit.ts';
