@@ -29,6 +29,7 @@ import { FixtureUsageSource, SdkUsageSource, startUsagePoller } from './usage.ts
 import { pgRateGate, TikTokClient, TokenStore } from '@videogen/tiktok';
 import { seedReadyVideo } from './dev/seed-ready.ts';
 import { PublishService } from './publish/service.ts';
+import { isRunnableMaintenance, MaintenanceService } from './maintenance/service.ts';
 
 function die(stage: string, e: unknown): never {
   // Class/code only: raw messages can embed connection strings or CLI output.
@@ -100,6 +101,8 @@ const publisher = new PublishService({
   pool, dataDir: config.dataDir, ffmpeg: config.render.ffmpeg, pollMs: config.tiktok.pollMs, slowPollMs: Math.max(config.tiktok.pollMs, 60_000),
   client: new TikTokClient({ base: config.tiktok.base, tokens: tiktokTokens, gate: tiktokGate }),
 });
+// M7 (plan Y9): daily owner-role pg_dump into <dataDir>/backups, 7 kept; one maintenance job at a time.
+const maintenance = new MaintenanceService({ pool, dataDir: config.dataDir, config, audit: async (action, data) => { await audit(action, data); } });
 let stopUsage = () => {};
 let stopHeartbeat = () => {};
 let stopCommands = async () => {};
@@ -127,6 +130,10 @@ try {
       'run.cancel': (c) => orchestrator.cancel(uuidOf(c, 'runId')),
       'roles.changed': async () => { manager.setRoleOverrides(await loadRoleOverrides(pool)); },
       'publish.send': (c) => publisher.send(uuidOf(c, 'publicationId')),
+      'maintenance.run': (c) => {
+        if (!isRunnableMaintenance(c.kind)) throw new TypeError('invalid kind');
+        return maintenance.runNow(c.kind);
+      },
       ...(config.devEndpoints ? {
         'dev.video.ready': async (c: Record<string, unknown>) => {
           const v = await seedReadyVideo(pool, config.dataDir, config.render.ffmpeg, { productName: typeof c.productName === 'string' ? c.productName.slice(0, 80) : undefined, aigcLabel: c.aigc === true });
@@ -142,6 +149,7 @@ try {
   await orchestrator.recover();
   orchestrator.start();
   await publisher.recover();
+  await maintenance.recover();
 } catch (e) {
   die('init', e);
 }
@@ -156,6 +164,7 @@ const shutdown = async () => {
   guard.stop();
   orchestrator.stop();
   publisher.stop();
+  maintenance.stop();
   await stopCommands().catch(() => {});
   await manager.stop().catch(() => {});
   await audit('worker.stopping', { pid: process.pid });

@@ -20,6 +20,29 @@ export interface Config {
   audio: { python: string; freyaPython: string; modelsDir: string; hfHome: string };
   /** M6: TikTok Content Posting (plan Y7, Y16, Y19); secrets live in `<dataDir>/secrets`. */
   tiktok: { base: string; pollMs: number; ratePerMinute: number; callbackPort: number };
+  /**
+   * M7 (plan Y9): the dump/restore commands (JSON arrays; null = version-checked host or `docker exec <container>`), how many daily
+   * dumps are kept and how often the maintenance loop looks.
+   */
+  backup: { pgDump: string[] | null; pgRestore: string[] | null; container: string; keep: number; maintenanceMs: number };
+}
+
+/** A JSON array of non-empty strings (command + arguments), or null when unset. */
+function commandArray(name: string, v: string | undefined): string[] | null {
+  if (v === undefined || v.trim() === '') return null;
+  let a: unknown;
+  try { a = JSON.parse(v); } catch { a = null; }
+  if (!Array.isArray(a) || a.length === 0 || !a.every((x) => typeof x === 'string' && x.length > 0)) {
+    throw new Error(`${name}: komut ve argümanları içeren bir JSON dizisi bekleniyor (ör. ["/usr/lib/postgresql/17/bin/pg_dump"])`);
+  }
+  return a as string[];
+}
+
+function positiveInt(name: string, v: string | undefined, fallback: number): number {
+  if (v === undefined || v.trim() === '') return fallback;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 1) throw new Error(`${name}: pozitif bir tam sayı bekleniyor`);
+  return n;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -56,6 +79,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       pollMs: Number(env.VG_TIKTOK_POLL_MS ?? 10_000),
       ratePerMinute: Number(env.VG_TIKTOK_RATE_PER_MIN ?? 6),
       callbackPort: Number(env.VG_TIKTOK_CALLBACK_PORT ?? 3455),
+    },
+    backup: {
+      pgDump: commandArray('VG_PG_DUMP', env.VG_PG_DUMP),
+      pgRestore: commandArray('VG_PG_RESTORE', env.VG_PG_RESTORE),
+      container: env.VG_PG_CONTAINER?.trim() || 'videogen-pg',
+      keep: positiveInt('VG_BACKUP_KEEP', env.VG_BACKUP_KEEP, 7),
+      maintenanceMs: positiveInt('VG_MAINTENANCE_MS', env.VG_MAINTENANCE_MS, 3_600_000),
     },
   };
 }
