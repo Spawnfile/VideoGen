@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import type { PublishInfo, TikTokStatus } from './publish-view.ts';
+import type { Publication, PublishVariant } from '@videogen/shared/browser';
 import type { AgentSessionView, ArtifactMeta, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, NarratorVoice, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VideoView, VoiceEngine } from '@videogen/shared/browser';
 
 async function get<T>(path: string): Promise<T> {
@@ -54,7 +56,24 @@ export const api = {
   setChannelStyle: (id: ChannelStyleId) => send<ChannelStyleState>('PUT', '/api/channel-style', { id }),
   narratorVoice: () => get<NarratorVoiceState>('/api/narrator-voice'),
   setNarratorVoice: (voice: NarratorVoice) => send<NarratorVoiceState>('PUT', '/api/narrator-voice', voice),
+  publishInfo: (videoId: string) => get<PublishInfo>(`/api/videos/${videoId}/publish`),
+  publish: (videoId: string, body: { variant: PublishVariant; caption?: string; confirmResend?: boolean }) =>
+    write<{ publication: Publication }>(`/api/videos/${videoId}/publish`, body),
+  markPublished: (id: string, url: string, checklist: Record<string, boolean>) => write<{ publication: Publication }>(`/api/publications/${id}/mark`, { url, checklist }),
+  cancelPublication: (id: string) => write<{ publication: Publication }>(`/api/publications/${id}/cancel`, {}),
+  exportShorts: (videoId: string) => write<{ url: string; fileName: string; caption: string }>(`/api/videos/${videoId}/exports/shorts`, {}),
+  tiktok: () => get<TikTokStatus>('/api/tiktok'),
+  tiktokConnect: () => write<{ authorizeUrl: string; expiresAt: string }>('/api/tiktok/connect', {}),
+  tiktokTest: () => write<{ username: string; maxDurationS: number; privacyOptions: string[] }>('/api/tiktok/test', {}),
 };
+
+/** A POST whose error body (`{error, …}`) matters to the caller: the Turkish reason is shown as is. */
+export type WriteResult<T> = { ok: true; data: T } | { ok: false; status: number; error: string; body: Record<string, unknown> };
+async function write<T>(path: string, body: unknown): Promise<WriteResult<T>> {
+  const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const j = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+  return r.ok ? { ok: true, data: j as T } : { ok: false, status: r.status, error: typeof j.error === 'string' ? j.error : `İstek başarısız (${r.status})`, body: j };
+}
 
 /** GET/PUT /api/narrator-voice (K17: `chosen:false` = the provisional default is in use). */
 export interface NarratorVoiceState {

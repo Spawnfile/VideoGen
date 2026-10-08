@@ -10,6 +10,7 @@ import { ReviewPanel } from './ReviewPanel.tsx';
 import { StepList } from './StepList.tsx';
 import { VideoHeader } from './VideoHeader.tsx';
 import { VoiceCard } from './VoiceCard.tsx';
+import { PublishPanel } from '../publish/PublishPanel.tsx';
 
 export function ProductionPanel({ videoId }: { videoId: string | null }) {
   const state = useStore(pipeline);
@@ -44,6 +45,7 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
     <div className="flex flex-col gap-5">
       <VideoHeader video={video} run={run} />
       <DraftTabs key={`${latest.final.musicSha ?? ''}${latest.draft.videoSha ?? 'none'}`} pick={latest.draft} final={latest.final} />
+      {latest.final.musicSha && (video.status === 'ready' || video.status === 'published') && <PublishPanel key={videoId} videoId={videoId} />}
       {run && <StepList run={run} />}
       <ResearchCard artifactId={latest.research} />
       <StoryboardCard artifactId={latest.storyboard} />
