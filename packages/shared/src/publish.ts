@@ -170,6 +170,9 @@ const ERRORS_TR: Record<string, string> = {
   file_format_check_failed: 'TikTok dosya biçimini kabul etmedi (MP4, H.264 + AAC gerekli).',
   duration_check_failed: 'TikTok video süresini kabul etmedi.',
   picture_size_check_failed: 'TikTok görüntü boyutunu kabul etmedi (1080×1920 gerekli).',
+  reconnect_required: 'TikTok bağlantısının yenilenmesi gerekiyor: Ayarlar → TikTok bağlantısı → Yeniden bağlan.',
+  not_connected: 'TikTok bağlı değil: Ayarlar → TikTok bağlantısı.',
+  upload_failed: 'Video TikTok\'a yüklenemedi (yükleme adresi isteği reddetti).',
 };
 export const TIKTOK_ERROR_CODES = Object.keys(ERRORS_TR);
 

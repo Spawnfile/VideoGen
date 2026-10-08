@@ -1,0 +1,14 @@
+{
+  "name": "@videogen/tiktok",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@videogen/db": "*",
+    "@videogen/shared": "*",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
+  }
+}
