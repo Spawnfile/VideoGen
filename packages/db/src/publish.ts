@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import {
-  ACTIVE_PUBLICATION_STATUSES, DAY_MS, nextDraftSlot, PublicationSchema, type Publication, type PublicationStatus, type PublishVariant,
+  ACTIVE_PUBLICATION_STATUSES, DAY_MS, nextDraftSlot, PublicationSchema, type AssetKind, type Publication, type PublicationStatus, type PublishVariant,
 } from '@videogen/shared';
 import type { Queryable } from './client.ts';
 
@@ -164,4 +164,72 @@ export async function snapshotClaims(
 export async function listClaims(db: Queryable, versionId: string): Promise<ClaimRecord[]> {
   const { rows } = await db.query('SELECT * FROM claims WHERE version_id = $1 ORDER BY ordinal', [versionId]);
   return rows.map((r) => ({ claimId: r.claim_id, ordinal: r.ordinal, textTr: r.text_tr, sources: r.sources, status: r.status, verifiedAt: r.verified_at ? new Date(r.verified_at).toISOString() : null }));
+}
+
+export interface PublishVariantSource { artifactId: string; blobSha: string; bytes: number; path: string; durationS: number | null; width: number | null; height: number | null; codec: string | null }
+export interface PublishSource {
+  videoId: string; status: string; productName: string; versionId: string | null; runId: string | null;
+  variants: { tiktok: PublishVariantSource | null; music: PublishVariantSource | null };
+  soundPlan: { cues: { assetId: string }[]; music: { assetId: string } | null } | null;
+  assets: { id: string; title: string; licenseSpdx: string; attribution: string | null; own: boolean; allowed: boolean; kind: AssetKind }[];
+  /** Y9: the `finish` of the run whose bestVersionId is this version; without one the AI-label tick is required (safe side). */
+  aigcRequired: boolean;
+  hookTr: string;
+  claims: { id: string; text_tr: string; sources: unknown }[];
+  /** Y15: G2 of the version's latest orchestrator review row (per gate, not per claim); null without a review. */
+  g2: { passed: boolean; at: Date } | null;
+}
+
+/**
+ * Plan M6: everything a send needs about a video, resolved once (Y4): the best version, its two finals (with blob size and path), the
+ * resolved sound plan and its assets, the AI-label decision, the hook, the research claims and G2. API (view, queue) and worker (send) share it.
+ */
+export async function publishSource(db: Queryable, videoId: string, o: { versionId?: string } = {}): Promise<PublishSource | null> {
+  const v = (await db.query('SELECT v.id, v.status, v.best_version_id, p.name AS product_name FROM videos v JOIN products p ON p.id = v.product_id WHERE v.id = $1', [videoId])).rows[0];
+  if (!v) return null;
+  const versionId: string | null = o.versionId ?? v.best_version_id ?? null;
+  const empty: PublishSource = {
+    videoId, status: v.status, productName: v.product_name, versionId, runId: null, variants: { tiktok: null, music: null }, soundPlan: null, assets: [],
+    aigcRequired: true, hookTr: '', claims: [], g2: null,
+  };
+  if (!versionId) return empty;
+  const variant = async (kind: string): Promise<PublishVariantSource | null> => {
+    const r = (await db.query(
+      `SELECT a.id, a.run_id, a.blob_sha, a.duration_ms, a.width, a.height, a.codec, b.bytes, b.path FROM artifacts a JOIN blobs b ON b.sha256 = a.blob_sha
+       WHERE a.version_id = $1 AND a.kind = $2 ORDER BY a.created_at DESC, a.id DESC LIMIT 1`, [versionId, kind],
+    )).rows[0];
+    return r ? { artifactId: r.id, blobSha: r.blob_sha, bytes: Number(r.bytes), path: r.path, durationS: r.duration_ms === null ? null : r.duration_ms / 1000, width: r.width, height: r.height, codec: r.codec, runId: r.run_id } as PublishVariantSource & { runId: string } : null;
+  };
+  const [tiktok, music] = await Promise.all([variant('final_video_tiktok'), variant('final_video_music')]);
+  const runId = ((tiktok ?? music) as (PublishVariantSource & { runId?: string }) | null)?.runId ?? null;
+  const strip = (x: (PublishVariantSource & { runId?: string }) | null) => { if (!x) return null; const { runId: _r, ...rest } = x; return rest; };
+  if (!runId) return { ...empty, variants: { tiktok: strip(tiktok), music: strip(music) } };
+
+  const latest = async (kind: string, byVersion: boolean) => (await db.query(
+    `SELECT content FROM artifacts WHERE run_id = $1 AND kind = $2 ${byVersion ? 'AND version_id = $3' : ''} ORDER BY created_at DESC, id DESC LIMIT 1`,
+    byVersion ? [runId, kind, versionId] : [runId, kind],
+  )).rows[0]?.content ?? null;
+  const plan = (await latest('audio_plan', true)) ?? (await latest('audio_plan', false));
+  const soundPlan = plan ? { cues: ((plan.cues ?? []) as { assetId: string }[]).map((c) => ({ assetId: c.assetId })), music: plan.music ? { assetId: plan.music.assetId as string } : null } : null;
+  const ids = soundPlan ? [...new Set([...soundPlan.cues.map((c) => c.assetId), ...(soundPlan.music ? [soundPlan.music.assetId] : [])])] : [];
+  const assets = ids.length
+    ? (await db.query('SELECT id, title, license_spdx, attribution, allowed, kind, author FROM assets WHERE id = ANY($1::uuid[])', [ids])).rows.map((a) => ({
+      id: a.id, title: a.title, licenseSpdx: a.license_spdx, attribution: a.attribution, allowed: a.allowed, kind: a.kind as AssetKind, own: a.author === 'VideoGen (prosedürel)',
+    }))
+    : [];
+  const finish = (await db.query(
+    "SELECT content FROM artifacts WHERE kind = 'finish' AND content->>'bestVersionId' = $1 ORDER BY created_at DESC LIMIT 1", [versionId],
+  )).rows[0]?.content;
+  const storyboard = await latest('storyboard', false);
+  const research = await latest('research', false);
+  const review = (await db.query(
+    "SELECT gates, created_at FROM reviews WHERE version_id = $1 AND reviewer_role = 'orchestrator' ORDER BY created_at DESC LIMIT 1", [versionId],
+  )).rows[0];
+  return {
+    ...empty, runId, variants: { tiktok: strip(tiktok), music: strip(music) }, soundPlan, assets,
+    aigcRequired: finish ? finish.aigcLabel === true : true,
+    hookTr: String(storyboard?.hook?.text_tr ?? ''),
+    claims: ((research?.claims ?? []) as { id: string; text_tr: string; sources: unknown }[]).map((c) => ({ id: c.id, text_tr: c.text_tr, sources: c.sources })),
+    g2: review ? { passed: review.gates?.G2 === true, at: new Date(review.created_at) } : null,
+  };
 }

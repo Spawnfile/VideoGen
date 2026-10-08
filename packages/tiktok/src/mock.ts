@@ -18,6 +18,8 @@ export interface MockOptions {
   acceptRefresh?: string;
   /** Upload URLs are built on this base (default: the mock itself). */
   uploadBase?: string;
+  /** Called when a PUT arrives, before it is answered (tests check what was stored before the upload). */
+  onPut?: () => Promise<void> | void;
 }
 export interface RecordedRequest { method: string; path: string; headers: Record<string, string | string[] | undefined>; body: string; bytes: number }
 export interface TikTokMock {
@@ -83,6 +85,7 @@ export async function startTikTokMock(opts: MockOptions = {}): Promise<TikTokMoc
     if (req.method === 'PUT' && path.startsWith('/upload/')) {
       const expected = uploads.get(path.slice('/upload/'.length));
       const range = req.headers['content-range'];
+      await o.onPut?.();
       if (expected === undefined || raw.length !== expected || range !== `bytes 0-${expected - 1}/${expected}`) return send(res, 400, { error: 'bad upload' });
       res.writeHead(201);
       return res.end();

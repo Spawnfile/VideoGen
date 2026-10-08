@@ -18,6 +18,8 @@ export interface Config {
   render: { driver: 'real' | 'fake'; blender: string; bwrap: string; ffmpeg: string; encodePreset: string };
   /** M5c: the voice CLI (`python -m audio_service.voice_cli`), its Freya venv and the offline weights (spec §9, plan H2/H7). */
   audio: { python: string; freyaPython: string; modelsDir: string; hfHome: string };
+  /** M6: TikTok Content Posting (plan Y7, Y16, Y19); secrets live in `<dataDir>/secrets`. */
+  tiktok: { base: string; pollMs: number; ratePerMinute: number; callbackPort: number };
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -48,6 +50,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       freyaPython: env.VG_FREYA_PYTHON ?? join(homedir(), 'videogen-data/venvs/freya/bin/python'),
       modelsDir: env.VG_MODELS_DIR ?? join(homedir(), 'videogen-data/models'),
       hfHome: env.VG_HF_HOME ?? join(homedir(), 'videogen-data/models/hf'),
+    },
+    tiktok: {
+      base: env.VG_TIKTOK_BASE ?? 'https://open.tiktokapis.com',
+      pollMs: Number(env.VG_TIKTOK_POLL_MS ?? 10_000),
+      ratePerMinute: Number(env.VG_TIKTOK_RATE_PER_MIN ?? 6),
+      callbackPort: Number(env.VG_TIKTOK_CALLBACK_PORT ?? 3455),
     },
   };
 }

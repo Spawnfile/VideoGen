@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { assertNoPaidKeys, cleanChildEnv, loadConfig, ROLE_NAMES, watchParent, type RoleName } from '@videogen/shared';
 import { appendAudit, createPool, isUuid } from '@videogen/db';
@@ -25,6 +26,9 @@ import { ReviewTargets, reviewToolHost, toolHosts } from './pipeline/review-tool
 import { sceneToolHost } from './pipeline/scene-tools.ts';
 import { ARTIFACT_VALIDATOR, pipelineExecutors } from './pipeline/steps.ts';
 import { FixtureUsageSource, SdkUsageSource, startUsagePoller } from './usage.ts';
+import { pgRateGate, TikTokClient, TokenStore } from '@videogen/tiktok';
+import { seedReadyVideo } from './dev/seed-ready.ts';
+import { PublishService } from './publish/service.ts';
 
 function die(stage: string, e: unknown): never {
   // Class/code only: raw messages can embed connection strings or CLI output.
@@ -89,6 +93,13 @@ const roleOf = (v: unknown): RoleName => {
 };
 
 let authTimer: NodeJS.Timeout | undefined;
+// M6 (plan T4): TikTok drafts. The gate is shared with the API (connection test) through settings; secrets stay in <dataDir>/secrets.
+const tiktokGate = pgRateGate(pool, { perMinute: config.tiktok.ratePerMinute });
+const tiktokTokens = new TokenStore({ dir: join(config.dataDir, 'secrets'), pool, base: config.tiktok.base, gate: tiktokGate });
+const publisher = new PublishService({
+  pool, dataDir: config.dataDir, ffmpeg: config.render.ffmpeg, pollMs: config.tiktok.pollMs, slowPollMs: Math.max(config.tiktok.pollMs, 60_000),
+  client: new TikTokClient({ base: config.tiktok.base, tokens: tiktokTokens, gate: tiktokGate }),
+});
 let stopUsage = () => {};
 let stopHeartbeat = () => {};
 let stopCommands = async () => {};
@@ -115,7 +126,12 @@ try {
       'run.start': (c) => orchestrator.startRun(uuidOf(c, 'runId')),
       'run.cancel': (c) => orchestrator.cancel(uuidOf(c, 'runId')),
       'roles.changed': async () => { manager.setRoleOverrides(await loadRoleOverrides(pool)); },
+      'publish.send': (c) => publisher.send(uuidOf(c, 'publicationId')),
       ...(config.devEndpoints ? {
+        'dev.video.ready': async (c: Record<string, unknown>) => {
+          const v = await seedReadyVideo(pool, config.dataDir, config.render.ffmpeg, { productName: typeof c.productName === 'string' ? c.productName.slice(0, 80) : undefined, aigcLabel: c.aigc === true });
+          await appendAudit(pool, { actorType: 'system', action: 'dev.video.ready', data: { videoId: v.videoId, requestId: typeof c.requestId === 'string' ? c.requestId.slice(0, 64) : null } });
+        },
         'dev.session.start': (c: Record<string, unknown>) => manager.start({ kind: 'pipeline', role: roleOf(c.role), prompt: typeof c.prompt === 'string' ? c.prompt.slice(0, 2000) : 'Merhaba', fakeScript: (c.script ?? undefined) as FakeScript | undefined }),
       } : {}),
     },
@@ -125,6 +141,7 @@ try {
   await guard.restore(); // before recover(): queued runs must see the stored §6.4 block, not the fresh default (final review I1)
   await orchestrator.recover();
   orchestrator.start();
+  await publisher.recover();
 } catch (e) {
   die('init', e);
 }
@@ -138,6 +155,7 @@ const shutdown = async () => {
   stopHeartbeat();
   guard.stop();
   orchestrator.stop();
+  publisher.stop();
   await stopCommands().catch(() => {});
   await manager.stop().catch(() => {});
   await audit('worker.stopping', { pid: process.pid });
