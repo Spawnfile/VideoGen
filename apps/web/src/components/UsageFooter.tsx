@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { usageLevel, type UsageWindow } from '@videogen/shared/browser';
 import { api, useClaudeStatus, type ClaudePhase } from '../lib/api.ts';
 import { ago, guardText, pct, resetTime } from '../lib/format.ts';
+import { diskLabel, type DiskTone } from '../lib/maintenance-view.ts';
 import { useLive } from '../lib/live.ts';
 
 const CLAUDE_LABEL: Record<ClaudePhase, [dot: string, text: string]> = {
@@ -11,6 +12,8 @@ const CLAUDE_LABEL: Record<ClaudePhase, [dot: string, text: string]> = {
   in: ['bg-green', 'Claude bağlı'],
   out: ['bg-red', 'Claude bağlı değil'],
 };
+
+const DISK: Record<DiskTone, [dot: string, text: string]> = { ok: ['bg-line-strong', 'text-ink-2'], warn: ['bg-line-strong', 'font-medium text-ink'], low: ['bg-red', 'font-medium text-red'] };
 
 function Bar({ label, testId, w }: { label: string; testId: string; w: UsageWindow | null | undefined }) {
   const level = usageLevel(w?.utilization ?? null);
@@ -32,6 +35,9 @@ export function UsageFooter() {
   const { c, phase } = useClaudeStatus();
   const usage = useQuery({ queryKey: ['usage'], queryFn: api.usage });
   const guard = useQuery({ queryKey: ['usage', 'guard'], queryFn: api.guard });
+  // Plan M7 Y11: free disk on the data dir (spec §13.1 footer); Settings → "Veri ve yedek" shares the query.
+  const maintenance = useQuery({ queryKey: ['maintenance'], queryFn: api.maintenance, refetchInterval: 60_000 });
+  const disk = diskLabel(maintenance.data?.diskFreeMb);
   const [now, setNow] = useState(Date.now());
   const [mountedAt] = useState(now);
   useEffect(() => { const h = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(h); }, []);
@@ -55,7 +61,13 @@ export function UsageFooter() {
         <span data-testid="usage-guard" className="rounded-full bg-inset px-2.5 py-0.5 text-[11.5px] text-ink">{guardText(guard.data)}</span>
       )}
       {usage.data && <span className="text-ink-3">{ago(usage.data.at, now)}</span>}
-      <span className="ml-auto flex items-center gap-1.5 text-ink-2">
+      {disk && (
+        <span data-testid="disk-free" className={`ml-auto flex items-center gap-1.5 ${DISK[disk.tone][1]}`} title={disk.tone === 'ok' ? undefined : 'Boş disk azalıyor: Ayarlar → Veri ve yedek'}>
+          <span className={`size-2 rounded-full ${DISK[disk.tone][0]}`} />
+          {disk.text}
+        </span>
+      )}
+      <span className={`${disk ? '' : 'ml-auto '}flex items-center gap-1.5 text-ink-2`}>
         <span className={`size-2 rounded-full ${workerAlive ? 'bg-green' : workerPending ? 'bg-line-strong' : 'bg-red'}`} />
         {workerAlive ? 'Worker canlı' : workerPending ? 'Worker kontrol ediliyor' : 'Worker yanıt vermiyor'}
       </span>

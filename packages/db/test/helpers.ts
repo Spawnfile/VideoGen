@@ -118,6 +118,9 @@ export async function createTestDb() {
     }
   }
   const pool = new pg.Pool({ connectionString: appUrl, max: 8 });
+  // pool.end() resolves before its idle clients' Terminate reaches the server; DROP … WITH (FORCE) can then kill one (57P01), which pg-pool
+  // re-emits on the pool. Without a listener that is an unhandled error in whichever file is tearing down (seen once under parallel load).
+  pool.on('error', () => {});
   return {
     name,
     pool,

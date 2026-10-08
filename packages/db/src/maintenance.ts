@@ -41,7 +41,21 @@ export async function failRunningMaintenance(db: Queryable, reason: string): Pro
   return rows.map(toRun);
 }
 
-export async function latestMaintenance(db: Queryable, kind: MaintenanceKind): Promise<MaintenanceRun | null> {
-  const { rows } = await db.query('SELECT * FROM maintenance_runs WHERE kind = $1 ORDER BY started_at DESC, id DESC LIMIT 1', [kind]);
+/** The newest row of a kind; `statuses` narrows it (e.g. the last finished or the last successful one). */
+export async function latestMaintenance(db: Queryable, kind: MaintenanceKind, statuses?: MaintenanceStatus[]): Promise<MaintenanceRun | null> {
+  const { rows } = statuses
+    ? await db.query('SELECT * FROM maintenance_runs WHERE kind = $1 AND status = ANY($2) ORDER BY started_at DESC, id DESC LIMIT 1', [kind, statuses])
+    : await db.query('SELECT * FROM maintenance_runs WHERE kind = $1 ORDER BY started_at DESC, id DESC LIMIT 1', [kind]);
   return rows[0] ? toRun(rows[0]) : null;
+}
+
+export async function getMaintenance(db: Queryable, id: string): Promise<MaintenanceRun | null> {
+  const { rows } = await db.query('SELECT * FROM maintenance_runs WHERE id = $1', [id]);
+  return rows[0] ? toRun(rows[0]) : null;
+}
+
+/** The job holding the single slot, if any. */
+export async function runningMaintenance(db: Queryable): Promise<MaintenanceKind | null> {
+  const { rows } = await db.query("SELECT kind FROM maintenance_runs WHERE status = 'running' LIMIT 1");
+  return rows[0]?.kind ?? null;
 }

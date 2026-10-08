@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { ChannelStyleSection } from '../components/settings/ChannelStyleSection.tsx';
+import { DataSection } from '../components/settings/DataSection.tsx';
 import { NarratorVoiceSection } from '../components/settings/NarratorVoiceSection.tsx';
 import { RolesSection } from '../components/settings/RolesSection.tsx';
 import { TikTokSection } from '../components/settings/TikTokSection.tsx';
@@ -67,6 +68,7 @@ export function Settings() {
       <NarratorVoiceSection />
       <TikTokSection />
       <RolesSection />
+      <DataSection />
     </div>
   );
 }

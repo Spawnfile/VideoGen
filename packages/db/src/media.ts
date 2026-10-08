@@ -5,8 +5,7 @@ import { extname, join } from 'node:path';
 import { licenseVerdict, type AssetKind } from '@videogen/shared';
 import { findAssetByBlob, insertAsset, type AssetRecord } from './assets.ts';
 import { appendAudit } from './audit.ts';
-import { insertBlob } from './blobs.ts';
-import type { Queryable } from './client.ts';
+import { upsertBlob, withBlobLock, type Connectable } from './blobs.ts';
 
 /**
  * Plan M7 Y8: the blob store and the asset import core, moved here from the worker so the API's upload import shares them.
@@ -29,30 +28,40 @@ export async function fileSha256(p: string): Promise<string | null> {
   try { return await sha256File(p); } catch { return null; }
 }
 
-/** Spec §11.3: copy to a temp file next to the target, fsync, rename; identical content is stored once. */
-export async function putBlob(pool: Queryable, dataDir: string, absPath: string): Promise<{ sha256: string; path: string; bytes: number; mime: string; created: boolean }> {
+export const mimeOf = (ext: string): string => MIME[ext.toLowerCase()] ?? 'application/octet-stream';
+
+async function writeAtomically(src: string, dest: string): Promise<void> {
+  await mkdir(join(dest, '..'), { recursive: true });
+  const tmp = `${dest}.${randomBytes(4).toString('hex')}.tmp`;
+  try {
+    await copyFile(src, tmp);
+    const fh = await open(tmp, 'r');
+    try { await fh.sync(); } finally { await fh.close(); }
+    await rename(tmp, dest);
+  } catch (e) {
+    await rm(tmp, { force: true });
+    throw e;
+  }
+}
+
+/**
+ * Spec §11.3: copy to a temp file next to the target, fsync, rename; identical content is stored once.
+ * Plan M7 Y10 (the GC race): under the blob's shared advisory lock the row is upserted first (`touched_at = now()`), then the file is
+ * checked and written if missing — so a concurrent GC delete (exclusive lock, `touched_at` guard) either waits and then skips the blob,
+ * or finished before and the file is rewritten here. The file goes to the row's stored path (a re-use with another extension keeps it).
+ */
+export async function putBlob(pool: Connectable, dataDir: string, absPath: string): Promise<{ sha256: string; path: string; bytes: number; mime: string; created: boolean }> {
   const sha256 = await sha256File(absPath);
   const ext = extname(absPath).toLowerCase();
   const rel = join('media', 'sha256', sha256.slice(0, 2), sha256.slice(2, 4), `${sha256}${ext}`);
-  const dest = join(dataDir, rel);
   const bytes = (await stat(absPath)).size;
-  const mime = MIME[ext] ?? 'application/octet-stream';
-  const exists = await stat(dest).then(() => true, () => false);
-  if (!exists) {
-    await mkdir(join(dest, '..'), { recursive: true });
-    const tmp = `${dest}.${randomBytes(4).toString('hex')}.tmp`;
-    try {
-      await copyFile(absPath, tmp);
-      const fh = await open(tmp, 'r');
-      try { await fh.sync(); } finally { await fh.close(); }
-      await rename(tmp, dest);
-    } catch (e) {
-      await rm(tmp, { force: true });
-      throw e;
-    }
-  }
-  const created = await insertBlob(pool, { sha256, path: rel, bytes, mime });
-  return { sha256, path: rel, bytes, mime, created };
+  const mime = mimeOf(ext);
+  return withBlobLock(pool, sha256, 'shared', async (c) => {
+    const row = await upsertBlob(c, { sha256, path: rel, bytes, mime });
+    const dest = join(dataDir, row.path);
+    if (!(await stat(dest).then(() => true, () => false))) await writeAtomically(absPath, dest);
+    return { sha256, path: row.path, bytes, mime, created: row.created };
+  });
 }
 
 export interface ImportAssetInput {
@@ -64,7 +73,7 @@ export interface ImportAssetInput {
  * Spec §9 license gate at the door: every import is recorded (rejected ones with allowed=false) and audited. `inserted: false` = the file was
  * already in the ledger for this kind (its stored license and verdict stand). `durationMs` measures an audio file (null: not audio).
  */
-export async function importAssetFile(pool: Queryable, dataDir: string, i: ImportAssetInput, o: { durationMs: (file: string) => Promise<number | null> }): Promise<{ asset: AssetRecord; inserted: boolean }> {
+export async function importAssetFile(pool: Connectable, dataDir: string, i: ImportAssetInput, o: { durationMs: (file: string) => Promise<number | null> }): Promise<{ asset: AssetRecord; inserted: boolean }> {
   const verdict = licenseVerdict({ spdx: i.spdx, attribution: i.attribution, kind: i.kind });
   const blob = await putBlob(pool, dataDir, i.file);
   const license = await putBlob(pool, dataDir, i.licenseTextFile);

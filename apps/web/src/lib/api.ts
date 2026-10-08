@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { PublishInfo, TikTokStatus } from './publish-view.ts';
 import type { Publication, PublishVariant } from '@videogen/shared/browser';
-import type { AgentSessionView, ArtifactMeta, AssetListItem, LedgerKind, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, NarratorVoice, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VersionView, VideoView, VoiceEngine } from '@videogen/shared/browser';
+import type { AgentSessionView, ArtifactMeta, AssetListItem, LedgerKind, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, MaintenanceInfo, ModelAlias, NarratorVoice, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VersionView, VideoView, VoiceEngine } from '@videogen/shared/browser';
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
@@ -83,6 +83,10 @@ export const api = {
   importAsset: (body: { uploadId: string; kind: LedgerKind; title: string; license: string; author: string; licenseText: string; attribution?: string; source?: string }) =>
     write<{ created: boolean; asset: AssetListItem }>('/api/assets', body),
   revokeAsset: (id: string, reason: string) => write<{ asset: AssetListItem; narratorReset: boolean }>(`/api/assets/${id}/revoke`, { reason }),
+  // Plan M7 Y11: Settings → "Veri ve yedek" and the footer's free disk.
+  maintenance: () => get<MaintenanceInfo>('/api/maintenance'),
+  runMaintenance: (what: 'backup' | 'gc-report' | 'orphans') => write<{ accepted: boolean; kind: string }>(`/api/maintenance/${what}`, {}),
+  gcDelete: (reportId: string, confirm: string) => write<{ deleted: number; skipped: number; bytes: number }>('/api/maintenance/gc', { reportId, confirm }),
 };
 
 /** A POST whose error body (`{error, …}`) matters to the caller: the Turkish reason is shown as is. */

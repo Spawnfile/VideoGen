@@ -12,6 +12,7 @@ import { registerAssetRoutes } from './routes/assets.ts';
 import { registerAuditRoutes } from './routes/audit.ts';
 import { registerChannelRoutes } from './routes/channel.ts';
 import { registerChatRoutes } from './routes/chat.ts';
+import { registerMaintenanceRoutes } from './routes/maintenance.ts';
 import { registerMediaRoutes } from './routes/media.ts';
 import { registerRoleRoutes } from './routes/roles.ts';
 import { registerVideoRoutes } from './routes/videos.ts';
@@ -80,6 +81,7 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
   registerAssetRoutes(app, { pool: deps.pool, config: deps.config, ...(deps.uploadMaxBytes ? { uploadMaxBytes: deps.uploadMaxBytes } : {}) });
   registerTikTokRoutes(app, { pool: deps.pool, config: deps.config, ...(deps.tiktokConnectTtlMs ? { connectTtlMs: deps.tiktokConnectTtlMs } : {}) });
   registerPublishRoutes(app, { pool: deps.pool, config: deps.config });
+  registerMaintenanceRoutes(app, { pool: deps.pool, dataDir: deps.config.dataDir });
   registerSse(app, deps);
 
   if (existsSync(join(deps.config.webDist, 'index.html'))) {

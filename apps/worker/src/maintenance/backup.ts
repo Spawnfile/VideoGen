@@ -5,7 +5,7 @@ import { basename, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { Readable, Writable } from 'node:stream';
 import pg from 'pg';
-import type { Config } from '@videogen/shared';
+import { localDay, type Config } from '@videogen/shared';
 import type { Queryable } from '@videogen/db';
 import { killGroup } from '@videogen/claude';
 import { childEnv, resolvePgDump, resolvePgRestore, scrub, type PgCommand, type PgVia, type RunFn } from './pgdump.ts';
@@ -19,11 +19,8 @@ export class BackupError extends Error {
   constructor(message: string, readonly exitCode = 1) { super(message); this.name = 'BackupError'; }
 }
 
-/** Local calendar day (the machine's time zone): one dump file per day (Y9). */
-export function localDay(ms: number): string {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+/** One dump file per local day (Y9); the helper moved to @videogen/shared for the trash folders (T7). */
+export { localDay };
 
 export const backupDir = (dataDir: string) => join(dataDir, 'backups');
 export const backupFile = (dataDir: string, ms: number) => join(backupDir(dataDir), `videogen-${localDay(ms)}.dump`);
