@@ -372,6 +372,8 @@ export class Orchestrator {
       runId: step.runId, stepId: step.id, jobId: job.id, round: counter, fromOrdinal: target.ordinal, toOrdinal: step.ordinal, note,
       ...(final ? { counter: 'fix_round' as const } : {}), ...(o.version ? { version: o.version } : {}),
     }))) {
+      // M4c-M4: the conditional write matched nothing. A cancelled run stays cancelled; a run still running must not be left idle with this step.
+      if ((await getRun(pool, step.runId))?.status === 'running') return this.settle(step, attempt, job, { status: 'failed', error: 'geri sarma uygulanamadı', retry: false });
       await finishJob(pool, job.id, 'cancelled');
       return;
     }

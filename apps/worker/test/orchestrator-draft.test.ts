@@ -122,6 +122,35 @@ describe('Orchestrator: draft loop, GPU door, usage gate', () => {
     expect(series).toEqual([...series].sort((a, b) => a - b));
   });
 
+  it("a rewind that cannot be applied while the run still runs fails the step with 'geri sarma uygulanamadı' instead of leaving the run idle; a cancelled run stays cancelled", async () => {
+    // The review's step row moved on under it (its round is no longer the one it ran in): rewindForReview's conditional write matches nothing.
+    const review = exec('draft_review', { run: async (ctx) => { await t.pool.query('UPDATE steps SET round = 9 WHERE id = $1', [ctx.stepId]); return { status: 'rewind', to: 'build', reason: '1 bulgu düzeltilecek' }; } });
+    const o = orch({ build: exec('build'), draft_render: exec('draft_render'), draft_review: review });
+    const r = await produce('Kalem geri sarılamaz');
+    await o.startRun(r.runId);
+    await vi.waitFor(async () => expect(await runStatus(r.runId)).toBe('failed'), { timeout: 10_000 });
+    const run = (await getRunView(t.pool, r.runId))!;
+    expect(run.steps.find((s) => s.key === 'draft_review')).toMatchObject({ status: 'failed', error: 'geri sarma uygulanamadı' });
+    expect((await t.pool.query('SELECT status FROM jobs WHERE step_id = $1 ORDER BY id DESC LIMIT 1', [run.steps.find((s) => s.key === 'draft_review')!.id])).rows[0].status).toBe('failed');
+    expect(await actions(r.runId)).toContain('step.failed');
+
+    o.stop(); // one orchestrator claims the next run's jobs
+    // Cancelled while the review ran: the rewind is not applied and the run stays cancelled (no failure written over it).
+    const c = await produce('Kalem iptal geri sarma');
+    let oc: Orchestrator;
+    const cancelling = exec('draft_review', { run: async () => { await oc.cancel(c.runId); return { status: 'rewind', to: 'build', reason: '1 bulgu düzeltilecek' }; } });
+    oc = orch({ build: exec('build'), draft_render: exec('draft_render'), draft_review: cancelling });
+    await oc.startRun(c.runId);
+    // Settled: the review ran, and its job is no longer leased (settle closed it).
+    await vi.waitFor(async () => {
+      expect(cancelling.rounds).toHaveLength(1);
+      expect((await t.pool.query("SELECT 1 FROM jobs j JOIN steps s ON s.id = j.step_id WHERE s.run_id = $1 AND j.status IN ('queued', 'leased')", [c.runId])).rowCount).toBe(0);
+    }, { timeout: 10_000 });
+    expect(await runStatus(c.runId)).toBe('cancelled');
+    expect(await actions(c.runId)).not.toContain('step.failed');
+    expect(await actions(c.runId)).not.toContain('step.rewind');
+  });
+
   it('a GPU step waits for the shared lock with its queue position, runs when it is free, and a cancel while waiting leaves no waiter', async () => {
     const locks = new ResourceLocks();
     const release = await locks.acquire('gpu', 'mcp-preview');

@@ -9,6 +9,8 @@ import { fakePipelineScript } from '../src/pipeline/fake-scripts.ts';
 import { webCheckTargets } from '../src/pipeline/review-inputs.ts';
 import { putBlob } from '../src/media.ts';
 import { fixVersionId, reviewExecutor, reviewVoice, roundChecks, g4Hint, type FixerRun } from '../src/pipeline/review-step.ts';
+import { finalizeExecutor } from '../src/pipeline/finalize-step.ts';
+import { voKey } from '../src/pipeline/voice-step.ts';
 import { panelHarness, qcReportFailing } from './final-helpers.ts';
 
 let t: Awaited<ReturnType<typeof createTestDb>>;
@@ -399,8 +401,9 @@ describe('review step (final panel)', () => {
     await t.pool.query('UPDATE assets SET allowed = true, license_spdx = $2 WHERE id = $1', [ref.id, 'CC0-1.0']);
     expect(await g4('stem-clone-label')).toBe(false); // not an own-voice licence
 
-    // The panel: the reviewed final carries the unlabelled clone's stem (a newer preset track exists too)
-    await t.pool.query("UPDATE artifacts SET meta = meta || '{\"voiceStemSha\":\"stem-clone\"}'::jsonb WHERE run_id = $1 AND kind = 'final_video_music'", [p.r.runId]);
+    // The panel: the reviewed final carries the unlabelled clone's stem, the newest track of the current storyboard (M7 Y18 (8): an older stem is stale)
+    await insertArtifact(t.pool, { runId: p.r.runId, kind: 'voice_track', content: track(clone), inputHash: 'vt-stem-panel', meta: { stemSha: 'stem-panel', voKey: voKey(fx('storyboard-kalem-vo')) } });
+    await t.pool.query("UPDATE artifacts SET meta = meta || '{\"voiceStemSha\":\"stem-panel\"}'::jsonb WHERE run_id = $1 AND kind = 'final_video_music'", [p.r.runId]);
     const fixer = vi.fn(async () => ({ status: 'done', note: 'fixer stub' }) as const);
     h.deps.fixer = fixer;
     const ex = reviewExecutor(h.deps);
@@ -421,5 +424,77 @@ describe('review step (final panel)', () => {
     // the reviewers of a VO final read its narration (the track of the reviewed stem)
     expect(h.specs.find((x) => x.role === 'reviewer_facts')!.prompt).toContain('Seslendirme metinleri ve Whisper transkripti');
     expect(h.specs.find((x) => x.role === 'reviewer_retention')!.prompt).toContain('İlk seslendirme cümlesi');
+  }, 120_000);
+
+  it("G4 without a voice track stops with 'seslendirme izi bulunamadı' (not the clone note); with a clone track the clone note stays; finalize shows the same note", async () => {
+    expect(STOP_NOTE.no_voice_track).toBe('seslendirme izi bulunamadı; düzeltme turu bunu çözemez');
+    const h = setup();
+    const fixer = vi.fn(async () => ({ status: 'done', note: 'fixer stub' }) as const);
+    h.deps.fixer = fixer;
+    const reviewThenFinalize = async (p: Awaited<ReturnType<typeof h.prepare>>) => {
+      const ex = reviewExecutor(h.deps);
+      const c = p.ctx('review');
+      const review = await ex.run(c, await ex.inputHash(c));
+      const fin = finalizeExecutor(h.deps);
+      const fc = p.ctx('finalize');
+      return { review, finalize: await fin.run(fc, await fin.inputHash(fc)) };
+    };
+    const reasons = async (runId: string) => (await t.pool.query("SELECT data->>'reason' AS r FROM audit_log WHERE run_id = $1 AND action = 'loop.stop'", [runId])).rows.map((x) => x.r);
+
+    // A VO final and no voice track at all: the pipeline lost the narration; the user must not be told to label a clone.
+    const none = await h.prepare('Tükenmez kalem izsiz', { vo: true });
+    const a = await reviewThenFinalize(none);
+    expect(a.review).toEqual({ status: 'done', note: `${STOP_NOTE.no_voice_track}: 87,5 puan` });
+    expect(a.finalize).toMatchObject({ status: 'needs_human', reason: expect.stringMatching(/^seslendirme izi bulunamadı; düzeltme turu bunu çözemez: en iyi sürüm tur 0 \(87,5 puan\)/) });
+    expect(await reasons(none.r.runId)).toEqual(['no_voice_track']);
+    expect((await stored(none.r.runId, 'final_verdict')).content).toMatchObject({ g4Cause: 'no_track' });
+    const rows = await listRunReviews(t.pool, none.r.runId);
+    expect(rows[0]!.findings.find((f) => f.checkId === 'G4')!.fixHint).toBe(g4Hint(null));
+
+    // An unlabelled clone track (the newest, of the current storyboard, the one the final was mixed with): the clone note.
+    const cl = await h.prepare('Tükenmez kalem klon', { vo: true });
+    const file = join(h.dataDir, 'ref-g4.wav');
+    writeFileSync(file, 'ref-g4');
+    const blob = await putBlob(t.pool, h.dataDir, file);
+    const ref = (await insertAsset(t.pool, { kind: 'voice_ref', title: 'Benim sesim', blobSha: blob.sha256, licenseSpdx: 'LicenseRef-Own-Voice', author: 'ben', allowed: true }))!;
+    const content = { ...fx('voice-track-kalem'), provider: { engine: 'chatterbox', model: 'chatterbox-ml-v3', voice: { kind: 'clone', asset_id: ref.id }, aigc_label: false } };
+    await insertArtifact(t.pool, { runId: cl.r.runId, kind: 'voice_track', content, inputHash: 'vt-g4', meta: { stemSha: 'stem-g4', voKey: voKey(fx('storyboard-kalem-vo')) } });
+    await t.pool.query("UPDATE artifacts SET meta = meta || '{\"voiceStemSha\":\"stem-g4\"}'::jsonb WHERE run_id = $1 AND kind = 'final_video_music'", [cl.r.runId]);
+    const b = await reviewThenFinalize(cl);
+    expect(b.review).toEqual({ status: 'done', note: `${STOP_NOTE.declaration}: 87,5 puan` });
+    expect(b.finalize).toMatchObject({ status: 'needs_human', reason: expect.stringContaining(`${STOP_NOTE.declaration}: en iyi sürüm tur 0`) });
+    expect(await reasons(cl.r.runId)).toEqual(['declaration']);
+    expect((await stored(cl.r.runId, 'final_verdict')).content).toMatchObject({ g4Cause: 'clone' });
+    expect(fixer).not.toHaveBeenCalled();
+  }, 120_000);
+
+  it('review refuses a VO final whose voice track key or stem does not match the latest storyboard and the music final (stale artefact, §8.3)', async () => {
+    const h = setup();
+    const STALE = { status: 'failed', error: 'final video güncel seslendirmeyle uyuşmuyor (bayat artefakt, §8.3)', retry: false };
+    const board = fx('storyboard-kalem-vo') as Storyboard;
+    const addTrack = (runId: string, stem: string, key: string) => insertArtifact(t.pool, { runId, kind: 'voice_track', content: fx('voice-track-kalem'), inputHash: `vt-${stem}`, meta: { stemSha: stem, voKey: key } });
+    const mixedWith = (runId: string, stem: string) => t.pool.query("UPDATE artifacts SET meta = meta || jsonb_build_object('voiceStemSha', $2::text) WHERE run_id = $1 AND kind = 'final_video_music'", [runId, stem]);
+    const review = async (p: Awaited<ReturnType<typeof h.prepare>>) => { const ex = reviewExecutor(h.deps); const c = p.ctx('review'); return ex.run(c, await ex.inputHash(c)); };
+
+    // The storyboard changed its words after the voice step (a fix round): the track belongs to the old words.
+    const words = await h.prepare('Tükenmez kalem sözler', { vo: true });
+    await addTrack(words.r.runId, 'stem-1', voKey(board));
+    await mixedWith(words.r.runId, 'stem-1');
+    const edited: Storyboard = { ...board, beats: board.beats.map((b, i) => (i === 1 ? { ...b, vo_text: { tr: 'Kalemi açınca içinden yalnızca beş parça çıkıyor.' } } : b)) };
+    await insertArtifact(t.pool, { runId: words.r.runId, kind: 'storyboard', content: edited });
+    expect(await review(words)).toEqual(STALE);
+
+    // A newer voice round made a new stem; the music final was mixed with the older one.
+    const stem = await h.prepare('Tükenmez kalem stem', { vo: true });
+    await addTrack(stem.r.runId, 'stem-old', voKey(board));
+    await addTrack(stem.r.runId, 'stem-new', voKey(board));
+    await mixedWith(stem.r.runId, 'stem-old');
+    expect(await review(stem)).toEqual(STALE);
+    expect(h.specs).toHaveLength(0); // no LLM budget spent on a stale final
+    expect(await listRunReviews(t.pool, stem.r.runId)).toEqual([]);
+
+    // Key and stem match: reviewed (the preset voice passes G4).
+    await mixedWith(stem.r.runId, 'stem-new');
+    expect(await review(stem)).toEqual({ status: 'done', note: 'Yayına hazır: 87,5 puan' });
   }, 120_000);
 });

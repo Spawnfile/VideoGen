@@ -128,7 +128,7 @@ export function checkHistory(rounds: RoundChecks[]): { regressed: string[]; fixe
   return { regressed, fixed, oscillating };
 }
 
-export type LoopStop = 'limit' | 'oscillation' | 'unchanged' | 'usage' | 'no_fixer' | 'declaration';
+export type LoopStop = 'limit' | 'oscillation' | 'unchanged' | 'usage' | 'no_fixer' | 'declaration' | 'no_voice_track';
 /** Turkish reasons shown on the step card and by finalize (runbook §7). */
 export const STOP_NOTE: Record<LoopStop, string> = {
   limit: `${FINAL_MAX_ROUNDS} düzeltme turundan sonra eşik geçilemedi`,
@@ -137,6 +137,8 @@ export const STOP_NOTE: Record<LoopStop, string> = {
   usage: 'kullanım sınırı yakın; yeni düzeltme turu başlatılmadı',
   no_fixer: 'düzeltme yapacak ajan bağlı değil',
   declaration: 'AI beyanı eksik (G4): klon ses için AI etiketi gerekli; düzeltme turu bunu çözemez',
+  /** M7 Y18 (3): G4 failed because the reviewed final has no matching voice track (a pipeline fault, not a missing clone label). */
+  no_voice_track: 'seslendirme izi bulunamadı; düzeltme turu bunu çözemez',
 };
 
 export type LoopAction = { kind: 'ready' | 'fix' | 'rework' } | { kind: 'stop'; reason: LoopStop };

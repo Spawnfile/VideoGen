@@ -459,6 +459,31 @@ describe('fixer (final review loop)', () => {
     expect(audioRefErrors({ next: { ...music, music: { ...music.music, asset_id: null } }, prev: null, mode: 'silent', allowedMusic: ids })).toEqual([]);
   }, 240_000);
 
+  it("in a VO video a fix that changes a beat id or its vo text outside a voice-scope round is refused with 'seslendirmeli videoda vuruş kimliklerini ve metinlerini değiştirme'; a voice-scope round may", async () => {
+    const s = await setup('Tükenmez kalem vo kimlik', { vo: true });
+    const REFUSAL = 'seslendirmeli videoda vuruş kimliklerini ve metinlerini değiştirme';
+    const fixers = () => s.h.specs.filter((x) => x.role === 'fixer');
+    const vo0 = await s.head<Storyboard>('storyboard');
+    // A beat id change alone is a compose-scope change (storyboard.structure), yet the voice track (voKey) belongs to the old id: refused,
+    // the same session's second attempt changes the on-screen text only and is a compose round.
+    const renamed = withBeat(vo0, 2, (b) => ({ ...b, id: 'b3-yeni' }));
+    const text = withBeat(vo0, 2, (b) => ({ ...b, onscreen_text: { tr: 'Kısa yazı 3' } }));
+    expect(await s.fix(1, (n) => ({ storyboard: n === 0 ? renamed : text }))).toMatchObject({ status: 'rewind', to: 'compose', version: { reason: 'fix:compose' } });
+    expect(fixers()).toHaveLength(2);
+    expect(fixers()[1]).toMatchObject({ resume: true, claudeSessionId: fixers()[0]!.claudeSessionId });
+    expect(fixers()[1]!.prompt).toContain(REFUSAL);
+    expect((await s.latest('fix_report')).meta).toMatchObject({ scope: 'compose', changed: ['storyboard.text'] });
+    expect(voKey((await s.latest('storyboard')).content as Storyboard)).toBe(voKey(vo0));
+
+    // A voice-scope round (a vo_text rewrite) may rename the beat too: the voice step makes a new track for the new key.
+    const vo1 = await s.head<Storyboard>('storyboard');
+    const both = withBeat(vo1, 2, (b) => ({ ...b, id: 'b3-yeni', vo_text: { tr: 'Haznede mürekkep tam ortada duruyor.' } }));
+    expect(await s.fix(2, () => ({ storyboard: both }), 'voice')).toMatchObject({ status: 'rewind', to: 'voice', version: { reason: 'fix:voice' } });
+    expect(fixers()).toHaveLength(3);
+    expect((await s.latest('fix_report')).meta).toMatchObject({ scope: 'voice' });
+    expect((await s.latest('storyboard')).content as Storyboard).toMatchObject({ beats: expect.arrayContaining([expect.objectContaining({ id: 'b3-yeni' })]) });
+  }, 120_000);
+
   it('voice round, timings kept: voice keeps the beats (rebuild false), build passes through without a session or artifacts, draft_render is skipped, draft_review is skipped, final_render reuses the frames; compose runs with the new stem', async () => {
     const s = await setup('Tükenmez kalem vo korunur', { vo: true });
     const runId = s.p.r.runId;

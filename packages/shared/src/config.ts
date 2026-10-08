@@ -17,7 +17,7 @@ export interface Config {
   /** M4b: Blender, bubblewrap and ffmpeg ('fake': committed pen outputs and ffmpeg test stills, spec §16.1). */
   render: { driver: 'real' | 'fake'; blender: string; bwrap: string; ffmpeg: string; encodePreset: string };
   /** M5c: the voice CLI (`python -m audio_service.voice_cli`), its Freya venv and the offline weights (spec §9, plan H2/H7). */
-  audio: { python: string; freyaPython: string; modelsDir: string; hfHome: string };
+  audio: { python: string; freyaPython: string; modelsDir: string; hfHome: string; timeoutMs: number; maxRssMb: number };
   /** M6: TikTok Content Posting (plan Y7, Y16, Y19); secrets live in `<dataDir>/secrets`. */
   tiktok: { base: string; pollMs: number; ratePerMinute: number; callbackPort: number };
   /**
@@ -37,6 +37,9 @@ function commandArray(name: string, v: string | undefined): string[] | null {
   }
   return a as string[];
 }
+
+/** M7 Y18 (7): the voice CLI's wall-clock and RSS limits (VG_AUDIO_TIMEOUT_MS, VG_AUDIO_MAX_RSS_MB); to be measured on the GPU machine. */
+export const AUDIO_LIMITS = { timeoutMs: 900_000, maxRssMb: 6000 } as const;
 
 function positiveInt(name: string, v: string | undefined, fallback: number): number {
   if (v === undefined || v.trim() === '') return fallback;
@@ -73,6 +76,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       freyaPython: env.VG_FREYA_PYTHON ?? join(homedir(), 'videogen-data/venvs/freya/bin/python'),
       modelsDir: env.VG_MODELS_DIR ?? join(homedir(), 'videogen-data/models'),
       hfHome: env.VG_HF_HOME ?? join(homedir(), 'videogen-data/models/hf'),
+      timeoutMs: positiveInt('VG_AUDIO_TIMEOUT_MS', env.VG_AUDIO_TIMEOUT_MS, AUDIO_LIMITS.timeoutMs),
+      maxRssMb: positiveInt('VG_AUDIO_MAX_RSS_MB', env.VG_AUDIO_MAX_RSS_MB, AUDIO_LIMITS.maxRssMb),
     },
     tiktok: {
       base: env.VG_TIKTOK_BASE ?? 'https://open.tiktokapis.com',

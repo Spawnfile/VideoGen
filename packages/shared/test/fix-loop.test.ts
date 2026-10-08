@@ -115,6 +115,7 @@ describe('fix loop', () => {
       usage: 'kullanım sınırı yakın; yeni düzeltme turu başlatılmadı',
       no_fixer: 'düzeltme yapacak ajan bağlı değil',
       declaration: 'AI beyanı eksik (G4): klon ses için AI etiketi gerekli; düzeltme turu bunu çözemez',
+      no_voice_track: 'seslendirme izi bulunamadı; düzeltme turu bunu çözemez',
     });
     const r = (round: number, total: number | null, regressed: boolean, verdict: RoundChecks['verdict'] = 'fix') => ({ round, versionId: `v${round}`, total, verdict, failed: [], passed: [], regressed });
     expect(pickBest([r(0, 90, false, 'ready'), r(1, 95, false, 'ready'), r(2, 60, false)])?.round).toBe(1);

@@ -21,6 +21,7 @@ import { manifestFacts, numericGaps, qcFacts, recentHooks, retentionTimes, voInp
 import { factsPrompt, retentionPrompt, visualPrompt } from './review-prompts.ts';
 import { labelOf } from './fix-round.ts';
 import { failure, record, sha, sheetTimes, type StepDeps } from './steps.ts';
+import { voKey } from './voice-step.ts';
 import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
 
 type Verdict = 'ready' | 'fix' | 'rework';
@@ -40,6 +41,8 @@ export interface StoredVerdict {
   regressed: string[];
   fixed: string[];
   oscillating: string[];
+  /** M7 Y18 (3): why G4 failed, when it did: no track matches the reviewed final, or the track is an unlabelled/unpermitted clone. Absent on older verdicts (read as a clone). */
+  g4Cause?: 'no_track' | 'clone';
 }
 
 /** One failed check handed to the fixer: what, how bad, where, and the reviewer's hint. */
@@ -226,7 +229,8 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
       if (!dup) await appendAudit(deps.pool, { actorType: 'orchestrator', action: 'loop.stop', runId: ctx.runId, stepId: ctx.stepId, data: { reason, fixRound: ctx.fixRound, verdict: v.verdict, total: v.total } });
       return { status: 'done', note: `${STOP_NOTE[reason]}${v.total !== null ? `: ${formatScore(v.total)} puan` : ''}` };
     };
-    if (a.kind === 'stop') return stop(a.reason);
+    // A G4 failure without a voice track is a pipeline fault: the clone note would tell the user to fix the wrong thing.
+    if (a.kind === 'stop') return stop(a.reason === 'declaration' && v.g4Cause === 'no_track' ? 'no_voice_track' : a.reason);
     if (a.kind === 'fix' && !deps.fixer) return stop('no_fixer');
     // F13: the version row exists before anything the fixer or the next round writes (artifacts.version_id is a foreign key).
     const round = ctx.fixRound + 1;
@@ -267,6 +271,15 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
       const invalid = [!qc.success ? 'qc_report' : null, !storyboard?.ok ? 'storyboard' : null, !sceneSpec?.ok ? 'scene' : null, !research?.ok ? 'research' : null].filter(Boolean);
       if (invalid.length) return { status: 'failed', error: `eksik ya da geçersiz girdi: ${invalid.join(', ')}`, retry: false };
       if (!qc.success || !storyboard?.ok || !sceneSpec?.ok || !research?.ok) throw new Error('unreachable');
+      // M7 Y18 (8), as compose checks it: in VO mode the newest voice track must belong to the newest storyboard's words and times, and the
+      // final must be mixed with that track's stem. No track at all is left to G4 (no_voice_track).
+      if (ctx.audioMode === 'vo') {
+        const voice = await latestArtifact(deps.pool, ctx.runId, 'voice_track');
+        const vm = voice?.meta as { voKey?: string; stemSha?: string } | null | undefined;
+        if (voice && (vm?.voKey !== voKey(storyboard.value) || ((music.meta ?? {}) as { voiceStemSha?: string }).voiceStemSha !== vm?.stemSha)) {
+          return { status: 'failed', error: 'final video güncel seslendirmeyle uyuşmuyor (bayat artefakt, §8.3)', retry: false };
+        }
+      }
 
       // A stored verdict of this very input decides again without a session (restart after the round was recorded).
       const storedVerdict = await findArtifact(deps.pool, { runId: ctx.runId, kind: 'final_verdict', inputHash: hash });
@@ -331,7 +344,7 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
           evidence: { frame, timecode: Math.round((frame / FPS) * 100) / 100 }, fixHint: `Kaynağı yetersiz sayısal iddia: ${gaps[0]}. Ekrandaki iddiayı çıkar ya da yeniden yaz.`,
         });
       }
-      // G4 is a gate, not a check id: a finding on the orchestrator row without evidence (the fixer cannot add the label; loopAction stops with 'declaration').
+      // G4 is a gate, not a check id: a finding on the orchestrator row without evidence (the fixer cannot add the label; loopAction stops with 'declaration', 'no_voice_track' without a track).
       if (!g4) orchestrator.push({ checkId: 'G4', severity: 'blocker', dimension: null, gate: 'G4', evidence: null, fixHint: g4Hint(track), status: 'open' });
       rows.push({
         reviewerRole: 'orchestrator', seq: 1, rubricVersion: RUBRIC_VERSION, stepId: ctx.stepId, total: score.total, dimensionScores: score.dimensions, gates: score.gates, verdict,
@@ -352,7 +365,10 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
       }
       await recordReviewRound(deps.pool, { runId: ctx.runId, round: ctx.fixRound, versionId: ctx.versionId, rows, fixed: history.fixed });
 
-      const stored: StoredVerdict = { verdict, total: score.total, dimensions: score.dimensions, gates: score.gates, low: score.low, failed: score.failed, regressed: history.regressed, fixed: history.fixed, oscillating: history.oscillating };
+      const stored: StoredVerdict = {
+        verdict, total: score.total, dimensions: score.dimensions, gates: score.gates, low: score.low, failed: score.failed, regressed: history.regressed, fixed: history.fixed, oscillating: history.oscillating,
+        ...(g4 ? {} : { g4Cause: track ? 'clone' as const : 'no_track' as const }),
+      };
       await mkdir(dir, { recursive: true });
       const file = join(dir, 'verdict.json');
       await writeFile(file, JSON.stringify(stored, null, 2));

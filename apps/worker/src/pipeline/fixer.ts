@@ -17,6 +17,7 @@ import { openLabels, priorSession, type FixerRun, type FixFinding } from './revi
 import { failure, persist, record, type StepDeps } from './steps.ts';
 import type { StepContext, StepOutcome } from './types.ts';
 import { ARTIFACT_VALIDATOR } from './validator.ts';
+import { voKey } from './voice-step.ts';
 
 /** Plan T8: the fixer's instruction. Only failed checks (with owner, severity, evidence and hint) are given; reviewer summaries and passing checks never are (spec §8.3). */
 export function fixerPrompt(o: { name: string; round: number; reviewedRound: number; findings: FixFinding[]; audioMode?: AudioMode; audio?: AudioPlan | null }): string {
@@ -141,6 +142,10 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
     const s = fixScope({ prev: prevInput, next: n.next });
     // H12: in a VO video the voice step owns the beat times.
     if (ctx.audioMode === 'vo' && s.changed.includes('storyboard.timing')) refs.push("vuruş zamanlarını seslendirme belirler; yalnızca vo_text'i değiştir (süre, vuruş zamanları, rehook_at ve payoff_at aynı kalmalı).");
+    // M7 Y18 (4): the voice track is tied to the beat ids and lines (voKey); outside a voice round compose would refuse it as stale.
+    else if (ctx.audioMode === 'vo' && s.scope !== 'voice' && voKey(n.next.storyboard) !== voKey(prev.storyboard)) {
+      refs.push('seslendirmeli videoda vuruş kimliklerini ve metinlerini değiştirme: seslendirme bunlara bağlı; yalnızca vo_text değişikliğiyle (seslendirme turu) değiştirilebilirler.');
+    }
     if (refs.length) return { errors: refs };
     if (s.changed.includes('research')) return { errors: ['research değiştirilemez: araştırmayı eski haline getir; desteksiz bir iddiayı storyboard\'dan çıkar ya da yumuşat.'] };
     // A render change is built here whatever the scope (a VO text plus a lens change is a voice round; the next build step then runs agent-free).

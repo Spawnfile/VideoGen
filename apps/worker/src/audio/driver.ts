@@ -3,7 +3,7 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { z } from 'zod';
-import type { NarratorVoice } from '@videogen/shared';
+import { AUDIO_LIMITS, type NarratorVoice } from '@videogen/shared';
 import { RenderError, type Capability, type RenderAudit } from '../render/driver.ts';
 import { runProcess } from '../render/process.ts';
 
@@ -60,6 +60,7 @@ export interface PythonAudioDriverOptions {
   modelsDir: string;
   hfHome: string;
   dataDir: string;
+  /** M7 Y18 (7): from the config (VG_AUDIO_TIMEOUT_MS, VG_AUDIO_MAX_RSS_MB); AUDIO_LIMITS when absent. */
   timeoutMs?: number;
   maxRssMb?: number;
   /** RSS sampling interval of the process guard (tests). */
@@ -120,7 +121,7 @@ export class PythonAudioDriver implements AudioDriver {
     };
     const r = await runProcess(this.pythonOf(i.narrator.engine), ['-m', 'audio_service.voice_cli', '--job', jobPath], {
       // Not the run dir: agents write there, and a planted audio_service/ or numpy.py would be imported by `python -m` (audio_service is installed editable).
-      cwd: resolve(i.outDir), dataDir: this.o.dataDir, owner: i.owner, signal: i.signal, env, timeoutMs: this.o.timeoutMs ?? 900_000, maxRssMb: this.o.maxRssMb ?? 6000,
+      cwd: resolve(i.outDir), dataDir: this.o.dataDir, owner: i.owner, signal: i.signal, env, timeoutMs: this.o.timeoutMs ?? AUDIO_LIMITS.timeoutMs, maxRssMb: this.o.maxRssMb ?? AUDIO_LIMITS.maxRssMb,
       sampleMs: this.o.sampleMs,
       onLine: (l) => {
         const p = /^VG_PROGRESS (\d+) (\d+)$/.exec(l);
