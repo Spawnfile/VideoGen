@@ -11,7 +11,7 @@ export function NavRail({ path, go }: { path: string; go: (p: string) => void })
     <nav aria-label="Ana menü" className="flex w-14 flex-col items-center gap-1 border-r border-line py-3">
       <img src="/favicon.svg" alt="VideoGen" className="mb-3 size-7" />
       {ITEMS.map((it) => {
-        const active = path === it.path;
+        const active = path === it.path || (it.path !== '/' && path.startsWith(`${it.path}/`));
         return (
           <a
             key={it.path}

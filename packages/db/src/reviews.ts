@@ -96,3 +96,5 @@ async function load(db: Queryable, where: string, id: string): Promise<ReviewRec
 /** Round → the `orchestrator` summary first → role → seq, with findings. */
 export const listRunReviews = (db: Queryable, runId: string) => load(db, 'run_id', runId);
 export const listVideoReviews = (db: Queryable, videoId: string) => load(db, 'video_id', videoId);
+/** Plan M7 Y7: the rounds that reviewed one version (the library detail's version picker). */
+export const listVersionReviews = (db: Queryable, versionId: string) => load(db, 'version_id', versionId);

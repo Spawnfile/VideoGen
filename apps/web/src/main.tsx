@@ -10,6 +10,7 @@ import { filterFromQuery, queryFromFilter } from './lib/audit-view.ts';
 import { useRoute } from './lib/router.ts';
 import { Audit } from './routes/Audit.tsx';
 import { Library } from './routes/Library.tsx';
+import { LibraryDetail } from './routes/LibraryDetail.tsx';
 import { Settings } from './routes/Settings.tsx';
 import { Studio } from './routes/Studio.tsx';
 import './styles/theme.css';
@@ -70,6 +71,7 @@ function App() {
   }, []);
   const page = path === '/settings' ? <Settings />
     : path === '/library' ? <Library go={go} />
+    : path.startsWith('/library/') ? <LibraryDetail key={path} videoId={decodeURIComponent(path.slice('/library/'.length))} go={go} />
     : path === '/audit' ? <Audit initial={filterFromQuery(search)} onFilter={(f) => go(`/audit${queryFromFilter(f)}`)} />
     : <Studio />;
   return <AppShell path={path} go={go}>{page}</AppShell>;

@@ -3,7 +3,7 @@ import type pg from 'pg';
 import { z } from 'zod';
 import { AUDIO_MODES, IMPLEMENTED_STEPS, producePlan, STEP_KEYS } from '@videogen/shared';
 import {
-  appendAudit, createProduceRun, getArtifact, getRun, getRunView, getVideoView, isUuid, listArtifacts, listVideoReviews, listRunViews, listVideoViews, publishRunAndVideo,
+  appendAudit, createProduceRun, getArtifact, getRun, getRunView, getVideoView, isUuid, listArtifacts, listVersionReviews, listVersions, listVideoReviews, listRunViews, listVideoViews, publishRunAndVideo, versionVideoId,
 } from '@videogen/db';
 import { sendCommand } from './notify.ts';
 
@@ -41,7 +41,17 @@ export function registerVideoRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
   app.get('/api/videos/:id/reviews', async (req, reply) => {
     const v = isUuid(id(req)) ? await getVideoView(pool, id(req)) : null;
     if (!v) return reply.code(404).send({ error: 'not found' });
-    return listVideoReviews(pool, v.id);
+    const version = (req.query as { version?: string }).version;
+    if (version === undefined) return listVideoReviews(pool, v.id);
+    // Plan M7 Y7: one version's rounds; a version of another video is a bad request, not an empty list.
+    if (!isUuid(version) || (await versionVideoId(pool, version)) !== v.id) return reply.code(400).send({ error: 'sürüm bu videoya ait değil' });
+    return listVersionReviews(pool, version);
+  });
+
+  app.get('/api/videos/:id/versions', async (req, reply) => {
+    const v = isUuid(id(req)) ? await getVideoView(pool, id(req)) : null;
+    if (!v) return reply.code(404).send({ error: 'not found' });
+    return listVersions(pool, v.id);
   });
 
   app.get('/api/runs/:id', async (req, reply) => {

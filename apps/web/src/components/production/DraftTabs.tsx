@@ -1,7 +1,10 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { blobUrl } from '../../lib/api.ts';
 import { setActivePlayer, setShowFinal } from '../../lib/player.ts';
+import type { VersionView } from '@videogen/shared/browser';
+import { finished } from '../../lib/compare-view.ts';
 import { playerTabs, type DraftPick, type FinalPick, type PlayerTab } from '../../lib/production-view.ts';
+import { CompareView } from '../library/CompareView.tsx';
 
 const DraftPlayer = lazy(() => import('./DraftPlayer.tsx'));
 
@@ -62,10 +65,10 @@ function FinalPanel({ final }: { final: FinalPick }) {
 
 /**
  * Player tabs (spec §13.1): "Final" first when a final exists, else "Taslak MP4"; the live "Taslak" only mounts when opened, so no
- * WebGL or 1.4 MB chunk loads before (grilling C26).
+ * WebGL or 1.4 MB chunk loads before (grilling C26). Plan M7 Y7: "Karşılaştır" when two or more versions have a final.
  */
-export function DraftTabs({ pick, final }: { pick: DraftPick; final: FinalPick }) {
-  const { tabs, initial } = playerTabs({ final: !!final.musicSha, draft: !!pick.videoSha });
+export function DraftTabs({ pick, final, versions = [] }: { pick: DraftPick; final: FinalPick; versions?: VersionView[] }) {
+  const { tabs, initial } = playerTabs({ final: !!final.musicSha, draft: !!pick.videoSha, compare: finished(versions).length >= 2 });
   const [tab, setTab] = useState<PlayerTab>(initial);
   const hasFinal = !!final.musicSha;
   useEffect(() => {
@@ -95,9 +98,11 @@ export function DraftTabs({ pick, final }: { pick: DraftPick; final: FinalPick }
         </div>
         <span className="ml-auto text-[12px] text-ink-3">Boşluk oynat · J/L ±5 sn · K durdur</span>
       </div>
-      <div role="tabpanel" id="draft-panel" aria-labelledby={`draft-tab-${tab}`} className="mx-auto w-full max-w-[320px]">
+      <div role="tabpanel" id="draft-panel" aria-labelledby={`draft-tab-${tab}`} className={`mx-auto w-full ${tab === 'compare' ? 'max-w-[660px]' : 'max-w-[320px]'}`}>
         {tab === 'final' ? (
           <FinalPanel final={final} />
+        ) : tab === 'compare' ? (
+          <CompareView versions={versions} />
         ) : tab === 'mp4' ? (
           <Mp4 sha={pick.videoSha!} cover={pick.coverSha} testId="draft-video" kind="draft" />
         ) : (

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api.ts';
 import { panelView, pickDraft, pickFinal, pickReviewSheet, pickVoice } from '../../lib/production-view.ts';
 import { latestRunOf, pipeline, seedRuns, seedVideos, useStore } from '../../lib/stores.ts';
@@ -25,7 +25,11 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
   });
   // The final review rounds follow the same trigger (a round lands when the review step is done) and the video's status.
   const reviews = useQuery({ queryKey: ['reviews', videoId, doneSteps, video?.status], enabled: !!videoId, queryFn: () => api.reviews(videoId!) });
-  const panel = useMemo(() => panelView(reviews.data ?? [], run?.id), [reviews.data, run?.id]);
+  const versions = useQuery({ queryKey: ['versions', videoId, doneSteps, video?.status], enabled: !!videoId, queryFn: () => api.versions(videoId!) });
+  // Plan M7 Y7: the picked review round (null = the newest); a new run starts again from its newest round.
+  const [round, setRound] = useState<number | null>(null);
+  useEffect(() => { setRound(null); }, [run?.id]);
+  const panel = useMemo(() => panelView(reviews.data ?? [], run?.id, round) ?? panelView(reviews.data ?? [], run?.id), [reviews.data, run?.id, round]);
   const sheet = useMemo(() => (panel ? pickReviewSheet(detail.data ?? [], panel.runId, panel.round) : null), [panel, detail.data]);
   const latest = useMemo(() => {
     const list = detail.data ?? [];
@@ -44,7 +48,7 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
   return (
     <div className="flex flex-col gap-5">
       <VideoHeader video={video} run={run} />
-      <DraftTabs key={`${latest.final.musicSha ?? ''}${latest.draft.videoSha ?? 'none'}`} pick={latest.draft} final={latest.final} />
+      <DraftTabs key={`${latest.final.musicSha ?? ''}${latest.draft.videoSha ?? 'none'}`} pick={latest.draft} final={latest.final} versions={versions.data ?? []} />
       {/* Mounted on the video's status alone: the artifact query refetches under a new key as steps finish, and a final-based condition would remount the panel (and lose its state). */}
       {(video.status === 'ready' || video.status === 'published') && <PublishPanel key={videoId} videoId={videoId} />}
       {run && <StepList run={run} />}
@@ -54,7 +58,7 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
       <BuildCard reportId={latest.report} sceneId={latest.scene} sheetSha={latest.sheet} />
       <ReviewCard artifactId={latest.draft.reviewId} />
       <QcCard artifactId={latest.final.qcId} />
-      <ReviewPanel reviews={reviews.data ?? []} runId={run?.id ?? null} status={video.status} sheetSha={sheet} canSeek={!!latest.final.musicSha} failed={reviews.isError} />
+      <ReviewPanel reviews={reviews.data ?? []} runId={run?.id ?? null} status={video.status} sheetSha={sheet} canSeek={!!latest.final.musicSha} failed={reviews.isError} round={round} onRound={setRound} />
     </div>
   );
 }

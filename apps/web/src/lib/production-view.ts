@@ -97,10 +97,17 @@ export function pickFinal(list: ArtifactMeta[], runId: string | null): FinalPick
   return { musicSha: find('final_video_music')?.blobSha ?? null, tiktokSha: find('final_video_tiktok')?.blobSha ?? null, coverSha: find('final_cover')?.blobSha ?? null, qcId: find('qc_report')?.id ?? null };
 }
 
-export type PlayerTab = 'final' | 'mp4' | 'live';
-/** Final first when it exists (spec §13.1); the draft tabs stay (C26: the live draft only mounts when opened). */
-export function playerTabs(o: { final: boolean; draft: boolean }): { tabs: [PlayerTab, string][]; initial: PlayerTab } {
-  const tabs: [PlayerTab, string][] = [...(o.final ? [['final', 'Final'] as [PlayerTab, string]] : []), ...(o.draft ? [['mp4', 'Taslak MP4'], ['live', 'Taslak']] as [PlayerTab, string][] : [])];
+export type PlayerTab = 'final' | 'compare' | 'mp4' | 'live';
+/**
+ * Final first when it exists (spec §13.1); the draft tabs stay (C26: the live draft only mounts when opened). Plan M7 Y7: "Karşılaştır"
+ * after the final, only when the video has two or more versions with a final.
+ */
+export function playerTabs(o: { final: boolean; draft: boolean; compare?: boolean }): { tabs: [PlayerTab, string][]; initial: PlayerTab } {
+  const tabs: [PlayerTab, string][] = [
+    ...(o.final ? [['final', 'Final'] as [PlayerTab, string]] : []),
+    ...(o.final && o.compare ? [['compare', 'Karşılaştır'] as [PlayerTab, string]] : []),
+    ...(o.draft ? [['mp4', 'Taslak MP4'], ['live', 'Taslak']] as [PlayerTab, string][] : []),
+  ];
   return { tabs, initial: o.final ? 'final' : 'mp4' };
 }
 
@@ -125,8 +132,10 @@ export interface PanelFinding { id: string; check: string; label: string; severi
 export interface PanelView {
   round: number;
   runId: string;
-  /** How many earlier rounds there are (no round picker in v1). */
+  /** How many earlier rounds there are. */
   earlier: number;
+  /** Plan M7 Y7: every round of the run, ascending (the round chips). */
+  rounds: number[];
   total: number | null;
   verdict: string | null;
   dimensions: { id: DimensionId; label: string; score: number | null; weight: number; low: boolean }[];
@@ -151,14 +160,16 @@ function toFinding(f: ReviewRecord['findings'][number]): PanelFinding {
 }
 
 /**
- * The newest final review round as the Studio draws it (plan T10): K13 bars and gates from the orchestrator's row, one card per reviewer.
- * The run is chosen first (the given one, else the run of the newest row), then its newest round.
+ * A final review round as the Studio draws it (plan T10): K13 bars and gates from the orchestrator's row, one card per reviewer.
+ * The run is chosen first (the given one, else the run of the newest row), then the given round (plan M7 Y7 round picker), else its newest.
  */
-export function panelView(all: ReviewRecord[], runId?: string | null): PanelView | null {
+export function panelView(all: ReviewRecord[], runId?: string | null, pick?: number | null): PanelView | null {
   const reviews = all.filter((r) => r.runId === (runId ?? all.reduce((n, r) => (r.createdAt >= n.createdAt ? r : n), all[0]!).runId));
   if (!reviews.length) return null;
-  const round = Math.max(...reviews.map((r) => r.round));
+  const rounds = [...new Set(reviews.map((r) => r.round))].sort((a, b) => a - b);
+  const round = pick ?? rounds.at(-1)!;
   const rows = reviews.filter((r) => r.round === round);
+  if (!rows.length) return null;
   const orch = rows.find((r) => r.reviewerRole === 'orchestrator');
   const dims = (orch?.dimensionScores ?? {}) as Partial<Record<DimensionId, number | null>>;
   const gates = (orch?.gates ?? {}) as Partial<Record<GateId, boolean | null>>;
@@ -170,7 +181,7 @@ export function panelView(all: ReviewRecord[], runId?: string | null): PanelView
   });
   const autoFindings = orch ? orch.findings.map(toFinding).sort((a, b) => severityRank(a.severity) - severityRank(b.severity)) : [];
   return {
-    round, runId: rows[0]!.runId, earlier: new Set(reviews.filter((r) => r.round < round).map((r) => r.round)).size, total: orch?.total ?? null, verdict: orch?.verdict ?? null,
+    round, runId: rows[0]!.runId, earlier: rounds.filter((r) => r < round).length, rounds, total: orch?.total ?? null, verdict: orch?.verdict ?? null,
     dimensions: DIMENSION_IDS.map((id) => {
       const score = dims[id] ?? null;
       return { id, label: DIMENSIONS[id].label_tr, score, weight: DIMENSIONS[id].weight, low: score !== null && score < r2(DIMENSIONS[id].weight * DIMENSION_FLOOR) };

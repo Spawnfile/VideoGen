@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ReviewRecord, VideoStatus } from '@videogen/shared/browser';
 import { formatClock, formatScore } from '@videogen/shared/browser';
 import { blobUrl } from '../../lib/api.ts';
@@ -35,9 +36,19 @@ function Finding({ f, canSeek }: { f: PanelFinding; canSeek: boolean }) {
   );
 }
 
-/** Spec §8/§13.1 final review (plan T10): K13 total and verdict, nine dimension bars with the 60 % floor, six gates, one card per reviewer. */
-export function ReviewPanel({ reviews, runId, status, sheetSha, canSeek, failed }: { reviews: ReviewRecord[]; runId: string | null; status: VideoStatus; sheetSha: string | null; canSeek: boolean; failed: boolean }) {
-  const v = panelView(reviews, runId);
+/**
+ * Spec §8/§13.1 final review (plan T10): K13 total and verdict, nine dimension bars with the 60 % floor, six gates, one card per reviewer.
+ * Plan M7 Y7: round chips pick an earlier round (null = the newest); the host may hold the round (`onRound`) to show that round's sheet.
+ */
+export function ReviewPanel({ reviews, runId, status, sheetSha, canSeek, failed, round: held, onRound }: {
+  reviews: ReviewRecord[]; runId: string | null; status: VideoStatus; sheetSha: string | null; canSeek: boolean; failed: boolean;
+  round?: number | null; onRound?: (round: number | null) => void;
+}) {
+  const [own, setOwn] = useState<number | null>(null);
+  const picked = onRound ? (held ?? null) : own;
+  const pick = onRound ?? setOwn;
+  // A round the run does not have (another run, or before its rows arrive) falls back to the newest.
+  const v = panelView(reviews, runId, picked) ?? panelView(reviews, runId);
   if (!v && failed) return <p data-testid="review-error" className="text-[12px] text-ink-3">İnceleme yüklenemedi</p>;
   if (!v) return null;
   const badge = reviewBadge(v.verdict, status);
@@ -47,7 +58,23 @@ export function ReviewPanel({ reviews, runId, status, sheetSha, canSeek, failed 
         <h3 className="text-[14px] font-medium">İnceleme</h3>
         <span data-testid="panel-score" className="text-[18px] font-medium tabular-nums">{v.total !== null ? `${formatScore(v.total)} puan` : 'puan yok'}</span>
         <span className={`rounded-full px-2.5 py-0.5 text-[12px] ${badge.ok ? 'bg-green/10 text-green' : 'bg-inset text-ink'}`}>{badge.text}</span>
-        <span className="ml-auto text-[12px] tabular-nums text-ink-3">tur {v.round + 1}{v.earlier > 0 ? ` · önceki ${v.earlier} tur` : ''}</span>
+        {v.rounds.length > 1 ? (
+          <span role="group" aria-label="Tur" className="ml-auto flex gap-1">
+            {v.rounds.map((r) => (
+              <button
+                key={r}
+                type="button"
+                data-testid="round-chip"
+                aria-pressed={v.round === r}
+                aria-label={`tur ${r + 1}${r === v.rounds.at(-1) ? ' (en yeni)' : ''}`}
+                onClick={() => pick(r === v.rounds.at(-1) ? null : r)}
+                className={`rounded-full px-2.5 py-0.5 text-[12px] tabular-nums transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink ${v.round === r ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
+              >
+                tur {r + 1}
+              </button>
+            ))}
+          </span>
+        ) : <span className="ml-auto text-[12px] tabular-nums text-ink-3">tur {v.round + 1}</span>}
       </div>
 
       <ul aria-label="Boyutlar" className="flex flex-col gap-1.5">

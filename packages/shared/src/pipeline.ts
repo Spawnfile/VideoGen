@@ -93,6 +93,15 @@ export interface VideoView {
   /** The panel total of the best version's final review (newest round while there is no best version); null before a scored review. */
   score: number | null;
 }
+/**
+ * Plan M7 Y7 (GET /api/videos/:id/versions): one row per version, by round. `total`/`verdict`/`dims` come from that version's orchestrator
+ * row; `finals` are that version's own newest compose (null: an unfinished round, e.g. an orphaned `fix:pending` row).
+ */
+export interface VersionView {
+  id: string; round: number; reason: string; parentId: string | null; createdAt: string; runId: string | null;
+  total: number | null; verdict: string | null; dims: Record<string, number | null> | null;
+  finals: VideoFinal | null; best: boolean; current: boolean; published: boolean;
+}
 /** `meta` is only listed for `final_review_sheet` (the Studio tells the main contact sheet from the hook sheet by it). */
 export interface ArtifactMeta { id: string; runId: string; stepId: string | null; versionId: string | null; kind: string; blobSha: string | null; createdAt: string; meta?: Record<string, unknown> | null }
 

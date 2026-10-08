@@ -15,3 +15,4 @@ export * from './assets.ts';
 export * from './reviews.ts';
 export * from './voice.ts';
 export * from './publish.ts';
+export * from './versions.ts';

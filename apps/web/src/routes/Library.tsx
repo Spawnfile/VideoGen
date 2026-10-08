@@ -33,7 +33,7 @@ export function Library({ go }: { go: (url: string) => void }) {
               type="button"
               data-testid="library-item"
               data-status={v.status}
-              onClick={() => go(`/?video=${v.id}`)}
+              onClick={() => go(`/library/${v.id}`)}
               className="flex w-full items-center gap-4 px-4 py-3 text-left transition-colors duration-100 first:rounded-t-card last:rounded-b-card hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink"
             >
               <span aria-hidden className={`size-2 shrink-0 rounded-full ${DOT[videoTone(v.status)]}`} />

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { PublishInfo, TikTokStatus } from './publish-view.ts';
 import type { Publication, PublishVariant } from '@videogen/shared/browser';
-import type { AgentSessionView, ArtifactMeta, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, NarratorVoice, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VideoView, VoiceEngine } from '@videogen/shared/browser';
+import type { AgentSessionView, ArtifactMeta, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, NarratorVoice, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VersionView, VideoView, VoiceEngine } from '@videogen/shared/browser';
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
@@ -49,6 +49,9 @@ export const api = {
   videos: () => getFresh<VideoView[]>('/api/videos'),
   video: (id: string) => getFresh<{ video: VideoView; runs: RunView[]; artifacts: ArtifactMeta[] }>(`/api/videos/${id}`),
   reviews: (id: string) => get<ReviewRecord[]>(`/api/videos/${id}/reviews`),
+  // Plan M7 Y7: the library detail's versions and one version's review rounds.
+  versions: (id: string) => get<VersionView[]>(`/api/videos/${id}/versions`),
+  versionReviews: (id: string, versionId: string) => get<ReviewRecord[]>(`/api/videos/${id}/reviews?version=${encodeURIComponent(versionId)}`),
   run: (id: string) => getFresh<RunView>(`/api/runs/${id}`),
   cancelRun: (id: string) => send<{ accepted: boolean }>('POST', `/api/runs/${id}/cancel`),
   artifact: (id: string) => get<ArtifactMeta & { content: unknown }>(`/api/artifacts/${id}`),
