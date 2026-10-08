@@ -47,12 +47,18 @@ export function testStill(ffmpeg: string, out: string, o: { width: number; heigh
 /** ffprobe next to the configured ffmpeg (VG_FFMPEG), else the one on PATH. */
 export const ffprobeOf = (ffmpeg: string) => (/ffmpeg$/.test(ffmpeg) ? ffmpeg.replace(/ffmpeg$/, 'ffprobe') : 'ffprobe');
 
+/**
+ * Spec §7.5 tags as frame properties. Newer ffmpeg builds (8.x, master) take libx264's VUI from the frames, so the output options
+ * alone leave primaries/transfer unknown; setparams only labels, it converts no pixels. The output options stay for older builds.
+ */
+export const BT709_TAGS = 'setparams=range=tv:color_primaries=bt709:color_trc=bt709:colorspace=bt709';
+
 /** Fake render driver (spec §16.1): a test-pattern draft tagged exactly like the real one, so it passes the same probe. */
 export function fakeDraft(ffmpeg: string, out: string, o: { width: number; height: number; frames: number; signal?: AbortSignal }): Promise<void> {
   return run(ffmpeg, [
     // The calm stand-in of testStill (night-blue backdrop, a pen-like bar) that drifts, so the player visibly advances; no loud test pattern in the UI.
     '-f', 'lavfi', '-i', `color=c=0x16203a:s=${o.width}x${o.height}:r=30`,
-    '-vf', `drawbox=x=${Math.round(o.width * 0.45)}+${Math.round(o.width * 0.15)}*sin(t*2):y=${Math.round(o.height * 0.18)}:w=${Math.round(o.width * 0.1)}:h=${Math.round(o.height * 0.62)}:color=0x2f6bd8:t=fill`,
+    '-vf', `drawbox=x=${Math.round(o.width * 0.45)}+${Math.round(o.width * 0.15)}*sin(t*2):y=${Math.round(o.height * 0.18)}:w=${Math.round(o.width * 0.1)}:h=${Math.round(o.height * 0.62)}:color=0x2f6bd8:t=fill,${BT709_TAGS}`,
     '-frames:v', String(o.frames), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
     '-pix_fmt', 'yuv420p', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', '-movflags', '+faststart', out,
   ], o.signal);
@@ -122,7 +128,7 @@ export function fakeFrames(ffmpeg: string, dir: string, count: number, signal?: 
 export function fakeFinal(ffmpeg: string, out: string, o: { frames: number; signal?: AbortSignal }): Promise<void> {
   return run(ffmpeg, [
     '-f', 'lavfi', '-i', 'color=c=0x16203a:s=1080x1920:r=30', '-f', 'lavfi', '-i', 'color=c=0x2f6bd8:s=216x1100:r=30',
-    '-filter_complex', "[0][1]overlay=x='216+mod(t*240,648)':y=346:shortest=1",
+    '-filter_complex', `[0][1]overlay=x='216+mod(t*240,648)':y=346:shortest=1,${BT709_TAGS}`,
     '-frames:v', String(o.frames), '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '14',
     '-pix_fmt', 'yuv420p', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', out,
   ], o.signal);
@@ -143,7 +149,7 @@ export const FINAL_ENCODE = { codec: 'libx264', profile: 'high', crf: 17, gop: 6
 
 export function encodeDelivery(ffmpeg: string, master: string, out: string, o: { preset: string; signal?: AbortSignal }): Promise<void> {
   return run(ffmpeg, [
-    '-i', master, '-an', '-c:v', 'libx264', '-profile:v', 'high', '-preset', o.preset,
+    '-i', master, '-an', '-vf', BT709_TAGS, '-c:v', 'libx264', '-profile:v', 'high', '-preset', o.preset,
     // ultrafast turns CABAC and 8x8 DCT off, which makes x264 signal Constrained Baseline despite -profile:v high (G1 wants High).
     '-x264-params', 'cabac=1:8x8dct=1', '-crf', String(FINAL_ENCODE.crf), '-g', String(FINAL_ENCODE.gop),
     '-keyint_min', String(FINAL_ENCODE.keyintMin), '-sc_threshold', '0', '-pix_fmt', 'yuv420p', '-colorspace', 'bt709', '-color_primaries', 'bt709',
