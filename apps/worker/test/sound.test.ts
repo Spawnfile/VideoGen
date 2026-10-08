@@ -14,7 +14,7 @@ const FFPROBE = FFMPEG.replace(/ffmpeg$/, 'ffprobe');
 const FX = resolve(import.meta.dirname, '../../../tests/fixtures');
 const tmp = () => mkdtempSync(join(tmpdir(), 'vg-sound-'));
 const asset = (o: Partial<AssetRecord>): AssetRecord => ({
-  id: 'a', kind: 'sfx', title: 't', blobSha: 'x', licenseSpdx: 'CC0-1.0', sourceUrl: null, author: 'a', attribution: null, licenseSnapshotSha: null, allowed: true, tags: [], durationMs: 100, createdAt: '', ...o,
+  id: 'a', kind: 'sfx', title: 't', blobSha: 'x', licenseSpdx: 'CC0-1.0', sourceUrl: null, author: 'a', attribution: null, licenseSnapshotSha: null, allowed: true, tags: [], durationMs: 100, createdAt: '', revokedAt: null, revokeReason: null, updatedAt: null, ...o,
 });
 const lib = Object.fromEntries(['whoosh', 'swoosh', 'click', 'snap', 'tick', 'thud'].map((n) => [n, asset({ id: `sfx-${n}`, title: n })])) as Record<SfxCue['name'], AssetRecord>;
 

@@ -51,7 +51,7 @@ export function NarratorVoiceSection() {
       </div>
       {view && !view.hasClone && (
         <p className="mt-3 text-[12px] text-ink-2">
-          Klon için önce kendi sesinizi <code className="font-mono text-ink">bin/assets.mjs add --kind voice_ref</code> ile ekleyin.
+          Klon için önce kendi sesinizi Varlıklar → Ses örneği'nden (ya da <code className="font-mono text-ink">bin/assets.mjs add --kind voice_ref</code> ile) ekleyin.
         </p>
       )}
       {error && <p role="alert" className="mt-2 text-[12.5px] text-red/80">{error}</p>}

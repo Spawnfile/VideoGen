@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  aigcRequired, formatClock, keepOrRetime, LINE_GAP_S, LINE_LEAD_S, retimeStoryboard, validateArtifact, voFacts, VoiceTrackSchema,
+  aigcRequired, formatClock, keepOrRetime, LINE_GAP_S, LINE_LEAD_S, retimeStoryboard, validateArtifact, voFacts, VoiceTrackSchema, voiceRefProblem,
   type NarratorVoice, type Storyboard, type VoiceLine, type VoiceTrack,
 } from '@videogen/shared';
 import { appendAudit, findArtifact, getArtifact, getAsset, getBlob, getNarratorVoice, insertArtifact, type ArtifactRecord } from '@videogen/db';
@@ -33,7 +33,11 @@ export const lineSeed = (runId: string, beatId: string): number => parseInt(sha(
 /** The kind of `voice_track.meta` (plan H4); `voiceHash` is null when the beats were kept (no retimed storyboard written). */
 export interface VoiceTrackMeta { fixRound: number; rebuild: boolean; sourceStoryboardId: string; voKey: string; stemSha: string; voiceHash: string | null }
 
-export interface VoiceSource { source: ArtifactRecord & { value: Storyboard }; narrator: NarratorVoice; /** false: the provisional default voice (K17). */ chosen: boolean; refWav: string | null }
+export interface VoiceSource {
+  source: ArtifactRecord & { value: Storyboard }; narrator: NarratorVoice; /** false: the provisional default voice (K17). */ chosen: boolean; refWav: string | null;
+  /** Plan M7 Y8 (P8): why the clone's reference may not be used (revoked, not allowed, missing); null for a preset or a usable reference. */
+  refProblem: string | null;
+}
 
 /** H5: the source is the newest storyboard the voice step did not write itself (`meta.retimedFrom` absent). */
 export async function voiceSource(deps: Pick<StepDeps, 'pool' | 'dataDir'>, runId: string): Promise<VoiceSource | null> {
@@ -44,13 +48,15 @@ export async function voiceSource(deps: Pick<StepDeps, 'pool' | 'dataDir'>, runI
   if (!full || !v?.ok) return null;
   const { voice: narrator, chosen } = await getNarratorVoice(deps.pool);
   let refWav: string | null = null;
+  let refProblem: string | null = null;
   if (narrator.voice.kind === 'clone') {
     const asset = await getAsset(deps.pool, narrator.voice.asset_id);
-    const blob = asset ? await getBlob(deps.pool, asset.blobSha) : null;
+    refProblem = voiceRefProblem(asset);
+    const blob = asset && !refProblem ? await getBlob(deps.pool, asset.blobSha) : null;
     refWav = blob ? join(deps.dataDir, blob.path) : null;
   }
   const source = { ...full, value: v.value };
-  return { source, narrator, chosen, refWav };
+  return { source, narrator, chosen, refWav, refProblem };
 }
 
 const pct = (cer: number) => (cer * 100).toFixed(1).replace('.', ',');
@@ -116,6 +122,7 @@ export function voiceExecutor(deps: StepDeps, hooks: { stem?: typeof buildStem; 
       if (!audio) return { status: 'failed', error: 'seslendirme yapılandırılmadı', retry: false };
       const src = await voiceSource(deps, ctx.runId);
       if (!src) return { status: 'failed', error: 'storyboard çıktısı yok', retry: false };
+      if (src.refProblem) return { status: 'failed', error: src.refProblem, retry: false };
       const { source, narrator } = src;
       const sb = source.value;
       const cause = ctx.fixRound > 0 ? await roundCause(deps.pool, ctx.runId, ctx.fixRound) : null;

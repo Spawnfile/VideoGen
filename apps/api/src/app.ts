@@ -8,6 +8,7 @@ import { appendAudit, maxEventId } from '@videogen/db';
 import type { EventHub } from './event-hub.ts';
 import { registerGuard } from './guard.ts';
 import { registerAgentRoutes } from './routes/agents.ts';
+import { registerAssetRoutes } from './routes/assets.ts';
 import { registerAuditRoutes } from './routes/audit.ts';
 import { registerChannelRoutes } from './routes/channel.ts';
 import { registerChatRoutes } from './routes/chat.ts';
@@ -21,7 +22,7 @@ import { registerSse } from './sse.ts';
 
 const round4 = (n: number | null): number | null => (n === null ? null : Math.round(n * 10_000) / 10_000);
 
-export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Config; heartbeatMs?: number; tiktokConnectTtlMs?: number }): Promise<FastifyInstance> {
+export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Config; heartbeatMs?: number; tiktokConnectTtlMs?: number; uploadMaxBytes?: number }): Promise<FastifyInstance> {
   const app = Fastify({ forceCloseConnections: true, logger: { level: process.env.VG_LOG_LEVEL ?? 'info' } });
   registerGuard(app);
   // Freshness watermark (M2 §7): read before the handler runs, so a client can drop REST data older than SSE it already applied.
@@ -76,6 +77,7 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
   registerRoleRoutes(app, { pool: deps.pool, devEndpoints: deps.config.devEndpoints });
   registerChannelRoutes(app, { pool: deps.pool });
   registerVoiceRoutes(app, { pool: deps.pool });
+  registerAssetRoutes(app, { pool: deps.pool, config: deps.config, ...(deps.uploadMaxBytes ? { uploadMaxBytes: deps.uploadMaxBytes } : {}) });
   registerTikTokRoutes(app, { pool: deps.pool, config: deps.config, ...(deps.tiktokConnectTtlMs ? { connectTtlMs: deps.tiktokConnectTtlMs } : {}) });
   registerPublishRoutes(app, { pool: deps.pool, config: deps.config });
   registerSse(app, deps);

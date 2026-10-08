@@ -22,3 +22,32 @@ export function licenseVerdict(a: { spdx: string; attribution?: string | null; k
   if (a.spdx === 'CC-BY-4.0' && !a.attribution?.trim()) return { allowed: false, reason_tr: 'CC-BY-4.0 atıf metni olmadan kullanılamaz' };
   return { allowed: true, reason_tr: null };
 }
+
+/** Plan M7 Y8: the kinds the ledger page lists (the pipeline uses these; fonts, HDRIs and 3D models are not shown). */
+export const LEDGER_KINDS = ['music', 'sfx', 'voice_ref'] as const;
+export type LedgerKind = (typeof LEDGER_KINDS)[number];
+
+/** Y8 uploads: `POST /api/uploads?ext=…` (application/octet-stream, streamed to `<dataDir>/uploads/<uuid>.<ext>`). */
+export const UPLOAD_EXTS = ['wav', 'mp3', 'flac', 'ogg', 'm4a'] as const;
+export const UPLOAD_MAX_BYTES = 200 * 1024 * 1024;
+
+/** Y8: the revoke dialog's text (the UI shows it, the test pins it). */
+export const REVOKE_CONFIRM_TR = 'Bu varlık yeni compose ve yayınlarda kullanılamaz; mevcut finaller değişmez';
+
+/** `GET /api/assets` row: the ledger fields, the verdict's reason (or the revocation's), and the usage count (versions whose audio plan plays it). */
+export interface AssetListItem {
+  id: string; kind: AssetKind; title: string; licenseSpdx: string; author: string; sourceUrl: string | null; attribution: string | null;
+  allowed: boolean; reason: string | null; revokedAt: string | null; revokeReason: string | null; durationMs: number | null; tags: string[];
+  blobSha: string; createdAt: string; used: number;
+}
+
+/**
+ * Y8 / P8: why a clone voice may not use this ledger row (null: it may). The voice preflight and the voice step both ask; the stored verdict,
+ * the revocation and today's license rule all count.
+ */
+export function voiceRefProblem(a: { kind: AssetKind; title: string; allowed: boolean; licenseSpdx: string; attribution: string | null; revokedAt?: string | null } | null): string | null {
+  if (!a || a.kind !== 'voice_ref') return 'ses referansı defterde yok';
+  if (a.revokedAt) return `ses referansının izni geri alındı: ${a.title}`;
+  if (!a.allowed || !licenseVerdict({ spdx: a.licenseSpdx, attribution: a.attribution, kind: 'voice_ref' }).allowed) return `ses referansı izinli değil: ${a.title}`;
+  return null;
+}

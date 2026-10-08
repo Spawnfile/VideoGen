@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type pg from 'pg';
-import type { AudioMode, NarratorVoice, StepKey } from '@videogen/shared';
+import { voiceRefProblem, type AudioMode, type NarratorVoice, type StepKey } from '@videogen/shared';
 import { getAsset, getBlob, getNarratorVoice, listAssets, type RunContext } from '@videogen/db';
 import type { AudioDriver } from '../audio/driver.ts';
 import type { Capability } from '../render/driver.ts';
@@ -32,10 +32,13 @@ async function voiceCapability(o: { pool: pg.Pool; audio: AudioDriver; narrator?
   const narrator = await (o.narrator ?? (async () => (await getNarratorVoice(o.pool)).voice))();
   // A clone needs its reference recording on disk: the ledger row's blob.
   let refWav: string | null = null;
-  if (narrator.voice.kind === 'clone' && o.dataDir) {
+  if (narrator.voice.kind === 'clone') {
     const asset = await getAsset(o.pool, narrator.voice.asset_id);
-    const blob = asset ? await getBlob(o.pool, asset.blobSha) : null;
-    refWav = blob ? join(o.dataDir, blob.path) : null;
+    // Plan M7 Y8 (P8): a revoked or not allowed reference is refused before the driver is asked.
+    const problem = voiceRefProblem(asset);
+    if (problem) return { ok: false, reason: problem };
+    const blob = o.dataDir ? await getBlob(o.pool, asset!.blobSha) : null;
+    refWav = blob && o.dataDir ? join(o.dataDir, blob.path) : null;
   }
   return o.audio.capabilities(narrator, { refWav });
 }

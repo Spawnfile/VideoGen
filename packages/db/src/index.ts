@@ -16,3 +16,4 @@ export * from './reviews.ts';
 export * from './voice.ts';
 export * from './publish.ts';
 export * from './versions.ts';
+export * from './media.ts';

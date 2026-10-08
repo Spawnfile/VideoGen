@@ -3,15 +3,11 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type pg from 'pg';
-import { ASSET_KINDS, licenseVerdict, SFX_NAMES, type AssetKind, type SfxName } from '@videogen/shared';
-import { appendAudit, findAssetByBlob, insertAsset, type AssetRecord } from '@videogen/db';
-import { putBlob } from './media.ts';
+import { ASSET_KINDS, SFX_NAMES, type AssetKind, type SfxName } from '@videogen/shared';
+import { findAssetByBlob, importAssetFile, putBlob, type AssetRecord, type ImportAssetInput } from '@videogen/db';
 import { ffprobeOf } from './render/ffmpeg.ts';
 
-export interface ImportAssetInput {
-  kind: AssetKind; file: string; title: string; spdx: string; author: string; licenseTextFile: string;
-  sourceUrl?: string; attribution?: string; tags?: string[];
-}
+export type { ImportAssetInput } from '@videogen/db';
 
 /** Duration of an audio file (ms, ffprobe); null when it is not audio. */
 export function audioDurationMs(ffmpeg: string, file: string): Promise<number | null> {
@@ -23,26 +19,9 @@ export function audioDurationMs(ffmpeg: string, file: string): Promise<number | 
   });
 }
 
-/** Spec §9 license gate at the door: every import is recorded (rejected ones with allowed=false) and audited. */
+/** Spec §9 license gate at the door (the core lives in @videogen/db, plan M7 Y8); the worker measures the duration with its ffprobe. */
 export async function importAsset(pool: pg.Pool, dataDir: string, ffmpeg: string, i: ImportAssetInput): Promise<AssetRecord> {
-  const verdict = licenseVerdict({ spdx: i.spdx, attribution: i.attribution, kind: i.kind });
-  const blob = await putBlob(pool, dataDir, i.file);
-  const license = await putBlob(pool, dataDir, i.licenseTextFile);
-  const durationMs = i.kind === 'music' || i.kind === 'sfx' ? await audioDurationMs(ffmpeg, i.file) : null;
-  const inserted = await insertAsset(pool, {
-    kind: i.kind, title: i.title, blobSha: blob.sha256, licenseSpdx: i.spdx, author: i.author, allowed: verdict.allowed, sourceUrl: i.sourceUrl ?? null,
-    attribution: i.attribution ?? null, licenseSnapshotSha: license.sha256, tags: i.tags ?? [], durationMs,
-  });
-  const row = inserted ?? (await findAssetByBlob(pool, i.kind, blob.sha256))!;
-  // Review #8: a file already in the ledger keeps its stored license and verdict; the audit says so instead of judging the new input.
-  await appendAudit(pool, inserted ? {
-    actorType: 'user', action: verdict.allowed ? 'asset.imported' : 'asset.rejected', subjectType: 'asset', subjectId: row.id,
-    data: { kind: i.kind, title: i.title, license: i.spdx, sha256: blob.sha256, ...(verdict.reason_tr ? { reason: verdict.reason_tr } : {}) },
-  } : {
-    actorType: 'user', action: 'asset.exists', subjectType: 'asset', subjectId: row.id,
-    data: { kind: i.kind, sha256: blob.sha256, license: row.licenseSpdx, allowed: row.allowed },
-  });
-  return row;
+  return (await importAssetFile(pool, dataDir, i, { durationMs: (f) => audioDurationMs(ffmpeg, f) })).asset;
 }
 
 /** Plan E10: procedural, deterministic (fixed noise seed), 48 kHz mono. CC0 by construction (made here with ffmpeg). */
