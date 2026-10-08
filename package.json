@@ -7,6 +7,7 @@
   "scripts": {
     "db:up": "docker compose up -d --wait postgres",
     "db:migrate": "tsx packages/db/src/migrate-cli.ts",
+    "db:test-clean": "node bin/db-test-clean.mjs",
     "dev:api": "tsx watch apps/api/src/main.ts",
     "dev:worker": "tsx apps/worker/src/main.ts",
     "dev:web": "npm run dev -w @videogen/web",

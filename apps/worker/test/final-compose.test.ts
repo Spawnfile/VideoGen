@@ -9,7 +9,8 @@ import { probeVideo } from '../src/render/ffmpeg.ts';
 const FFMPEG = process.env.VG_FFMPEG ?? 'ffmpeg';
 const tmp = () => mkdtempSync(join(tmpdir(), 'vg-compose-'));
 
-describe('final compose: frame server and the fake compose', () => {
+// Real ffmpeg under parallel files (plan M7 Y2): at least 60 s per test.
+describe('final compose: frame server and the fake compose', { timeout: 60_000 }, () => {
   it('serves the GLB and exact frame names under one random token; everything else is 404', async () => {
     const d = tmp();
     mkdirSync(join(d, 'frames'));

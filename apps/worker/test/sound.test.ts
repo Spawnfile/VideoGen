@@ -18,7 +18,8 @@ const asset = (o: Partial<AssetRecord>): AssetRecord => ({
 });
 const lib = Object.fromEntries(['whoosh', 'swoosh', 'click', 'snap', 'tick', 'thud'].map((n) => [n, asset({ id: `sfx-${n}`, title: n })])) as Record<SfxCue['name'], AssetRecord>;
 
-describe('sound plan, mix, mastering and the two variants', () => {
+// Real ffmpeg under parallel files (plan M7 Y2): at least 60 s per test.
+describe('sound plan, mix, mastering and the two variants', { timeout: 60_000 }, () => {
   it('plans SFX from scene events and storyboard cues: the hook whoosh at 0 ms, one cue per 2 frames, ≤ 3 of one sound per 10 s', () => {
     const events = (JSON.parse(readFileSync(join(FX, 'scene/kalem/events.json'), 'utf8')) as { events: { id: string; type: 'explode_start' | 'part_lock' | 'label_in' | 'zoom'; frame: number }[] }).events;
     const beats = (JSON.parse(readFileSync(join(FX, 'artifacts/storyboard-kalem.json'), 'utf8')) as { beats: { id: string; t_start: number; sfx_cues: string[] }[] }).beats;

@@ -21,7 +21,8 @@ async function target() {
   return { runDir, targets };
 }
 
-describe('extract_frames host (draft review)', () => {
+// Real ffmpeg under parallel files (plan M7 Y2): at least 60 s per test.
+describe('extract_frames host (draft review)', { timeout: 60_000 }, () => {
   it('writes full frames and 2× crops of the draft under review, clamps times to the last frame, and counts the round budget across sessions', async () => {
     const { runDir, targets } = await target();
     const host = reviewToolHost({ ffmpeg: FFMPEG, targets });
@@ -63,7 +64,7 @@ describe('extract_frames host (draft review)', () => {
   });
 });
 
-describe('final review tools', () => {
+describe('final review tools', { timeout: 60_000 }, () => {
   const qcReport = () => {
     const ok = (id: QcCheckResult['id']): QcCheckResult => ({ id, pass: true, value: 'tamam', limit: '-' });
     const music: QcCheckResult[] = [ok('g1_video'), { id: 'd7_bitrate', pass: false, value: '2000 kb/sn', limit: '3000–11000 kb/sn' }, { id: 'd3_freeze', pass: true, value: 'yok', limit: '≤ 0,5 sn' }, { id: 'd8_loop', pass: false, value: '0,70', limit: '≥ 0,90' }];

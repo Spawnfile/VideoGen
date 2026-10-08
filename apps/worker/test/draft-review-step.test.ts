@@ -67,7 +67,8 @@ async function drafted(deps: StepDeps, name = 'Tükenmez kalem', round = 0) {
 }
 const reviewerSessions = (specs: SessionSpec[]) => specs.filter((s) => s.role === 'reviewer_visual');
 
-describe('draft_review step', () => {
+// Real ffmpeg under parallel files (plan M7 Y2): at least 60 s per test.
+describe('draft_review step', { timeout: 60_000 }, () => {
   it('passes: a 4×3 contact sheet, one reviewer_visual session with extract_frames and fenced data, the stored review, the minor finding in the note', async () => {
     const { deps, specs } = setup();
     const { r, ctx } = await drafted(deps);
