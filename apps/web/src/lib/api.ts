@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { PublishInfo, TikTokStatus } from './publish-view.ts';
 import type { Publication, PublishVariant } from '@videogen/shared/browser';
-import type { AgentSessionView, ArtifactMeta, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, NarratorVoice, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VideoView, VoiceEngine } from '@videogen/shared/browser';
+import type { AgentSessionView, ArtifactMeta, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, ModelAlias, NarratorVoice, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VideoView, VoiceEngine } from '@videogen/shared/browser';
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
@@ -64,6 +64,11 @@ export const api = {
   exportShorts: (videoId: string) => write<{ url: string; fileName: string; caption: string }>(`/api/videos/${videoId}/exports/shorts`, {}),
   tiktok: () => get<TikTokStatus>('/api/tiktok'),
   tiktokConnect: () => write<{ authorizeUrl: string; expiresAt: string }>('/api/tiktok/connect', {}),
+  // Plan M7 Y5: read-only audit explorer; the list path comes from audit-view's auditListPath.
+  auditPage: (path: string) => get<AuditPage>(path),
+  auditActions: () => get<AuditActionCount[]>('/api/audit/actions'),
+  auditRow: (seq: number) => get<AuditDetail>(`/api/audit/${seq}`),
+  auditVerify: (fresh = false) => get<AuditVerifyResult & { cached: boolean }>(`/api/audit/verify${fresh ? '?fresh=1' : ''}`),
   tiktokTest: () => write<{ username: string; maxDurationS: number; privacyOptions: string[] }>('/api/tiktok/test', {}),
 };
 

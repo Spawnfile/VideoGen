@@ -6,7 +6,9 @@ import { AppShell } from './components/AppShell.tsx';
 import { connectLive, onLiveEvent, onUiEvent } from './lib/live.ts';
 import { activePlayer, shortcutFor } from './lib/player.ts';
 import { applyDelta, applyGpuWait, applyMessage, applyRow, applyRun, applySample, applySession, applyVideo } from './lib/stores.ts';
+import { filterFromQuery, queryFromFilter } from './lib/audit-view.ts';
 import { useRoute } from './lib/router.ts';
+import { Audit } from './routes/Audit.tsx';
 import { Library } from './routes/Library.tsx';
 import { Settings } from './routes/Settings.tsx';
 import { Studio } from './routes/Studio.tsx';
@@ -15,7 +17,7 @@ import './styles/theme.css';
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, refetchOnWindowFocus: true } } });
 
 function App() {
-  const [path, go] = useRoute();
+  const [path, go, search] = useRoute();
   useEffect(() => {
     // A fresh SSE connect starts at the current max id (no history replay), so REST state is refetched on every open.
     const stop = connectLive('/events', {
@@ -66,7 +68,10 @@ function App() {
     addEventListener('keydown', on);
     return () => removeEventListener('keydown', on);
   }, []);
-  const page = path === '/settings' ? <Settings /> : path === '/library' ? <Library go={go} /> : <Studio />;
+  const page = path === '/settings' ? <Settings />
+    : path === '/library' ? <Library go={go} />
+    : path === '/audit' ? <Audit initial={filterFromQuery(search)} onFilter={(f) => go(`/audit${queryFromFilter(f)}`)} />
+    : <Studio />;
   return <AppShell path={path} go={go}>{page}</AppShell>;
 }
 

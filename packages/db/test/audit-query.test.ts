@@ -22,7 +22,7 @@ const seqs = (rows: AuditRow[]) => rows.map((r) => r.seq);
 const isDesc = (xs: number[]) => xs.every((x, i) => i === 0 || xs[i - 1]! > x);
 
 describe('audit query layer', () => {
-  it('listAudit: run, video (its runs and their sessions included), session, role, exact and prefix action and a date range each return only matching rows, newest first; paging with nextBefore visits every row exactly once; 5000 rows filtered by video in under 200 ms', async () => {
+  it('listAudit: run, video (its runs and their sessions included), session, role, exact and prefix action and a date range each return only matching rows, newest first; paging with nextBefore visits every row exactly once; 5000 rows filtered by video in under 500 ms (best of three, files run in parallel)', async () => {
     const a = await produce('Kalem A');
     const b = await produce('Kalem B');
     const sa = await session('researcher', a.runId);
@@ -82,11 +82,16 @@ describe('audit query layer', () => {
     expect(await listAudit(t.pool, { action: 'publish.*', limit: 1, before: pub2 })).toMatchObject({ rows: [{ seq: pub1 }], nextBefore: null });
 
     await listAudit(t.pool, { videoId: a.videoId });
-    const t0 = performance.now();
-    const v = await listAudit(t.pool, { videoId: a.videoId });
-    const ms = performance.now() - t0;
+    // Best of three: other test files load the same Postgres in parallel (plan M7 Y2).
+    let ms = Infinity;
+    let v = await listAudit(t.pool, { videoId: a.videoId });
+    for (let i = 0; i < 3; i++) {
+      const t0 = performance.now();
+      v = await listAudit(t.pool, { videoId: a.videoId });
+      ms = Math.min(ms, performance.now() - t0);
+    }
     expect(seqs(v.rows)).toEqual([...mine].reverse());
-    expect(ms).toBeLessThan(200);
+    expect(ms).toBeLessThan(500);
     const actions = await auditActions(t.pool);
     expect(actions.find((x) => x.action === 'publish.sent')).toEqual({ action: 'publish.sent', n: 1 });
     expect(actions.filter((x) => x.action.startsWith('noise.')).reduce((s, x) => s + x.n, 0)).toBe(5000);

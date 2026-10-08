@@ -1,7 +1,7 @@
 const ITEMS: { path: string; label: string; icon: string; enabled: boolean }[] = [
   { path: '/', label: 'Stüdyo', icon: 'M4 5h16v14H4zM10 9.5v5l4-2.5z', enabled: true },
   { path: '/library', label: 'Kütüphane', icon: 'M4 4v16M8 8v12M12 6v14M16 6l4 14', enabled: true },
-  { path: '/audit', label: 'Audit', icon: 'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5', enabled: false },
+  { path: '/audit', label: 'Audit', icon: 'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5', enabled: true },
   { path: '/assets', label: 'Varlıklar', icon: 'M12 3l8 4.5v9L12 21l-8-4.5v-9z', enabled: false },
   { path: '/settings', label: 'Ayarlar', icon: 'M20 6h-7M9 6H4M20 12h-9M7 12H4M20 18h-5M11 18H4M13 4v4M7 10v4M15 16v4', enabled: true },
 ];

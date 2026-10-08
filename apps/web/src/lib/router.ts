@@ -1,11 +1,20 @@
 import { useEffect, useState } from 'react';
 
-export function useRoute(): [string, (path: string) => void] {
-  const [path, setPath] = useState(location.pathname);
+const here = () => ({ path: location.pathname, search: location.search });
+
+/** `go(url)` keeps the query string (`/audit?run=…`); `replace` edits the current history entry instead of adding one. */
+export function useRoute(): [string, (url: string, opts?: { replace?: boolean }) => void, string] {
+  const [at, setAt] = useState(here);
   useEffect(() => {
-    const on = () => setPath(location.pathname);
+    const on = () => setAt(here());
     addEventListener('popstate', on);
     return () => removeEventListener('popstate', on);
   }, []);
-  return [path, (p) => { history.pushState(null, '', p); setPath(new URL(p, location.origin).pathname); }];
+  const go = (url: string, opts?: { replace?: boolean }) => {
+    if (opts?.replace) history.replaceState(null, '', url);
+    else history.pushState(null, '', url);
+    const u = new URL(url, location.origin);
+    setAt({ path: u.pathname, search: u.search });
+  };
+  return [at.path, go, at.search];
 }
