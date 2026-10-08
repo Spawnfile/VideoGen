@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import pg from 'pg';
 import { cleanChildEnv } from '../../packages/shared/src/paid-key-guard.ts';
+import { startTikTokMock } from '../../packages/tiktok/src/mock.ts';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const DB = 'videogen_smoke';
@@ -64,6 +65,21 @@ const env = {
 };
 for (const k of ['ANTHROPIC_API_KEY', 'CLAUDECODE']) delete env[k];
 
+// M6 (plan T8): a fake TikTok on a random loopback port, fast polling, a lifted rate limit, and a connected account in <dataDir>/secrets.
+const tiktok = await startTikTokMock({ statusSequence: ['PROCESSING_UPLOAD', 'SEND_TO_USER_INBOX'] });
+Object.assign(env, { VG_TIKTOK_BASE: tiktok.base, VG_TIKTOK_POLL_MS: '200', VG_TIKTOK_RATE_PER_MIN: '600' });
+writeFileSync(join(SMOKE_DIR, 'tiktok.json'), JSON.stringify({ base: tiktok.base }));
+{
+  const secrets = join(SMOKE_DIR, 'data', 'secrets');
+  mkdirSync(secrets, { recursive: true, mode: 0o700 });
+  const t = tiktok.tokens();
+  writeFileSync(join(secrets, 'tiktok-client.json'), JSON.stringify({ client_key: 'mockclientkey00001', client_secret: 'mock-client-secret-0000000000001' }), { mode: 0o600 });
+  writeFileSync(join(secrets, 'tiktok-tokens.json'), JSON.stringify({
+    access_token: t.accessToken, refresh_token: t.refreshToken, expires_at: Date.now() + 86_400_000, refresh_expires_at: Date.now() + 365 * 86_400_000,
+    open_id: '-000mock-open-id', scope: 'user.info.basic,video.publish,video.upload', username: 'whats.inside59',
+  }), { mode: 0o600 });
+}
+
 run('npx', ['tsx', 'packages/db/src/migrate-cli.ts'], { env });
 // M5a: an allowed CC0 test bed in the asset ledger (plan E17), so the smoke final has music.
 const bed = join(SMOKE_DIR, 'bed.wav');
@@ -105,6 +121,7 @@ async function stop() {
   const deadline = Date.now() + 3000;
   while (kids.size && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
   for (const k of kids.values()) k.kill('SIGKILL');
+  await tiktok.stop().catch(() => {});
   await dropDb().catch((e) => console.error(`[smoke] drop ${DB} failed: ${e?.code ?? e}`));
   rmSync(SMOKE_DIR, { recursive: true, force: true });
   process.exit(0);

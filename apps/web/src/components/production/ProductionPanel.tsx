@@ -45,7 +45,8 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
     <div className="flex flex-col gap-5">
       <VideoHeader video={video} run={run} />
       <DraftTabs key={`${latest.final.musicSha ?? ''}${latest.draft.videoSha ?? 'none'}`} pick={latest.draft} final={latest.final} />
-      {latest.final.musicSha && (video.status === 'ready' || video.status === 'published') && <PublishPanel key={videoId} videoId={videoId} />}
+      {/* Mounted on the video's status alone: the artifact query refetches under a new key as steps finish, and a final-based condition would remount the panel (and lose its state). */}
+      {(video.status === 'ready' || video.status === 'published') && <PublishPanel key={videoId} videoId={videoId} />}
       {run && <StepList run={run} />}
       <ResearchCard artifactId={latest.research} />
       <StoryboardCard artifactId={latest.storyboard} />

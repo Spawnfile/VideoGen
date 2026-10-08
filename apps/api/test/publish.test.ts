@@ -79,9 +79,9 @@ describe('publish endpoints (plan M6 T6)', () => {
     });
     expect(g.captions.tiktok).not.toContain('Bora Besteci');
     expect(g.captions.music).toContain('Müzik: Bora Besteci (CC BY 4.0)');
-    expect(g.captions.tiktok.split('\n')[0]).toBe('Bu kalemin içinde 7 parça var');
+    expect(g.captions.tiktok.split('\n')[0]).toBe("0,7 mm'lik bir bilye her şeyi yazıyor");
     expect(g.checklist.tiktok.find((i: { id: string }) => i.id === 'aigc')).toMatchObject({ required: true });
-    expect(g.claims.map((c: { id: string }) => c.id)).toEqual(['c1', 'c2']);
+    expect(g.claims.map((c: { id: string }) => c.id)).toEqual(['bilye-capi', 'tungsten-karbur', 'yag-bazli', 'kilcallik']);
     expect(g.publications).toEqual([]);
     await t.pool.query('UPDATE assets SET allowed = false WHERE id = $1', [v.musicAssetId]);
     const blocked = (await app.inject({ url: `/api/videos/${v.videoId}/publish`, headers: H })).json();

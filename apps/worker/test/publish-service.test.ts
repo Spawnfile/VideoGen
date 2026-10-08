@@ -143,7 +143,7 @@ describe('publish service (plan M6 T4)', () => {
     await h.service.send((await queue(seeded.videoId)).id);
     await h.service.idle();
     const claims = await listClaims(t.pool, seeded.versionId);
-    expect(claims.map((c) => [c.claimId, c.status])).toEqual([['c1', 'verified'], ['c2', 'verified']]);
+    expect(claims.map((c) => [c.claimId, c.status])).toEqual(['bilye-capi', 'tungsten-karbur', 'yag-bazli', 'kilcallik'].map((id) => [id, 'verified']));
     expect(claims[0]!.verifiedAt).not.toBeNull();
     const prov = (await t.pool.query("SELECT content FROM artifacts WHERE kind = 'provenance' AND version_id = $1", [seeded.versionId])).rows;
     expect(prov).toHaveLength(1);
@@ -157,7 +157,7 @@ describe('publish service (plan M6 T4)', () => {
     });
     await h.service.send((await queue(seeded.videoId, 'tiktok', true)).id);
     await h.service.idle();
-    expect(await listClaims(t.pool, seeded.versionId)).toHaveLength(2);
+    expect(await listClaims(t.pool, seeded.versionId)).toHaveLength(4);
     expect((await t.pool.query("SELECT count(*)::int AS n FROM artifacts WHERE kind = 'provenance' AND version_id = $1", [seeded.versionId])).rows[0].n).toBe(1);
   });
 

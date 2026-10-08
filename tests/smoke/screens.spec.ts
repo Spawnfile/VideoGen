@@ -193,3 +193,26 @@ test('M5c screen: studio voice card with the audio player and the final', async 
   await page.waitForTimeout(300);
   await page.screenshot({ path: shot('studio-voice.png', 'm5') });
 });
+
+test('M6 screen: publish panel with the finish card, and the TikTok connection in Settings', async ({ page, request }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1440, height: 2200 });
+  const r = await request.post('/api/dev/videos/ready', { data: { productName: 'Tükenmez kalem' } });
+  const { videoId } = (await r.json()) as { videoId: string };
+  await page.goto(`/?video=${videoId}`);
+  await expect(page.getByTestId('video-header')).toHaveAttribute('data-status', 'ready', { timeout: 20_000 });
+  await page.getByTestId('publish-open').click();
+  const panel = page.getByRole('region', { name: 'Yayın' });
+  await panel.getByTestId('publish-send').click();
+  await expect(panel.getByTestId('finish-card')).toBeVisible({ timeout: 30_000 });
+  await panel.getByTestId('check-visibility').check();
+  await panel.getByText('Kaynaklar (4)').click();
+  await page.waitForTimeout(300);
+  await panel.screenshot({ path: shot('publish-panel.png', 'm6') });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/settings');
+  await expect(page.getByTestId('tiktok-connection')).toContainText('Bağlı: @whats.inside59');
+  await page.getByTestId('tiktok-test').click();
+  await expect(page.getByTestId('tiktok-connection')).toContainText('Bağlantı çalışıyor');
+  await page.getByTestId('tiktok-connection').screenshot({ path: shot('settings-tiktok.png', 'm6') });
+});

@@ -9,6 +9,7 @@ import {
   appendAudit, cancelPublication, createPublication, getPublication, isUuid, listPublications, markPublished, publishEvent, publishSource, recentPublications,
   type PublishSource,
 } from '@videogen/db';
+import { randomUUID } from 'node:crypto';
 import { sendCommand } from './notify.ts';
 import { tiktokFor } from './tiktok.ts';
 
@@ -36,6 +37,7 @@ const asciiSlug = (s: string) => s.toLocaleLowerCase('tr').replace(/ç/g, 'c').r
 const lines = (src: PublishSource, v: PublishVariant) => (src.soundPlan ? attributionLines(src.soundPlan, src.assets, v) : { lines: [], refused: [] });
 
 export function registerPublishRoutes(app: FastifyInstance, deps: { pool: pg.Pool; config: Config }): void {
+  if (deps.config.devEndpoints) registerDevReadyVideo(app, deps.pool);
   const { pool } = deps;
   const { store } = tiktokFor(deps);
   const vid = (req: { params: unknown }) => (req.params as { id: string }).id;
@@ -154,5 +156,25 @@ export function registerPublishRoutes(app: FastifyInstance, deps: { pool: pg.Poo
       url: `/api/blobs/${src.variants.music.blobSha}?download=${fileName}`, fileName,
       caption: captionFor({ hookTr: src.hookTr, productName: src.productName, attributions: att.lines }),
     };
+  });
+}
+
+/**
+ * Dev only (smoke S6, plan M6 T8): the worker seeds a `ready` video (`dev.video.ready`); the API waits for its audit row (keyed by a request
+ * id) and returns the video id. The API never imports worker code.
+ */
+function registerDevReadyVideo(app: FastifyInstance, pool: pg.Pool): void {
+  app.post('/api/dev/videos/ready', async (req, reply) => {
+    const b = z.object({ productName: z.string().max(80).optional(), aigc: z.boolean().optional() }).safeParse(req.body ?? {});
+    if (!b.success) return reply.code(400).send({ error: 'geçersiz istek' });
+    const requestId = randomUUID();
+    await sendCommand(pool, { type: 'dev.video.ready', requestId, ...b.data });
+    const deadline = Date.now() + 60_000;
+    while (Date.now() < deadline) {
+      const r = (await pool.query("SELECT data->>'videoId' AS id FROM audit_log WHERE action = 'dev.video.ready' AND data->>'requestId' = $1 LIMIT 1", [requestId])).rows[0];
+      if (r?.id) return reply.code(201).send({ videoId: r.id });
+      await new Promise((r2) => setTimeout(r2, 200));
+    }
+    return reply.code(504).send({ error: 'tohum video zamanında hazır olmadı' });
   });
 }

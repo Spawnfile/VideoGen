@@ -12,7 +12,7 @@
 | M3 Canlı agent katmanı | `plans/2026-10-06-m3a-agent-runtime.md` (M3a) + `plans/2026-10-06-m3b-live-ui.md` (M3b) | Tamamlandı | 2026-10-06 | 2026-10-06 | `docs/m3/report.md` |
 | M4 Dikey dilim | `plans/2026-10-06-m4a-pipeline-core.md` (M4a) + `plans/2026-10-06-m4b-scene-core.md` (M4b) + M4c (sırada) | Devam ediyor (M4a ve M4b tamam, `main`'e birleştirildi; M4c sırada: taslak render, inceleme, player, ilk gerçek ürün) | 2026-10-06 | | `docs/m4/m4a-summary.md`, `docs/m4/m4b-summary.md` |
 | M5 Final ve kalite | `plans/2026-10-06-m5a-final-render-qc.md` (M5a) + `plans/2026-10-07-m5b-review-fix.md` (M5b) + `plans/2026-10-07-m5c-voice.md` (M5c) | M5a, M5b ve M5c uygulandı (bulut konteynerinde, `main`'e fast-forward; M5b ve M5c: T1–T11 + T12 kısmi); GPU'lu makine adımları (Blender testleri, kalibrasyon, gerçek ürün koşuları, ses ölçümü, K17 onayı) bekliyor | 2026-10-06 | | `docs/m5/m5a-summary.md`, `docs/m5/m5b-summary.md`, `docs/m5/m5c-summary.md` |
-| M6 Yayın | M5 sonrası | Plan yok | | | |
+| M6 Yayın | `plans/2026-10-08-m6-publish.md` | T1–T8 uygulandı (bulut, sahte TikTok); T9 (gerçek taslak, son review) bekliyor | 2026-10-08 | | `.superpowers/sdd/2026-10-08-m6-publish/progress.md` |
 | M7 Sertleştirme | M6 sonrası | Plan yok | | | |
 
 ---
@@ -93,13 +93,16 @@
 - [ ] Bir ürün uçtan uca "yayına hazır"; smoke S2 tam sürüm · **smoke S2 tam sürüm ✓** (M5b T9–T11: Fake sürücüyle "Yayına hazır · 87,5 puan", `rötuş` düzeltme turu, inceleme paneli; smoke 19/13; commit bf1b284, 19d5cc7; 2026-10-07) · **gerçek ürün bekliyor** (izinli müzikle "tükenmez kalem" yayına hazır; `docs/m5/real-check.md` M5b-3; müziksiz koşu D6'da `needs_human` ile biter)
 - [x] `finalize`: en iyi sürüm, kare temizliği, gerekçeli `needs_human` · M5b T9 (commit bf1b284) · 2026-10-07 (M5a M10 reddedildi: v1'de `failed` run sürdürülemez)
 
-## M6 — Yayın *(plan M5 sonrası)*
+## M6 — Yayın *(plan `plans/2026-10-08-m6-publish.md`)*
 
-- [ ] TikTok Node modülü (`creator_info`, `inbox/video/init`, chunk yükleme, status yoklaması, token yenileme)
-- [ ] Token taşıma (`~/tiktok-poster/tokens.json` → `secrets/`), yeniden bağlanma akışı
-- [ ] Yayın penceresi + bitirme kartı + 24 saatte 5 taslak sınırı + hata kodu çevirileri
-- [ ] Shorts dışa aktarımı (müzikli varyant)
-- [ ] Smoke S6; 🚦 kullanıcı ilk gerçek taslağı gönderir
+- [x] Yayın sözleşmeleri ve migration 0009 (`publications`, `claims`) · M6 T1–T2 · 2026-10-08 · tek parça, deterministik açıklama, atıf varyanta göre, `published` geri düşmez
+- [x] TikTok Node modülü (`creator_info`, `inbox/video/init`, tek parça yükleme, status yoklaması, token yenileme, paylaşılan hız sınırı, sahte sunucu) · M6 T3 · 2026-10-08 · `packages/tiktok`
+- [x] Gönderim servisi (durum makinesi, kurtarma, süpürme, claims + provenance) · M6 T4 · 2026-10-08 · otomatik yeniden gönderim yok
+- [x] Token taşıma (`~/tiktok-poster/tokens.json` → `secrets/`, kopyalanmaz), yeniden bağlanma akışı (PKCE, 3455) · M6 T5 · 2026-10-08
+- [x] Yayın penceresi + bitirme kartı + 24 saatte 5 taslak sınırı + hata kodu çevirileri · M6 T6–T7 · 2026-10-08
+- [x] Shorts dışa aktarımı (müzikli varyant, atıflı açıklama) · M6 T6–T7 · 2026-10-08
+- [x] Smoke S6 (21 geçti / 15 atlandı) · M6 T8 · 2026-10-08
+- [ ] 🚦 Kullanıcı ilk gerçek taslağı gönderir (M6 T9; M5 kapanışından sonra, kullanıcının makinesinde) ve son review
 
 ## M7 — Sertleştirme *(plan M6 sonrası)*
 

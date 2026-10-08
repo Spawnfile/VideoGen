@@ -1,13 +1,16 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import type pg from 'pg';
 import { producePlan, RUBRIC_VERSION } from '@videogen/shared';
 import {
   createProduceRun, insertArtifact, insertAsset, listRunSteps, recordReviewRound, setBestVersion, updateRun, updateStep, updateVideo,
 } from '@videogen/db';
 import { putBlob } from '../media.ts';
+
+const fixture = (n: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../../tests/fixtures/artifacts', `${n}.json`), 'utf8')) as unknown;
 
 const run = (bin: string, args: string[]) => new Promise<void>((resolve, reject) => {
   execFile(bin, args, { timeout: 120_000 }, (err, _o, stderr) => (err ? reject(new Error(`${bin}: ${String(stderr).split('\n').slice(-3).join(' ')}`)) : resolve()));
@@ -17,8 +20,8 @@ export interface SeededVideo { videoId: string; versionId: string; runId: string
 
 /**
  * Plan M6 T4/T8: a `ready` video without a pipeline run — real 6 s 1080×1920 h264/AAC finals (testsrc2 + sine, tiktok_api_kullanim.md §6),
- * a cover, a sound plan with an imported CC-BY SFX (both variants) and a CC-BY music bed (music variant), a storyboard hook, two research
- * claims, a passed G2 orchestrator review row and a `finish` for the version. Tests call it directly; the smoke stack via a dev command.
+ * a cover, a sound plan with an imported CC-BY SFX (both variants) and a CC-BY music bed (music variant), the pen storyboard and research
+ * fixtures (four claims), a passed G2 orchestrator review row and a `finish` for the version. Tests call it directly; the smoke stack via a dev command.
  */
 /** The generated media do not depend on the video: made once per process (blobs dedupe by content anyway). */
 const media = new Map<string, Promise<string>>();
@@ -77,15 +80,9 @@ export async function seedReadyVideo(pool: pg.Pool, dataDir: string, ffmpeg: str
       runId: r.runId, versionId: r.versionId, kind: 'audio_plan',
       content: { cues: [{ name: 'click', atMs: 500, assetId: sfx.id, gainDb: -12 }], music: { assetId: bed.id, title: 'Yatak', license: 'CC-BY-4.0', attribution: 'Müzik: Bora Besteci (CC BY 4.0)', gainDb: -20 } },
     });
-    await insertArtifact(pool, { runId: r.runId, kind: 'storyboard', content: { hook: { pattern: 'question', text_tr: 'Bu kalemin içinde 7 parça var' } } });
-    await insertArtifact(pool, {
-      runId: r.runId, kind: 'research', content: {
-        claims: [
-          { id: 'c1', text_tr: 'Bilye çapı 0,7 mm', sources: [{ url: 'https://example.com/kalem', quote: '0.7 mm', accessed_at: '2026-10-08', type: 'manufacturer' }] },
-          { id: 'c2', text_tr: 'Mürekkep yağ bazlıdır', sources: [{ url: 'https://example.com/murekkep', quote: 'oil-based', accessed_at: '2026-10-08', type: 'reference' }] },
-        ],
-      },
-    });
+    // The committed pen fixtures: the Studio cards render them like a real run's.
+    await insertArtifact(pool, { runId: r.runId, kind: 'storyboard', content: fixture('storyboard-kalem') });
+    await insertArtifact(pool, { runId: r.runId, kind: 'research', content: fixture('research-kalem') });
     const steps = await listRunSteps(pool, r.runId);
     await recordReviewRound(pool, {
       runId: r.runId, round: 0, versionId: r.versionId, fixed: [],

@@ -91,6 +91,9 @@ export async function startTikTokMock(opts: MockOptions = {}): Promise<TikTokMoc
       return res.end();
     }
 
+    // Test-only introspection (the smoke spec runs in another process): counts, no tokens.
+    if (path === '/__mock/stats' && req.method === 'GET') return send(res, 200, { inits, puts: requests.filter((r) => r.method === 'PUT').length, polls: [...polls.values()].reduce((a, b) => a + b, 0) });
+
     // API calls: Authorization first, then one-shot faults.
     if (req.headers.authorization !== `Bearer ${access}` || access === null) return fail(res, 401, 'access_token_invalid');
     if (o.rateLimitOnce) { o.rateLimitOnce = false; return fail(res, 429, 'rate_limit_exceeded'); }
