@@ -233,7 +233,7 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 | `register_artifact(path, kind)` | İçerik adresli depoya alır | — |
 | `request_rerender(scope)` | Sadece chat rolünde. Orchestrator'dan yeni bir run ister | — |
 
-**Kural:** Agent'lar `blender`, `remotion render`, `npx remotion` veya `ffmpeg` gibi ağır komutları Bash'ten çalıştıramaz. `PreToolUse` hook'u bu komutları reddeder ve gerekçesinde doğru MCP aracını söyler. Bash izin listesi: `python3 -m py_compile`, `ls`, `cat`, `head`, `jq` ve run klasörüyle sınırlı okuma komutları.
+**Kural:** Agent'lar `blender`, `remotion render`, `npx remotion` veya `ffmpeg` gibi ağır komutları Bash'ten çalıştıramaz. `PreToolUse` hook'u bu komutları reddeder ve gerekçesinde doğru MCP aracını söyler. Bash izin listesi: `python3 -I -m py_compile` (yalıtılmış kip: çalışma klasörü `sys.path`'e girmez; M5c son review), `ls`, `cat`, `head`, `jq` ve run klasörüyle sınırlı okuma komutları.
 
 ### 6.4 Eşzamanlılık, kullanım ve iptal
 

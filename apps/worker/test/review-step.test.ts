@@ -171,6 +171,15 @@ describe('review step (final panel)', () => {
     // A replay of the stored verdict decides again and does not audit the stop twice.
     expect(await ex.run(c, await ex.inputHash(c))).toEqual({ status: 'done', note: STOP_NOTE.no_fixer });
     expect(await auditCount(p.r.runId, 'loop.stop')).toBe(1);
+    // A crash between the stored verdict and the audit (audit_log is append-only, so the crash is simulated on a fresh run): the replay writes the missing audit, exactly once.
+    const cr = await h.prepare('Tükenmez kalem', { qc: ['g6_layout'] });
+    const cc = cr.ctx('review');
+    const crashing = new Proxy(t.pool, { get: (pool, k) => (k === 'query' ? (sql: unknown, params?: unknown[]) => (String(sql).includes('INSERT INTO audit_log') && params?.[2] === 'loop.stop' ? Promise.reject(new Error('crash')) : (pool.query as (...a: unknown[]) => unknown)(sql, params)) : Reflect.get(pool, k)) });
+    await expect(reviewExecutor({ ...h.deps, pool: crashing }).run(cc, await ex.inputHash(cc))).rejects.toThrow('crash');
+    expect(await auditCount(cr.r.runId, 'loop.stop')).toBe(0);
+    expect(await ex.run(cc, await ex.inputHash(cc))).toEqual({ status: 'done', note: STOP_NOTE.no_fixer });
+    expect(await ex.run(cc, await ex.inputHash(cc))).toEqual({ status: 'done', note: STOP_NOTE.no_fixer });
+    expect(await auditCount(cr.r.runId, 'loop.stop')).toBe(1);
     // F15: with the usage guard closed no new fix round starts (stop usage, ahead of no_fixer); nothing is spent either.
     h.deps.gate = { allowsNewPipeline: () => false, resumeAt: () => null };
     const u = await h.prepare('Tükenmez kalem', { qc: ['g6_layout'] });

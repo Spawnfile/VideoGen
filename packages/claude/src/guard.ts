@@ -135,11 +135,12 @@ function bashDecision(ctx: GuardContext, cmd: string): GuardDecision {
   const [bin, ...args] = argv as [string, ...string[]];
   const heavy = heavyTool(bin) ?? (WRAPPERS.has(basename(bin)) ? heavyTool(args[0]) : null);
   if (heavy) return deny(`Heavy commands are not allowed in Bash; use ${heavy} instead.`);
-  if (!BASH_BINS.has(bin)) return deny(`Only these commands are allowed: ls, cat, head, jq, python3 -m py_compile ("${bin}" is not).`);
+  if (!BASH_BINS.has(bin)) return deny(`Only these commands are allowed: ls, cat, head, jq, python3 -I -m py_compile ("${bin}" is not).`);
   let paths = args.filter((a, i) => !a.startsWith('-') && !(bin === 'head' && /^-[nc]$/.test(args[i - 1] ?? '')));
   if (bin === 'python3') {
-    if (args[0] !== '-m' || args[1] !== 'py_compile' || args.length < 3) return deny('python3 is only allowed as: python3 -m py_compile <file.py> …');
-    paths = args.slice(2);
+    // -I (isolated): `-m` would otherwise put the cwd first on sys.path and import a planted py_compile.py outside the sandbox.
+    if (args[0] !== '-I' || args[1] !== '-m' || args[2] !== 'py_compile' || args.length < 4) return deny('python3 is only allowed as: python3 -I -m py_compile <file.py> …');
+    paths = args.slice(3);
   }
   if (bin === 'jq') {
     const bad = args.find((a) => a.startsWith('-') && !JQ_FLAGS.test(a));

@@ -221,8 +221,9 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
     const a = loopAction({ verdict: v.verdict, fixRound: ctx.fixRound, oscillating: v.oscillating.length > 0, usageBlocked, declarationFailed: v.gates.G4 === false });
     if (a.kind === 'ready') return { status: 'done', note: `Yayına hazır: ${formatScore(v.total!)} puan` };
     const stop = async (reason: LoopStop): Promise<StepOutcome> => {
-      // A replay of a stored verdict decides again but does not audit the same stop twice.
-      if (!replay) await appendAudit(deps.pool, { actorType: 'orchestrator', action: 'loop.stop', runId: ctx.runId, stepId: ctx.stepId, data: { reason, fixRound: ctx.fixRound, verdict: v.verdict, total: v.total } });
+      // A replay of a stored verdict decides again; the audit is idempotent (a crash between the stored verdict and the audit must not lose the stop reason).
+      const dup = replay && (await deps.pool.query("SELECT 1 FROM audit_log WHERE run_id = $1 AND action = 'loop.stop' AND data->>'fixRound' = $2 AND data->>'reason' = $3 LIMIT 1", [ctx.runId, String(ctx.fixRound), reason])).rowCount! > 0;
+      if (!dup) await appendAudit(deps.pool, { actorType: 'orchestrator', action: 'loop.stop', runId: ctx.runId, stepId: ctx.stepId, data: { reason, fixRound: ctx.fixRound, verdict: v.verdict, total: v.total } });
       return { status: 'done', note: `${STOP_NOTE[reason]}${v.total !== null ? `: ${formatScore(v.total)} puan` : ''}` };
     };
     if (a.kind === 'stop') return stop(a.reason);

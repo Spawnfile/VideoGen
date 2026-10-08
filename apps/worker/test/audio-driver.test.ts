@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -99,7 +99,10 @@ describe('python driver', () => {
     expect(job.lines).toEqual([{ id: 'b1', text: 'Bu kalem tam bir ölçü aleti', seed: 11 }, { id: 'b2', text: 'kekeme bir satır', seed: 22 }, { id: 'b3', text: 'Son söz', seed: 33 }]);
     expect(JSON.parse(readFileSync(join(i.outDir, 'argv.json'), 'utf8'))).toEqual(['-m', 'audio_service.voice_cli', '--job', join(i.outDir, 'job.json')]);
     const env = JSON.parse(readFileSync(join(i.outDir, 'env.json'), 'utf8')) as Record<string, string>;
-    expect(Object.keys(env).filter((k) => !k.startsWith('_') && k !== 'PWD' && k !== 'SHLVL' && k !== 'OLDPWD').sort()).toEqual(['HF_HOME', 'HF_HUB_OFFLINE', 'HOME', 'LANG', 'PATH', 'VG_MODELS_DIR']);
+    expect(Object.keys(env).filter((k) => !k.startsWith('_') && k !== 'PWD' && k !== 'SHLVL' && k !== 'OLDPWD').sort()).toEqual(['HF_HOME', 'HF_HUB_OFFLINE', 'HOME', 'LANG', 'PATH', 'PYTHONSAFEPATH', 'VG_MODELS_DIR']);
+    // Not the run dir: a planted <runDir>/audio_service or numpy.py must not be importable; PYTHONSAFEPATH keeps the cwd off sys.path anyway.
+    expect(env.PYTHONSAFEPATH).toBe('1');
+    expect(realpathSync(readFileSync(join(i.outDir, 'cwd.txt'), 'utf8'))).toBe(realpathSync(i.outDir));
     expect(env).toMatchObject({ HF_HOME: o.hfHome, HF_HUB_OFFLINE: '1', VG_MODELS_DIR: o.modelsDir });
     expect(progress.at(-1)).toBe('6/6');
     expect(out).toMatchObject({ engine: 'chatterbox', model: 'fake-model', failed: [] });

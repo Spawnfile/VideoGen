@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Stands in for `python -m audio_service.voice_cli --job <job.json>` in the driver test (plan M5c T4).
 // Control file: <out_dir>/fake.json { exit?: number, mode?: 'sleep' | 'alloc', stderr?: string }. It also leaves
-// env.json (the environment it was started with) and pid.txt (its pid) in out_dir.
+// env.json (the environment it was started with), cwd.txt and pid.txt (its pid) in out_dir.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -10,6 +10,7 @@ const job = JSON.parse(readFileSync(jobPath, 'utf8'));
 mkdirSync(job.out_dir, { recursive: true });
 writeFileSync(join(job.out_dir, 'argv.json'), JSON.stringify(process.argv.slice(2)));
 writeFileSync(join(job.out_dir, 'env.json'), JSON.stringify(process.env));
+writeFileSync(join(job.out_dir, 'cwd.txt'), process.cwd());
 writeFileSync(join(job.out_dir, 'pid.txt'), String(process.pid));
 let ctl = {};
 try { ctl = JSON.parse(readFileSync(join(job.out_dir, 'fake.json'), 'utf8')); } catch { /* none */ }

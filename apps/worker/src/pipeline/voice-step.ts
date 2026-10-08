@@ -22,9 +22,9 @@ export const FREYA_PIN = 'freya-tts@146d36c1';
 const LEAD_MS = Math.round(LINE_LEAD_S * 1000);
 const GAP_MS = Math.round(LINE_GAP_S * 1000);
 
-/** H4: what a voice track is tied to: every beat's vo_text and times plus the video length. Compose compares this, not storyboard ids. */
+/** H4: what a voice track is tied to: every beat's id, vo_text and times plus the video length. Compose compares this, not storyboard row ids. */
 export function voKey(s: Storyboard): string {
-  return sha({ beats: s.beats.map((b) => [b.vo_text?.tr ?? null, b.t_start, b.t_end]), duration_s: s.duration_s });
+  return sha({ beats: s.beats.map((b) => [b.id, b.vo_text?.tr ?? null, b.t_start, b.t_end]), duration_s: s.duration_s });
 }
 
 /** Per-line seed (H5): attempt k uses seed + 1000 k inside the CLI. */

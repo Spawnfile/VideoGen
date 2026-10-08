@@ -26,7 +26,11 @@ beforeAll(() => {
 describe('write confinement', () => {
   it('allows writes inside the run dir and denies absolute and ../ escapes', () => {
     expect(denied(evaluateToolUse(ctx('fixer'), 'Write', { file_path: 'scene/a.py', content: '' }))).toBeNull();
-    expect(denied(evaluateToolUse(ctx('fixer'), 'Write', { file_path: join(run, 'x.json'), content: '' }))).toBeNull();
+    // The fixer writes only under scene/ (a ./py_compile.py shadow module in the cwd would run unsandboxed via `python -m`).
+    expect(denied(evaluateToolUse(ctx('fixer'), 'Write', { file_path: 'scene/product.py', content: '' }))).toBeNull();
+    for (const file_path of ['py_compile.py', './py_compile.py', 'review/x', 'final/x', 'voice/x', join(run, 'x.json')]) {
+      expect(denied(evaluateToolUse(ctx('fixer'), 'Write', { file_path, content: '' })), file_path).toMatch(/confined to \.\/scene\//);
+    }
     expect(denied(evaluateToolUse(ctx('fixer'), 'Write', { file_path: '/tmp/OUTSIDE.txt', content: '' }))).toMatch(/confined to the run directory/);
     expect(denied(evaluateToolUse(ctx('fixer'), 'Edit', { file_path: '../../x', old_string: 'a', new_string: 'b' }))).toMatch(/confined/);
   });
@@ -60,10 +64,14 @@ describe('Bash', () => {
   });
 
   it('allows the allow-listed read commands inside the run dir only', () => {
-    for (const command of ['ls scene', 'ls', "jq '.parts[0]' scene/spec.json", 'python3 -m py_compile scene/product.py', 'head -n 20 scene/product.py']) {
+    for (const command of ['ls scene', 'ls', "jq '.parts[0]' scene/spec.json", 'python3 -I -m py_compile scene/product.py', 'head -n 20 scene/product.py']) {
       expect(denied(evaluateToolUse(ctx('builder'), 'Bash', { command })), command).toBeNull();
     }
     expect(denied(evaluateToolUse(ctx('builder'), 'Bash', { command: 'python3 scene/product.py' }))).toMatch(/py_compile/);
+    // Isolated mode only: plain `-m` puts the cwd first on sys.path (a planted py_compile.py would run).
+    for (const command of ['python3 -m py_compile scene/product.py', 'python3 -I scene/product.py', 'python3 -I -m http.server']) {
+      expect(denied(evaluateToolUse(ctx('builder'), 'Bash', { command })), command).toMatch(/py_compile/);
+    }
     expect(denied(evaluateToolUse(ctx('builder'), 'Bash', { command: 'rm scene/a' }))).toMatch(/Only these commands/);
     expect(denied(evaluateToolUse(ctx('builder'), 'Bash', { command: `cat ${join(home, '.ssh', 'id_rsa')}` }))).toMatch(/inside the run directory/);
     expect(denied(evaluateToolUse(ctx('builder'), 'Bash', { command: 'cat scene/link/x' }))).toMatch(/inside the run directory/);

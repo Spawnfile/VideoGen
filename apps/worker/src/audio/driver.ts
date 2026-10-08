@@ -105,7 +105,7 @@ export class PythonAudioDriver implements AudioDriver {
     if (i.narrator.voice.kind === 'clone' && !i.refWav) throw new RenderError('unavailable', 'klon ses için referans kaydı bulunamadı');
     await mkdir(i.outDir, { recursive: true });
     await mkdir(i.cacheDir, { recursive: true });
-    const jobPath = join(i.outDir, 'job.json');
+    const jobPath = resolve(i.outDir, 'job.json');
     await writeFile(jobPath, JSON.stringify({
       engine: i.narrator.engine,
       voice: i.narrator.voice.kind === 'clone' ? { kind: 'clone', ref_wav: i.refWav } : { kind: 'preset', id: i.narrator.voice.id },
@@ -115,9 +115,12 @@ export class PythonAudioDriver implements AudioDriver {
     // runProcess starts from an empty env: no paid keys, no proxy, no CUDA_VISIBLE_DEVICES; offline hub (H2).
     const env: NodeJS.ProcessEnv = {
       PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: homedir(), LANG: 'C.UTF-8', HF_HOME: this.o.hfHome, HF_HUB_OFFLINE: '1', VG_MODELS_DIR: this.o.modelsDir,
+      // Python >= 3.11: do not prepend the cwd to sys.path (belt and braces with the neutral cwd below).
+      PYTHONSAFEPATH: '1',
     };
     const r = await runProcess(this.pythonOf(i.narrator.engine), ['-m', 'audio_service.voice_cli', '--job', jobPath], {
-      cwd: i.runDir, dataDir: this.o.dataDir, owner: i.owner, signal: i.signal, env, timeoutMs: this.o.timeoutMs ?? 900_000, maxRssMb: this.o.maxRssMb ?? 6000,
+      // Not the run dir: agents write there, and a planted audio_service/ or numpy.py would be imported by `python -m` (audio_service is installed editable).
+      cwd: resolve(i.outDir), dataDir: this.o.dataDir, owner: i.owner, signal: i.signal, env, timeoutMs: this.o.timeoutMs ?? 900_000, maxRssMb: this.o.maxRssMb ?? 6000,
       sampleMs: this.o.sampleMs,
       onLine: (l) => {
         const p = /^VG_PROGRESS (\d+) (\d+)$/.exec(l);

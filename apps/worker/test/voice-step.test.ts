@@ -232,6 +232,8 @@ describe('voice step', () => {
     expect(re[0].meta).toMatchObject({ retimedFrom: s2, maxShiftS: 2.8 });
     expect(re[0].content.duration_s).toBe(47.8);
     expect(rt.meta.voKey).toBe(voKey(re[0].content));
+    // Beat ids are part of the key: renamed ids with equal text and times make the track stale.
+    expect(voKey({ ...board, beats: board.beats.map((b) => ({ ...b, id: `${b.id}x` })) })).not.toBe(voKey(board));
     expect(await audits(r.runId, 'voice.retimed')).toContainEqual({ maxShiftS: 2.8, rebuild: true });
 
     // A rework round (the verdict of round 0 says so) always retimes, even when the lines fit; the build step does its own rework path (rebuild false).

@@ -21,6 +21,6 @@ export function rolePromptFor(def: RoleDef, dir: string, ctx: { runDir: string; 
     `- Working directory (run directory): ${ctx.runDir}`,
     `- You may write to: ${scope}`,
     `- Session id: ${ctx.sessionId}`,
-    '- Heavy work (Blender, Remotion, ffmpeg, TTS) only through the videogen MCP tools; Bash is limited to ls, cat, head, jq and python3 -m py_compile.',
+    '- Heavy work (Blender, Remotion, ffmpeg, TTS) only through the videogen MCP tools; Bash is limited to ls, cat, head, jq and python3 -I -m py_compile.',
   ].join('\n');
 }
