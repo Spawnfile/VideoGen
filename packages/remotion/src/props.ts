@@ -1,4 +1,4 @@
-import type { CaptionPage, ChannelStyle, SceneSpec, Storyboard } from '@videogen/shared/browser';
+import { DEFAULT_SAFE_AREA, scaleSafeArea, type CaptionPage, type ChannelStyle, type SafeArea, type SceneSpec, type Storyboard } from '@videogen/shared/browser';
 
 /** Remotion composition id of the draft (spec §7.1 step 5). */
 export const DRAFT_COMPOSITION = 'Draft3D';
@@ -27,6 +27,8 @@ export type DraftProps = {
   beats: DraftBeat[];
   /** Part id → Turkish label. */
   labels: Record<string, string>;
+  /** Plan M7 Y15: the text safe area at 1080×1920 (the calibrated setting in a final; absent = DEFAULT_SAFE_AREA). */
+  safeArea?: SafeArea;
 };
 
 export function draftProps(o: {
@@ -51,17 +53,16 @@ export function activeBeat(beats: DraftBeat[], t: number): { index: number; beat
 }
 
 export interface Rect { left: number; top: number; right: number; bottom: number }
-/** Spec §8.1 G6 at 1080×1920 (no text above 150 px, below 1510 px or in the right 130 px), scaled; plus a 24 px left margin. */
-export function safeRect(width: number, height: number): Rect {
-  const sx = width / 1080;
-  const sy = height / 1920;
-  return { left: Math.round(24 * sx), top: Math.round(150 * sy), right: Math.round(width - 130 * sx), bottom: Math.round(1510 * sy) };
+/** Spec §8.1 G6 / plan M7 Y15: the safe area (default 150 / 1510 / right 130 / left 24 at 1080×1920) as a rectangle, scaled. */
+export function safeRect(width: number, height: number, area: SafeArea = DEFAULT_SAFE_AREA): Rect {
+  const a = scaleSafeArea(area, width, height);
+  return { left: a.left, top: a.top, right: width - a.right, bottom: a.bottom };
 }
 
 /** Text bands of the draft: the hook at the top of the safe area, the beat line at its bottom; labels live between them. */
-export function draftLayout(width: number, height: number): { safe: Rect; hookTop: number; hookFont: number; lineBottom: number; lineFont: number; labelArea: Rect } {
+export function draftLayout(width: number, height: number, area?: SafeArea): { safe: Rect; hookTop: number; hookFont: number; lineBottom: number; lineFont: number; labelArea: Rect } {
   const s = width / 1080;
-  const safe = safeRect(width, height);
+  const safe = safeRect(width, height, area);
   const hookFont = Math.round(68 * s); // D5: hook ≥ 64 px at 1080
   const lineFont = Math.round(52 * s);
   const hookTop = safe.top + Math.round(16 * s);
@@ -112,9 +113,9 @@ export type FinalProps = DraftProps & {
   captions?: CaptionPage[];
 };
 
-export function finalProps(o: Omit<Parameters<typeof draftProps>[0], 'width' | 'height'> & { framesUrl: string; captions?: CaptionPage[] }): FinalProps {
-  const { captions, ...rest } = o;
-  return { ...draftProps({ ...rest, width: 1080, height: 1920 }), framesUrl: o.framesUrl, ...(captions ? { captions } : {}) };
+export function finalProps(o: Omit<Parameters<typeof draftProps>[0], 'width' | 'height'> & { framesUrl: string; captions?: CaptionPage[]; safeArea?: SafeArea }): FinalProps {
+  const { captions, safeArea, ...rest } = o;
+  return { ...draftProps({ ...rest, width: 1080, height: 1920 }), framesUrl: o.framesUrl, ...(captions ? { captions } : {}), ...(safeArea ? { safeArea } : {}) };
 }
 export const frameUrl = (base: string, frame: number) => `${base}/f${String(frame).padStart(5, '0')}.png`;
 
@@ -152,8 +153,8 @@ export function wrapLines(text: string, font: number, maxWidth: number): string[
  * Plan E9: where Overlay draws text at `frame`. Label boxes are exact (Overlay positions them absolutely); the hook and beat boxes
  * are estimates with the same generous width and the line heights Overlay uses, plus the plate padding.
  */
-export function overlayBoxes(p: Pick<DraftProps, 'width' | 'height' | 'hook' | 'beats'> & { captions?: CaptionPage[] }, frame: number, labels: LabelBox[]): TextBox[] {
-  const L = draftLayout(p.width, p.height);
+export function overlayBoxes(p: Pick<DraftProps, 'width' | 'height' | 'hook' | 'beats' | 'safeArea'> & { captions?: CaptionPage[] }, frame: number, labels: LabelBox[]): TextBox[] {
+  const L = draftLayout(p.width, p.height, p.safeArea);
   const s = p.width / 1080;
   const padX = 14 * s;
   const padY = 6 * s;

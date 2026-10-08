@@ -3,6 +3,7 @@ import { ChannelStyleSection } from '../components/settings/ChannelStyleSection.
 import { DataSection } from '../components/settings/DataSection.tsx';
 import { NarratorVoiceSection } from '../components/settings/NarratorVoiceSection.tsx';
 import { RolesSection } from '../components/settings/RolesSection.tsx';
+import { SafeAreaSection } from '../components/settings/SafeAreaSection.tsx';
 import { TikTokSection } from '../components/settings/TikTokSection.tsx';
 import { api, useClaudeStatus, type ClaudePhase } from '../lib/api.ts';
 import { ago } from '../lib/format.ts';
@@ -66,6 +67,7 @@ export function Settings() {
       </section>
       <ChannelStyleSection />
       <NarratorVoiceSection />
+      <SafeAreaSection />
       <TikTokSection />
       <RolesSection />
       <DataSection />

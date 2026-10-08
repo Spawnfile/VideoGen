@@ -2,9 +2,9 @@ import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  buildQcReport, canonical, captionPages, CHANNEL_STYLES, evaluateQc, formatClock, QC_CHECKS, qcFailures, QcReportSchema, RUBRIC_VERSION, SceneEventsSchema, sceneRender, validateArtifact, VoiceTrackSchema, type AudioMode, type AudioPlan, type QcReport, type SceneEvents, type Storyboard,
+  buildQcReport, canonical, captionPages, CHANNEL_STYLES, evaluateQc, formatClock, QC_CHECKS, qcFailures, QcReportSchema, RUBRIC_VERSION, SceneEventsSchema, sceneRender, validateArtifact, VoiceTrackSchema, type AudioMode, type AudioPlan, type QcReport, type SafeArea, type SceneEvents, type Storyboard,
 } from '@videogen/shared';
-import { appendAudit, findArtifact, getBlob, insertArtifact, latestArtifact, listAssets } from '@videogen/db';
+import { appendAudit, findArtifact, getBlob, getSafeArea, insertArtifact, latestArtifact, listAssets } from '@videogen/db';
 import { parseGlb } from '@videogen/scene3d';
 import { bundleHash, FINAL_MASTER } from '@videogen/remotion/hash';
 import { finalProps, type FinalProps } from '@videogen/remotion/props';
@@ -126,7 +126,19 @@ export function currentEvents(stored: SceneEvents['events'], beats: Storyboard['
   return [...stored.filter((e) => e.type !== 'label_in'), ...labels].sort((a, b) => a.frame - b.frame || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
-/** Plan E16: everything compose reads, and its input hash (frames, GLB, overlay props, template, master/encode settings, sound plan). */
+/**
+ * Plan E16: compose's input hash — frames, GLB, overlay props, template, master/encode settings, sound plan, the VO stem and plan, and
+ * (M7 Y15) the safe area the text is laid out in, so a final composed under another area is not reused.
+ */
+export function composeInputHash(o: { framesHash: string; glbSha: string; props: unknown; preset: string; sound: unknown; vo: { stemSha: string; plan: unknown } | null; safeArea: SafeArea }): string {
+  const { top, bottom, right, left } = o.safeArea;
+  return sha({
+    step: 'compose', frames: o.framesHash, glb: o.glbSha, props: sha(o.props), bundle: bundleHash(), master: FINAL_MASTER, encode: FINAL_ENCODE, preset: o.preset, sound: sha(o.sound),
+    ...(o.vo ? { vo: o.vo.stemSha, plan: sha(canonical(o.vo.plan)), duck: DUCK } : {}), safeArea: [top, bottom, right, left],
+  });
+}
+
+/** Plan E16: everything compose reads, and its input hash (composeInputHash). */
 export async function composeSource(deps: StepDeps, runId: string, videoId: string, audioMode: AudioMode): Promise<ComposeSource | { error: string } | null> {
   const ffmpeg = deps.scene?.ffmpeg ?? 'ffmpeg';
   const [frames, glb, scene, board, track, events, audio] = await Promise.all(['final_frames', 'scene_glb', 'scene', 'storyboard', 'camera_track', 'scene_events', 'audio'].map((k) => latestArtifact(deps.pool, runId, k)));
@@ -153,7 +165,9 @@ export async function composeSource(deps: StepDeps, runId: string, videoId: stri
     vo = { file: stemFile, stemSha: m.stemSha, durationMs: vt.data.duration_ms, lines: vt.data.lines.map((l) => ({ start_ms: l.start_ms, end_ms: l.end_ms })) };
     captions = captionPages(vt.data.words);
   }
-  const { glbUrl: _g, framesUrl: _f, ...props } = finalProps({ glbUrl: '', framesUrl: '', yfov, scene: s.value, storyboard: b.value, style: CHANNEL_STYLES[s.value.style_id], captions });
+  // M7 Y15: the safe area of the settings at compose time; the props carry it to Remotion and layoutManifest writes it into layout.json.
+  const { area: safeArea } = await getSafeArea(deps.pool);
+  const { glbUrl: _g, framesUrl: _f, ...props } = finalProps({ glbUrl: '', framesUrl: '', yfov, scene: s.value, storyboard: b.value, style: CHANNEL_STYLES[s.value.style_id], captions, safeArea });
   const durationS = (props.frames + 1) / 30;
   const library = withImportedSfx(await ensureSfxLibrary(deps.pool, deps.dataDir, ffmpeg), await listAssets(deps.pool, { kind: 'sfx', allowedOnly: true }));
   const tracks = await listAssets(deps.pool, { kind: 'music', allowedOnly: true });
@@ -172,7 +186,7 @@ export async function composeSource(deps: StepDeps, runId: string, videoId: stri
   const { plan, music } = eff;
   const files = new Map<string, string>();
   for (const a of [...Object.values(library), ...(music ? [music] : [])]) files.set(a.id, join(deps.dataDir, (await getBlob(deps.pool, a.blobSha))!.path));
-  const hash = sha({ step: 'compose', frames: frames.inputHash, glb: glbBlob.sha256, props: sha(props), bundle: bundleHash(), master: FINAL_MASTER, encode: FINAL_ENCODE, preset: deps.scene?.encodePreset ?? 'slow', sound: sha(sound), ...(vo ? { vo: vo.stemSha, plan: sha(canonical(plan)), duck: DUCK } : {}) });
+  const hash = composeInputHash({ framesHash: frames.inputHash, glbSha: glbBlob.sha256, props, preset: deps.scene?.encodePreset ?? 'slow', sound, vo: vo ? { stemSha: vo.stemSha, plan } : null, safeArea });
   return { hash, framesHash: frames.inputHash, currentFramesHash: current.hash, framesDir: meta.dir, glbPath: join(deps.dataDir, glbBlob.path), props, durationS, sound, plan, persist: eff.persist, vo, files };
 }
 

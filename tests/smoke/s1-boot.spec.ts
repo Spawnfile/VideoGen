@@ -21,6 +21,9 @@ test('S1: shell boots under 2 s and shows Claude connection, usage and worker li
   await page.getByRole('link', { name: 'Ayarlar' }).click();
   await expect(page.getByRole('heading', { name: 'Claude bağlantısı' })).toBeVisible();
   await expect(page.getByText('claude.ai aboneliği')).toBeVisible();
+  // M7 Y15: the safe area starts at the spec's default.
+  await expect(page.getByTestId('safe-area-source')).toContainText('varsayılan');
+  await expect(page.getByTestId('safe-area-top')).toHaveValue('150');
   await expect(page).toHaveTitle('VideoGen');
   expect(errors).toEqual([]);
 });

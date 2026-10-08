@@ -19,3 +19,4 @@ export * from './versions.ts';
 export * from './media.ts';
 export * from './maintenance.ts';
 export * from './gc.ts';
+export * from './safe-area.ts';

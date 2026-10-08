@@ -393,21 +393,23 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
     const preparePrompts = () => (prompts ??= buildPrompts());
     const buildPrompts = async (): Promise<Record<FinalReviewerRole, string>> => {
       await mkdir(dir, { recursive: true });
+      const [events, layout] = await Promise.all([
+        latestArtifact(deps.pool, ctx.runId, 'scene_events'),
+        composeHash ? findArtifact(deps.pool, { runId: ctx.runId, kind: 'layout', inputHash: composeHash }) : null,
+      ]);
+      // M7 Y15: the sheets shade the area this final was laid out in (layout.json; the default for an older final).
+      const safeArea = (layout?.content as LayoutManifest | null)?.safeArea;
       const sheet = async (times: number[], sub: string, out: string, rows: number, kind: 'main' | 'hook') => {
         // A restart finds its sheets: nothing is extracted or recorded twice.
         const had = await deps.pool.query("SELECT 1 FROM artifacts WHERE run_id = $1 AND kind = 'final_review_sheet' AND input_hash = $2 AND meta->>'kind' = $3", [ctx.runId, hash, kind]);
         if (had.rowCount && existsSync(join(dir, out))) return;
         await mkdir(join(dir, sub), { recursive: true });
         for (const [n, at] of times.entries()) await extractFrame(scene.ffmpeg, i.video, join(dir, sub, `f${String(n).padStart(5, '0')}.png`), { t: at, width: 540, signal: ctx.signal });
-        await contactSheet(scene.ffmpeg, join(dir, sub), join(dir, out), { cols: 4, rows, signal: ctx.signal });
+        await contactSheet(scene.ffmpeg, join(dir, sub), join(dir, out), { cols: 4, rows, ...(safeArea ? { safeArea } : {}), signal: ctx.signal });
         await record(deps, ctx, { kind: 'final_review_sheet', file: join(dir, out), inputHash: hash, meta: { fixRound: ctx.fixRound, kind, times } });
       };
       await sheet(i.sheetTimes, 'sheet', 'sheet.png', 3, 'main');
       await sheet(i.hookTimes, 'hooksheet', 'hook.png', 2, 'hook');
-      const [events, layout] = await Promise.all([
-        latestArtifact(deps.pool, ctx.runId, 'scene_events'),
-        composeHash ? findArtifact(deps.pool, { runId: ctx.runId, kind: 'layout', inputHash: composeHash }) : null,
-      ]);
       const ev = events ? SceneEventsSchema.safeParse(events.content) : null;
       const common = { name: ctx.productName, durationS: i.durationS, frames: i.frames, times: i.sheetTimes, sheet: i.sheetRel };
       return {

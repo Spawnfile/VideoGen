@@ -3,15 +3,16 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { mkdir, readFile, rename, rm } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { bundle } from '@remotion/bundler';
-import { makeCancelSignal, renderMedia, selectComposition } from '@remotion/renderer';
+import { makeCancelSignal, renderMedia, renderStill as remotionStill, selectComposition } from '@remotion/renderer';
 import { bundleHash, DRAFT_RENDER, FINAL_MASTER } from './hash.ts';
 import { DRAFT_COMPOSITION, FINAL_COMPOSITION, type DraftProps, type FinalProps } from './props.ts';
+import { SAFE_AREA_CARD } from './SafeAreaCard.tsx';
 
 export const DRAFT_ENTRY = resolve(import.meta.dirname, 'entry.ts');
 const GL_MODES = ['angle', 'swangle', 'egl', 'swiftshader', 'vulkan', 'angle-egl'] as const;
-type GlMode = (typeof GL_MODES)[number];
+export type GlMode = (typeof GL_MODES)[number];
 /** VG_REMOTION_GL: a GPU-less machine (CI, a cloud container) can pick `swangle` (SwiftShader); the laptop keeps the ANGLE default. */
 const glMode = (v = process.env.VG_REMOTION_GL): GlMode => (GL_MODES as readonly string[]).includes(v ?? '') ? (v as GlMode) : 'angle';
 /** M4b probe P3: the system Chrome as "chrome-for-testing", ANGLE GL; no browser download. */
@@ -66,7 +67,7 @@ export async function serveOnce(o: { glbPath: string; framesDir?: string }): Pro
   return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}/${token}`, close: () => server.close() };
 }
 
-interface RenderRun { signal?: AbortSignal; onProgress?: (done: number, total: number) => void; onStage?: (stage: 'bundle' | 'browser' | 'frames') => void; frameRange?: [number, number]; concurrency?: number }
+interface RenderRun { signal?: AbortSignal; onProgress?: (done: number, total: number) => void; onStage?: (stage: 'bundle' | 'browser' | 'frames') => void; frameRange?: [number, number]; concurrency?: number; gl?: GlMode }
 type Params = { codec: 'h264'; crf: number; x264Preset: string; pixelFormat: string; colorSpace: string };
 
 /** One Remotion render: the cached bundle, system Chrome, the composition sized by its props, silent, cancellable. */
@@ -77,7 +78,7 @@ async function renderComposition(id: string, inputProps: Record<string, unknown>
   const onAbort = () => cancel();
   o.signal?.addEventListener('abort', onAbort, { once: true });
   try {
-    const common = { serveUrl, inputProps, browserExecutable: CHROME.browserExecutable, chromeMode: CHROME.chromeMode, chromiumOptions: { gl: CHROME.gl } };
+    const common = { serveUrl, inputProps, browserExecutable: CHROME.browserExecutable, chromeMode: CHROME.chromeMode, chromiumOptions: { gl: o.gl ?? CHROME.gl } };
     o.onStage?.('browser');
     const composition = await selectComposition({ ...common, id });
     const total = o.frameRange ? o.frameRange[1] - o.frameRange[0] + 1 : composition.durationInFrames;
@@ -116,4 +117,29 @@ export async function renderFinalVideo(o: FinalRenderOptions): Promise<{ frames:
   } finally {
     s.close();
   }
+}
+
+export interface StillOptions { composition: string; props: Record<string, unknown>; frame: number; out: string; cacheRoot: string; gl?: GlMode }
+
+/** Plan M7 Y17: one frame of a composition as a PNG — the cached bundle, the same system Chrome and VG_REMOTION_GL mode as the videos. */
+export async function renderStill(o: StillOptions): Promise<{ out: string; ms: number }> {
+  const serveUrl = await ensureBundle(o.cacheRoot);
+  const common = { serveUrl, inputProps: o.props, browserExecutable: CHROME.browserExecutable, chromeMode: CHROME.chromeMode, chromiumOptions: { gl: o.gl ?? CHROME.gl } };
+  const composition = await selectComposition({ ...common, id: o.composition });
+  await mkdir(dirname(o.out), { recursive: true });
+  const t0 = Date.now();
+  await remotionStill({ ...common, composition, frame: o.frame, output: o.out, imageFormat: 'png', overwrite: true });
+  return { out: o.out, ms: Date.now() - t0 };
+}
+
+/** The calibration card is uploaded to TikTok by hand (Y16): an ordinary h264 / yuv420p / bt709 file, silent. */
+const CARD_RENDER: Params = { codec: 'h264', crf: 18, x264Preset: 'medium', pixelFormat: 'yuv420p', colorSpace: 'bt709' };
+
+/** Plan M7 Y16: `<outDir>/safe-area-card.png` (frame 0, renderStill) and `<outDir>/safe-area-card.mp4` (5 s, 1080×1920). */
+export async function renderSafeAreaCard(o: { outDir: string; cacheRoot: string; gl?: GlMode }): Promise<{ png: string; mp4: string; stillMs: number; videoMs: number }> {
+  const png = join(o.outDir, 'safe-area-card.png');
+  const mp4 = join(o.outDir, 'safe-area-card.mp4');
+  const still = await renderStill({ composition: SAFE_AREA_CARD, props: {}, frame: 0, out: png, cacheRoot: o.cacheRoot, ...(o.gl ? { gl: o.gl } : {}) });
+  const video = await renderComposition(SAFE_AREA_CARD, {}, CARD_RENDER, o.cacheRoot, mp4, o.gl ? { gl: o.gl } : {});
+  return { png, mp4, stillMs: still.ms, videoMs: video.ms };
 }

@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
+import { DEFAULT_SAFE_AREA, type SafeArea } from '@videogen/shared';
 
 const run = (ffmpeg: string, args: string[], signal?: AbortSignal, timeoutMs = 60_000) => new Promise<void>((resolve, reject) => {
   execFile(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', ...args], { timeout: timeoutMs, signal, maxBuffer: 16 * 1024 * 1024 }, (err, _o, stderr) => {
@@ -8,12 +9,14 @@ const run = (ffmpeg: string, args: string[], signal?: AbortSignal, timeoutMs = 6
   });
 });
 
-/** Spec §8.1 G6: no text above 150 px, below 1510 px or in the right 130 px of a 1080×1920 frame. Relative, so any scale. */
-export const SAFE_AREA_FILTER = [
-  'drawbox=x=0:y=0:w=iw:h=ih*150/1920:color=red@0.22:t=fill',
-  'drawbox=x=0:y=ih*1510/1920:w=iw:h=ih-ih*1510/1920:color=red@0.22:t=fill',
-  'drawbox=x=iw-iw*130/1080:y=0:w=iw*130/1080:h=ih:color=red@0.22:t=fill',
-].join(',');
+/** Spec §8.1 G6 / plan M7 Y15: the bands outside the safe area (top, bottom, right; 1080×1920 values) in red. Relative, so any scale. */
+export function safeAreaFilter(a: SafeArea = DEFAULT_SAFE_AREA): string {
+  return [
+    `drawbox=x=0:y=0:w=iw:h=ih*${a.top}/1920:color=red@0.22:t=fill`,
+    `drawbox=x=0:y=ih*${a.bottom}/1920:w=iw:h=ih-ih*${a.bottom}/1920:color=red@0.22:t=fill`,
+    `drawbox=x=iw-iw*${a.right}/1080:y=0:w=iw*${a.right}/1080:h=ih:color=red@0.22:t=fill`,
+  ].join(',');
+}
 
 const hex = (c: string) => `0x${c.replace('#', '')}`;
 
@@ -24,10 +27,10 @@ export function gradientSource(bg: { top: string; bottom: string }, width: numbe
 
 /**
  * Spec §7.5: up to 8 stills (f*.png in `dir`, RGBA) on the style backdrop, as one 4×2 sheet of 270×480 tiles with the safe-area
- * overlay. `size` is the stills' own size (50 % previews: 540×960).
+ * overlay. `size` is the stills' own size (50 % previews: 540×960). `safeArea`: the area to shade (default DEFAULT_SAFE_AREA), `false` for none.
  */
-export function contactSheet(ffmpeg: string, dir: string, out: string, o: { background?: { top: string; bottom: string }; size?: { width: number; height: number }; safeArea?: boolean; cols?: number; rows?: number; signal?: AbortSignal } = {}): Promise<void> {
-  const tail = [...(o.safeArea === false ? [] : [SAFE_AREA_FILTER]), 'scale=270:480', `tile=${o.cols ?? 4}x${o.rows ?? 2}:padding=6:color=white`].join(',');
+export function contactSheet(ffmpeg: string, dir: string, out: string, o: { background?: { top: string; bottom: string }; size?: { width: number; height: number }; safeArea?: SafeArea | false; cols?: number; rows?: number; signal?: AbortSignal } = {}): Promise<void> {
+  const tail = [...(o.safeArea === false ? [] : [safeAreaFilter(o.safeArea)]), 'scale=270:480', `tile=${o.cols ?? 4}x${o.rows ?? 2}:padding=6:color=white`].join(',');
   const stills = ['-pattern_type', 'glob', '-i', `${dir}/f*.png`];
   if (!o.background) return run(ffmpeg, [...stills, '-vf', tail, '-frames:v', '1', out], o.signal);
   const { width, height } = o.size ?? { width: 540, height: 960 };

@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { mkdtemp, open, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { QC_LIMITS, type QcMeasure, type Span } from '@videogen/shared';
+import { DEFAULT_SAFE_AREA, QC_LIMITS, type QcMeasure, type SafeArea, type Span } from '@videogen/shared';
 import { capture, extractFrame, ffprobeOf } from './ffmpeg.ts';
 
 const num = (s: string) => (s === '-inf' ? Number.NEGATIVE_INFINITY : Number(s));
@@ -88,8 +88,13 @@ const probeJson = (ffmpeg: string, args: string[], signal?: AbortSignal) => new 
   execFile(ffprobeOf(ffmpeg), ['-v', 'error', ...args], { timeout: 120_000, signal, maxBuffer: 32 * 1024 * 1024 }, (err, out) => (err ? reject(new Error(`ffprobe: ${(err as Error).message.split('\n')[0]}`)) : resolve(String(out))));
 });
 
-/** Plan E14: everything evaluateQc needs, in a handful of ffmpeg/ffprobe passes. */
-export async function probeQc(ffmpeg: string, file: string, o: { video?: boolean; edges?: boolean; signal?: AbortSignal }): Promise<QcMeasure> {
+/** Plan M7 Y15: ffmpeg crops of the three bands outside the safe area (top, bottom, right), relative to the frame. */
+export function edgeBandCrops(a: SafeArea = DEFAULT_SAFE_AREA): string[] {
+  return [`iw:ih*${a.top}/1920:0:0`, `iw:ih-ih*${a.bottom}/1920:0:ih*${a.bottom}/1920`, `iw*${a.right}/1080:ih:iw-iw*${a.right}/1080:0`];
+}
+
+/** Plan E14: everything evaluateQc needs, in a handful of ffmpeg/ffprobe passes. `safeArea`: the edge bands (default DEFAULT_SAFE_AREA). */
+export async function probeQc(ffmpeg: string, file: string, o: { video?: boolean; edges?: boolean; safeArea?: SafeArea; signal?: AbortSignal }): Promise<QcMeasure> {
   const sig = o.signal;
   const j = JSON.parse(await probeJson(ffmpeg, ['-show_entries', 'stream=codec_type,codec_name,profile,width,height,r_frame_rate,pix_fmt,color_range,color_space,color_primaries,color_transfer,nb_frames,bit_rate,sample_rate:format=duration,size,bit_rate', '-of', 'json', file], sig)) as { streams: Record<string, string | number>[]; format: Record<string, string> };
   const v = j.streams.find((s) => s.codec_type === 'video') ?? {};
@@ -128,7 +133,7 @@ export async function probeQc(ffmpeg: string, file: string, o: { video?: boolean
     }
     let edgeBands = { maxDensity: 0, at: null as number | null };
     if (o.edges) {
-      const bands = ['iw:ih*150/1920:0:0', 'iw:ih-ih*1510/1920:0:ih*1510/1920', 'iw*130/1080:ih:iw-iw*130/1080:0'];
+      const bands = edgeBandCrops(o.safeArea);
       const series: number[][] = [];
       for (const [k, crop] of bands.entries()) {
         const f = join(tmp, `edge${k}.txt`);

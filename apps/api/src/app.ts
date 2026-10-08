@@ -17,6 +17,7 @@ import { registerMediaRoutes } from './routes/media.ts';
 import { registerRoleRoutes } from './routes/roles.ts';
 import { registerVideoRoutes } from './routes/videos.ts';
 import { registerVoiceRoutes } from './routes/voice.ts';
+import { registerSafeAreaRoutes } from './routes/safe-area.ts';
 import { registerTikTokRoutes } from './routes/tiktok.ts';
 import { registerPublishRoutes } from './routes/publish.ts';
 import { registerSse } from './sse.ts';
@@ -78,6 +79,7 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
   registerRoleRoutes(app, { pool: deps.pool, devEndpoints: deps.config.devEndpoints });
   registerChannelRoutes(app, { pool: deps.pool });
   registerVoiceRoutes(app, { pool: deps.pool });
+  registerSafeAreaRoutes(app, { pool: deps.pool });
   registerAssetRoutes(app, { pool: deps.pool, config: deps.config, ...(deps.uploadMaxBytes ? { uploadMaxBytes: deps.uploadMaxBytes } : {}) });
   registerTikTokRoutes(app, { pool: deps.pool, config: deps.config, ...(deps.tiktokConnectTtlMs ? { connectTtlMs: deps.tiktokConnectTtlMs } : {}) });
   registerPublishRoutes(app, { pool: deps.pool, config: deps.config });

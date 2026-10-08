@@ -4,9 +4,9 @@ import type { CaptionPage } from '@videogen/shared/browser';
 import { activeBeat, activeCaption, DRAFT_FPS, draftLayout, type DraftProps, type LabelBox } from './props.ts';
 
 /** The text layer shared by Draft3D and Final3D (plan E7): label lines and plates, the hook on beat 0, then the fading beat line. */
-export const Overlay: React.FC<{ p: Pick<DraftProps, 'width' | 'height' | 'hook' | 'beats' | 'text'> & { captions?: CaptionPage[] }; frame: number; labels: LabelBox[] }> = ({ p, frame, labels }) => {
+export const Overlay: React.FC<{ p: Pick<DraftProps, 'width' | 'height' | 'hook' | 'beats' | 'text' | 'safeArea'> & { captions?: CaptionPage[] }; frame: number; labels: LabelBox[] }> = ({ p, frame, labels }) => {
   const s = p.width / 1080;
-  const L = draftLayout(p.width, p.height);
+  const L = draftLayout(p.width, p.height, p.safeArea);
   const beat = activeBeat(p.beats, frame / DRAFT_FPS);
   const fade = beat ? interpolate(frame - Math.round(beat.beat.t_start * DRAFT_FPS), [0, 6], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) : 0;
   const cap = activeCaption(p.captions, (frame * 1000) / DRAFT_FPS);

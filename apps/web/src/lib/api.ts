@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { PublishInfo, TikTokStatus } from './publish-view.ts';
 import type { Publication, PublishVariant } from '@videogen/shared/browser';
-import type { AgentSessionView, ArtifactMeta, AssetListItem, LedgerKind, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, MaintenanceInfo, ModelAlias, NarratorVoice, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VersionView, VideoView, VoiceEngine } from '@videogen/shared/browser';
+import type { AgentSessionView, ArtifactMeta, AssetListItem, LedgerKind, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, MaintenanceInfo, ModelAlias, NarratorVoice, SafeArea, SafeAreaState, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VersionView, VideoView, VoiceEngine } from '@videogen/shared/browser';
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
@@ -87,12 +87,15 @@ export const api = {
   maintenance: () => get<MaintenanceInfo>('/api/maintenance'),
   runMaintenance: (what: 'backup' | 'gc-report' | 'orphans') => write<{ accepted: boolean; kind: string }>(`/api/maintenance/${what}`, {}),
   gcDelete: (reportId: string, confirm: string) => write<{ deleted: number; skipped: number; bytes: number }>('/api/maintenance/gc', { reportId, confirm }),
+  // Plan M7 Y15/Y16: Settings → "Güvenli alan".
+  safeArea: () => get<SafeAreaState>('/api/safe-area'),
+  setSafeArea: (body: { area: SafeArea; note?: string } | { reset: true }) => write<SafeAreaState>('/api/safe-area', body, 'PUT'),
 };
 
-/** A POST whose error body (`{error, …}`) matters to the caller: the Turkish reason is shown as is. */
+/** A POST (or PUT) whose error body (`{error, …}`) matters to the caller: the Turkish reason is shown as is. */
 export type WriteResult<T> = { ok: true; data: T } | { ok: false; status: number; error: string; body: Record<string, unknown> };
-async function write<T>(path: string, body: unknown): Promise<WriteResult<T>> {
-  const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+async function write<T>(path: string, body: unknown, method: 'POST' | 'PUT' = 'POST'): Promise<WriteResult<T>> {
+  const r = await fetch(path, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const j = (await r.json().catch(() => ({}))) as Record<string, unknown>;
   return r.ok ? { ok: true, data: j as T } : { ok: false, status: r.status, error: typeof j.error === 'string' ? j.error : `İstek başarısız (${r.status})`, body: j };
 }
