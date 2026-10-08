@@ -10,6 +10,8 @@ import { bundleHash, DRAFT_RENDER, FINAL_MASTER } from './hash.ts';
 import { DRAFT_COMPOSITION, FINAL_COMPOSITION, type DraftProps, type FinalProps } from './props.ts';
 import { SAFE_AREA_CARD } from './SafeAreaCard.tsx';
 
+export { SAFE_AREA_CARD };
+
 export const DRAFT_ENTRY = resolve(import.meta.dirname, 'entry.ts');
 const GL_MODES = ['angle', 'swangle', 'egl', 'swiftshader', 'vulkan', 'angle-egl'] as const;
 export type GlMode = (typeof GL_MODES)[number];

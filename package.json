@@ -15,6 +15,7 @@
     "start": "node bin/videogen.mjs",
     "test": "vitest run",
     "test:smoke": "playwright test -c tests/smoke/playwright.config.ts",
+    "test:smoke:real": "node --import tsx bin/smoke-real.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test:blender": "bin/blender-gpu -b --factory-startup --python-exit-code 1 -P python/vg_blender/tests/run.py",
     "test:render": "vitest run -c vitest.render.config.ts"
