@@ -71,9 +71,10 @@ async function patchRow(db: Queryable, table: 'runs' | 'steps', id: string, p: o
 export const updateRun = (db: Queryable, id: string, p: RunPatch) => patchRow(db, 'runs', id, p, RUN_COLS);
 export const updateStep = (db: Queryable, id: string, p: StepPatch) => patchRow(db, 'steps', id, p, STEP_COLS);
 
+/** Plan M6 Y13: a published video stays published (it is public on TikTok); a later run only updates the note. */
 export async function updateVideo(db: Queryable, id: string, p: { status?: VideoStatus; statusNote?: string | null }): Promise<void> {
   await db.query(
-    `UPDATE videos SET status = coalesce($2, status), status_note = CASE WHEN $3::boolean THEN $4 ELSE status_note END, updated_at = now() WHERE id = $1`,
+    `UPDATE videos SET status = CASE WHEN status = 'published' THEN status ELSE coalesce($2, status) END, status_note = CASE WHEN $3::boolean THEN $4 ELSE status_note END, updated_at = now() WHERE id = $1`,
     [id, p.status ?? null, p.statusNote !== undefined, p.statusNote ?? null],
   );
 }

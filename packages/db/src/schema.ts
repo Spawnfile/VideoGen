@@ -342,3 +342,52 @@ export const findings = pgTable(
   },
   (t) => [index('findings_review_idx').on(t.reviewId)],
 );
+
+/** Plan M6 Y14: one row per TikTok draft send; the version and file are pinned at queue time (Y4). Never deleted (0009 REVOKE). */
+export const publications = pgTable(
+  'publications',
+  {
+    id: uuid('id').primaryKey(),
+    videoId: uuid('video_id').notNull().references(() => videos.id),
+    versionId: uuid('version_id').notNull().references(() => versions.id),
+    target: text('target').notNull().default('tiktok_draft'),
+    variant: text('variant').notNull(),
+    status: text('status').notNull().default('queued'),
+    blobSha: text('blob_sha').notNull(),
+    bytes: bigint('bytes', { mode: 'number' }).notNull(),
+    publishId: text('publish_id'),
+    failReason: text('fail_reason'),
+    errorCode: text('error_code'),
+    caption: text('caption').notNull(),
+    aigcRequired: boolean('aigc_required').notNull(),
+    checklist: jsonb('checklist'),
+    url: text('url'),
+    createdAt: timestamp('created_at', { withTimezone: true, precision: 6 }).notNull().defaultNow(),
+    sentAt: timestamp('sent_at', { withTimezone: true, precision: 6 }),
+    publishedAt: timestamp('published_at', { withTimezone: true, precision: 6 }),
+    updatedAt: timestamp('updated_at', { withTimezone: true, precision: 6 }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('publications_one_active').on(t.videoId).where(sql`status IN ('queued','uploading','processing','waiting')`),
+    index('publications_created_at').on(t.createdAt),
+    index('publications_video_idx').on(t.videoId, t.createdAt),
+  ],
+);
+
+/** Spec §11.1 claims: the published version's claims, snapshotted at its first send (plan M6 Y15). Status is per gate (G2), not per claim. */
+export const claims = pgTable(
+  'claims',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    videoId: uuid('video_id').notNull().references(() => videos.id),
+    versionId: uuid('version_id').notNull().references(() => versions.id),
+    claimId: text('claim_id').notNull(),
+    ordinal: integer('ordinal').notNull(),
+    textTr: text('text_tr').notNull(),
+    sources: jsonb('sources').notNull(),
+    status: text('status').notNull(),
+    verifiedAt: timestamp('verified_at', { withTimezone: true, precision: 6 }),
+    createdAt: timestamp('created_at', { withTimezone: true, precision: 6 }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('claims_version_claim_uq').on(t.versionId, t.claimId)],
+);
