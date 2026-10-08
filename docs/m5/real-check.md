@@ -4,6 +4,7 @@
 |---|---|
 | Durum | **Bekliyor.** M5a bulut konteynerinde (GPU yok, Blender yok, kalem pilotu dosyası yok) uygulandı; aşağıdaki üç adım GPU'lu makinede koşulacak |
 | Plan | `docs/superpowers/plans/2026-10-06-m5a-final-render-qc.md` T12 Step 1–3 |
+| Sıra (M7) | Bu dosyadaki adımlar ve beklenen sayılar `docs/machine-checklist.md`'de tek sıralı listeye alındı (A tam doğrulama, B M5 kapanışı); güncel sayılar oradadır. Bu dosya kayıt yeri olarak kalır |
 | Bu ortamda yapılan | `npm test` 355 · smoke 19 geçti / 11 atlandı · `test:render`'ın Blender'sız dosyaları (taslak 2, taslak adımı 1, final compose 2) gerçek sistem Chrome'u ve `VG_REMOTION_GL=swangle` ile 5 geçti · pilot benzeri sentetik klipte qc 7/7 |
 
 ## 0. Tam doğrulama (T12 Step 1)

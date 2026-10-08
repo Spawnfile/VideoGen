@@ -13,7 +13,7 @@
 | M4 Dikey dilim | `plans/2026-10-06-m4a-pipeline-core.md` (M4a) + `plans/2026-10-06-m4b-scene-core.md` (M4b) + M4c (sırada) | Devam ediyor (M4a ve M4b tamam, `main`'e birleştirildi; M4c sırada: taslak render, inceleme, player, ilk gerçek ürün) | 2026-10-06 | | `docs/m4/m4a-summary.md`, `docs/m4/m4b-summary.md` |
 | M5 Final ve kalite | `plans/2026-10-06-m5a-final-render-qc.md` (M5a) + `plans/2026-10-07-m5b-review-fix.md` (M5b) + `plans/2026-10-07-m5c-voice.md` (M5c) | M5a, M5b ve M5c uygulandı (bulut konteynerinde, `main`'e fast-forward; M5b ve M5c: T1–T11 + T12 kısmi); GPU'lu makine adımları (Blender testleri, kalibrasyon, gerçek ürün koşuları, ses ölçümü, K17 onayı) bekliyor | 2026-10-06 | | `docs/m5/m5a-summary.md`, `docs/m5/m5b-summary.md`, `docs/m5/m5c-summary.md` |
 | M6 Yayın | `plans/2026-10-08-m6-publish.md` | T1–T8 uygulandı (bulut, sahte TikTok); T9 (gerçek taslak, son review) bekliyor | 2026-10-08 | | `.superpowers/sdd/2026-10-08-m6-publish/progress.md` |
-| M7 Sertleştirme | `plans/2026-10-08-m7-hardening.md` | Plan yazıldı ve bağımsız incelemeden geçti (13 görev); uygulama bulutta | 2026-10-08 | | `.superpowers/sdd/2026-10-08-m7-hardening/progress.md` |
+| M7 Sertleştirme | `plans/2026-10-08-m7-hardening.md` | T1–T13 bulutta uygulandı (Fake sürücüler; `npm test` 504, smoke 24/16); gerçek denetimler ve güvenli alan ölçümü kullanıcının makinesinde bekliyor (`docs/machine-checklist.md` A.8, D) | 2026-10-08 | | `docs/m7/m7-summary.md`, `.superpowers/sdd/2026-10-08-m7-hardening/progress.md` |
 
 ---
 
@@ -106,13 +106,17 @@
 
 ## M7 — Sertleştirme *(plan `plans/2026-10-08-m7-hardening.md`)*
 
-- [ ] Audit gezgini + zincir doğrulama arayüzü + ham olaya inme
-- [ ] Sürüm karşılaştırma (yan yana / A-B)
-- [ ] Varlık defteri arayüzü (müzik, SFX, 3D; lisans alanları)
-- [ ] Zamanlanmış yedek (`pg_dump`, 7 gün) + blob çöp toplama + yetim dosya raporu
-- [ ] Performans bütçeleri (smoke S8) + audit smoke S7
-- [ ] `test:smoke:real` profili
-- [ ] Güvenli alan kalibrasyonu (telefon ekran görüntüleri)
+- [x] Audit gezgini + zincir doğrulama arayüzü + ham olaya inme · commit 8c145a2, fd1f317 · 2026-10-08 · M7 T2 (migration 0010, `/api/audit*`, süreli ve önbellekli doğrulama) + T3 (süzgeçler URL'de, satır detayı: ham satır, araç girdisi farkı, transcript, artefakt, iz)
+- [x] Sürüm karşılaştırma (yan yana / A-B) · commit 64a5852 · 2026-10-08 · M7 T4: kütüphane detay sayfası (Sürümler · Review'lar · Storyboard · Araştırma · Audit · Yayın), tur çipleri; ekran `docs/m7/library-compare.png`
+- [x] Varlık defteri arayüzü (müzik, SFX, 3D; lisans alanları) · commit 6f2c86a · 2026-10-08 · M7 T5: müzik, SFX ve ses örneği; yükleme, önizleme, izin geri alma (arayüz + `bin/assets.mjs revoke`). **3D varlık türü kapsam dışı bırakıldı** (tüketicisi yok)
+- [x] Zamanlanmış yedek (`pg_dump`, 7 gün) + blob çöp toplama + yetim dosya raporu · commit 7366f2e, 6a9d2c3 · 2026-10-08 · M7 T6 (sahip rolüyle, sürüm denetimli döküm, docker'a düşer; geri yükleme yalnızca yeni DB'ye) + T7 (haftalık rapor, onaylı silme, 7 gün çöp kutusu, yetim raporu silmez, Ayarlar "Veri ve yedek"); gerçek veriyle prova makinede (`docs/machine-checklist.md` A.7, D.4–D.6)
+- [x] Performans bütçeleri (smoke S8) + audit smoke S7 · commit bb415fc · 2026-10-08 · M7 T12: 200 satır üstü pencereli iz; smoke 24/16 (336 sn); S8(b) bu VM'de yaklaşık bir kareyle geçiyor, makinede yeniden ölçülecek (makine listesi A.5/D.3)
+- [x] `test:smoke:real` profili · commit 67d6ea3 · 2026-10-08 · M7 T9: kod ve koşucu testleri bulutta; gerçek koşu makinede (makine listesi D.1)
+- [ ] Güvenli alan kalibrasyonu (telefon ekran görüntüleri) · kod commit f318513 · 2026-10-08 · M7 T8: tek kaynak (`settings.safe_area` → `layout.json` → G6, kontakt sayfaları, qc), Ayarlar "Güvenli alan", `bin/safe-area.mjs`, kalibrasyon kartı. **Telefon ölçümü bekliyor** (makine listesi A.8)
+- [x] `npm test` 6 dakikanın altında · commit 0e093af · 2026-10-08 · M7 T1: şablon veritabanı + paralel dosyalar; 462 test 332 → ~150 sn; M7 sonunda 504 test 174–195 sn (3 işçi); e2e `npm test`'te kaldı (M5c H18)
+- [x] Ertelenen bulgular (M5c §9 2b, 3, 4, 7, 8; M6 SSE yoklaması; kısayollar) · commit c678613, 6aa6e51 · 2026-10-08 · M7 T10–T11; (5) ve Y20'deki Minor'lar ertelendi (`docs/m7/m7-summary.md` §6)
+- [x] Makine kontrol listesi (M5 kapanışı + M6 T9 + M7 gerçek denetimleri tek sırada) · `docs/machine-checklist.md` · 2026-10-08 · M7 T13
+- [ ] Makinedeki gerçek denetimler (`docs/machine-checklist.md` D) ve M7 kapanışı (E)
 
 ---
 
@@ -153,6 +157,14 @@
 | 2026-10-08 | M5b + M5c son review (bulut, GPU'suz) | Critical: final döngüsü rewind'ında `fix_round` kayması → küresel tur; Important: web araçlı rollerin Read'i run dizini + skills; Minor: `runProcess` spawn hatası worker'ı düşürmüyor. Diğer Minor'lar ertelendi. `npm test` 430. GPU'lu makine adımları hâlâ bekliyor | `docs/m5/m5c-summary.md` §4b, §8, §9 |
 | 2026-10-08 | M6 planı | 9 görev; yalnızca TikTok taslak (inbox) yolu; token `~/tiktok-poster`'dan taşınır (kopyalanmaz); `is_aigc` taslakta gönderilemediği için AI etiketi zorunlu onay kutusu; açıklama deterministik (Claude kullanımı yok); otomatik yeniden gönderim yok. Bağımsız inceleme: 4 blocking + 7 important işlendi | `plans/2026-10-08-m6-publish.md` |
 | 2026-10-08 | M7 planı | 13 görev; `npm test` için şablon veritabanı + paralel dosyalar (sondaj: 332 → 147 sn), M5c H18 gereği e2e `npm test`'te kalır; yedek sahip rolüyle ve sürüm denetimli `pg_dump` (konak 16, sunucu 17); blob silme yalnızca onaylı, 7 gün çöp kutusu; güvenli alan tek ayar + elle kalibrasyon kartı; 3D varlık türü kapsam dışı. Bağımsız inceleme: 3 blocking + 11 important işlendi | `plans/2026-10-08-m7-hardening.md` |
+| 2026-10-08 | M7 uygulama (bulut konteyneri, GPU'suz, Fake sürücüler) | T1–T12 + T13 dokümanları; `npm test` 462 → 504, ~175–195 sn paralel; smoke 21/15 → 24/16; gerçek denetimler makine listesinde | `docs/m7/m7-summary.md`, ledger `.superpowers/sdd/2026-10-08-m7-hardening/progress.md` |
+| 2026-10-08 | M7 T1: paralel testler + şablon veritabanı; M5c H18 korundu | Dosyalar paralel işçilerde, her biri migration'lı şablondan kopyalanan kendi DB'sinde; e2e `npm test`'te kalır (M6 T3'ün "ağır testi taşı" notu geçersiz) | ledger T1 |
+| 2026-10-08 | M7 T6: yedek sahip rolüyle, sürüm denetimli `pg_dump`, docker'a düşüş | Uygulama rolü `drizzle` şemasını okuyamaz; konak `pg_dump` sunucuyla aynı ana sürümde değilse `docker exec`; `VG_PG_DUMP` geçersiz kılması denetlenmez; geri yükleme yalnızca var olmayan bir DB'ye | ledger T6, spec §11.3 notu |
+| 2026-10-08 | M7 T7: blob başına kilit + çöp kutusu | Ayrı ad alanında advisory kilit (`putBlob` paylaşımlı, silme/geri getirme özel); silinen dosya 7 gün `trash/<gün>/`'de, `restore-blob` ile geri; referans taraması `audit_log.data` hariç | ledger T7, spec §11.3 notu |
+| 2026-10-08 | M7 T11: tam URL ile WebFetch, şablon `fix_hint` | `reviewer_facts` WebFetch'i yalnızca hedef URL'lerine (ayrıştırılmış karşılaştırma; `webAllow` yoksa boş liste); ipucu kontrol etiketi + rubrik sorusundan | ledger T11 |
+| 2026-10-08 | M7 T12: pencereli iz, asimetrik pencere | 200 satır üstünde 0,25 ekran geride / 2,75 ekran ileride; simetrik ± 1 ekran S8'de düştü; 16,8 ms bütçesi gevşetilmedi. S8(b) bu VM'de yaklaşık bir kareyle geçiyor: makinede yeniden ölçülür | ledger T12, spec §12.4 notu |
+| 2026-10-08 | M7 T13: makine listesinde B ve C gerçek kurulumda | Geçici veritabanı yerine `~/videogen-data` + `videogen` (C'nin taslağı B'nin videosunu gönderir, token veri dizinine taşınır); öncesinde yedek (A.7); güvenli alan kalibrasyonu A.8, B'den önce | `docs/machine-checklist.md` |
+| 2026-10-08 | M7 kapsam: 3D varlık türü | Kapsam dışı (tüketicisi yok); defter müzik, SFX, ses örneği | M7 planı self-review, T5 |
 | 2026-10-07 | M5b F11/F12/F14: kapsamı adım hesaplar; build ajansız; regresyon ve salınım yalnız izlenen kontrollerde | Plandaki gibi; ek: compose kapsamında `label_in` olayları güncel storyboard'dan türetilir (T2 Critical) | spec §7.2 notu, ledger T2/T4 |
 | 2026-10-07 | M5b F16: M10 reddedildi; F21: `rötuş` uçtan uca testi `test:render`'a taşındı (`npm test` 6,8 → 5,9 dk) | `npm test` 399 (plan 400), `test:render` Blender'sız 6 | ledger T9 |
 | 2026-10-07 | M5b T9 bulgusu: müziksiz ürün D6'da düşer, fixer ses spec'i yazamaz → `needs_human` | Bilinçli sınır; çözüm izinli müzik ya da M5c `AudioPlan` | `m5b-summary` §9–§10 |

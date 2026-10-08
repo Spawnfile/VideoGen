@@ -453,6 +453,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | G5 Güvenlik | Saniyede ≤ 3 flaş. Taklit edilebilir tehlikeli eylem yok (ör. Li-ion hücre açma). CG gerçek çekimmiş gibi sunulmaz |
 | G6 Güvenli alan | Sert maskede hiçbir karede metin yok: üst 150 px, alt y > 1510, sağ 130 px. Telefon ekran görüntüleriyle kalibre edilecek (§18) |
 
+- **M7 uygulama notu (güvenli alan):** Değerler tek kaynaktan gelir (`packages/shared/src/safe-area.ts`; 1080×1920 px, `bottom` alt kenarın y'si, sol kenar boşluğu 24 px ile birlikte varsayılan 150 / 1510 / 130 / 24). Ölçülen değer `settings.safe_area`'da durur (Ayarlar → "Güvenli alan" ya da `bin/safe-area.mjs set`), compose sırasında `layout.json`'a yazılır ve G6 manifest denetimi, final kontakt sayfaları ve qc oradan okur; `layout.json`'u olmayan finaller ve taslaklar varsayılanı kullanır. Ayar compose `inputHash`'ine girer (değişince final yeniden compose edilir). Kalibrasyon kartı (`bin/safe-area.mjs card`, 10 px çizgi, 50 px etiket, iki kenarda cetvel) telefona elle aktarılır. Varsayılandan > 150 px sapan değer uyarıyla kaydedilir. Gerçek ölçüm henüz yok (`docs/machine-checklist.md` A.8; §18).
+
 **Boyutlar.** Toplam 100 puan:
 
 | Boyut | Ağırlık | Örnek kontroller |
@@ -602,6 +604,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 - **Silme:** Sadece veritabanı üzerinden yapılır, audit'e yazılır ve onay ister. Referanssız blob'lar haftalık çöp toplama işiyle silinir.
 - **Yetim dosya raporu:** Diskte olup veritabanında kaydı olmayan dosyalar (ve tersi) raporlanır.
 - **Yedekler:** Günlük `pg_dump -Fc` alınır, son 7 gün tutulur. Medya manifestinin kendisi de yedeğin içindedir.
+- **M7 uygulama notları (yedek):** Worker'daki `MaintenanceService` saatlik bakışta günün yedeği yoksa alır (başarısız yedek bir sonraki bakışta yeniden denenir). Döküm **sahip rolüyle** alınır (uygulama rolü `drizzle` şemasını okuyamaz; migration tablosu dahil), `<dataDir>/backups/videogen-<gün>.dump` olarak `.tmp`'ye yazılıp (0600) `fsync` + `rename` edilir. `pg_dump` çözücüsü konak aracının ana sürümünü sunucuyla karşılaştırır, uymazsa `docker exec` ile konteynerdekini kullanır; `VG_PG_DUMP`/`VG_PG_RESTORE` elle verilebilir (sürüm denetimsiz). En yeni **7** döküm kalır (`VG_BACKUP_KEEP`), silinenler audit'e `backup.pruned`. Geri yükleme (`node bin/backup.mjs restore <dosya> --into <ad>`) **yalnızca var olmayan yeni bir veritabanına** yapılır, ardından `audit_verify` ve tablo sayıları raporlanır; canlı veritabanının üstüne yazılmaz. **Medya dosyaları dökümde yoktur**: döküm `blobs` manifestini içerir, dosyaların kendisini değil.
+- **M7 uygulama notları (çöp toplama):** Referanssız blob raporu **haftalık** (pazartesi) üretilir, elle de üretilebilir; aday olmak için hiçbir tabloda (her `jsonb` sütunu taranır; `audit_log.data` ve bakım raporlarının kendisi hariç) anılmamak ve `blobs.touched_at` son **7 gün** içinde olmamak gerekir; en eski etkin run'dan beri dokunulan blob'lar da korunur. Silme yalnızca Ayarlar → "Veri ve yedek"ten, rapor kimliğine bağlı ve aday sayısı yazılarak **onaylanır**; son 24 saatte alınmış bir yedek ve 24 saatten yeni bir rapor ister; her silme `blob.deleted` ile audit'lenir. `putBlob` ile silme blob başına advisory kilitle sıralanır (yazım paylaşımlı, silme özel). Silinen dosya **7 gün** `<dataDir>/trash/<gün>/`'de kalır, sonra kalıcı silinir; `bin/maintenance.mjs restore-blob <sha>` geri getirir. **Yetim raporu** (yalnızca diskte, yalnızca veritabanında, boyutu tutmayan, sahipsiz run klasörü) **hiçbir şeyi silmez**; yalnızca 1 saatten eski yükleme artıkları temizlenir.
 
 ## 12. İlerleme ve canlılık modeli (ekran donmaz)
 
@@ -647,6 +651,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 - SSE her 15 sn'de heartbeat gönderir. Bağlantı koparsa üstte "yeniden bağlanıyor…" şeridi çıkar ve `Last-Event-ID` ile kaçan olaylar tekrar oynatılır. Olay sıra numaralarında boşluk olmamalı; bu test edilir.
 - Replay yalnızca **yeniden bağlanmalar** içindir. Taze bir SSE bağlantısı (`Last-Event-ID` yok) o anki en büyük olay id'sinden başlar; istemci her `open`'da REST durumunu yeniden çeker. En büyük id'den büyük bir `Last-Event-ID` sıfırlama sayılır (veritabanı sıfırlanmış) ve akış o anki en büyük id'den başlar.
 - Sonsuz animasyon sadece aktif ilerleme göstergesinde ve canlı ThinkingState başlığında vardır (yalnızca `transform` ve `opacity`).
+- **M7 uygulama notu (iz listesi):** "Sanal kaydırma" kütüphanesiz bir **pencereli çizimdir**: iz 200 satırı geçince yalnızca kaydırma kutusunun görünen alanının çevresindeki üst düzey bloklar DOM'a girer, gerisi ölçülmüş yükseklikte boşlukla tutulur. Pencere **asimetriktir**: kaydırma yönünde 0,25 ekran geride / 2,75 ekran ileride (yön yoksa ± 1 ekran); 4× CPU yavaşlatmasında her pencere kayması boyutundan bağımsız 1–2 uzun kareye mal olduğu için simetrik pencere S8'i geçemedi. Kapanan düşünme blokları satırlarını DOM'dan kaldırır. 1000 satırlık izde DOM'da en çok 400 satır (S8 doğrular; bulutta 225).
 
 ## 13. Arayüz
 
@@ -671,7 +676,9 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
   - **Spec notu (M5b):** Stüdyo'da "Final" sekmesinin altında **inceleme paneli** (`region "İnceleme"`, `review-panel`): toplam puan, 9 boyut çubuğu (%60 işareti), 6 kapı rozeti, turun ana kontakt sayfası, "Otomatik kontrol" kartı (qc bulguları ve G2 `claims_verified`) ve üç reviewer kartı. Bulgular **kare yerine zaman kodu + seek + turun kontakt sayfası** olarak gösterilir (tek kareler blob olarak saklanmaz; `frameSha` yok); zaman koduna tıklamak Final oynatıcıyı o ana sarar. Panel en yeni turu gösterir ("önceki N tur"); tur seçici, Karşılaştır sekmesi ve kütüphane detayındaki Review'lar sekmesi M7'de. Kütüphane satırı ve kart **puanı** en iyi sürümden gösterir ("yayına hazır · 87,5 puan"). Puan her yerde bir ondalık ve virgüllüdür.
   - **Spec notu (M7):** M5b notunun M7 kısmı tamamlandı. Panel başlığındaki "önceki N tur" yerine **tur çipleri** (`round-chip`; varsayılan en yeni tur) eski turu kendi reviewer kartları, kapıları ve kontakt sayfasıyla gösterir. Stüdyo oynatıcısına finalli ≥ 2 sürüm varsa **Karşılaştır** sekmesi eklenir. Kütüphane satırı **detay sayfasına** (`/library/<videoId>`, `library-detail`) gider; "Stüdyo'da aç" butonu orada. Sekmeler: Sürümler (oynatıcı + `versions-list` + Karşılaştır), Review'lar (sürüm ve tur seçicili panel), Storyboard, Araştırma ve kaynaklar (iddialar ve kaynak URL'leri), Audit (video süzgeciyle), Yayın. Karşılaştır (`compare-view`): iki finalli sürüm (varsayılan en iyi ve ondan önceki); "Yan yana" tek oynat/duraklat/sar ile iki oynatıcıyı eşzamanlar (sapma > 0,15 sn ise B düzeltilir, B sessiz); "A/B" tek oynatıcıda aynı anda A ile B arasında geçer (B tuşu); varyant çipi iki tarafa uygulanır; altta puan farkı ve boyut farkları (B − A). Finali olmayan sürüm "tamamlanmadı" etiketlidir, seçilemez. Uçlar: `GET /api/videos/:id/versions`, `GET /api/videos/:id/reviews?version=<id>` (başka videonun sürümü 400).
 - **Audit gezgini:** Filtreler: run, video, agent, olay türü, tarih. Her satırdan ham transcript'e, diff'e ve artefakta inilir. Zincir doğrulama durumu gösterilir.
+  - **Spec notu (M7):** Sayfa `/audit`; süzgeçler (run, video, rol, eylem, tarih) URL'de durur; tarihler İstanbul günü olarak girilir, API'ye yarı açık aralık (`from` dahil, `to` hariç) olarak gider; liste kararlı bir imleçle sayfalanır (`GET /api/audit`). Üstte zincir durumu (`GET /api/audit/verify`, süreli; sonuç kısa süre süreç belleğinde tutulur, `cached`). Satır detayı (`GET /api/audit/:seq`) ham satırı ve bağlantıları verir. **Diff, araç girdisinden** üretilir: girdi oturumun asistan olayındaki `tool_use` bloğundan okunur; `Edit` önce/sonra sütunları (`old_string`/`new_string`), `Write` içerik, diğer araçlar biçimlenmiş JSON olarak gösterilir (dosya sisteminden diff alınmaz). Ayrıca transcript, artefakt ve iz bağlantıları. Büyük girdiler kırpılır ("…[kırpıldı]"). Aynı gezgin kütüphane detayının Audit sekmesinde video süzgeciyle gömülü çalışır.
 - **Varlıklar:** Müzik, SFX ve 3D defteri; lisans alanları; ekleme ve onay.
+  - **Spec notu (M7):** Sayfa `/assets`: müzik, SFX ve ses örneği (`voice_ref`); **3D varlık türü yok** (tüketicisi yok). Liste lisans alanlarını, kullanım yerlerini ve önizlemeyi gösterir. "Ekle": dosya akışla yüklenir (`POST /api/uploads`, en çok 200 MiB, ffprobe denetimli), sonra lisans kapısından içe aktarılır (`POST /api/assets`; izinsiz lisans reddedilip kaydedilir). "İzni geri al" (`POST /api/assets/:id/revoke`, gerekçe zorunlu, geri alınamaz; CLI `bin/assets.mjs revoke`): compose, fixer, seslendirme ve yayın geri alınan varlığı kullanmaz; anlatıcının kendi ses örneğiyse anlatıcı hazır sese döner; `asset.revoked` audit'lenir.
 - **Ayarlar:**
   - Claude bağlantısı: `auth status`, giriş akışı, gömülü CLI sürümü. **v1 giriş akışı:** ekranda terminal talimatı (`! claude auth login`) + 5 sn'de bir `auth status` yoklaması. TTY'siz `auth login` URL basıp stdin'den kod bekliyor (M0, spike c); ekranda URL + kod yapıştırma v1.1'e kaldı
   - rol başına model ve effort
@@ -679,6 +686,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
   - kanal kimliği
   - TikTok bağlantısı
   - veri ve yedek durumu
+  - **Spec notu (M7):** "Veri ve yedek": veri dizini, boş disk, veritabanı ve medya boyutu, son yedek durumu, "Şimdi yedekle"; "Çöp toplama" (son rapor, aday sayısı ve boyutu, "Rapor oluştur", onaylı "Sil…", son silme); "Yetim dosyalar" (yalnızca rapor). Uçlar `GET /api/maintenance`, `POST /api/maintenance/gc`. "Güvenli alan": dört değer, not, ölçüm tarihi, > 150 px sapma uyarısı ve kalibrasyon adımları (`GET`/`PUT /api/safe-area`; §8.1 notu). Footer'daki boş disk < 10 GB'ta uyarı, < 3 GB'ta kırmızı.
 - **Okuma görünümleri** (audit detayı, spec ve araştırma metinleri) 900 px ile sınırlanır. Stüdyo bir çalışma alanı olduğu için tam genişliktir. Bu, Perplexity kılavuzundan bilinçli bir sapmadır.
 
 ### 13.2 ThinkingState'in canlı hale getirilmesi
@@ -758,6 +766,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
   - Kayıtlar `spikes/m0/redact.mjs` ile **yalnızca kayıttan hemen sonra bir kez** temizlenir. Betik akış dosyalarında idempotent değildir (yer tutucu UUID'leri yeniden numaralar); commit edilmiş kayıtlarda yeniden çalıştırılmaz.
 - **`FakeRenderDriver`:** ffmpeg `testsrc2` ile 2 sn'lik 270×480 videolar üretir ve gerçekçi kare ilerleme olayları yayar.
 - **TikTok mock sunucusu:** Fastify, rastgele port. `creator_info`, `inbox/video/init`, PUT ve `status/fetch` uçlarını taklit eder.
+- **M7 istisnası (üretilmiş fixture):** `tests/fixtures/claude-streams/long-trace.ndjson` kayıt değildir; `make-long-trace.mjs` ile üretilir (tam 1000 iz satırlı tek oturum) ve ilk satırında bunu söyleyen bir not taşır. Yalnızca smoke S8'in uzun iz ölçümü için vardır; gerçek kayıt kuralının (yukarıda) tek istisnasıdır.
 
 ### 16.2 Playwright smoke senaryoları (`npm run test:smoke`, hedef < 3 dk)
 
@@ -778,6 +787,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
 **M5b biçimi:** S2a ve S2d (`tests/smoke/s2d-final.spec.ts`) "Yayına hazır"a kadar koşar (Fake sürücü, içe aktarılan CC0 müzik yatağı): üç reviewer + K13 → `finalize` → video `ready` ("Yayına hazır · 87,5 puan"), genel yüzde 100; inceleme paneli (puan, 9 boyut çubuğu, 6 kapı rozeti, "Otomatik kontrol" kartı, üç reviewer kartı) ve kütüphane puanı görünür. İkinci senaryo `rötuş`: compose kapsamlı bir düzeltme turu ("Düzeltme turu 1/3" başlıkta, `compose`/`qc`/`review` adımları `fixRound` 1) sonra panel yeniden ≥ 80. Smoke 19 geçti / 13 atlandı, 4,3 dk (iki M5b ekran testi `VG_SCREENSHOTS=1` ister).
 
+**M7 biçimi:** S7 (`tests/smoke/s7-audit.spec.ts`, 1 test): araştırmaya kadar koşan bir Fake run'ın satırları; run süzgeci, zincir durumu "geçerli", satırdan ham olaya iniş ve araç girdisi (kütüphane detayının Audit sekmesinden). S8 (`tests/smoke/s8-perf.spec.ts`, 2 test; bütçeler `tests/smoke/perf-budgets.ts`'te sabit): (a) bitmiş 10 adımlı run + 3 açık agent kartı ve (b) 1000 satırlık iz, CDP ile **4× CPU yavaşlatmasında** her kare 40 px programlı kaydırmayla 240 `requestAnimationFrame` aralığı ölçülür (0,1 ms'e yuvarlanır); her sahne **üç kez** ölçülür ve **medyan p95 ≤ 16,8 ms** beklenir; (b)'de DOM'da ≤ 400 iz satırı. Boşta Stüdyo: yavaşlatmasız 10 sn'de `Performance.getMetrics` `TaskDuration` artışı ≤ 0,2 sn ve 50 ms'den uzun `longtask` yok. Bulutta (b) pencereli çizimden önce p95 300 ms, sonra 16,8 ms (yaklaşık bir kareyle geçiyor; makinede yeniden ölçülür). Tam smoke **24 geçti / 16 atlandı**, 5,6 dk (S8 ~67 sn).
+
 **İzolasyon:**
 - Aynı container'da ayrı bir `videogen_smoke` veritabanı kullanılır; her koşuda oluşturulup silinir (M3: Playwright `webServer.gracefulShutdown` SIGTERM; verilmezse süreç grubu SIGKILL'lenir ve temizlik hiç çalışmaz).
 - Veri klasörü sabit `/tmp/videogen-smoke` (açılışta ve kapanışta silinir; `pids.json` ve `hold-<ad>` dosyaları burada); test API'si (SPA dahil) 5190, TikTok mock sunucusu rastgele port. Smoke yığını API ve worker'ı kendisi denetler (beklenmedik çıkışta 300 ms sonra yeniden başlatır); Claude yerine Fake sürücü kayıtlı akışları oynatır.
@@ -792,6 +803,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 4. Gerçek bir Remotion still.
 5. Tek cümlelik TTS ve Whisper ile CER ölçümü.
 6. Kalem pilotu üzerinde qc_probe. 7 bilinen hata yakalanmalı.
+
+**M7 uygulama notu:** Komut `npm run test:smoke:real [-- --only 1,3] [-- --skip 5]` (`bin/smoke-real.ts`). Adım 2 SDK kullanım okuması (yüzdeler 0..100 ve 5 sa sıfırlanma zamanı); adım 3 örnek kalemin iki karesi 270×480; adım 4 kalibrasyon kartının ilk karesi 1080×1920 (`renderStill`); adım 5 hazır anlatıcıyla tek sabit cümle, CER ≤ %5; adım 6 `qc-cli` gibi `--layout` olmadan, çıkış 3 ve beklenen 7 `✗`. Ücretli anahtar, 5 sa ≥ %80 ya da okunamayan kullanım → çıkış 2 ve rapor yok; herhangi bir `fail` → çıkış 1; eksik araç ya da girdi `fail` sayılır (`skip` yalnızca `--only`/`--skip` ile). Geçici `/tmp/videogen-real-<gün>` ve `videogen_real_check` veritabanı koşudan sonra silinir. Rapor: `<dataDir>/reports/real-smoke-<gün>.json` (adım başına durum, süre, kanıt). Bulutta yalnızca koşucu ve ayrıştırıcılar test edildi; gerçek koşu `docs/machine-checklist.md` D.1.
 
 ### 16.4 Birim testleri (vitest)
 
@@ -824,6 +837,8 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 | **M5 Final ve kalite** | Blender final, ses, compose ve varyantlar, qc_probe, reviewer'lar, düzeltme döngüsü, kalem pilotuyla kalibrasyon | Rubrik pilotun 7 hatasını yakalıyor; gerçek bir ürün "yayına hazır" |
 | **M6 Yayın** | TikTok Node modülü, bitirme kartı, taslak limiti, Shorts dışa aktarımı | S6; gerçek taslak gönderimi |
 | **M7 Sertleştirme** | Audit gezgini, sürüm karşılaştırma, varlık defteri arayüzü, yedekler, performans bütçeleri, gerçek smoke profili | S7, S8, `test:smoke:real` |
+
+- **M7 durumu (2026-10-08):** Bulut kısmı tamamlandı (T1–T13; Fake sürücüler; `npm test` 504, smoke 24/16 S7 ve S8 dahil; `docs/m7/m7-summary.md`). `test:smoke:real`'in gerçek koşusu, S8'in gerçek donanımda tekrarı, güvenli alan kalibrasyonu ve gerçek veriyle yedek provası bekliyor (`docs/machine-checklist.md` A.8, D).
 
 ## 18. Doğrulanmamış varsayımlar ve riskler
 
