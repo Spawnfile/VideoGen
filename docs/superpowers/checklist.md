@@ -13,7 +13,7 @@
 | M4 Dikey dilim | `plans/2026-10-06-m4a-pipeline-core.md` (M4a) + `plans/2026-10-06-m4b-scene-core.md` (M4b) + M4c (sırada) | Devam ediyor (M4a ve M4b tamam, `main`'e birleştirildi; M4c sırada: taslak render, inceleme, player, ilk gerçek ürün) | 2026-10-06 | | `docs/m4/m4a-summary.md`, `docs/m4/m4b-summary.md` |
 | M5 Final ve kalite | `plans/2026-10-06-m5a-final-render-qc.md` (M5a) + `plans/2026-10-07-m5b-review-fix.md` (M5b) + `plans/2026-10-07-m5c-voice.md` (M5c) | M5a, M5b ve M5c uygulandı (bulut konteynerinde, `main`'e fast-forward; M5b ve M5c: T1–T11 + T12 kısmi); GPU'lu makine adımları (Blender testleri, kalibrasyon, gerçek ürün koşuları, ses ölçümü, K17 onayı) bekliyor | 2026-10-06 | | `docs/m5/m5a-summary.md`, `docs/m5/m5b-summary.md`, `docs/m5/m5c-summary.md` |
 | M6 Yayın | `plans/2026-10-08-m6-publish.md` | T1–T8 uygulandı (bulut, sahte TikTok); T9 (gerçek taslak, son review) bekliyor | 2026-10-08 | | `.superpowers/sdd/2026-10-08-m6-publish/progress.md` |
-| M7 Sertleştirme | M6 sonrası | Plan yok | | | |
+| M7 Sertleştirme | `plans/2026-10-08-m7-hardening.md` | Plan yazıldı ve bağımsız incelemeden geçti (13 görev); uygulama bulutta | 2026-10-08 | | `.superpowers/sdd/2026-10-08-m7-hardening/progress.md` |
 
 ---
 
@@ -104,7 +104,7 @@
 - [x] Smoke S6 (21 geçti / 15 atlandı) · M6 T8 · 2026-10-08
 - [ ] 🚦 Kullanıcı ilk gerçek taslağı gönderir (M6 T9; M5 kapanışından sonra, kullanıcının makinesinde) ve son review
 
-## M7 — Sertleştirme *(plan M6 sonrası)*
+## M7 — Sertleştirme *(plan `plans/2026-10-08-m7-hardening.md`)*
 
 - [ ] Audit gezgini + zincir doğrulama arayüzü + ham olaya inme
 - [ ] Sürüm karşılaştırma (yan yana / A-B)
@@ -152,6 +152,7 @@
 | 2026-10-08 | M5c uygulama (bulut konteyneri, GPU'suz) | T1–T11 + son review düzeltmeleri (`006e876`); `main` fast-forward (PR yok). T12'nin GPU'lu makine adımları ve K17 dinleme onayı bekliyor | `docs/m5/m5c-summary.md`, ledger `.superpowers/sdd/2026-10-07-m5c-voice/progress.md` |
 | 2026-10-08 | M5b + M5c son review (bulut, GPU'suz) | Critical: final döngüsü rewind'ında `fix_round` kayması → küresel tur; Important: web araçlı rollerin Read'i run dizini + skills; Minor: `runProcess` spawn hatası worker'ı düşürmüyor. Diğer Minor'lar ertelendi. `npm test` 430. GPU'lu makine adımları hâlâ bekliyor | `docs/m5/m5c-summary.md` §4b, §8, §9 |
 | 2026-10-08 | M6 planı | 9 görev; yalnızca TikTok taslak (inbox) yolu; token `~/tiktok-poster`'dan taşınır (kopyalanmaz); `is_aigc` taslakta gönderilemediği için AI etiketi zorunlu onay kutusu; açıklama deterministik (Claude kullanımı yok); otomatik yeniden gönderim yok. Bağımsız inceleme: 4 blocking + 7 important işlendi | `plans/2026-10-08-m6-publish.md` |
+| 2026-10-08 | M7 planı | 13 görev; `npm test` için şablon veritabanı + paralel dosyalar (sondaj: 332 → 147 sn), M5c H18 gereği e2e `npm test`'te kalır; yedek sahip rolüyle ve sürüm denetimli `pg_dump` (konak 16, sunucu 17); blob silme yalnızca onaylı, 7 gün çöp kutusu; güvenli alan tek ayar + elle kalibrasyon kartı; 3D varlık türü kapsam dışı. Bağımsız inceleme: 3 blocking + 11 important işlendi | `plans/2026-10-08-m7-hardening.md` |
 | 2026-10-07 | M5b F11/F12/F14: kapsamı adım hesaplar; build ajansız; regresyon ve salınım yalnız izlenen kontrollerde | Plandaki gibi; ek: compose kapsamında `label_in` olayları güncel storyboard'dan türetilir (T2 Critical) | spec §7.2 notu, ledger T2/T4 |
 | 2026-10-07 | M5b F16: M10 reddedildi; F21: `rötuş` uçtan uca testi `test:render`'a taşındı (`npm test` 6,8 → 5,9 dk) | `npm test` 399 (plan 400), `test:render` Blender'sız 6 | ledger T9 |
 | 2026-10-07 | M5b T9 bulgusu: müziksiz ürün D6'da düşer, fixer ses spec'i yazamaz → `needs_human` | Bilinçli sınır; çözüm izinli müzik ya da M5c `AudioPlan` | `m5b-summary` §9–§10 |
