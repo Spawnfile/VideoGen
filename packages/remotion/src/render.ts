@@ -15,8 +15,11 @@ export { SAFE_AREA_CARD };
 export const DRAFT_ENTRY = resolve(import.meta.dirname, 'entry.ts');
 const GL_MODES = ['angle', 'swangle', 'egl', 'swiftshader', 'vulkan', 'angle-egl'] as const;
 export type GlMode = (typeof GL_MODES)[number];
-/** VG_REMOTION_GL: a GPU-less machine (CI, a cloud container) can pick `swangle` (SwiftShader); the laptop keeps the ANGLE default. */
-const glMode = (v = process.env.VG_REMOTION_GL): GlMode => (GL_MODES as readonly string[]).includes(v ?? '') ? (v as GlMode) : 'angle';
+/**
+ * VG_REMOTION_GL: a GPU-less machine (CI, a cloud container) can pick `swangle` (SwiftShader). The default is ANGLE on EGL:
+ * headless Chrome 151 no longer gets a context from ANGLE's GLX backend (GL_VENDOR "Disabled"), EGL still gets the GPU.
+ */
+const glMode = (v = process.env.VG_REMOTION_GL): GlMode => (GL_MODES as readonly string[]).includes(v ?? '') ? (v as GlMode) : 'angle-egl';
 /** M4b probe P3: the system Chrome as "chrome-for-testing", ANGLE GL; no browser download. */
 export const CHROME = { browserExecutable: process.env.VG_CHROME ?? '/usr/bin/google-chrome', chromeMode: 'chrome-for-testing' as const, gl: glMode() };
 
