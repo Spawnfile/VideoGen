@@ -15,6 +15,7 @@ import { registerRoleRoutes } from './routes/roles.ts';
 import { registerVideoRoutes } from './routes/videos.ts';
 import { registerVoiceRoutes } from './routes/voice.ts';
 import { registerTikTokRoutes } from './routes/tiktok.ts';
+import { registerPublishRoutes } from './routes/publish.ts';
 import { registerSse } from './sse.ts';
 
 const round4 = (n: number | null): number | null => (n === null ? null : Math.round(n * 10_000) / 10_000);
@@ -76,6 +77,7 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
   registerChannelRoutes(app, { pool: deps.pool });
   registerVoiceRoutes(app, { pool: deps.pool });
   registerTikTokRoutes(app, { pool: deps.pool, config: deps.config, ...(deps.tiktokConnectTtlMs ? { connectTtlMs: deps.tiktokConnectTtlMs } : {}) });
+  registerPublishRoutes(app, { pool: deps.pool, config: deps.config });
   registerSse(app, deps);
 
   if (existsSync(join(deps.config.webDist, 'index.html'))) {
