@@ -49,11 +49,43 @@
 
 `npm run typecheck` temiz; paket bazında vitest: shared 66, db 43, claude 48, api 33, web 41 geçti; worker paketinden yalnızca değişen dosyaların testleri (audio-driver, review-step, voice-step) koşuldu ve geçti. Tam worker suiti kullanıcı kararıyla iptal edildi (tek komutla `npm test` bu konteynerde bellek/süre sınırına takıldı). `test:blender`, `test:render`, ses servisi pytest'i ve smoke bu turda yeniden koşulmadı (smoke T11'de 19/14).
 
+## 4b. İkinci oturum (2026-10-08, yine bulut konteyneri)
+
+T12'yi GPU'lu makinede kapatmak için açılan oturum **GPU'suz bir bulut konteynerinde** çalıştı. Konteynerde GPU yok (`nvidia-smi` ve `/dev/nvidia*` yok), Blender, ses venv'i ve modeller de yok. Bu nedenle Step 1'in GPU kısmı ve Step 2–5 burada yapılamadı. Ölçüm uydurulmadı. Yapılanlar:
+
+- **Tam worker suiti ilk kez koşuldu:** `npm run typecheck` temiz. `npm test` düzeltmelerden önce 88 dosya, **427/427** geçti (328 sn). Plandaki sayı 428'di. Fark atlanan bir test değil, plan aritmetiğinden geliyor; atlanan test yok. Düzeltmelerden sonra **430/430** (+3 test: rewind, guard, `runProcess`).
+- **Ses servisi pytest'i: 50/50** geçti. Model yüklemeyen hafif bir venv kullanıldı (Python 3.12, faster-whisper 1.2.1, av 16.1.0, numpy, soundfile, pytest). Testler modelleri taklit ediyor; torch/Chatterbox ile tam venv kurulmadı.
+- **`test:render`** (Blender'sız, `VG_REMOTION_GL=swangle`): 16 testin **11'i geçti** (VO'lu compose, M5c uçtan uca `voice`, tam kalem taslağı, qc, rötuş …). Kalan **5 test Blender gerektiriyor** (`blender.int` 4, `final.int` 1) ve atlama koşulları olmadığı için başarısız; GPU'lu makinede koşulacak. `swangle` verilmeden yapılan ilk deneme 24 dakika boyunca CPU kullanmadan bekledi ve durduruldu; README'deki GPU'suz makine notu bu yüzden zorunlu.
+- **Bağımsız son review** (`2bd3f7a..HEAD`, M5b + M5c birlikte, Step 6 odak listesi): §8.
+
 ## 5. Bekleyenler (GPU'lu makine, plan T12)
 
-1. Tam doğrulama: pytest 50, `npm test` 428, `test:blender`, `test:render`, smoke.
+1. Tam doğrulama: `test:blender` ve `test:render` Blender ile (15). Ses servisi pytest'i torch/Chatterbox'lı gerçek venv ile. Smoke. (`npm test` 430 ve hafif venv'de pytest 50 bulutta geçti, §4b.)
 2. Kalem pilotu kalibrasyonu (`docs/m5/real-check.md` §1), gerekirse `final@2`.
 3. Ses servisi gerçek ölçümü (model yükleme, `rtf_gen`, tepe VRAM/RSS, CER dağılımı, altyazı hizası).
 4. İki gerçek koşu (A seslendirmesiz, B seslendirmeli) "yayına hazır"a; video başına kullanım, reviewer isabeti, ekran görüntüleri.
 5. K17 dinleme onayı (karar kullanıcının).
-6. Bağımsız son review'un tam hâli (`2bd3f7a..HEAD`) ve spec/runbook/checklist notları.
+6. Spec notları (Step 7, yalnızca gerçek koşu kanıtıyla) ve runbook §6 ölçüm satırları. Son review yapıldı (§8).
+
+## 8. Son review (bağımsız, salt okunur, 2026-10-08)
+
+Kapsam `git diff 2bd3f7a..HEAD` (164 dosya), plan T12 Step 6 odak listesi. Her bulgu kodda izlendi.
+
+| # | Önem | Bulgu | Sonuç |
+|---|---|---|---|
+| 1 | Critical | Final döngüsünde geri sarma her adımın `fix_round`'unu kendi değerinden +1 artırıyordu. Dar bir turdan (compose) sonra gelen geniş bir tur (build) build…final_render'ı 1'de, compose…review'ı 2'de bırakıyordu. Adımlar nedenlerini `roundCause(fixRound)` ile okuduğu için build önceki turun nedenini görüyordu: fixer'ın sahnesi atılıyor ve opus builder baştan yazıyordu (~35 dk opus). | Düzeltildi: aralıktaki her adım `review'un turu + 1` alıyor (`packages/db/src/pipeline.ts`). RED → GREEN: `rewind.test.ts` "a wider round after a narrower one…" |
+| 2 | Important | Web araçlı roller (researcher, reviewer_facts) run dizini dışındaki gizli olmayan dosyaları `Read` ile okuyabiliyordu; düşmanca bir sayfa Read → WebFetch sızdırmasına yönlendirebilirdi. | Düzeltildi: web aracı olan rollerin `Read`'i run dizini ve `~/.claude/skills` ile sınırlı (`guard.ts`). Rol istemleri dışarıyı okumayı istemiyor. RED → GREEN: `guard.test.ts` |
+| 2b | Important → ertelendi | reviewer_facts'in serbest metin `fix_hint`'i çitli veri olarak fixer'a gidiyor. | Ertelendi (§9): aynı yüzey researcher → storyboard yolunda da var. Düzeltme turu yeniden incelemeden geçiyor ve M6'da yayın insan onaylı. Hint'i kaldırmak fixer'ın hangi iddiayı düzelteceğini bilmesini engeller. |
+| 6 | Minor → düzeltildi | `runProcess` başlatılamayan bir ikili için (örn. ön kontrolden sonra silinen venv) yakalanmamış `'error'` ile worker'ı düşürüyordu. | Düzeltildi: başarısız sonuç döner (`code: null`, kuyrukta `spawn failed: ENOENT`), sürücü bunu `crash` hatasına çevirir. RED → GREEN: `render.test.ts` |
+
+Doğrulanıp sorunsuz bulunanlar: fan-out replay (benzersiz indeks + `ON CONFLICT DO NOTHING`), fixer replay (`pendingOf`), tek transaction'da rewind ve sürüm satırı sırası, kapsam hesabı (VO metni, zamanlama, `audio`), fixer `writeDirs: ['scene']` + `python3 -I -m py_compile`, ses CLI'ının boş env'i/süreç grubu/sonuç yolu kontrolü, `loop.stop` tekrarsızlığı. Whisper transkripti kendi TTS'imizden geliyor, 600 karakterle kesiliyor ve çitleniyor; ek yüzey yok.
+
+## 9. Ertelenenler
+
+- **(2b) `reviewer_facts` `fix_hint` → fixer:** M6'da yayın öncesi insan onayı varken kabul edilebilir. Kalıcı çözüm: claims kontrollerinde ipucunu kontrol ve iddia kimliğinden şablonla üretmek, WebFetch'i `targets` URL'leriyle sınırlamak.
+- **(3) G4 durdurma notu:** `voice_track` yokken not "klon ses için AI etiketi gerekli" diyor. Doğru ifade "seslendirme izi bulunamadı" olur.
+- **(4) Fixer'ın VO'lu videoda vuruş kimliğini değiştirmesi:** compose "bayat artefakt" ile düşer. Aynı oturumda reddedilmeli (`voKey` eşitliği).
+- **(5) voice replay retime → keep:** Yetim kalan yeniden zamanlanmış storyboard compose'u "bayat" ile düşürebilir. Yalnızca çökme + deterministik olmayan TTS ile olur.
+- **(7) Ses CLI'ı sınırları** (`maxRssMb` 6000, `timeoutMs` 900 sn): ölçülmedi, GPU'lu makinede ölçülüp config'e alınmalı.
+- **(8) `review` bayatlık kontrolü** yalnızca kareler ve `musicSha` üzerinden. `voKey` kontrolü compose'da var; boru hattı sırası bayat durumu engelliyor.
+
