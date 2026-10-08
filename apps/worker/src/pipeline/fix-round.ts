@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import { FINAL_CHECKS, QC_CHECKS, type FinalCheckId, type FixReport, type Storyboard } from '@videogen/shared';
+import { factsHint, FINAL_CHECKS, QC_CHECKS, type FinalCheckId, type FixReport, type Storyboard } from '@videogen/shared';
 import { listRunReviews } from '@videogen/db';
 import { fenced } from './fence.ts';
 import type { FixFinding } from './review-step.ts';
@@ -69,7 +69,17 @@ export const voiceCauseKey = (c: RoundCause | null) => causeKey(c && { ...c, reb
 
 export const checkOwner = (id: string) => (id in FINAL_CHECKS ? FINAL_CHECKS[id as FinalCheckId].owner : 'qc');
 export const labelOf = (id: string) => (id in FINAL_CHECKS ? FINAL_CHECKS[id as FinalCheckId].label_tr : QC_CHECKS[id as keyof typeof QC_CHECKS]?.label_tr ?? id);
-export const findingRows = (findings: FixFinding[]) => findings.map((f) => ({ id: f.check_id, etiket: labelOf(f.check_id), sahip: checkOwner(f.check_id), onem: f.severity, kanit: f.evidence ?? null, ipucu: f.fix_hint ?? null }));
+/** A claim id the orchestrator put in a finding's evidence (G2); anything that is not a plain research id is dropped. */
+const claimOf = (evidence: unknown): string | null => {
+  const id = (evidence as { claim_id?: unknown } | null)?.claim_id;
+  return typeof id === 'string' && /^[\w-]{1,64}$/.test(id) ? id : null;
+};
+/** M7 Y19: a check the facts reviewer owns gets the templated hint (and its evidence without the claim id key); other hints pass unchanged. */
+export const findingRows = (findings: FixFinding[]) => findings.map((f) => {
+  const facts = checkOwner(f.check_id) === 'reviewer_facts';
+  const kanit = facts && f.evidence && typeof f.evidence === 'object' ? (({ claim_id: _c, ...rest }) => rest)(f.evidence as Record<string, unknown>) : f.evidence ?? null;
+  return { id: f.check_id, etiket: labelOf(f.check_id), sahip: checkOwner(f.check_id), onem: f.severity, kanit, ipucu: facts ? factsHint(f.check_id, claimOf(f.evidence)) : f.fix_hint ?? null };
+});
 
 /** The failed checks of reviewed round `round` as the review recorded them (first-pass rows; the orchestrator row carries the qc measurements). */
 export async function roundFindings(pool: pg.Pool, runId: string, round: number, failed: string[]): Promise<FixFinding[]> {

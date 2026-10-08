@@ -341,7 +341,7 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
         const frame = Math.min(Math.max(0, (inputs?.frames ?? 1) - 1), Math.round((beat?.t_start ?? 0) * FPS));
         orchestrator.push({
           checkId: 'claims_verified', severity: 'blocker', dimension: null, gate: 'G2', status: status('claims_verified'),
-          evidence: { frame, timecode: Math.round((frame / FPS) * 100) / 100 }, fixHint: `Kaynağı yetersiz sayısal iddia: ${gaps[0]}. Ekrandaki iddiayı çıkar ya da yeniden yaz.`,
+          evidence: { frame, timecode: Math.round((frame / FPS) * 100) / 100, claim_id: claimId }, fixHint: `Kaynağı yetersiz sayısal iddia: ${gaps[0]}. Ekrandaki iddiayı çıkar ya da yeniden yaz.`,
         });
       }
       // G4 is a gate, not a check id: a finding on the orchestrator row without evidence (the fixer cannot add the label; loopAction stops with 'declaration', 'no_voice_track' without a track).
@@ -450,6 +450,7 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
         manager: deps.manager, ctx: rctx, role, schema: 'FinalReview', prompt: p[role],
         initialResume: prior ? { claudeSessionId: prior.claudeSessionId, parent: prior.id, prompt: RESUME_PROMPT } : undefined,
         check: (v) => finalReviewRefErrors(v, { role, frames: i.frames, fps: FPS, ...(role === 'reviewer_facts' ? { webTargets: i.targets } : {}) }),
+        ...(role === 'reviewer_facts' ? { webAllow: i.targets.map((x) => x.url) } : {}),
         fakeScript: deps.fakeScript ? (n) => deps.fakeScript!(role, ctx, n, seq === 2 ? { seq: 2 } : undefined) : undefined,
       });
       if (!r.ok) return r;

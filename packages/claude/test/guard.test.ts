@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { ROLE_NAMES } from '@videogen/shared';
-import { allowedTools, disallowedTools, evaluateToolUse, loadRolePrompt, resolveRole, ROLES, type GuardContext } from '../src/index.ts';
+import { cleanChildEnv } from '@videogen/shared';
+import { allowedTools, buildQueryOptions, disallowedTools, evaluateToolUse, loadRolePrompt, resolveRole, ROLES, type GuardContext, type SessionSpec } from '../src/index.ts';
 
 let home: string;
 let run: string;
@@ -144,6 +145,35 @@ describe('tool allow-list and reads', () => {
     expect(search('Grep', { pattern: 'x', path: 'scene' })).toBeNull();
     expect(search('Glob', { pattern: 'scene/**/*.py' })).toBeNull();
     expect(search('Grep', { pattern: 'x', path: join(home, '.claude', 'skills') })).toBeNull();
+  });
+
+  it('reviewer_facts may WebFetch only its exact check targets after normalization; the same URL with an extra query or fragment, another path, http, or a look-alike host is denied with the reason, also inside a subagent call; researcher is not limited; WebSearch stays allowed', async () => {
+    const allow = ['https://en.wikipedia.org/wiki/Ballpoint_pen', 'https://www.bicworld.com/en/our-products?lang=en'];
+    const facts: GuardContext = { ...ctx('reviewer_facts'), webAllow: allow };
+    const fetch = (c: GuardContext, url: unknown) => denied(evaluateToolUse(c, 'WebFetch', { url, prompt: 'iddiayı bul' }));
+    for (const url of [
+      'https://en.wikipedia.org/wiki/Ballpoint_pen', 'https://EN.Wikipedia.ORG/wiki/Ballpoint_pen', 'https://en.wikipedia.org:443/wiki/Ballpoint_pen',
+      'https://en.wikipedia.org/wiki/Ballpoint_pen/', 'https://www.bicworld.com/en/our-products?lang=en', 'https://www.bicworld.com/en/our-products/?lang=en',
+    ]) expect(fetch(facts, url), url).toBeNull();
+    for (const url of [
+      'https://en.wikipedia.org/wiki/Ballpoint_pen?q=gizli-arastirma-metni', 'https://en.wikipedia.org/wiki/Ballpoint_pen#gizli',
+      'https://www.bicworld.com/en/our-products?lang=en&q=sizinti', 'https://www.bicworld.com/en/our-products', 'https://en.wikipedia.org/wiki/Fountain_pen',
+      'https://en.wikipedia.org/wiki/ballpoint_pen', 'http://en.wikipedia.org/wiki/Ballpoint_pen', 'https://en.wikipedia.org.evil.example/wiki/Ballpoint_pen',
+      'https://en-wikipedia.org/wiki/Ballpoint_pen', 'https://user@en.wikipedia.org/wiki/Ballpoint_pen', 'https://en.wikipedia.org:8443/wiki/Ballpoint_pen',
+      'en.wikipedia.org/wiki/Ballpoint_pen', 'not a url', undefined,
+    ]) expect(fetch(facts, url), String(url)).toMatch(/only the check targets/);
+    expect(fetch({ ...ctx('reviewer_facts'), webAllow: [] }, allow[0])).toMatch(/only the check targets/);
+    expect(denied(evaluateToolUse(facts, 'WebSearch', { query: 'tükenmez kalem bilye çapı' }))).toBeNull();
+    // The researcher browses freely (its output is fenced anyway).
+    expect(fetch(ctx('researcher'), 'http://example.com/a?b=c#d')).toBeNull();
+    // Inside a subagent: the SDK runs the same PreToolUse hook (agent_id set) against the same session context.
+    const spec = { preToolUse: async (tool: string, input: unknown) => evaluateToolUse(facts, tool, input), tools: [], allowedTools: [], disallowedTools: [] } as unknown as SessionSpec;
+    const o = buildQueryOptions(spec, { pluginDir: '/abs/claude-plugin', claudeBinary: '/abs/claude', env: cleanChildEnv({}) }) as Record<string, any>;
+    const hook = o.hooks.PreToolUse[0].hooks[0];
+    const signal = new AbortController().signal;
+    const sub = (url: string) => hook({ hook_event_name: 'PreToolUse', agent_id: 'sub-1', agent_type: 'general-purpose', tool_name: 'WebFetch', tool_input: { url, prompt: 'x' }, tool_use_id: 's1' }, 's1', { signal });
+    expect(await sub('https://en.wikipedia.org/wiki/Ballpoint_pen?q=sizinti')).toMatchObject({ hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: expect.stringMatching(/only the check targets/) } });
+    expect(await sub('https://en.wikipedia.org/wiki/Ballpoint_pen')).toEqual({});
   });
 
   it('resolves role overrides and builds SDK tool lists; every role has a prompt file', () => {

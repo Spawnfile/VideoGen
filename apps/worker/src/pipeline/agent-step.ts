@@ -64,6 +64,8 @@ export interface StructuredRequest<T> {
   maxFixes?: number;
   /** Per-request model (K12 fixer category); Settings' choice for the role still wins. */
   model?: ModelAlias;
+  /** M7 Y19: WebFetch allow-list of every session of this request (resumes and fix turns included). */
+  webAllow?: string[];
 }
 export type StructuredResult<T> =
   | { ok: true; value: T; sessionIds: string[] }
@@ -87,6 +89,7 @@ export async function runStructured<T>(r: StructuredRequest<T>): Promise<Structu
       ...(resume ? { claudeSessionId: resume.claudeSessionId, resume: true, parentSessionId: resume.parent } : {}),
       fakeScript: r.fakeScript?.(attempt),
       ...(r.model ? { model: r.model } : {}),
+      ...(r.webAllow ? { webAllow: r.webAllow } : {}),
     }, r.ctx);
     if (run.end.status === 'cancelled' || r.ctx.signal.aborted) return { ok: false, cancelled: true, error: 'durduruldu', sessionIds: ids };
     const next: Resume = { claudeSessionId: resume?.claudeSessionId ?? id, parent: id };

@@ -2,11 +2,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import type { PublishVariant } from '@videogen/shared/browser';
 import { api } from '../../lib/api.ts';
-import { publishView } from '../../lib/publish-view.ts';
+import { publishPollMs, publishView } from '../../lib/publish-view.ts';
 import { FinishCard } from './FinishCard.tsx';
 import { PublishHistory } from './PublishHistory.tsx';
-
-const ACTIVE = new Set(['queued', 'uploading', 'processing', 'waiting']);
 
 /**
  * Plan M6 Y22: "Yayınla" opens the Yayın panel under the final — pre-checks, variant, caption, the TikTok draft send with its live stage,
@@ -24,7 +22,8 @@ export function PublishPanel({ videoId }: { videoId: string }) {
     queryKey: ['publish', videoId],
     queryFn: () => api.publishInfo(videoId),
     enabled: open,
-    refetchInterval: (query) => (query.state.data?.publications[0] && ACTIVE.has(query.state.data.publications[0].status) ? 1500 : false),
+    // The live stage arrives over SSE (`publish.status` → main.tsx invalidates this query); the slow poll only covers a dropped stream.
+    refetchInterval: (query) => publishPollMs(query.state.data),
   });
   const view = q.data ? publishView(q.data, variant) : null;
   useEffect(() => { setCaption(null); }, [variant]);

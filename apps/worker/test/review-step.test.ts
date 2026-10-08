@@ -44,6 +44,9 @@ describe('review step (final panel)', () => {
     expect(targets.length).toBeGreaterThan(0);
     for (const x of targets) expect(facts.prompt).toContain(x.url);
     expect(facts.prompt).toContain('- claims_verified (kapı G2)');
+    // M7 Y19: the facts session's guard lets WebFetch reach exactly these targets (an extra query string is a leak channel).
+    expect(await facts.preToolUse('WebFetch', { url: targets[0]!.url, prompt: 'x' }, 'w1')).toEqual({ allow: true });
+    expect(await facts.preToolUse('WebFetch', { url: `${targets[0]!.url}?q=sizinti`, prompt: 'x' }, 'w2')).toMatchObject({ allow: false });
     const rows = await listRunReviews(t.pool, p.r.runId);
     expect(rows.map((r) => [r.reviewerRole, r.seq, r.round])).toEqual([['orchestrator', 1, 0], ['reviewer_facts', 1, 0], ['reviewer_retention', 1, 0], ['reviewer_visual', 1, 0]]);
     expect(rows[0]).toMatchObject({ total: 87.5, verdict: 'ready', stepId: c.stepId, versionId: p.r.versionId });
@@ -77,7 +80,7 @@ describe('review step (final panel)', () => {
     const rows2 = await listRunReviews(t.pool, q.r.runId);
     expect(rows2[0]).toMatchObject({ total: 87.5, verdict: 'fix' });
     expect(rows2[0]!.gates).toMatchObject({ G2: false });
-    expect(rows2[0]!.findings.filter((f) => f.checkId === 'claims_verified').map((f) => [f.gate, f.evidence])).toEqual([['G2', { frame: Math.round(beat.t_start * 30), timecode: Math.round(beat.t_start * 100) / 100 }]]);
+    expect(rows2[0]!.findings.filter((f) => f.checkId === 'claims_verified').map((f) => [f.gate, f.evidence])).toEqual([['G2', { frame: Math.round(beat.t_start * 30), timecode: Math.round(beat.t_start * 100) / 100, claim_id: 'bilye-capi' }]]);
     expect(rows2.find((r) => r.reviewerRole === 'reviewer_facts')!.findings).toEqual([]);
     expect((await stored(q.r.runId, 'final_verdict')).content).toMatchObject({ verdict: 'fix', failed: expect.arrayContaining(['claims_verified']) });
   }, 120_000);

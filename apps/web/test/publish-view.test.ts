@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { publishChecklist, type Publication } from '@videogen/shared/browser';
-import { publishView, tiktokView, type PublishInfo } from '../src/lib/publish-view.ts';
+import { liveInvalidation, publishPollMs, publishView, tiktokView, type PublishInfo } from '../src/lib/publish-view.ts';
 
 const NOW = new Date('2026-10-08T12:00:00Z');
 const pub = (o: Partial<Publication>): Publication => ({
@@ -47,6 +47,18 @@ describe('publish panel helpers (plan M6 T7)', () => {
     expect(aigc.checklist.find((i) => i.id === 'aigc')).toMatchObject({ required: true });
     expect(aigc.aigcNote).toBe("Bu video klon ses içeriyor: TikTok'ta AI etiketini açmanız zorunlu.");
     expect(ok.aigcNote).toBeNull();
+  });
+
+  it('liveInvalidation maps publish.status to the publish query of that video and ignores other events; the panel polls only as a 10 s fallback while a send is active', () => {
+    const ev = (topic: string, type: string) => ({ id: 7, ts: NOW.toISOString(), topic, type, payload: { publicationId: 'p', status: 'sent', failReason: null } });
+    expect(liveInvalidation(ev('video:v-42', 'publish.status'))).toEqual(['publish', 'v-42']);
+    expect(liveInvalidation(ev('video:v-42', 'video.updated'))).toBeNull();
+    expect(liveInvalidation(ev('system', 'publish.status'))).toBeNull();
+    expect(liveInvalidation(ev('video:', 'publish.status'))).toBeNull();
+    for (const status of ['queued', 'uploading', 'processing', 'waiting'] as const) expect(publishPollMs(info({ publications: [pub({ status })] })), status).toBe(10_000);
+    for (const status of ['sent', 'failed', 'published'] as const) expect(publishPollMs(info({ publications: [pub({ status })] })), status).toBe(false);
+    expect(publishPollMs(info())).toBe(false);
+    expect(publishPollMs(undefined)).toBe(false);
   });
 
   it('tiktokView: connected with the remaining validity, reconnect when the refresh token is dead, import hint without client credentials; no secret field is read', () => {

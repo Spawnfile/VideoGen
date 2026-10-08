@@ -18,6 +18,21 @@ describe('player shortcuts and draft view helpers', () => {
     expect(key('x')).toBeNull();
   });
 
+  it('shortcutFor ignores Shift-modified letters, IME composition and repeated keys except J and L', () => {
+    const ev = (k: string, o: { shift?: boolean; repeat?: boolean; composing?: boolean } = {}) =>
+      shortcutFor({ key: k, ctrlKey: false, metaKey: false, altKey: false, shiftKey: !!o.shift, repeat: !!o.repeat, isComposing: !!o.composing, target: { tagName: 'BODY' } });
+    // Shift+letter is a capital letter being typed (or another app's chord), not a player shortcut; Caps Lock (no Shift) still works.
+    for (const k of ['J', 'K', 'L', 'N']) expect(ev(k, { shift: true }), k).toBeNull();
+    expect(['J', 'K', 'L', 'N'].map((k) => ev(k))).toEqual(['back', 'pause', 'forward', 'new']);
+    for (const k of [' ', 'j', 'k', 'l', 'n']) expect(ev(k, { composing: true }), k).toBeNull();
+    expect(ev('Process')).toBeNull();
+    // Holding J or L keeps seeking; a held Space, K or N does nothing more.
+    expect(ev('j', { repeat: true })).toBe('back');
+    expect(ev('l', { repeat: true })).toBe('forward');
+    for (const k of [' ', 'k', 'n']) expect(ev(k, { repeat: true }), k).toBeNull();
+    expect(ev(' ')).toBe('toggle');
+  });
+
   it('picks the run\'s latest draft artifacts and labels a draft fix round with its own progress', () => {
     const a = (kind: string, runId: string, i: number): ArtifactMeta => ({ id: `${kind}-${runId}-${i}`, runId, stepId: null, versionId: null, kind, blobSha: `${kind}-sha-${i}`, createdAt: '' });
     const list = [a('draft_video', 'r2', 2), a('draft_video', 'r2', 1), a('draft_cover', 'r2', 1), a('scene_glb', 'r2', 1), a('camera_track', 'r2', 1), a('scene', 'r2', 1), a('storyboard', 'r2', 1), a('draft_review', 'r2', 1), a('draft_video', 'r1', 1)];

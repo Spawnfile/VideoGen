@@ -8,7 +8,7 @@ import { appendAudit, getSession, insertSession, publishEvent, publishLive, toSe
 import {
   allowedTools, disallowedTools, evaluateToolUse, FILE_WRITE_TOOLS, groupAlive, killGroup, memAvailableMb, permissiveValidator,
   resolveRole, rolePromptFor, SpecStore, videogenTools, writeTarget,
-  type ClaudeDriver, type DriverSession, type FakeScript, type McpPorts, type RoleDef, type RoleOverrides, type SessionSpec, type SpecValidator,
+  type ClaudeDriver, type DriverSession, type FakeScript, type GuardContext, type McpPorts, type RoleDef, type RoleOverrides, type SessionSpec, type SpecValidator,
 } from '@videogen/claude';
 import { errorTag } from '../errors.ts';
 import { fileSha256, putBlob } from '../media.ts';
@@ -64,6 +64,8 @@ export interface StartRequest {
   autoResume?: boolean;
   /** Per-request model (the fixer picks opus or sonnet by failure category, K12); Settings' model for the role wins over it. */
   model?: ModelAlias;
+  /** M7 Y19: the only URLs WebFetch may open (the facts reviewer's check targets). A reviewer_facts session without it may open none. */
+  webAllow?: string[];
 }
 export interface ManagerEvents {
   onTurnComplete?(sessionId: string, r: { turn: number; text: string | null; structured: unknown }): void | Promise<void>;
@@ -259,7 +261,9 @@ export class SessionManager {
     const { id, req, def, runDir } = p;
     const before = new Map<string, string | null>();
     const abort = new AbortController();
-    const ctx = { role: def, runDir, home: this.d.home ?? homedir(), dataDir: this.d.dataDir };
+    // Fail closed: a facts reviewer session opened without targets (a retry, a resume) fetches nothing rather than anything.
+    const webAllow = req.webAllow ?? (def.role === 'reviewer_facts' ? [] : undefined);
+    const ctx: GuardContext = { role: def, runDir, home: this.d.home ?? homedir(), dataDir: this.d.dataDir, ...(webAllow ? { webAllow } : {}) };
     const spec: SessionSpec = {
       sessionId: id, claudeSessionId: req.claudeSessionId, resume: !!req.resume, role: def.role, prompt: req.prompt,
       model: def.model, effort: def.effort, maxTurns: def.maxTurns, cwd: runDir,

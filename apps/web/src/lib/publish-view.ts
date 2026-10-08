@@ -1,4 +1,4 @@
-import type { ChecklistItem, Publication, PublicationStatus, PublishVariant } from '@videogen/shared/browser';
+import type { ChecklistItem, Publication, PublicationStatus, PublishVariant, UiEvent } from '@videogen/shared/browser';
 
 /** GET /api/videos/:id/publish (plan M6 T6). */
 export interface PublishInfo {
@@ -19,6 +19,23 @@ const STAGE: Record<PublicationStatus, string> = {
   sent: 'Gelen kutusunda', failed: 'Gönderilemedi', published: 'Yayında',
 };
 const ACTIVE: PublicationStatus[] = ['queued', 'uploading', 'processing', 'waiting'];
+
+/**
+ * M7 Y19: the worker's `publish.status` (topic `video:<id>`) makes the panel refetch that video's publish info; null for any other event.
+ * Pure, so main.tsx's SSE switch stays a one-liner.
+ */
+export function liveInvalidation(e: Pick<UiEvent, 'topic' | 'type'>): readonly unknown[] | null {
+  if (e.type !== 'publish.status' || !e.topic.startsWith('video:')) return null;
+  const videoId = e.topic.slice('video:'.length);
+  return videoId ? ['publish', videoId] : null;
+}
+
+/** M7 Y19 (M6 T7 Ruling): SSE drives the panel; a 10 s poll stays only as a fallback while the latest send is still in flight. */
+export const PUBLISH_FALLBACK_POLL_MS = 10_000;
+export function publishPollMs(info: PublishInfo | undefined): number | false {
+  const latest = info?.publications[0];
+  return latest && ACTIVE.includes(latest.status) ? PUBLISH_FALLBACK_POLL_MS : false;
+}
 
 export interface PublishViewModel {
   canSend: boolean; canCancel: boolean; blockers: string[]; draftsLabel: string; stage: 'idle' | PublicationStatus; stageLabel: string;

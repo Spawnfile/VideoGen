@@ -89,6 +89,20 @@ export const FINAL_CHECKS: Record<FinalCheckId, FinalCheck> = {
 
 export const checksOf = (role: FinalReviewerRole): FinalCheckId[] => FINAL_CHECK_IDS.filter((id) => FINAL_CHECKS[id].owner === role);
 
+/**
+ * M7 Y19: what the fixer (and a rework's storyboarder) is told for a check the facts reviewer owns. That reviewer reads web pages, so its free
+ * text never reaches another agent: a claims check gets this fixed sentence (claim id from the finding's evidence, else "ilgili iddia"), any
+ * other facts check its own rubric question. The reviewer's text stays in `findings.fix_hint` for the panel.
+ */
+export function factsHint(checkId: string, claimId: string | null): string {
+  const c = (FINAL_CHECKS as Record<string, FinalCheck | undefined>)[checkId];
+  const label = c?.label_tr ?? checkId;
+  if (checkId === 'claims_supported' || checkId === 'claims_verified') {
+    return `${label}: ${claimId ? `iddia ${claimId}` : 'ilgili iddia'} kaynakla desteklenmiyor; iddiayı kaldır ya da araştırmadaki doğrulanmış ifadeyle değiştir`;
+  }
+  return c ? `${label}: ${c.ask_tr}` : label;
+}
+
 const unit = z.number().min(0).max(1);
 const tr = (max: number) => z.string().trim().min(1).max(max);
 const EvidenceSchema = z.object({

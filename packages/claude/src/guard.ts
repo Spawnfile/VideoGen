@@ -4,7 +4,11 @@ import type { GuardDecision } from './driver.ts';
 import { obj, str } from './messages.ts';
 import { permittedTools, type RoleDef } from './roles.ts';
 
-export interface GuardContext { role: RoleDef; runDir: string; home: string; dataDir: string }
+export interface GuardContext {
+  role: RoleDef; runDir: string; home: string; dataDir: string;
+  /** M7 Y19: when set, WebFetch may open only these URLs (exact after normalization); the facts reviewer gets its check targets. */
+  webAllow?: string[];
+}
 
 const WRITE_PATH_KEY: Record<string, string> = { Write: 'file_path', Edit: 'file_path', NotebookEdit: 'notebook_path' };
 export const FILE_WRITE_TOOLS = new Set(Object.keys(WRITE_PATH_KEY));
@@ -63,6 +67,24 @@ function searchRoot(ctx: GuardContext, tool: string, i: Record<string, unknown>)
 }
 
 const WEB_TOOLS = new Set(['WebFetch', 'WebSearch']);
+
+/** https only, no credentials; the host lower-cased and the default port dropped (URL does both), one trailing `/` of the path ignored. */
+function normalUrl(raw: string): string | null {
+  let u: URL;
+  try { u = new URL(raw); } catch { return null; }
+  if (u.protocol !== 'https:' || u.username || u.password) return null;
+  const path = u.pathname.endsWith('/') ? u.pathname.slice(0, -1) : u.pathname;
+  return `${u.host}${path}${u.search}${u.hash}`;
+}
+
+/**
+ * M7 Y19: `url` is one of `allow` exactly (after normalization): same host, path, query and fragment. A prefix or same-origin rule would let a
+ * hostile page steer a fetch of "the same URL + ?q=<leaked text>"; redirects are followed by the WebFetch tool itself (runbook note).
+ */
+export function urlAllowed(url: string, allow: readonly string[]): boolean {
+  const n = normalUrl(url);
+  return n !== null && allow.some((a) => normalUrl(a) === n);
+}
 
 function readableByWebRole(ctx: GuardContext, p: string): boolean {
   const abs = realish(resolve(ctx.runDir, p));
@@ -168,6 +190,10 @@ export function evaluateToolUse(ctx: GuardContext, tool: string, input: unknown)
   }
   if (tool === 'Bash') return bashDecision(ctx, str(obj(input)?.command) ?? '');
   const i = obj(input) ?? {};
+  // Subagent tool calls reach this same hook with the same context, so the limit holds there too.
+  if (tool === 'WebFetch' && ctx.webAllow && !urlAllowed(str(i.url) ?? '', ctx.webAllow)) {
+    return deny(`WebFetch may open only the check targets of this review, exactly as listed (https, no extra query or fragment); ${ctx.webAllow.length} target(s).`);
+  }
   const web = ctx.role.tools.some((t) => WEB_TOOLS.has(t));
   for (const k of READ_PATH_KEYS) {
     const p = str(i[k]);

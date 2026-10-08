@@ -23,11 +23,22 @@ export function activePlayer(): PlayerControl | null { return active; }
 
 const KEYS: Record<string, ShortcutAction> = { ' ': 'toggle', j: 'back', k: 'pause', l: 'forward', n: 'new' };
 
-/** Null while typing, with a modifier, or for Space on a focused button (Space presses the button). */
-export function shortcutFor(e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; target: { tagName?: string; isContentEditable?: boolean } | null }): ShortcutAction | null {
-  if (e.ctrlKey || e.metaKey || e.altKey) return null;
+/** Held down, only J and L keep acting (seeking on); a held Space, K or N would toggle or open again and again. */
+const REPEATS = new Set<ShortcutAction>(['back', 'forward']);
+
+/**
+ * Null while typing, with a modifier, or for Space on a focused button (Space presses the button). M7 Y19: also null for a Shift-modified
+ * letter (a capital typed elsewhere; Caps Lock without Shift still works), during IME composition, and for a key repeat other than J and L.
+ */
+export function shortcutFor(e: {
+  key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey?: boolean; repeat?: boolean; isComposing?: boolean;
+  target: { tagName?: string; isContentEditable?: boolean } | null;
+}): ShortcutAction | null {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing || e.key === 'Process') return null;
+  if (e.shiftKey && /^\p{L}$/u.test(e.key)) return null;
   const tag = e.target?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable) return null;
   if (e.key === ' ' && (tag === 'BUTTON' || tag === 'VIDEO')) return null;
-  return KEYS[e.key.toLocaleLowerCase('tr')] ?? null;
+  const action = KEYS[e.key.toLocaleLowerCase('tr')] ?? null;
+  return action && e.repeat && !REPEATS.has(action) ? null : action;
 }
