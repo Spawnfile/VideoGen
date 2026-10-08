@@ -58,20 +58,51 @@ export interface ThinkingStateProps {
   onSettled?: () => void;
   /** Rendered under a selected row (a subagent's nested trace, a guard reason). */
   renderDetail?: (row: ThinkingRowView) => ReactNode;
+  /** false: rows already there when the block mounts appear without the entrance animation (a windowed trace mounting it on scroll). */
+  animateMount?: boolean;
+  /** A windowed trace unmounts blocks scrolled away: what the user opened is restored from here and reported back. */
+  ui?: ThinkingUi;
+  onUi?: (ui: ThinkingUi) => void;
 }
+export interface ThinkingUi { expanded: boolean | null; selected: string | null }
 
-export default function ThinkingState({ variant, status, rows, active, done, icon, defaultExpanded = false, onSettled, renderDetail }: ThinkingStateProps) {
+export default function ThinkingState({ variant, status, rows, active, done, icon, defaultExpanded = false, onSettled, renderDetail, animateMount = true, ui, onUi }: ThinkingStateProps) {
   const working = status === 'live';
   const labelId = useId();
-  const [manualExpanded, setManualExpanded] = useState<boolean | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [manualExpanded, setManualExpanded] = useState<boolean | null>(ui?.expanded ?? null);
+  const [selected, setSelected] = useState<string | null>(ui?.selected ?? null);
   const autoExpanded = working || defaultExpanded;
   const expanded = manualExpanded ?? autoExpanded;
+  const reported = useRef(ui);
+  useEffect(() => {
+    if (reported.current?.expanded === manualExpanded && reported.current?.selected === selected) return;
+    reported.current = { expanded: manualExpanded, selected };
+    onUi?.(reported.current);
+  }, [manualExpanded, selected, onUi]);
+  // A closed trace (once the closing transition is over) mounts no rows and leaves the layout: a long settled trace costs one
+  // header per block to mount, lay out, paint and hit-test while the page scrolls (plan M7 Y13). `data-rows` tells how many it holds.
+  const [closed, setClosed] = useState(!expanded);
+  const [opened, setOpened] = useState(expanded); // false for the one render that shows a reopened trace at 0fr, so it animates open
+  if (expanded && closed) { setClosed(false); setOpened(false); }
+  useEffect(() => {
+    if (expanded || closed) return;
+    const t = setTimeout(() => setClosed(true), 450);
+    return () => clearTimeout(t);
+  }, [expanded, closed]);
+  const gridRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!expanded || opened) return;
+    void gridRef.current?.offsetHeight; // the 0fr style is applied before the 1fr one, so the transition runs
+    setOpened(true);
+  }, [expanded, opened]);
+  const open = expanded && opened;
   const traceRef = useRef<HTMLDivElement>(null);
   const [lineHeight, setLineHeight] = useState(0);
+  // Only an open trace shows the line: a collapsed block mounting does not force a layout (plan M7 Y13, windowed trace).
   useLayoutEffect(() => {
-    if (traceRef.current) setLineHeight(traceRef.current.offsetHeight);
+    if (expanded && traceRef.current) setLineHeight(traceRef.current.offsetHeight);
   }, [rows, expanded, selected]);
+  const [quiet] = useState(() => (animateMount ? null : { rows: new Set(rows.map((r) => r.id)), settled: !working }));
 
   const wasWorking = useRef(working);
   useEffect(() => {
@@ -83,7 +114,7 @@ export default function ThinkingState({ variant, status, rows, active, done, ico
   let resultIndex = 0;
 
   return (
-    <div className="flex w-full flex-col" data-testid="thinking" data-variant={variant} data-status={status}>
+    <div className="flex w-full flex-col" data-testid="thinking" data-variant={variant} data-status={status} data-rows={rows.length}>
       {/* header — shared across variants */}
       <button
         type="button"
@@ -109,7 +140,7 @@ export default function ThinkingState({ variant, status, rows, active, done, ico
               {label}
             </span>
           ) : (
-            <span className="text-[13px] font-medium whitespace-nowrap text-ink-2" style={{ animation: 'fade-in 350ms ease-out both' }}>{label}</span>
+            <span className="text-[13px] font-medium whitespace-nowrap text-ink-2" style={quiet?.settled ? undefined : { animation: 'fade-in 350ms ease-out both' }}>{label}</span>
           )}
         </span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-ink-3)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform duration-300" style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0)' }} aria-hidden>
@@ -118,13 +149,13 @@ export default function ThinkingState({ variant, status, rows, active, done, ico
       </button>
 
       {/* expandable trace */}
-      <div className="grid transition-[grid-template-rows,opacity] duration-400" style={{ gridTemplateRows: expanded ? '1fr' : '0fr', opacity: expanded ? 1 : 0, transitionTimingFunction: 'cubic-bezier(0.23, 1, 0.32, 1)' }}>
+      <div ref={gridRef} hidden={closed} className="grid transition-[grid-template-rows,opacity] duration-400" style={{ gridTemplateRows: open ? '1fr' : '0fr', opacity: open ? 1 : 0, transitionTimingFunction: 'cubic-bezier(0.23, 1, 0.32, 1)' }}>
         <div className="overflow-hidden">
           <div className="relative mt-1 ml-[5px] pl-4">
             <span aria-hidden className="absolute left-[3px] w-px bg-line" style={{ top: -8, height: lineHeight ? lineHeight - 2 : 0, transition: 'height 500ms cubic-bezier(0.23,1,0.32,1)' }} />
             <div ref={traceRef} className="flex flex-col gap-1 py-1">
-              {rows.map((row) => {
-                const animation = { animation: 'fade-up 320ms cubic-bezier(0.23,1,0.32,1) both' };
+              {(closed ? [] : rows).map((row) => {
+                const animation = quiet?.rows.has(row.id) ? undefined : { animation: 'fade-up 320ms cubic-bezier(0.23,1,0.32,1) both' };
                 const rowClass = 'flex min-h-7 w-full items-center gap-2 rounded-[6px] px-1.5 py-0.5 text-left';
                 const isSelected = selected === row.id;
                 const hasDetail = !!(row.detail || row.children);
@@ -132,7 +163,7 @@ export default function ThinkingState({ variant, status, rows, active, done, ico
 
                 if (row.kind === 'query') {
                   return (
-                    <div key={row.id} className="flex h-6 items-center gap-2 px-1.5" style={animation}>
+                    <div key={row.id} data-trace-row className="flex h-6 items-center gap-2 px-1.5" style={animation}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-ink-3)" strokeWidth="2" strokeLinecap="round" className="shrink-0" aria-hidden>
                         <circle cx="11" cy="11" r="7" />
                         <path d="M21 21l-4.3-4.3" />
@@ -153,15 +184,15 @@ export default function ThinkingState({ variant, status, rows, active, done, ico
                     </>
                   );
                   return row.href ? (
-                    <a key={row.id} href={row.href} target="_blank" rel="noreferrer" className={`${rowClass} transition-colors duration-150 hover:bg-hover [&:hover>span:nth-child(2)]:underline`} style={animation}>{inner}</a>
+                    <a key={row.id} data-trace-row href={row.href} target="_blank" rel="noreferrer" className={`${rowClass} transition-colors duration-150 hover:bg-hover [&:hover>span:nth-child(2)]:underline`} style={animation}>{inner}</a>
                   ) : (
-                    <div key={row.id} className={rowClass} style={animation}>{inner}</div>
+                    <div key={row.id} data-trace-row className={rowClass} style={animation}>{inner}</div>
                   );
                 }
 
                 if (row.kind === 'text') {
                   return (
-                    <p key={row.id} className="px-1.5 py-0.5 text-[12.5px] leading-relaxed whitespace-pre-wrap text-ink-2" style={animation}>{row.primary}</p>
+                    <p key={row.id} data-trace-row className="px-1.5 py-0.5 text-[12.5px] leading-relaxed whitespace-pre-wrap text-ink-2" style={animation}>{row.primary}</p>
                   );
                 }
 
@@ -180,7 +211,7 @@ export default function ThinkingState({ variant, status, rows, active, done, ico
                   </>
                 );
                 return (
-                  <div key={row.id} style={animation}>
+                  <div key={row.id} data-trace-row style={animation}>
                     {hasDetail ? (
                       <button type="button" aria-pressed={isSelected} onClick={() => setSelected(isSelected ? null : row.id)} className={`${rowClass} transition-colors duration-150 ${isSelected ? 'bg-inset' : 'hover:bg-hover'}`}>
                         {content}

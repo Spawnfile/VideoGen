@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
+import pg from 'pg';
 import { produceVia, startDevSession, STUCK_SCRIPT } from './helpers.ts';
 
 test.skip(!process.env.VG_SCREENSHOTS, 'yalnızca elle: VG_SCREENSHOTS=1 npm run test:smoke -- screens');
@@ -215,4 +216,75 @@ test('M6 screen: publish panel with the finish card, and the TikTok connection i
   await page.getByTestId('tiktok-test').click();
   await expect(page.getByTestId('tiktok-connection')).toContainText('Bağlantı çalışıyor');
   await page.getByTestId('tiktok-connection').screenshot({ path: shot('settings-tiktok.png', 'm6') });
+});
+
+test('M7 screens: audit explorer, library compare, asset ledger, Settings data', async ({ page, request }) => {
+  test.setTimeout(120_000);
+  // A researcher session gives the audit tool rows; a seeded ready video gets a second finished version (fix round 1) to compare.
+  await startDevSession(request, { role: 'researcher', script: { fixture: 'websearch' } });
+  const r = await request.post('/api/dev/videos/ready', { data: { productName: 'Tükenmez kalem' } });
+  const { videoId } = (await r.json()) as { videoId: string };
+  const db = new pg.Client({ connectionString: 'postgres://videogen_app:videogen_app@127.0.0.1:5433/videogen_smoke' });
+  await db.connect();
+  try {
+    const dims = (d: number) => JSON.stringify({ D1: 12 + d, D2: 13, D3: 10, D4: 14, D5: 8 + d, D6: 10, D7: 4, D8: 6 + d, D9: 7 });
+    const [v1] = (await db.query("SELECT id FROM versions WHERE video_id = $1 AND round = 0", [videoId])).rows as { id: string }[];
+    const [v2] = (await db.query(
+      "INSERT INTO versions (id, video_id, parent_version_id, round, reason, created_at) VALUES (gen_random_uuid(), $1, $2, 1, 'fix:compose', now() + interval '2 minutes') RETURNING id",
+      [videoId, v1!.id],
+    )).rows as { id: string }[];
+    await db.query(
+      `INSERT INTO artifacts (id, version_id, run_id, step_id, kind, blob_sha, content, input_hash, duration_ms, width, height, codec, meta, created_at)
+       SELECT gen_random_uuid(), $2, run_id, step_id, kind, blob_sha, content, input_hash, duration_ms, width, height, codec, meta, now() + interval '2 minutes'
+         FROM artifacts WHERE version_id = $1 AND kind IN ('final_video_music', 'final_video_tiktok', 'final_cover')`,
+      [v1!.id, v2!.id],
+    );
+    await db.query("UPDATE reviews SET dimension_scores = $2 WHERE version_id = $1 AND reviewer_role = 'orchestrator'", [v1!.id, dims(0)]);
+    await db.query(
+      `INSERT INTO reviews (id, video_id, version_id, run_id, step_id, round, reviewer_role, seq, rubric_version, total, dimension_scores, gates, verdict, created_at)
+       SELECT gen_random_uuid(), video_id, $2, run_id, step_id, 1, reviewer_role, seq, rubric_version, 91.5, $3, gates, verdict, now() + interval '2 minutes'
+         FROM reviews WHERE version_id = $1 AND reviewer_role = 'orchestrator'`,
+      [v1!.id, v2!.id, dims(2)],
+    );
+    await db.query('UPDATE videos SET best_version_id = $2, current_version_id = $2 WHERE id = $1', [videoId, v2!.id]);
+  } finally {
+    await db.end();
+  }
+
+  await page.goto('/audit');
+  await expect(page.getByTestId('chain-status')).toHaveAttribute('data-tone', 'ok', { timeout: 15_000 });
+  await expect(page.getByText('Worker canlı')).toBeVisible({ timeout: 15_000 });
+  const tool = page.getByTestId('audit-row').filter({ hasText: 'agent.tool' }).first();
+  await expect(tool).toBeVisible({ timeout: 20_000 });
+  await tool.click();
+  await expect(page.getByTestId('audit-detail').getByText(/^Araç girdisi/)).toBeVisible();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: shot('audit.png', 'm7') });
+
+  // Tall enough for both players and the score deltas under them (the page scrolls inside its own panel, fullPage cannot reach).
+  await page.setViewportSize({ width: 1440, height: 1500 });
+  await page.goto(`/library/${videoId}`);
+  await expect(page.getByTestId('versions-list').getByTestId('version-row')).toHaveCount(2);
+  await page.getByRole('tab', { name: 'Karşılaştır' }).click();
+  const compare = page.getByTestId('compare-view');
+  await expect(compare.locator('video')).toHaveCount(2);
+  for (const v of await compare.locator('video').all()) await expect.poll(() => v.evaluate((e) => (e as HTMLVideoElement).readyState)).toBeGreaterThanOrEqual(2);
+  await expect(compare.getByTestId('compare-delta')).toBeVisible();
+  await expect(page.getByText('Worker canlı')).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: shot('library-compare.png', 'm7') });
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  await page.goto('/assets');
+  await expect(page.getByTestId('asset-row').first()).toBeVisible();
+  await expect(page.getByText('Worker canlı')).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: shot('assets.png', 'm7') });
+
+  await page.goto('/settings');
+  const data = page.getByTestId('data-status');
+  await expect(data.getByTestId('backup-status')).toBeVisible();
+  await data.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  await data.screenshot({ path: shot('settings-data.png', 'm7') });
 });

@@ -14,7 +14,7 @@ const key = (m: Msg) => `${m.type}/${m.subtype ?? ''}`;
 describe('FakeClaudeDriver', () => {
   it('replays every recorded fixture completely and in order', async () => {
     const names = readdirSync(FIXTURES_DIR).filter((f) => f.endsWith('.ndjson')).map((f) => f.replace('.ndjson', ''));
-    expect(names).toHaveLength(8);
+    expect(names).toHaveLength(9); // eight recordings and long-trace (generated for smoke S8 by make-long-trace.mjs)
     const d = new FakeClaudeDriver({ speed: 0 });
     for (const name of names) {
       const s = d.start(spec({ fakeScript: { fixture: name } }));
