@@ -40,7 +40,8 @@ describe('audit query layer', () => {
     const pub1 = await push(appendAudit(t.pool, { actorType: 'user', action: 'publish.queued', subjectType: 'video', subjectId: b.videoId }));
     const pub2 = await push(appendAudit(t.pool, { actorType: 'system', action: 'publish.sent', subjectType: 'video', subjectId: b.videoId }));
     await push(appendAudit(t.pool, { actorType: 'system', action: 'publisher.tick' }));
-    const midTs = (await t.pool.query('SELECT clock_timestamp() AS ts')).rows[0].ts as Date;
+    // microseconds kept: a Date would cut the boundary to the millisecond and let a row from the same ms through
+    const midTs = (await t.pool.query(`SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS ts`)).rows[0].ts as string;
     mine.push(await push(appendAudit(t.pool, { actorType: 'orchestrator', action: 'artifact.created', runId: a.runId, subjectType: 'artifact', subjectId: randomUUID() })));
 
     expect(seqs((await listAudit(t.pool, { videoId: a.videoId })).rows)).toEqual([...mine].reverse());
@@ -49,9 +50,9 @@ describe('audit query layer', () => {
     expect(seqs((await listAudit(t.pool, { role: 'storyboarder' })).rows)).toEqual([bTool]);
     expect(seqs((await listAudit(t.pool, { action: 'publish.sent' })).rows)).toEqual([pub2]);
     expect(seqs((await listAudit(t.pool, { action: 'publish.*' })).rows)).toEqual([pub2, pub1]);
-    const after = (await listAudit(t.pool, { from: midTs.toISOString() })).rows;
+    const after = (await listAudit(t.pool, { from: midTs })).rows;
     expect(seqs(after)).toEqual([mine.at(-1)!]);
-    const before = (await listAudit(t.pool, { to: midTs.toISOString(), action: 'run.*' })).rows;
+    const before = (await listAudit(t.pool, { to: midTs, action: 'run.*' })).rows;
     expect(seqs(before)).toEqual([bRun, mine[2]!]);
     expect((await listAudit(t.pool, { videoId: a.videoId })).rows[0]).toMatchObject({ action: 'artifact.created', actorType: 'orchestrator', runId: a.runId, subjectType: 'artifact' });
     expect(await listAudit(t.pool, { runId: randomUUID() })).toEqual({ rows: [], nextBefore: null });

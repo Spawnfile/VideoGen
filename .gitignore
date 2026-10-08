@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 .env.*
+!tests/fixtures/**/.env
 *.log
 test-results/
 playwright-report/
