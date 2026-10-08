@@ -319,7 +319,7 @@ export async function queueStepIfRunActive(db: Queryable, stepId: string): Promi
 
 /**
  * Plan C6 (inherited D5): the draft review sends the run back. One transaction: only while the review step is still running in
- * `round` and its run is running, steps with ordinals from..to become pending with round + 1 and a fresh attempt counter (the
+ * `round` and its run is running, steps with ordinals from..to become pending with the review's round + 1 and a fresh attempt counter (the
  * orchestrator's retry budget is per round), and the review's job is closed. A crash before COMMIT changes nothing (the restarted
  * review replays its stored decision); a replay after COMMIT finds the step pending and changes nothing (no double round).
  */
@@ -347,10 +347,12 @@ export async function rewindForReview(
       return false;
     }
     await c.query(
-      `UPDATE steps SET status = 'pending', ${col} = ${col} + 1, attempt = 0, progress = 0, progress_source = NULL, input_hash = NULL, session_id = NULL,
+      `UPDATE steps SET status = 'pending', ${col} = $5, attempt = 0, progress = 0, progress_source = NULL, input_hash = NULL, session_id = NULL,
          error = NULL, note = $4, started_at = NULL, ended_at = NULL
        WHERE run_id = $1 AND ordinal BETWEEN $2 AND $3`,
-      [o.runId, o.fromOrdinal, o.toOrdinal, o.note],
+      // Every rewound step takes the review's round + 1, not its own + 1: steps read their cause by this number (roundCause), so a
+      // wider round after a narrower one must not leave them a round behind.
+      [o.runId, o.fromOrdinal, o.toOrdinal, o.note, o.round + 1],
     );
     if (o.version) {
       const v = await c.query('UPDATE versions SET reason = $2 WHERE id = $1 AND video_id = (SELECT video_id FROM runs WHERE id = $3)', [o.version.id, o.version.reason, o.runId]);

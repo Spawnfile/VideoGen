@@ -30,7 +30,12 @@ export function runProcess(file: string, args: string[], o: ProcOptions): Promis
   const started = Date.now();
   return new Promise((resolve) => {
     const child = spawn(file, args, { cwd: o.cwd, env: o.env ?? {}, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-    const pid = child.pid!;
+    if (child.pid === undefined) {
+      // Not spawned (e.g. ENOENT: a venv removed after preflight): a failed result, not an unhandled 'error' that kills the worker.
+      child.once('error', (e) => resolve({ code: null, signal: null, stopped: null, ms: Date.now() - started, tail: [`spawn failed: ${(e as NodeJS.ErrnoException).code ?? e.message}`] }));
+      return;
+    }
+    const pid = child.pid;
     const tail: string[] = [];
     let stopped: ProcResult['stopped'] = null;
     let buf = '';

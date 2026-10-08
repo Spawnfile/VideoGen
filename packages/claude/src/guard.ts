@@ -62,6 +62,13 @@ function searchRoot(ctx: GuardContext, tool: string, i: Record<string, unknown>)
   return resolve(base, fixed.join('/') || '.');
 }
 
+const WEB_TOOLS = new Set(['WebFetch', 'WebSearch']);
+
+function readableByWebRole(ctx: GuardContext, p: string): boolean {
+  const abs = realish(resolve(ctx.runDir, p));
+  return inside(abs, realish(ctx.runDir)) || inside(abs, realish(join(ctx.home, '.claude', 'skills')));
+}
+
 /** A recursive search from an ancestor (home, /, the repo) would reach secret files a per-path check cannot see. */
 function searchDecision(ctx: GuardContext, tool: string, i: Record<string, unknown>): GuardDecision {
   const root = realish(searchRoot(ctx, tool, i));
@@ -161,9 +168,12 @@ export function evaluateToolUse(ctx: GuardContext, tool: string, input: unknown)
   }
   if (tool === 'Bash') return bashDecision(ctx, str(obj(input)?.command) ?? '');
   const i = obj(input) ?? {};
+  const web = ctx.role.tools.some((t) => WEB_TOOLS.has(t));
   for (const k of READ_PATH_KEYS) {
     const p = str(i[k]);
     if (p && isSecretPath(ctx, p)) return deny('Reading credentials or private configuration is not allowed.');
+    // A role that also fetches the web reads only its run and the skills: a hostile page cannot steer a Read → WebFetch exfiltration.
+    if (p && web && tool === 'Read' && !readableByWebRole(ctx, p)) return deny('Roles with web tools may only read inside the run directory (and skills).');
   }
   if (tool === 'Grep' || tool === 'Glob') return searchDecision(ctx, tool, i);
   return ALLOW;

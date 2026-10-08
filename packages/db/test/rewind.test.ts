@@ -91,4 +91,17 @@ describe('rewindForReview, final loop (plan F3/F13)', () => {
     expect((await t.pool.query('SELECT fix_round FROM steps WHERE run_id = $1 ORDER BY ordinal', [r.runId])).rows.map((x) => x.fix_round)).toEqual([0, 0, 0, 0, 0, 0, 1, 1, 1, 0]);
     expect((await t.pool.query('SELECT reason FROM versions WHERE id = $1', [vid])).rows[0].reason).toBe('fix:compose');
   });
+
+  it('a wider round after a narrower one sets every rewound step to the global fix round (no per-row drift)', async () => {
+    const { r, review, job } = await finalReviewing('Kalem iki tur');
+    // Round 0 → 1: compose scope (compose…review).
+    expect(await rewindForReview(t.pool, { runId: r.runId, stepId: review.id, jobId: job.id, round: 0, fromOrdinal: 6, toOrdinal: 8, note: 'düzeltme turu 1/3', counter: 'fix_round' })).toBe(true);
+    await updateStep(t.pool, review.id, { status: 'running' });
+    await enqueueJob(t.pool, { stepId: review.id, resource: 'claude' });
+    const job2 = (await claimJob(t.pool, { owner: 'w', resources: ['claude'], leaseMs: 60_000 }))!;
+    // Round 1 → 2: build scope (build…review).
+    expect(await rewindForReview(t.pool, { runId: r.runId, stepId: review.id, jobId: job2.id, round: 1, fromOrdinal: 2, toOrdinal: 8, note: 'düzeltme turu 2/3', counter: 'fix_round' })).toBe(true);
+    expect((await t.pool.query('SELECT fix_round FROM steps WHERE run_id = $1 ORDER BY ordinal', [r.runId])).rows.map((x) => x.fix_round)).toEqual([0, 0, 2, 2, 2, 2, 2, 2, 2, 0]);
+    expect(job.id).not.toBe(job2.id);
+  });
 });

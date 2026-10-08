@@ -119,6 +119,19 @@ describe('tool allow-list and reads', () => {
     expect(denied(evaluateToolUse(ctx('chat'), 'Read', { file_path: 'scene/product.py' }))).toBeNull();
   });
 
+  it('confines reads of roles that hold web tools to the run directory and skills (a hostile page cannot steer a Read → WebFetch exfiltration)', () => {
+    for (const role of ['researcher', 'reviewer_facts'] as const) {
+      expect(denied(evaluateToolUse(ctx(role), 'Read', { file_path: '/etc/passwd' })), role).toMatch(/run directory/);
+      expect(denied(evaluateToolUse(ctx(role), 'Read', { file_path: join(home, 'videogen-data', 'runs', 'r2', 'research', 'x.json') })), role).toMatch(/run directory/);
+      expect(denied(evaluateToolUse(ctx(role), 'Read', { file_path: 'scene/link/x' })), role).toMatch(/run directory/);
+      expect(denied(evaluateToolUse(ctx(role), 'Read', { file_path: 'research/notes.md' })), role).toBeNull();
+      expect(denied(evaluateToolUse(ctx(role), 'Read', { file_path: join(run, 'research', 'notes.md') })), role).toBeNull();
+      expect(denied(evaluateToolUse(ctx(role), 'Read', { file_path: join(home, '.claude', 'skills', 'ffmpeg', 'SKILL.md') })), role).toBeNull();
+    }
+    // Roles without web tools keep reading outside the run dir (Blender API, skills, repo docs).
+    expect(denied(evaluateToolUse(ctx('builder'), 'Read', { file_path: '/etc/passwd' }))).toBeNull();
+  });
+
   it('confines recursive Grep/Glob searches to the run directory (a search from home would reach ~/.aws, ~/.ssh, repo .env files)', () => {
     const search = (tool: 'Grep' | 'Glob', input: object) => denied(evaluateToolUse(ctx('chat'), tool, input));
     expect(search('Grep', { pattern: 'aws_secret_access_key|PRIVATE KEY', path: home })).toMatch(/run directory/);

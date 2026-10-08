@@ -92,6 +92,13 @@ describe('sandbox and process control', () => {
     expect([next.code, next.stopped, next.tail]).toEqual([0, null, ['ok']]);
   });
 
+  it('a binary that cannot be spawned resolves a failed result instead of crashing the worker (the voice CLI venv may vanish after preflight)', async () => {
+    const data = tmp('vg-proc-');
+    const r = await runProcess(join(data, 'missing-python'), ['-c', 'pass'], { cwd: data, dataDir: data, owner: 'job', timeoutMs: 5000, env: { PATH: process.env.PATH! } });
+    expect(r).toMatchObject({ code: null, stopped: null });
+    expect(r.tail.join('\n')).toMatch(/ENOENT/);
+  });
+
   it('stops a group whose memory grows past the limit, and stops on abort', async () => {
     const data = tmp('vg-proc-');
     const big = await runProcess('python3', ['-c', 'import time; x = bytearray(400 * 1024 * 1024); time.sleep(30)'], { cwd: data, dataDir: data, owner: 'job', timeoutMs: 20_000, maxRssMb: 150, sampleMs: 100, killGraceMs: 200, env: { PATH: process.env.PATH! } });
