@@ -106,6 +106,25 @@ describe('voice contracts', () => {
     expect(storyboardVoErrors(fx<Storyboard>('storyboard-kalem'))).toEqual([]); // silent: nothing to check
   });
 
+  it('a short window (brief design Y9): the VO bounds, the padding and the ceiling follow the video window', () => {
+    const w = { minS: 20, maxS: 25 };
+    const withChars = (total: number): Storyboard => {
+      const b = voBoard();
+      const per = Math.ceil(total / b.beats.length);
+      return { ...b, beats: b.beats.map((x) => ({ ...x, vo_text: { tr: text(per) } })) };
+    };
+    // 300 chars ≈ 23,5 s: too long for 20–25 s (VO at most 22 s), fine on the default lower bound only when shorter
+    expect(storyboardVoErrors(withChars(300), { window: w })).toEqual(['seslendirme tahmini 23,5 sn: en çok 22 sn olmalı; VO metnini kısaltın']);
+    expect(storyboardVoErrors(withChars(280), { window: w })).toEqual([]); // 21,96 s inside [19, 22]
+    const s = voBoard();
+    const padded = retimeStoryboard(s, Array(7).fill(1500), w);
+    if ('error' in padded) throw new Error(padded.error);
+    expect(padded.storyboard.duration_s).toBe(20); // 7 × 1.78 s = 12.46 s, padded to the window minimum, not 35 s
+    expect(StoryboardSchema.safeParse(padded.storyboard).success).toBe(true);
+    expect(retimeStoryboard(s, Array(7).fill(4000), w)).toEqual({ error: "seslendirme 25 sn'yi aşıyor (30,0 sn): storyboard'daki VO metni kısaltılmalı" });
+    expect(keepOrRetime(s, Array(7).fill(1500), w)).toMatchObject({ keep: false });
+  });
+
   it('placeLines + retimeStoryboard: a first pass retimes the beats to the VO (lead 0,10 s, gap 0,18 s, min beat 1,2 s), pads to 35 s, refuses over 55 s; rehook and payoff move with their beat and stay valid; StoryboardSchema still holds', () => {
     const three = [{ id: 'a', t_start: 0, t_end: 3 }, { id: 'b', t_start: 3, t_end: 6 }, { id: 'c', t_start: 6, t_end: 9 }];
     expect(placeLines(three, [2000, 500, 3000], { keep: false })).toEqual({

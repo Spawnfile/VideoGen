@@ -159,14 +159,14 @@ export function voiceExecutor(deps: StepDeps, hooks: { stem?: typeof buildStem; 
       const durations = done.map((l) => l.durationMs);
 
       // (5) first pass and rework always retime; a voice round keeps the beat times when the new lines fit (H13).
-      const k = voiceRound ? keepOrRetime(sb, durations) : null;
+      const k = voiceRound ? keepOrRetime(sb, durations, ctx.duration) : null;
       const kept = !!k?.keep;
       let finalSb = sb;
       let maxShiftS = 0;
       let starts: number[];
       if (k?.keep) starts = k.starts_ms;
       else {
-        const r = retimeStoryboard(sb, durations);
+        const r = retimeStoryboard(sb, durations, ctx.duration);
         if ('error' in r) return { status: 'needs_human', reason: r.error };
         finalSb = r.storyboard; starts = r.starts_ms; maxShiftS = r.maxShiftS;
       }

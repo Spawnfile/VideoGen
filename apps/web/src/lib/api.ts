@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import type { PublishInfo, TikTokStatus } from './publish-view.ts';
 import type { Publication, PublishVariant } from '@videogen/shared/browser';
-import type { AgentSessionView, ArtifactMeta, AssetListItem, LedgerKind, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, AudioMode, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, MaintenanceInfo, ModelAlias, NarratorVoice, SafeArea, SafeAreaState, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VersionView, VideoView, VoiceEngine } from '@videogen/shared/browser';
+import type { ProduceBody } from './brief-view.ts';
+import type { AgentSessionView, ArtifactMeta, AssetListItem, LedgerKind, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, MaintenanceInfo, ModelAlias, NarratorVoice, SafeArea, SafeAreaState, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VersionView, VideoView, VoiceEngine } from '@videogen/shared/browser';
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
@@ -41,8 +42,8 @@ export const api = {
   roles: () => get<RoleSetting[]>('/api/roles'),
   setRole: (role: RoleName, patch: { model?: ModelAlias; effort?: Effort }) => send<unknown>('PUT', `/api/roles/${role}`, patch),
   guard: () => get<GuardState>('/api/usage/guard'),
-  produce: async (productName: string, audioMode: AudioMode): Promise<{ ok: true; videoId: string; runId: string } | { ok: false; error: string }> => {
-    const r = await fetch('/api/videos', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ productName, audioMode }) });
+  produce: async (payload: ProduceBody): Promise<{ ok: true; videoId: string; runId: string } | { ok: false; error: string }> => {
+    const r = await fetch('/api/videos', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
     const body = (await r.json().catch(() => ({}))) as { videoId?: string; runId?: string; error?: string };
     return r.status === 202 && body.videoId && body.runId ? { ok: true, videoId: body.videoId, runId: body.runId } : { ok: false, error: body.error ?? `Üretim başlatılamadı (${r.status})` };
   },

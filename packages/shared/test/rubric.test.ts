@@ -56,6 +56,12 @@ describe('rubric final@1 and the QC contract', () => {
     const t = evaluateQc({ ...good(), loudness: { i: -30, tp: -2, lra: 30 }, firstAudioS: 2, silences: [{ start: 3, end: 9 }] }, { variant: 'tiktok' });
     expect(t.map((c) => c.id).sort()).toEqual(['d6_true_peak', 'g1_audio', 'g1_bytes', 'g1_color', 'g1_duration', 'g1_fps', 'g1_size', 'g1_video']);
     expect(failed(t)).toEqual([]);
+    // Brief design Y9: G1 checks the video's own window
+    const w20 = evaluateQc({ ...good(), video: { ...good().video, durationS: 22 } }, { variant: 'music', layoutIssues: [], window: { minS: 20, maxS: 25 } });
+    expect(w20.find((c) => c.id === 'g1_duration')).toMatchObject({ pass: true, limit: '20–25 sn' });
+    const atTop = (d: number) => evaluateQc({ ...good(), video: { ...good().video, durationS: d } }, { variant: 'music', layoutIssues: [], window: { minS: 20, maxS: 25 } }).find((c) => c.id === 'g1_duration')!.pass;
+    expect([atTop(751 / 30), atTop(25.1)]).toEqual([true, false]); // a 25 s storyboard renders 751 frames
+    expect(evaluateQc({ ...good(), video: { ...good().video, durationS: 22 } }, { variant: 'music', layoutIssues: [] }).find((c) => c.id === 'g1_duration')).toMatchObject({ pass: false, limit: '35–55 sn' });
     const short = evaluateQc({ ...good(), video: { ...good().video, durationS: 8 }, loudness: { i: -14, tp: -2, lra: 25 } }, { variant: 'music', layoutIssues: [] });
     expect(short.map((c) => c.id)).not.toContain('d6_lra');
   });

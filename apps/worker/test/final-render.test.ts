@@ -51,7 +51,7 @@ async function built(deps: StepDeps, name = 'Tükenmez kalem') {
   const progress: number[] = [];
   const ctx = (key: 'build' | 'final_render', attempt = 1): StepContext => ({
     runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode: 'silent',
-    versionId: r.versionId, runDir, signal: new AbortController().signal, progress: (p) => { if (key === 'final_render') progress.push(p); }, status: () => {}, session: () => {},
+    versionId: r.versionId, brief: null, duration: { minS: 35, maxS: 55 }, durationSource: 'default' as const, runDir, signal: new AbortController().signal, progress: (p) => { if (key === 'final_render') progress.push(p); }, status: () => {}, session: () => {},
   });
   const b = buildExecutor(deps);
   expect(await b.run(ctx('build'), await b.inputHash(ctx('build')))).toMatchObject({ status: 'done' });

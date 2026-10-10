@@ -1,4 +1,5 @@
 import type { AudioMode } from './artifacts.ts';
+import type { DurationSource, DurationWindow } from './production.ts';
 
 /** Spec §7.1, in order. */
 export const STEP_KEYS = ['research', 'storyboard', 'voice', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc', 'review', 'finalize'] as const;
@@ -92,6 +93,10 @@ export interface VideoView {
   final: VideoFinal | null;
   /** The panel total of the best version's final review (newest round while there is no best version); null before a scored review. */
   score: number | null;
+  /** Brief design Y1/Y4: the user's brief and the effective duration window with its source. */
+  brief: string | null;
+  duration: DurationWindow;
+  durationSource: DurationSource;
 }
 /**
  * Plan M7 Y7 (GET /api/videos/:id/versions): one row per version, by round. `total`/`verdict`/`dims` come from that version's orchestrator

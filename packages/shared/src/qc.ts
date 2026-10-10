@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { formatWindow, type DurationWindow } from './production.ts';
 import { GATES, RUBRIC_VERSION, type DimensionId, type GateId } from './rubric.ts';
 
 /** Plan E4. Folklore-tagged limits (LRA, bitrate) are revised after the first ten posts (spec §8.4). */
@@ -80,8 +81,10 @@ export type QcCheckResult = z.infer<typeof QcCheckResultSchema>;
 const n1 = (x: number) => x.toFixed(1).replace('.', ',');
 
 /** Plan E3/E4: deterministic, one result per applicable check id. */
-export function evaluateQc(m: QcMeasure, o: { variant: QcVariant; layoutIssues?: LayoutIssue[] | null; coverOk?: boolean }): QcCheckResult[] {
+/** `window`: the video's duration window for G1 (brief design Y9; default 35–55 s = QC_LIMITS). */
+export function evaluateQc(m: QcMeasure, o: { variant: QcVariant; layoutIssues?: LayoutIssue[] | null; coverOk?: boolean; window?: DurationWindow }): QcCheckResult[] {
   const L = QC_LIMITS;
+  const W = o.window ?? { minS: L.minS, maxS: L.maxS };
   const v = m.video;
   const out: QcCheckResult[] = [];
   const add = (id: QcCheckId, pass: boolean, value: string, limit: string, at?: number | null) => {
@@ -94,7 +97,8 @@ export function evaluateQc(m: QcMeasure, o: { variant: QcVariant; layoutIssues?:
   add('g1_color', v.pixFmt === 'yuv420p' && v.colorRange === 'tv' && [v.colorSpace, v.colorPrimaries, v.colorTransfer].every((x) => x === 'bt709'),
     color.map((x) => x ?? 'yok').join('/'), 'yuv420p/tv/bt709');
   add('g1_audio', m.audio?.codec === 'aac' && m.audio.sampleRate === 48000, m.audio ? `${m.audio.codec} ${m.audio.sampleRate} Hz` : 'ses yok', 'aac 48000 Hz');
-  add('g1_duration', v.durationS >= L.minS && v.durationS <= L.maxS, `${n1(v.durationS)} sn`, '35–55 sn');
+  // The final holds frames 0…round(duration_s×30), one frame longer than the storyboard: a storyboard at the window's top lands 1/30 s over it.
+  add('g1_duration', v.durationS >= W.minS && v.durationS <= W.maxS + 1 / 30 + 1e-6, `${n1(v.durationS)} sn`, formatWindow(W));
   add('g1_bytes', m.bytes < L.maxBytes, `${n1(m.bytes / 1048576)} MB`, '< 64 MB');
   add('g5_flash', m.flashMaxPerS <= L.flashPerS, `${m.flashMaxPerS}/sn`, '≤ 3/sn', m.flashAt);
   if (o.layoutIssues) add('g6_layout', o.layoutIssues.length === 0, `${o.layoutIssues.length} kutu dışarıda`, '0', o.layoutIssues[0] ? o.layoutIssues[0].frame / 30 : null);

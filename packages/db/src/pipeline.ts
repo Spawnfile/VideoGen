@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import {
-  normalizeProductName, type ArtifactMeta, type AudioMode, type PlanStep, type ProgressSource, type RunKind, type RunStatus, type RunView,
+  normalizeProductName, type ArtifactMeta, type DurationSource, type DurationWindow, type AudioMode, type PlanStep, type ProgressSource, type RunKind, type RunStatus, type RunView,
   type StepKey, type StepStatus, type StepView, type UsageMark, type VideoStatus, type VideoView,
 } from '@videogen/shared';
 import { appendAudit } from './audit.ts';
@@ -15,9 +15,13 @@ const round4 = (v: unknown): number | null => (v === null || v === undefined ? n
 
 export interface CreatedRun { productId: string; videoId: string; runId: string; versionId: string }
 
-/** API side of "Üret": user text lands in rows, the worker only gets ids (spec §5.1). One transaction. */
-export async function createProduceRun(pool: pg.Pool, inp: { productName: string; audioMode: AudioMode; plan: PlanStep[] }): Promise<CreatedRun> {
+/**
+ * API side of "Üret": user text lands in rows, the worker only gets ids (spec §5.1). One transaction.
+ * Brief design Y1/Y4: `brief` and a user `duration` are the user's decisions; without a duration the default window applies until the agent recommends one.
+ */
+export async function createProduceRun(pool: pg.Pool, inp: { productName: string; audioMode: AudioMode; plan: PlanStep[]; brief?: string | null; duration?: DurationWindow | null }): Promise<CreatedRun> {
   const name = inp.productName.trim().replace(/\s+/g, ' ');
+  const brief = inp.brief?.trim() ? inp.brief.trim() : null;
   const c = await pool.connect();
   try {
     await c.query('BEGIN');
@@ -31,8 +35,9 @@ export async function createProduceRun(pool: pg.Pool, inp: { productName: string
     const runId = randomUUID();
     const versionId = randomUUID();
     await c.query(
-      `INSERT INTO videos (id, product_id, title, audio_mode, status, current_version_id) VALUES ($1, $2, $3, $4, 'queued', $5)`,
-      [videoId, productId, `${name} — içinde ne var`, inp.audioMode, versionId],
+      `INSERT INTO videos (id, product_id, title, audio_mode, status, current_version_id, brief, duration_min_s, duration_max_s, duration_source)
+       VALUES ($1, $2, $3, $4, 'queued', $5, $6, COALESCE($7, 35), COALESCE($8, 55), $9)`,
+      [videoId, productId, `${name} — içinde ne var`, inp.audioMode, versionId, brief, inp.duration?.minS ?? null, inp.duration?.maxS ?? null, inp.duration ? 'user' : 'default'],
     );
     await c.query(`INSERT INTO versions (id, video_id, round, reason) VALUES ($1, $2, 0, 'produce')`, [versionId, videoId]);
     await c.query(`INSERT INTO runs (id, video_id, kind, trigger, plan, status) VALUES ($1, $2, 'produce', 'user', $3, 'queued')`, [runId, videoId, JSON.stringify(inp.plan)]);
@@ -41,7 +46,10 @@ export async function createProduceRun(pool: pg.Pool, inp: { productName: string
     }
     await appendAudit(c, {
       actorType: 'user', action: 'video.produce_requested', subjectType: 'video', subjectId: videoId, runId,
-      data: { productId, audioMode: inp.audioMode, plan: inp.plan.map((s) => s.key) },
+      data: {
+        productId, audioMode: inp.audioMode, plan: inp.plan.map((s) => s.key),
+        briefChars: brief?.length ?? 0, ...(brief ? { briefPreview: brief.slice(0, 200) } : {}), duration: inp.duration ?? null, durationSource: inp.duration ? 'user' : 'default',
+      },
     });
     await c.query('COMMIT');
     return { productId, videoId, runId, versionId };
@@ -107,15 +115,36 @@ export async function getStep(db: Queryable, id: string): Promise<StepRecord | n
   return rows[0] ? toStep(rows[0]) : null;
 }
 
-export interface RunContext { run: RunRecord; videoId: string; productId: string; productName: string; audioMode: AudioMode; versionId: string | null }
+export interface RunContext {
+  run: RunRecord; videoId: string; productId: string; productName: string; audioMode: AudioMode; versionId: string | null;
+  /** Brief design Y1/Y4: read at every step launch, so the agent's window set after research reaches the later steps. */
+  brief: string | null; duration: DurationWindow; durationSource: DurationSource;
+}
 export async function getRunContext(db: Queryable, runId: string): Promise<RunContext | null> {
   const { rows } = await db.query(
-    `SELECT r.*, v.audio_mode, v.current_version_id, p.id AS product_id, p.name AS product_name
+    `SELECT r.*, v.audio_mode, v.current_version_id, v.brief, v.duration_min_s, v.duration_max_s, v.duration_source, p.id AS product_id, p.name AS product_name
      FROM runs r JOIN videos v ON v.id = r.video_id JOIN products p ON p.id = v.product_id WHERE r.id = $1`,
     [runId],
   );
   const r = rows[0];
-  return r ? { run: toRun(r), videoId: r.video_id, productId: r.product_id, productName: r.product_name, audioMode: r.audio_mode, versionId: r.current_version_id } : null;
+  return r ? {
+    run: toRun(r), videoId: r.video_id, productId: r.product_id, productName: r.product_name, audioMode: r.audio_mode, versionId: r.current_version_id,
+    brief: r.brief ?? null, duration: { minS: Number(r.duration_min_s), maxS: Number(r.duration_max_s) }, durationSource: r.duration_source,
+  } : null;
+}
+
+/**
+ * Brief design Y5: the researcher's window becomes the video's window unless the user decided one (user > agent > default).
+ * Returns whether it was applied; the audit row records the decision either way.
+ */
+export async function applyAgentDuration(db: Queryable, i: { videoId: string; runId: string; window: DurationWindow }): Promise<boolean> {
+  const { rowCount } = await db.query(
+    `UPDATE videos SET duration_min_s = $2, duration_max_s = $3, duration_source = 'agent', updated_at = now() WHERE id = $1 AND duration_source <> 'user'`,
+    [i.videoId, i.window.minS, i.window.maxS],
+  );
+  const applied = (rowCount ?? 0) > 0;
+  await appendAudit(db, { actorType: 'orchestrator', action: 'video.duration_set', subjectType: 'video', subjectId: i.videoId, runId: i.runId, data: { window: i.window, source: 'agent', applied } });
+  return applied;
 }
 
 export async function getRunView(db: Queryable, id: string): Promise<RunView | null> {
@@ -174,6 +203,7 @@ function toVideo(r: Record<string, any>): VideoView {
     draft: r.draft_sha ? { videoSha: r.draft_sha, coverSha: r.cover_sha ?? null, durationS: Math.round(Number(r.draft_ms ?? 0) / 100) / 10 } : null,
     final: r.final_sha ? { musicSha: r.final_sha, tiktokSha: r.tiktok_sha ?? null, coverSha: r.final_cover_sha ?? null, durationS: Math.round(Number(r.final_ms ?? 0) / 100) / 10 } : null,
     score: round4(r.score),
+    brief: r.brief ?? null, duration: { minS: Number(r.duration_min_s ?? 35), maxS: Number(r.duration_max_s ?? 55) }, durationSource: r.duration_source ?? 'default',
   };
 }
 export async function getVideoView(db: Queryable, id: string): Promise<VideoView | null> {

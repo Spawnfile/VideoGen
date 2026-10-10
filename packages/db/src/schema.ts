@@ -178,6 +178,12 @@ export const videos = pgTable(
     statusNote: text('status_note'),
     currentVersionId: uuid('current_version_id'),
     bestVersionId: uuid('best_version_id'),
+    /** Brief design Y4: the user's production brief, fixed once production starts. */
+    brief: text('brief'),
+    /** Brief design Y1/Y2: the effective duration window and who set it ('default' | 'agent' | 'user'). */
+    durationMinS: integer('duration_min_s').notNull().default(35),
+    durationMaxS: integer('duration_max_s').notNull().default(55),
+    durationSource: text('duration_source').notNull().default('default'),
     createdAt: timestamp('created_at', { withTimezone: true, precision: 6 }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true, precision: 6 }).notNull().defaultNow(),
   },

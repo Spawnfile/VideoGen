@@ -60,7 +60,7 @@ Bu doküman; kullanıcı gereksinimlerini, brainstorming ve grilling turlarında
 | K5 | Yayın butonla, TikTok **taslak (inbox)** modunda | Kullanıcı kararı. Sandbox uygulamada herkese açık yayın sadece bu yolla mümkün (ölçüldü) |
 | K6 | Otomatik düzeltme döngüsü, en fazla 3 tur; sonra "insan gerekli" | Kullanıcı kararı |
 | K7 | Hibrit 3D: final Blender EEVEE; taslak ve önizleme Three.js-in-Remotion | Kullanıcı kararı. Three.js ~20× hızlı ama kalite tavanı "temiz diyagram" (ölçüldü) |
-| K8 | Hedef süre 35–55 sn, 1080×1920, 30 fps | Kullanıcı kararı. Referans kanallarda medyan süre 44–61 sn |
+| K8 | Hedef süre 35–55 sn (varsayılan), 1080×1920, 30 fps | Kullanıcı kararı. Referans kanallarda medyan süre 44–61 sn. **2026-10-10:** video başına süre penceresi 15–60 sn; öncelik kullanıcı > ajan önerisi > varsayılan (`docs/superpowers/specs/2026-10-10-production-brief-design.md`) |
 | K9 | Müzik iki varyantlı: müzikli final + müziksiz TikTok taslağı (trend ses uygulamada eklenir) | Kullanıcı kararı. API ile TikTok kütüphane sesi eklenemiyor |
 | K10 | Disk temizliği (~26 GB): gemma4 modelleri, önbellekler, eski node_modules, minillm-lab | Kullanıcı kararı. M0'da her silmeden önce son durum gösterilerek yapılır |
 | K11 | Mimari B: API + Worker, Postgres üzerinden haberleşir | Kullanıcı kararı. ~23 dk'lık render yeniden başlatmalara dayanıklı olmalı |
@@ -446,7 +446,7 @@ Her JSON artefakt hem içerik adresli dosya olarak hem de Postgres'te `jsonb` ol
 
 | Kapı | İçerik |
 |---|---|
-| G1 Teslim | 1080×1920, 30 fps, H.264 High, `yuv420p`/tv/bt709, AAC 48 kHz, 35–55 sn, < 64 MB |
+| G1 Teslim | 1080×1920, 30 fps, H.264 High, `yuv420p`/tv/bt709, AAC 48 kHz, videonun süre penceresi (varsayılan 35–55 sn), < 64 MB |
 | G2 Doğruluk | Desteksiz veya çelişkili iddia sıfır. Sayısal iddialar için 2 bağımsız kaynak ya da 1 birincil kaynak |
 | G3 Haklar | Üçüncü taraf görüntü, logo veya filigran yok. Müzik lisanslı ya da uygulamada eklenecek. Marka adları sadece tanımlayıcı olarak |
 | G4 Beyan | AIGC kararı: klon ses → etiket zorunlu; Blender CG ve hazır TTS sesi → gerekmez |

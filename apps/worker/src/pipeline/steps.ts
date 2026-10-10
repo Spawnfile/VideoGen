@@ -6,13 +6,14 @@ import type pg from 'pg';
 import {
   canonical, CHANNEL_STYLES, DRAFT_CHECK_IDS, DRAFT_CHECKS, DRAFT_GATES, DRAFT_MAX_RETURNS, DRAFT_RUBRIC_VERSION, draftDecision, formatClock, HOOK_PATTERN_LABELS,
   normalizeProductName, rendersChanged, reviewRefErrors, sceneRefErrors, storyboardRefErrors, storyboardVoErrors, validateArtifact,
-  type AudioMode, type BuildReport, type ChannelStyleId, type DraftCheckId, type ProductResearch, type Review, type SceneSpec, type StepKey, type Storyboard,
+  DEFAULT_DURATION, DURATION_HARD, DURATION_SOURCE_LABELS, formatWindow, recommendedWindow, VO_CHARS_PER_S, voBounds, windowErrors,
+  type DurationSource, type DurationWindow, type AudioMode, type BuildReport, type ChannelStyleId, type DraftCheckId, type ProductResearch, type Review, type SceneSpec, type StepKey, type Storyboard,
 } from '@videogen/shared';
-import { appendAudit, findArtifact, getBlob, getChannelStyle, insertArtifact, latestArtifact, latestStepSession, setProductDifficulty } from '@videogen/db';
+import { appendAudit, applyAgentDuration, findArtifact, getBlob, getChannelStyle, insertArtifact, latestArtifact, latestStepSession, setProductDifficulty } from '@videogen/db';
 import { SpecStore, type FakeScript, type SpecKind } from '@videogen/claude';
 import { bundleHash, DRAFT_RENDER } from '@videogen/remotion/hash';
 import { draftProps, type DraftProps } from '@videogen/remotion/props';
-import { fenced } from './fence.ts';
+import { briefBlock, fenced } from './fence.ts';
 import { ARTIFACT_VALIDATOR } from './validator.ts';
 import { RESUME_PROMPT, type SessionManager, type UsageGate } from '../agents/manager.ts';
 import type { AudioDriver } from '../audio/driver.ts';
@@ -32,7 +33,7 @@ import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
 
 export { ARTIFACT_VALIDATOR } from './validator.ts';
 /** Bump when a contract changes: old outputs stop matching and are not reused. */
-const SCHEMA_VERSION = { research: 'ProductResearch@1', storyboard: 'Storyboard@1', scene: 'SceneSpec@1' } as const;
+const SCHEMA_VERSION = { research: 'ProductResearch@2', storyboard: 'Storyboard@1', scene: 'SceneSpec@1' } as const;
 export type PipelineRole = 'researcher' | 'storyboarder' | 'builder' | 'reviewer_visual' | 'reviewer_facts' | 'reviewer_retention' | 'fixer';
 /** Fake driver only: `styleId` for a fake build, `seq` (the second visual review is 2) and `failed` (the check ids a fixer is sent) for the final review loop. */
 export interface FakeExtra { styleId?: ChannelStyleId; seq?: number; failed?: string[] }
@@ -58,30 +59,48 @@ export interface StepDeps {
 export const sha = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
 export { fenced };
 
-export function researchPrompt(name: string): string {
+/** Brief design Y5: what the prompts know about the video's brief and duration (absent = no brief, the default window). */
+export interface BriefInputs { brief?: string | null; duration?: DurationWindow; durationSource?: DurationSource }
+const briefOf = (ctx: StepContext): BriefInputs => ({ brief: ctx.brief, duration: ctx.duration, durationSource: ctx.durationSource });
+/** Y10: hash keys only when they differ from "no brief, default window", so a plain video keeps its pre-brief hashes. */
+const briefKeys = (ctx: StepContext, o: { duration: 'user' | 'any' }) => ({
+  ...(ctx.brief?.trim() ? { brief: ctx.brief.trim() } : {}),
+  ...((o.duration === 'user' ? ctx.durationSource === 'user' : ctx.durationSource !== 'default') ? { duration: ctx.duration } : {}),
+});
+
+export function researchPrompt(name: string, b: BriefInputs = {}): string {
+  const w = b.duration ?? DEFAULT_DURATION;
+  const userSet = b.durationSource === 'user';
   return [
     `Ürün: "${name}"`,
     '',
-    'Bu ürünün içini anlatan 35–55 saniyelik bir "içinde ne var" TikTok videosu için araştırma yap.',
+    `Bu ürünün içini anlatan ${userSet ? `${formatWindow(w)} (kullanıcının kararı)` : 'kısa'} bir "içinde ne var" TikTok videosu için araştırma yap.`,
+    ...(b.brief?.trim() ? ['', ...briefBlock(b.brief, 'researcher'), ''] : []),
     '- Ad belirsizse en yaygın yorumu seç ve `interpretation` alanına yaz.',
     '- Parçaları (kimlik: küçük harf, rakam, - veya _), işlevlerini, malzemelerini, yaklaşık ölçülerini (mm, [uzunluk, genişlik, yükseklik]), adetlerini ve montaj sırasını çıkar.',
     '- Her iddiayı kaynak URL\'si, kısa alıntı, erişim tarihi (YYYY-MM-DD) ve türüyle kaydet: primary (üretici, standart) ya da independent. Sayısal iddialar için 2 bağımsız ya da 1 birincil kaynak bul.',
     '- Ürün prosedürel olarak modellenemiyorsa ve lisanslı CC0 bir model de yoksa `difficulty: "too_hard"` ver ve `difficulty_reason_tr` ile gerekçesini yaz.',
+    `- recommendation alanını doldur: bu ürün${b.brief?.trim() ? ' ve yönerge' : ''} için önerdiğin süre aralığı (duration_min_s–duration_max_s, ${DURATION_HARD.minS}–${DURATION_HARD.maxS} sn içinde, en az 2 sn geniş; kanal varsayılanı ${formatWindow(DEFAULT_DURATION)}; basit ürün daha kısa, çok parçalı ya da zor mekanizma daha uzun), videonun nasıl anlatılacağına dair en çok 5 kısa öneri (brief_tr: neye odaklanılmalı, hangi parça/an öne çıkmalı, tempo) ve reason_tr kısa gerekçe.${userSet ? ' Süreyi kullanıcı belirledi; süre önerin yalnızca bilgi içindir, uygulanmaz.' : ' Kullanıcı süre belirlemedi: önerdiğin aralık bu videonun süresi olur.'}`,
     '- Kilometre taşlarında report_progress çağır.',
     'Sonucu yapılandırılmış çıktı (ProductResearch şeması) olarak döndür.',
   ].join('\n');
 }
 
-export function storyboardPrompt(name: string, mode: AudioMode, research: ProductResearch): string {
+export function storyboardPrompt(name: string, mode: AudioMode, research: ProductResearch, b: BriefInputs = {}): string {
+  const w = b.duration ?? DEFAULT_DURATION;
+  const { recommendation: rec, ...facts } = research;
   return [
     `Ürün: "${name}". Ses modu: ${mode === 'vo' ? 'seslendirmeli (her vuruşta vo_text zorunlu)' : 'seslendirmesiz (vo_text yok; anlatımı ekran yazısı ve SFX taşır)'}.`,
     '',
-    fenced('Araştırma (ProductResearch)', research),
+    fenced('Araştırma (ProductResearch)', facts),
     '',
-    'Kurallar: süre 35–55 sn; vuruşlar 0 sn\'den duration_s\'ye boşluksuz ve bitişik; ilk vuruşta kahraman nesne ve kanca yazısı (en çok 60 karakter);',
+    ...(rec?.brief_tr.length ? [fenced('Araştırmacının anlatım önerileri (ajan önerisi; kullanıcı yönergesiyle çelişirse kullanıcınınki geçerli)', rec.brief_tr), ''] : []),
+    ...(b.brief?.trim() ? [...briefBlock(b.brief, 'storyboarder'), ''] : []),
+    `Süre penceresi: ${formatWindow(w)} (${DURATION_SOURCE_LABELS[b.durationSource ?? 'default']}); duration_s bu aralıkta olmalı. read_spec ile göreceğin araştırmadaki recommendation yalnızca öneridir; geçerli süre bu penceredir.`,
+    'Kurallar: vuruşlar 0 sn\'den duration_s\'ye boşluksuz ve bitişik; ilk vuruşta kahraman nesne ve kanca yazısı (en çok 60 karakter);',
     'kanca kalıbı şunlardan biri: question, number, misconception, reveal, contrast; ikinci kanca (rehook_at) sürenin %40–60\'ında, ödül (payoff_at) %70\'ten sonra;',
     `parça ve iddia kimlikleri yalnızca araştırmadakiler; kamera lensi 50–135 mm; audio_mode: "${mode}"; version: 1.`,
-    ...(mode === 'vo' ? ["vo_text Türkçe, sembolsüz, rakamlar ve birimler serbest (0,7 mm, %50); kısa cümleler; toplam anlatım ~50 sn'yi geçmesin; ilk cümle kancadır, ilk kelime hemen başlar."] : []),
+    ...(mode === 'vo' ? [`vo_text Türkçe, sembolsüz, rakamlar ve birimler serbest (0,7 mm, %50); kısa cümleler; toplam anlatım ${voBounds(w).minS}–${voBounds(w).maxS} sn (yaklaşık ${VO_CHARS_PER_S} karakter/sn); ilk cümle kancadır, ilk kelime hemen başlar.`] : []),
     'Sonucu yapılandırılmış çıktı (Storyboard şeması) olarak döndür.',
   ].join('\n');
 }
@@ -112,20 +131,32 @@ export function researchExecutor(deps: StepDeps): StepExecutor {
   return {
     key: 'research',
     resource: 'claude',
-    inputHash: async (ctx) => sha({ step: 'research', product: normalizeProductName(ctx.productName), schema: SCHEMA_VERSION.research }),
-    reuse: (ctx, hash) => reusable(deps, ctx, 'research', hash),
+    // Brief design Y10: the brief and a user window change what is researched and recommended.
+    inputHash: async (ctx) => sha({ step: 'research', product: normalizeProductName(ctx.productName), schema: SCHEMA_VERSION.research, ...briefKeys(ctx, { duration: 'user' }) }),
+    async reuse(ctx, hash) {
+      if (!(await reusable(deps, ctx, 'research', hash))) return false;
+      // Y5: a crash between persisting the research and applying its window must not lose the window on the retry (idempotent: only from 'default').
+      const rec = ctx.durationSource === 'default' ? ((await latestArtifact(deps.pool, ctx.runId, 'research'))?.content as ProductResearch | undefined)?.recommendation : undefined;
+      if (rec) await applyAgentDuration(deps.pool, { videoId: ctx.videoId, runId: ctx.runId, window: recommendedWindow(rec) });
+      return true;
+    },
     async run(ctx, hash) {
       const r = await runStructured<ProductResearch>({
-        manager: deps.manager, ctx, role: 'researcher', prompt: researchPrompt(ctx.productName), schema: 'ProductResearch',
+        manager: deps.manager, ctx, role: 'researcher', prompt: researchPrompt(ctx.productName, briefOf(ctx)), schema: 'ProductResearch',
         fakeScript: deps.fakeScript ? (n) => deps.fakeScript!('researcher', ctx, n) : undefined,
       });
       if (!r.ok) return failure(r);
       await persist(deps, ctx, 'research', r.value, hash);
       await setProductDifficulty(deps.pool, ctx.productId, r.value.difficulty);
+      // Brief design Y5: the agent's window applies where the user decided nothing (applyAgentDuration keeps a user window).
+      const rec = r.value.recommendation;
+      const applied = rec ? await applyAgentDuration(deps.pool, { videoId: ctx.videoId, runId: ctx.runId, window: recommendedWindow(rec) }) : false;
       if (r.value.difficulty === 'too_hard') return { status: 'needs_human', reason: r.value.difficulty_reason_tr ?? 'Ürün prosedürel olarak modellenemiyor.' };
       // Plan B5: a CC0 asset would be needed; the asset ledger and its license gate arrive in M5 (spec §7.1: stop rather than look simple).
       if (r.value.difficulty === 'needs_asset') return { status: 'needs_human', reason: `Hazır 3D varlık gerekiyor; varlık defteri ve lisans kapısı M5'te.${r.value.difficulty_reason_tr ? ` ${r.value.difficulty_reason_tr}` : ''}` };
-      return { status: 'done', note: r.value.interpretation };
+      const window = rec ? recommendedWindow(rec) : null;
+      const durationNote = window ? ` · süre önerisi ${formatWindow(window)}${applied ? '' : ` (uygulanmadı: ${DURATION_SOURCE_LABELS.user} ${formatWindow(ctx.duration)})`}` : '';
+      return { status: 'done', note: `${r.value.interpretation}${durationNote}` };
     },
   };
 }
@@ -144,7 +175,7 @@ export function storyboardExecutor(deps: StepDeps): StepExecutor {
       const research = await latestArtifact(deps.pool, ctx.runId, 'research');
       // Plan F12: a rework round is a new input (the verdict it answers), so it never reuses the previous storyboard.
       const rework = await reworkCause(deps, ctx);
-      return sha({ step: 'storyboard', research: research?.id ?? null, audioMode: ctx.audioMode, schema: SCHEMA_VERSION.storyboard, ...(rework ? { fixRound: ctx.fixRound, cause: causeKey(rework) } : {}) });
+      return sha({ step: 'storyboard', research: research?.id ?? null, audioMode: ctx.audioMode, schema: SCHEMA_VERSION.storyboard, ...briefKeys(ctx, { duration: 'any' }), ...(rework ? { fixRound: ctx.fixRound, cause: causeKey(rework) } : {}) });
     },
     reuse: (ctx, hash) => reusable(deps, ctx, 'storyboard', hash),
     async run(ctx, hash) {
@@ -155,8 +186,11 @@ export function storyboardExecutor(deps: StepDeps): StepExecutor {
       const findings = rework ? await roundFindings(deps.pool, ctx.runId, ctx.fixRound - 1, rework.failed) : null;
       const r = await runStructured<Storyboard>({
         manager: deps.manager, ctx, role: 'storyboarder', schema: 'Storyboard',
-        prompt: storyboardPrompt(ctx.productName, ctx.audioMode, research.value) + (findings ? `\n\n${reworkStoryboardPrompt(findings)}` : ''),
-        check: (s) => [...storyboardRefErrors(s, research.value), ...(s.audio_mode === ctx.audioMode ? [] : [`audio_mode ${ctx.audioMode} olmalı`]), ...(ctx.audioMode === 'vo' ? storyboardVoErrors(s) : [])],
+        prompt: storyboardPrompt(ctx.productName, ctx.audioMode, research.value, briefOf(ctx)) + (findings ? `\n\n${reworkStoryboardPrompt(findings)}` : ''),
+        check: (s) => [
+          ...storyboardRefErrors(s, research.value), ...(s.audio_mode === ctx.audioMode ? [] : [`audio_mode ${ctx.audioMode} olmalı`]),
+          ...windowErrors(s.duration_s, ctx.duration), ...(ctx.audioMode === 'vo' ? storyboardVoErrors(s, { window: ctx.duration }) : []),
+        ],
         fakeScript: deps.fakeScript ? (n) => deps.fakeScript!('storyboarder', ctx, n) : undefined,
       });
       if (!r.ok) return failure(r);
@@ -182,7 +216,7 @@ export function draftFixPrompt(r: Review, reviewedRound: number): string {
   ].join('\n');
 }
 
-export function buildPrompt(name: string, styleId: ChannelStyleId, storyboard: Storyboard, research: ProductResearch): string {
+export function buildPrompt(name: string, styleId: ChannelStyleId, storyboard: Storyboard, research: ProductResearch, brief?: string | null): string {
   const style = CHANNEL_STYLES[styleId];
   const parts = research.parts.map((p) => ({ id: p.id, name_tr: p.name_tr, material: p.material, approx_dims_mm: p.approx_dims_mm, count: p.count, function: p.function }));
   return [
@@ -192,6 +226,7 @@ export function buildPrompt(name: string, styleId: ChannelStyleId, storyboard: S
     '',
     fenced('Araştırmadaki parçalar ve mekanizma', { parts, mechanism: research.mechanism }),
     '',
+    ...(brief?.trim() ? [...briefBlock(brief, 'builder'), ''] : []),
     'Görev: scene/product.py (vg API, yalnızca `import math`, `def build(vg)`) ve SceneSpec yaz. Döngü: write_spec(kind "scene") → build_scene → hataları ve uyarıları düzelt → render_preview_stills → kontakt sayfasını Read ile incele → gerekirse tekrarla.',
     `Kurallar: duration_s ${storyboard.duration_s}, frames ${Math.round(storyboard.duration_s * 30)}, style_id "${styleId}", lighting_preset "${style.lighting}"; storyboard'daki her parça SceneSpec'te ve product.py'de aynı kimlikle; hero_part ilk vuruşun parçalarından biri ve 0. karede kadraj yüksekliğinin en az %35'i;`,
     "mekanizma vuruşunda mekanizmanın çalıştığı yeri gösteren yakın çekim; vuruşun konusu olmayan parça kadrajın en çok %25'i; lens 50–135 mm; 1 birim = 1 cm; asset_ref kullanma.",
@@ -254,7 +289,7 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
       // Plan B15 + C8: a restarted attempt, a draft fix round or a rework round continues the step's own builder session (it knows product.py).
       const prior = ctx.attempt > 1 || fixes ? await latestStepSession(deps.pool, ctx.stepId, 'builder') : null;
       const resumePrompt = fixes ? (ctx.attempt > 1 ? `${RESUME_PROMPT}\n\n${fixes}` : fixes) : RESUME_PROMPT;
-      const fresh = buildPrompt(ctx.productName, style.id, storyboard.value, research.value) + (fixes ? `\n\n${fixes}` : '');
+      const fresh = buildPrompt(ctx.productName, style.id, storyboard.value, research.value, ctx.brief) + (fixes ? `\n\n${fixes}` : '');
       const r = await runStructured<SceneSpec>({
         manager: deps.manager, ctx, role: 'builder', prompt: fresh, schema: 'SceneSpec',
         initialResume: prior ? { claudeSessionId: prior.claudeSessionId, parent: prior.id, prompt: resumePrompt } : undefined,
@@ -416,7 +451,7 @@ export function draftRenderExecutor(deps: StepDeps): StepExecutor {
 /** Twelve contact-sheet times spread over the draft (centres of twelfths), in seconds. */
 export const sheetTimes = (durationS: number): number[] => Array.from({ length: 12 }, (_, i) => Math.round((((i + 0.5) * durationS) / 12) * 1000) / 1000);
 
-export function reviewPrompt(o: { name: string; storyboard: Storyboard; scene: SceneSpec; warnings: string[]; durationS: number; frames: number; times: number[]; sheet: string }): string {
+export function reviewPrompt(o: { name: string; storyboard: Storyboard; scene: SceneSpec; warnings: string[]; durationS: number; frames: number; times: number[]; sheet: string; brief?: string | null }): string {
   const bounds = [...new Set(o.storyboard.beats.flatMap((b) => [b.t_start, b.t_end]))];
   return [
     `Ürün: "${o.name}". Görev: "içinde ne var" videosunun taslağını görsel olarak incele ve sonucu Review şemasında döndür. Builder'ın gerekçesini görmüyorsun; yalnızca karelere ve aşağıdaki verilere bak.`,
@@ -426,6 +461,7 @@ export function reviewPrompt(o: { name: string; storyboard: Storyboard; scene: S
     '',
     fenced('Sahne', { hero_part: o.scene.hero_part, parts: o.scene.parts.map((p) => ({ id: p.id, name_tr: p.name_tr })), build_warnings: o.warnings }),
     '',
+    ...(o.brief?.trim() ? [...briefBlock(o.brief, 'reviewer'), ''] : []),
     `Kontakt sayfası: ${o.sheet} (12 kare; soldan sağa, yukarıdan aşağı; zamanlar sn: ${o.times.join(', ')}). Read ile aç. Kırmızı bölgeler TikTok arayüzünün kapattığı alan.`,
     `Vuruş sınırları (sn): ${bounds.join(', ')}. Gerekirse extract_frames ile en çok 12 tek kare al (kırpma 2× büyütür).`,
     '',
@@ -469,7 +505,7 @@ async function reviewDraft(deps: StepDeps, ctx: StepContext, hash: string, d: { 
     const prior = ctx.attempt > 1 ? await latestStepSession(deps.pool, ctx.stepId) : null;
     const r = await runStructured<Review>({
       manager: deps.manager, ctx, role: 'reviewer_visual', schema: 'Review',
-      prompt: reviewPrompt({ name: ctx.productName, storyboard: storyboard.value, scene: sceneSpec.value, warnings: (rep?.content as BuildReport | null)?.warnings ?? [], durationS: probe.durationS, frames: d.meta.frames, times, sheet: `review/r${ctx.round}/sheet.png` }),
+      prompt: reviewPrompt({ name: ctx.productName, storyboard: storyboard.value, scene: sceneSpec.value, warnings: (rep?.content as BuildReport | null)?.warnings ?? [], durationS: probe.durationS, frames: d.meta.frames, times, sheet: `review/r${ctx.round}/sheet.png`, brief: ctx.brief }),
       initialResume: prior?.role === 'reviewer_visual' ? { claudeSessionId: prior.claudeSessionId, parent: prior.id, prompt: RESUME_PROMPT } : undefined,
       check: (v) => reviewRefErrors(v, { frames: d.meta.frames, fps: 30 }),
       fakeScript: deps.fakeScript ? (n) => deps.fakeScript!('reviewer_visual', ctx, n) : undefined,

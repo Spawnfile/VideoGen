@@ -52,7 +52,7 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
       {/* Mounted on the video's status alone: the artifact query refetches under a new key as steps finish, and a final-based condition would remount the panel (and lose its state). */}
       {(video.status === 'ready' || video.status === 'published') && <PublishPanel key={videoId} videoId={videoId} />}
       {run && <StepList run={run} />}
-      <ResearchCard artifactId={latest.research} />
+      <ResearchCard artifactId={latest.research} video={video} />
       <StoryboardCard artifactId={latest.storyboard} />
       <VoiceCard trackId={latest.voiceTrack} stemSha={latest.voiceStem} />
       <BuildCard reportId={latest.report} sceneId={latest.scene} sheetSha={latest.sheet} />

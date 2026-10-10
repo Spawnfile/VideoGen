@@ -19,12 +19,18 @@ const load = (name: string) => JSON.parse(readFileSync(resolve(DIR, `${name}.jso
  * (the retention hook fails in rounds 0 and 2), `vasat` (every score 0.55 in round 0), `sınırda` (visual 0.7, the second review passes), `değişmez` (like `rötuş`
  * in every round, and its fixer changes nothing). In a seslendirmeli run (M5c) `telaffuz` fails the facts reviewer's claims_supported and claims_verified in round 0 (a number is
  * read wrong), and its fixer rewrites beat 2's vo_text ("Düzeltilmiş anlatım <tur>", scope voice). The fixer writes the next spec version into <runDir>/spec/<kind>/ the way write_spec does.
+ * "öneri …": the researcher recommends 40–50 s and two brief lines (brief design Y5).
  * The draft reviewer passes, except: "kusurlu …" fails the first review only, "umutsuz …" and "inatçı …" fail every review.
  */
 export function fakePipelineScript(role: PipelineRole, ctx: StepContext, attempt: number, extra?: FakeExtra): FakeScript {
   // Lower-case the Turkish way first: /i does not fold 'İ' to 'i'.
   const name = normalizeProductName(ctx.productName);
-  if (role === 'researcher') return { fixture: 'websearch', structured: load(/[iı]mk[aâ]ns[ıi]z/.test(name) ? 'research-too-hard' : 'research-kalem') };
+  if (role === 'researcher') {
+    const research = load(/[iı]mk[aâ]ns[ıi]z/.test(name) ? 'research-too-hard' : 'research-kalem');
+    // Brief design Y5: "öneri …" comes with the agent's duration and brief suggestion (40–50 s holds the 45 s fake storyboard).
+    const rec = /öneri/.test(name) ? { recommendation: { duration_min_s: 40, duration_max_s: 50, brief_tr: ['Yayın geri itme anına odaklan.', 'Uçtaki bilyeyi yakın çekimde göster.'], reason_tr: 'Beş parçalı basit bir mekanizma.' } } : {};
+    return { fixture: 'websearch', structured: { ...research, ...rec } };
+  }
   if (role === 'builder') {
     const styleId = extra?.styleId ?? DEFAULT_CHANNEL_STYLE;
     const broken = attempt === 0 && /bozuk sahne/.test(name) ? "# vg-fake-error: product.py satır 7: NameError: name 'gövde' is not defined\n" : '';

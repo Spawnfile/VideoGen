@@ -3,14 +3,14 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type pg from 'pg';
 import {
-  canonical, FINAL_CHECKS, FINAL_MAX_ROUNDS, fixReportRefErrors, fixScope, formatScore, rendersChanged, sceneRefErrors, STOP_NOTE, storyboardRefErrors, storyboardVoErrors, validateArtifact,
+  canonical, FINAL_CHECKS, FINAL_MAX_ROUNDS, fixReportRefErrors, fixScope, formatScore, rendersChanged, sceneRefErrors, STOP_NOTE, storyboardRefErrors, storyboardVoErrors, validateArtifact, windowErrors,
   type AudioMode, type AudioPlan, type FinalCheckId, type FixReport, type ModelAlias, type ProductResearch, type SceneSpec, type ScopeInput, type Storyboard,
 } from '@videogen/shared';
 import { appendAudit, findArtifact, getChannelStyle, insertVersion, listAssets } from '@videogen/db';
 import { SpecStore } from '@videogen/claude';
 import { RESUME_PROMPT } from '../agents/manager.ts';
 import { runStructured } from './agent-step.ts';
-import { fenced } from './fence.ts';
+import { briefBlock, fenced } from './fence.ts';
 import { buildScene } from './scene-tools.ts';
 import { findingRows, type FixMeta } from './fix-round.ts';
 import { openLabels, priorSession, type FixerRun, type FixFinding } from './review-step.ts';
@@ -20,13 +20,14 @@ import { ARTIFACT_VALIDATOR } from './validator.ts';
 import { voKey } from './voice-step.ts';
 
 /** Plan T8: the fixer's instruction. Only failed checks (with owner, severity, evidence and hint) are given; reviewer summaries and passing checks never are (spec §8.3). */
-export function fixerPrompt(o: { name: string; round: number; reviewedRound: number; findings: FixFinding[]; audioMode?: AudioMode; audio?: AudioPlan | null }): string {
+export function fixerPrompt(o: { name: string; round: number; reviewedRound: number; findings: FixFinding[]; audioMode?: AudioMode; audio?: AudioPlan | null; brief?: string | null }): string {
   const rel = `review/final/r${o.reviewedRound}`;
   return [
     `Ürün: ${JSON.stringify(o.name)}. Final inceleme (tur ${o.reviewedRound}) videoyu düzeltmeye gönderdi; bu düzeltme turu ${o.round}/${FINAL_MAX_ROUNDS}.`,
     '',
     fenced('Başarısız kontroller', findingRows(o.findings)),
     '',
+    ...(o.brief?.trim() ? [...briefBlock(o.brief, 'fixer'), ''] : []),
     `Kanıt kareleri: ${rel}/sheet.png (12 kare), ${rel}/hook.png (kanca sayfası) ve ${rel}/frames/ (tek kareler); Read ile bakabilirsin. Final 1080×1920, 30 fps; kare numarası/30 = saniye. qc bulgularında kanıt ölçülen değer ve sınırdır.`,
     'Yalnızca bu bulguları düzelt. Ekran yazısı, kanca ve etiket adları → write_spec(storyboard/scene) (yeniden birleştirme, dakikalar). Kamera, zamanlama, geometri, malzeme → write_spec(scene) ve/veya scene/product.py, sonra build_scene ve render_preview_stills ile kontrol (final yeniden render, ~35 dk). Araştırmayı değiştirme; desteksiz bir iddiayı ekrandan çıkar ya da yumuşat. cta ve loop_strategy hiçbir şey çizmez. Düzeltemediğini not_addressed\'e gerekçesiyle yaz.',
     ...(o.audioMode === 'vo' ? ["Seslendirme metni ya da telaffuz → write_spec(storyboard) içinde vo_text (yeniden seslendirme; bir vuruş 0,3 sn'den fazla uzarsa sahne yeniden kurulur, ~35 dk). Vuruş zamanlarını değiştirme: zamanları seslendirme belirler."] : []),
@@ -135,8 +136,8 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
     if ('errors' in n) return { errors: n.errors };
     const refs: string[] = [
       ...storyboardRefErrors(n.next.storyboard, prev.research), ...sceneRefErrors(n.next.scene, n.next.storyboard, style.id), ...(n.next.storyboard.audio_mode === ctx.audioMode ? [] : [`audio_mode ${ctx.audioMode} olmalı`]),
-      // H6: the VO text rules and the 52 s ceiling (the 36 s floor is the storyboarder's, not a fix's).
-      ...storyboardVoErrors(n.next.storyboard, { minS: false }),
+      // H6: the VO text rules and the VO ceiling of the window (the floor is the storyboarder's, not a fix's); brief design Y9: the video window holds.
+      ...storyboardVoErrors(n.next.storyboard, { minS: false, window: ctx.duration }), ...windowErrors(n.next.storyboard.duration_s, ctx.duration),
       ...audioRefErrors({ next: n.next.audio, prev: prev.audio, mode: ctx.audioMode, allowedMusic: new Map((await listAssets(deps.pool, { kind: 'music', allowedOnly: true })).map((a) => [a.id, a.title])) }),
     ];
     const s = fixScope({ prev: prevInput, next: n.next });
@@ -163,7 +164,7 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
   const prior = await priorSession(deps.pool, { ...ctx, fixRound: round }, 'fixer');
   const r = await runStructured<FixReport>({
     manager: deps.manager, ctx, role: 'fixer', schema: 'FixReport', model: fixerModel(failed),
-    prompt: fixerPrompt({ name: ctx.productName, round, reviewedRound: ctx.fixRound, findings, audioMode: ctx.audioMode, audio: prev.audio }),
+    prompt: fixerPrompt({ name: ctx.productName, round, reviewedRound: ctx.fixRound, findings, audioMode: ctx.audioMode, audio: prev.audio, brief: ctx.brief }),
     initialResume: prior ? { claudeSessionId: prior.claudeSessionId, parent: prior.id, prompt: RESUME_PROMPT } : undefined,
     check: (v) => fixReportRefErrors(v, { round, failed, audioMode: ctx.audioMode }),
     checkAsync,

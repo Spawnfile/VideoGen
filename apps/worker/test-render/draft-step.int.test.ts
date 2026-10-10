@@ -57,7 +57,7 @@ describe('draft_render + draft_review steps on the real Remotion driver', () => 
     const progress: number[] = [];
     const ctx = (key: 'build' | 'draft_render' | 'draft_review'): StepContext => ({
       runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt: 1, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode: 'silent',
-      versionId: r.versionId, runDir, signal: new AbortController().signal, progress: (p) => { if (key === 'draft_render') progress.push(p); }, status: () => {}, session: () => {},
+      versionId: r.versionId, brief: null, duration: { minS: 35, maxS: 55 }, durationSource: 'default' as const, runDir, signal: new AbortController().signal, progress: (p) => { if (key === 'draft_render') progress.push(p); }, status: () => {}, session: () => {},
     });
     for (const ex of [buildExecutor(deps), draftRenderExecutor(deps)]) {
       expect(await ex.run(ctx(ex.key as 'build'), await ex.inputHash(ctx(ex.key as 'build')))).toMatchObject({ status: 'done' });

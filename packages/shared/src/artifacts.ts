@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { FinalReviewSchema, type FinalReview } from './final-review.ts';
 import { RERENDER_SCOPES } from './fix-loop.ts';
 import { ReviewSchema, type Review } from './review.ts';
+import { DURATION_HARD } from './production.ts';
 import { SceneSpecSchema, type SceneSpec } from './scene.ts';
 import { AudioPlanSchema, type AudioPlan } from './voice.ts';
 
@@ -51,6 +52,13 @@ const ResearchBase = z.object({
   claims: z.array(ClaimSchema).max(40),
   fun_facts: z.array(tr(300)).max(10),
   engineer_insight: tr(600),
+  /** Brief design Y5: the researcher's duration and brief suggestion; applied only where the user decided nothing (user > agent > default). */
+  recommendation: z.object({
+    duration_min_s: z.number().min(DURATION_HARD.minS).max(DURATION_HARD.maxS),
+    duration_max_s: z.number().min(DURATION_HARD.minS).max(DURATION_HARD.maxS),
+    brief_tr: z.array(tr(200)).max(5),
+    reason_tr: tr(300),
+  }).optional(),
 });
 export type ProductResearch = z.infer<typeof ResearchBase>;
 
@@ -106,7 +114,8 @@ export type Beat = z.infer<typeof BeatSchema>;
 const StoryboardBase = z.object({
   version: z.number().int().min(1),
   audio_mode: z.enum(AUDIO_MODES),
-  duration_s: z.number().min(35).max(55),
+  // Brief design Y9: the hard bounds here; the video's own window is enforced by the storyboard step.
+  duration_s: z.number().min(DURATION_HARD.minS).max(DURATION_HARD.maxS),
   hook: z.object({ pattern: z.enum(HOOK_PATTERNS), text_tr: tr(60) }),
   beats: z.array(BeatSchema).min(4).max(24),
   rehook_at: z.number().positive(),

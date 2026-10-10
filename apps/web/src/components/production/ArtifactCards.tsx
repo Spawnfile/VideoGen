@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { DRAFT_CHECKS, draftDecision, formatClock, HOOK_PATTERN_LABELS, type BuildReport, type DraftSeverity, type ProductResearch, type Review, type SceneSpec, type Storyboard } from '@videogen/shared/browser';
+import { DRAFT_CHECKS, draftDecision, formatClock, HOOK_PATTERN_LABELS, type BuildReport, type DraftSeverity, type ProductResearch, type Review, type SceneSpec, type Storyboard, type VideoView } from '@videogen/shared/browser';
 import { api, blobUrl } from '../../lib/api.ts';
+import { recommendationLine } from '../../lib/brief-view.ts';
 import { buildFacts } from '../../lib/production-view.ts';
 
 const DIFFICULTY: Record<ProductResearch['difficulty'], string> = { procedural: 'prosedürel modellenebilir', needs_asset: 'hazır 3D varlık gerekir', too_hard: 'modellenemiyor' };
@@ -10,7 +11,7 @@ export function useContent<T>(id: string | null) {
   return useQuery({ queryKey: ['artifact', id], enabled: !!id, staleTime: Number.POSITIVE_INFINITY, queryFn: async () => (await api.artifact(id!)).content as T });
 }
 
-export function ResearchCard({ artifactId }: { artifactId: string | null }) {
+export function ResearchCard({ artifactId, video }: { artifactId: string | null; video?: Pick<VideoView, 'duration' | 'durationSource'> }) {
   const { data: r } = useContent<ProductResearch>(artifactId);
   if (!r) return null;
   return (
@@ -27,6 +28,15 @@ export function ResearchCard({ artifactId }: { artifactId: string | null }) {
       )}
       <p className="mt-2 text-[12.5px] leading-relaxed text-ink-2">{r.mechanism.summary_tr}</p>
       <p className="mt-1 text-[12px] text-ink-3">{r.claims.length} kaynaklı iddia</p>
+      {r.recommendation && (
+        <div data-testid="agent-recommendation" className="mt-3 border-t border-line/60 pt-2 text-[12.5px] leading-relaxed text-ink-2">
+          <p className="font-medium text-ink">{recommendationLine(r.recommendation, video)}</p>
+          {r.recommendation.brief_tr.length > 0 && (
+            <ul className="mt-1 list-disc pl-5">{r.recommendation.brief_tr.map((b) => <li key={b}>{b}</li>)}</ul>
+          )}
+          <p className="mt-1 text-ink-3">{r.recommendation.reason_tr} · Yönergen bu önerilerin önüne geçer.</p>
+        </div>
+      )}
     </section>
   );
 }

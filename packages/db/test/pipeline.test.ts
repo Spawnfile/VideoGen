@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  createProduceRun, findArtifact, getArtifact, getRunView, getVideoView, insertArtifact, insertSession, latestArtifact, latestUsageMark,
+  applyAgentDuration, createProduceRun, findArtifact, getRunContext, getArtifact, getRunView, getVideoView, insertArtifact, insertSession, latestArtifact, latestUsageMark,
   listArtifacts, listRunSteps, listVideoViews, queueStepIfRunActive, startStepIfRunActive, stepHistorySeconds, updateRun, updateSession, updateStep,
 } from '../src/index.ts';
 import { createTestDb } from './helpers.ts';
@@ -14,6 +14,23 @@ const plan = [{ key: 'research' as const, weight: 53.33 }, { key: 'storyboard' a
 const produce = (name = 'Tükenmez Kalem') => createProduceRun(t.pool, { productName: name, audioMode: 'silent', plan });
 
 describe('createProduceRun', () => {
+  it('brief design Y1/Y4/Y5: the brief and a user window are stored with their source; the agent window applies only where the user decided nothing', async () => {
+    const u = await createProduceRun(t.pool, { productName: 'Kalem Y', audioMode: 'silent', plan, brief: '  Kısa olsun, yaya odaklan.  ', duration: { minS: 20, maxS: 25 } });
+    expect(await getVideoView(t.pool, u.videoId)).toMatchObject({ brief: 'Kısa olsun, yaya odaklan.', duration: { minS: 20, maxS: 25 }, durationSource: 'user' });
+    expect(await getRunContext(t.pool, u.runId)).toMatchObject({ brief: 'Kısa olsun, yaya odaklan.', duration: { minS: 20, maxS: 25 }, durationSource: 'user' });
+    expect(await applyAgentDuration(t.pool, { videoId: u.videoId, runId: u.runId, window: { minS: 40, maxS: 50 } })).toBe(false);
+    expect((await getRunContext(t.pool, u.runId))!.duration).toEqual({ minS: 20, maxS: 25 });
+
+    const d = await createProduceRun(t.pool, { productName: 'Kalem Z', audioMode: 'silent', plan, brief: '   ' });
+    expect(await getRunContext(t.pool, d.runId)).toMatchObject({ brief: null, duration: { minS: 35, maxS: 55 }, durationSource: 'default' });
+    expect(await applyAgentDuration(t.pool, { videoId: d.videoId, runId: d.runId, window: { minS: 25, maxS: 32 } })).toBe(true);
+    expect(await getRunContext(t.pool, d.runId)).toMatchObject({ duration: { minS: 25, maxS: 32 }, durationSource: 'agent' });
+
+    const audit = await t.pool.query("SELECT action, data FROM audit_log WHERE subject_id = $1 ORDER BY seq", [u.videoId]);
+    expect(audit.rows.find((r) => r.action === 'video.produce_requested')!.data).toMatchObject({ briefChars: 25, briefPreview: 'Kısa olsun, yaya odaklan.', duration: { minS: 20, maxS: 25 }, durationSource: 'user' });
+    expect(audit.rows.find((r) => r.action === 'video.duration_set')!.data).toEqual({ window: { minS: 40, maxS: 50 }, source: 'agent', applied: false });
+  });
+
   it('creates product, video, version, run and pending steps in one transaction and audits the request', async () => {
     const a = await produce();
     const b = await produce('  tükenmez   kalem');

@@ -325,7 +325,8 @@ export function qcExecutor(deps: StepDeps): StepExecutor {
       const t = await probeQc(scene.ffmpeg, await file(tiktok.blobSha), { video: false, signal: ctx.signal });
       ctx.status('running', null);
       const issues = layout ? layoutIssues(layout.content as LayoutManifest) : null;
-      const report = buildQcReport(evaluateQc(m, { variant: 'music', layoutIssues: issues, coverOk: !!cover?.blobSha }), evaluateQc(t, { variant: 'tiktok' }));
+      // Brief design Y9: G1 is the video's own window.
+      const report = buildQcReport(evaluateQc(m, { variant: 'music', layoutIssues: issues, coverOk: !!cover?.blobSha, window: ctx.duration }), evaluateQc(t, { variant: 'tiktok', window: ctx.duration }));
       const dir = join(ctx.runDir, 'final', 'qc', hash.slice(0, 16));
       await mkdir(dir, { recursive: true });
       const qcFile = join(dir, 'qc.json');

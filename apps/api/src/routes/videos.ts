@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import { z } from 'zod';
-import { AUDIO_MODES, IMPLEMENTED_STEPS, producePlan, STEP_KEYS } from '@videogen/shared';
+import { AUDIO_MODES, BRIEF_MAX, durationWindowErrors, IMPLEMENTED_STEPS, producePlan, STEP_KEYS } from '@videogen/shared';
 import {
   appendAudit, createProduceRun, getArtifact, getRun, getRunView, getVideoView, isUuid, listArtifacts, listVersionReviews, listVersions, listVideoReviews, listRunViews, listVideoViews, publishRunAndVideo, versionVideoId,
 } from '@videogen/db';
@@ -11,6 +11,12 @@ const Produce = z.object({
   productName: z.string().trim().min(2, 'ürün adı en az 2 karakter olmalı').max(80, 'ürün adı en çok 80 karakter olabilir')
     .refine((s) => !/[\u0000-\u001f\u007f]/.test(s), 'ürün adında kontrol karakteri olamaz'),
   audioMode: z.enum(AUDIO_MODES, { error: 'ses modu vo ya da silent olmalı' }),
+  /** Brief design Y4: the user's production brief (tabs and line breaks, CRLF included, allowed; no other control characters). */
+  brief: z.string().max(BRIEF_MAX, `yönerge en çok ${BRIEF_MAX} karakter olabilir`)
+    .refine((s) => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(s), 'yönergede kontrol karakteri olamaz').optional(),
+  /** Brief design Y1–Y3: the user's duration window in whole seconds; absent = the agent recommends, else the default 35–55 s. */
+  duration: z.object({ minS: z.number().int('süre tam saniye olmalı'), maxS: z.number().int('süre tam saniye olmalı') })
+    .superRefine((w, ctx) => { for (const message of durationWindowErrors(w)) ctx.addIssue({ code: 'custom', message }); }).nullable().optional(),
   /** Dev only (VG_DEV_ENDPOINTS=1): end the plan at this step (smoke scenarios of earlier milestones). */
   until: z.enum(STEP_KEYS).optional(),
 });
@@ -24,7 +30,9 @@ export function registerVideoRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
     if (!b.success) return reply.code(400).send({ error: b.error.issues[0]?.message ?? 'geçersiz istek' });
     if (b.data.until && !deps.devEndpoints) return reply.code(400).send({ error: 'until yalnızca geliştirici kipinde' });
     const upTo = b.data.until && IMPLEMENTED_STEPS.includes(b.data.until) ? IMPLEMENTED_STEPS.slice(0, IMPLEMENTED_STEPS.indexOf(b.data.until) + 1) : IMPLEMENTED_STEPS;
-    const created = await createProduceRun(pool, { productName: b.data.productName, audioMode: b.data.audioMode, plan: producePlan(b.data.audioMode, upTo) });
+    const created = await createProduceRun(pool, {
+      productName: b.data.productName, audioMode: b.data.audioMode, plan: producePlan(b.data.audioMode, upTo), brief: b.data.brief ?? null, duration: b.data.duration ?? null,
+    });
     await publishRunAndVideo(pool, created.runId);
     await sendCommand(pool, { type: 'run.start', runId: created.runId });
     return reply.code(202).send({ videoId: created.videoId, runId: created.runId });

@@ -61,6 +61,28 @@ describe('produce', () => {
     }
   });
 
+  it('brief design: a brief and a user duration window reach the video; bad ones are refused in Turkish', async () => {
+    expect((await produce({ productName: 'Kalem E', audioMode: 'silent', brief: 'Satır bir.\r\nSatır iki.' })).statusCode).toBe(202); // CRLF from a non-browser client
+    const r = await produce({ productName: 'Kalem B', audioMode: 'silent', brief: 'Kısa olsun.\nYaya odaklan.', duration: { minS: 20, maxS: 25 } });
+    expect(r.statusCode).toBe(202);
+    const v = (await app.inject({ url: `/api/videos/${r.json().videoId}`, headers: H })).json();
+    expect(v.video).toMatchObject({ brief: 'Kısa olsun.\nYaya odaklan.', duration: { minS: 20, maxS: 25 }, durationSource: 'user' });
+    const d = (await app.inject({ url: `/api/videos/${(await produce({ productName: 'Kalem C', audioMode: 'silent' })).json().videoId}`, headers: H })).json();
+    expect(d.video).toMatchObject({ brief: null, duration: { minS: 35, maxS: 55 }, durationSource: 'default' });
+    for (const [body, msg] of [
+      [{ brief: 'x'.repeat(2001) }, /yönerge en çok 2000/],
+      [{ brief: 'a\u0007' }, /kontrol karakteri/],
+      [{ duration: { minS: 10, maxS: 20 } }, /en az 15/],
+      [{ duration: { minS: 20, maxS: 70 } }, /en çok 60/],
+      [{ duration: { minS: 30, maxS: 20 } }, /üst sınırı/],
+      [{ duration: { minS: 20.5, maxS: 25 } }, /tam saniye/],
+    ] as const) {
+      const bad = await produce({ productName: 'Kalem D', audioMode: 'silent', ...body });
+      expect(bad.statusCode).toBe(400);
+      expect(bad.json().error).toMatch(msg);
+    }
+  });
+
   it('rejects bad input with a Turkish message and unknown ids with 404', async () => {
     for (const body of [{ productName: 'x', audioMode: 'silent' }, { productName: 'a'.repeat(81), audioMode: 'silent' }, { productName: 'kalem\u0007', audioMode: 'silent' }, { productName: 'kalem', audioMode: 'loud' }]) {
       const r = await produce(body);

@@ -427,7 +427,7 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
       await sheet(i.sheetTimes, 'sheet', 'sheet.png', 3, 'main');
       await sheet(i.hookTimes, 'hooksheet', 'hook.png', 2, 'hook');
       const ev = events ? SceneEventsSchema.safeParse(events.content) : null;
-      const common = { name: ctx.productName, durationS: i.durationS, frames: i.frames, times: i.sheetTimes, sheet: i.sheetRel };
+      const common = { name: ctx.productName, durationS: i.durationS, frames: i.frames, times: i.sheetTimes, sheet: i.sheetRel, brief: ctx.brief };
       return {
         reviewer_visual: visualPrompt({
           ...common, storyboard: i.storyboard, scene: i.scene, qc: qcFacts('reviewer_visual', i.qc), hooks: await recentHooks(deps.pool, ctx.videoId), ...(i.mixed64 ? { mixed64: i.mixed64 } : {}), ...(i.vo ? { vo: i.vo } : {}),

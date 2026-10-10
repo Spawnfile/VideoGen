@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Storyboard } from './artifacts.ts';
+import { DURATION_HARD } from './production.ts';
 import { CHANNEL_STYLE_IDS, type ChannelStyleId } from './styles.ts';
 
 /** vg_blender building blocks (python/vg_blender/vg_blender/primitives.py). Descriptive: product.py is the geometry source. */
@@ -45,9 +46,9 @@ const CameraKeySchema = z.object({
 const SceneBase = z.object({
   units: z.literal('cm'),
   fps: z.literal(30),
-  duration_s: z.number().min(35).max(55),
+  duration_s: z.number().min(DURATION_HARD.minS).max(DURATION_HARD.maxS),
   /** round(duration_s × 30); frame 0 … frames is the closed range Blender keys and Remotion plays. */
-  frames: z.number().int().min(1050).max(1650),
+  frames: z.number().int().min(DURATION_HARD.minS * 30).max(DURATION_HARD.maxS * 30),
   style_id: z.enum(CHANNEL_STYLE_IDS),
   lighting_preset: z.enum(LIGHTING_PRESETS),
   /** The hero object of frame 0 (spec §7.3: ≥ 35 % of the frame height). */

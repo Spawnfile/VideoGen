@@ -271,7 +271,7 @@ export class Orchestrator {
     let statuses = Promise.resolve();
     return {
       runId: step.runId, stepId: step.id, key: step.key, attempt, round: step.round, fixRound: step.fixRound, plan: ctx.run.plan.map((p) => p.key), videoId: ctx.videoId, productId: ctx.productId, productName: ctx.productName,
-      audioMode: ctx.audioMode, versionId: ctx.versionId, runDir: join(this.d.dataDir, 'runs', step.runId), signal,
+      audioMode: ctx.audioMode, versionId: ctx.versionId, brief: ctx.brief, duration: ctx.duration, durationSource: ctx.durationSource, runDir: join(this.d.dataDir, 'runs', step.runId), signal,
       progress: (pct, source) => { void this.stepProgress(step.id, pct, source); },
       status: (s, note) => { statuses = statuses.then(() => this.stepStatus(step.id, s, note)).catch(() => {}); },
       session: (sessionId) => { void updateStep(this.d.pool, step.id, { sessionId }).then(() => this.publish(step.runId)); },

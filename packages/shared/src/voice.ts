@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { SFX_NAMES } from './assets.ts';
 import type { AudioMode, Beat, Storyboard } from './artifacts.ts';
+import { DEFAULT_DURATION, voBounds, type DurationWindow } from './production.ts';
 
 /** Plan M5c T1: the voice contracts. A leaf module: only types from artifacts.ts (the fix-loop.ts pattern), values from assets.ts. */
 
@@ -97,8 +98,6 @@ export function g4Gate(i: { audioMode: AudioMode; track: VoiceTrack | null; refP
 
 export const VO_CHARS_PER_S = 14;
 const BEAT_OVERHEAD_S = 0.28;
-const VO_MIN_S = 36;
-const VO_MAX_S = 52;
 const SPEAKABLE = /^[\p{Script=Latin}\d\s.,;:!?'"’‘“”()\-–%₺]*$/u;
 
 /** What the TTS front end can read: no emoji, symbols or letter/digit mixes ("x2"). Unit words and "0,7" / "%50" / "₺15" are the normalizer's. */
@@ -120,19 +119,23 @@ export function estimateVoS(s: Storyboard): number {
 
 const trNum = (n: number) => n.toFixed(1).replace('.', ',');
 
-/** `minS: false` skips the 36 s lower bound (the fixer's check only applies the character rule and the 52 s upper bound, H6). */
 /** Longest beat on-screen text of a VO video: two lines at 52 px in the top band (T6). */
 export const VO_ONSCREEN_MAX = 52;
 
-export function storyboardVoErrors(s: Storyboard, o: { minS?: boolean } = {}): string[] {
+/**
+ * `minS: false` skips the lower bound (the fixer's check only applies the character rule and the upper bound, H6).
+ * `window`: the video's duration window (brief design Y9); the spoken bounds are voBounds(window), 36–52 s on the default.
+ */
+export function storyboardVoErrors(s: Storyboard, o: { minS?: boolean; window?: DurationWindow } = {}): string[] {
   if (s.audio_mode !== 'vo') return [];
   const out: string[] = [];
   s.beats.forEach((b, i) => { for (const e of voTextErrors(b.vo_text?.tr ?? '')) out.push(`beats.${i}.vo_text: ${e}`); });
   // Top band of a VO final holds two 52 px lines (G6: a third would run into the label area).
   s.beats.forEach((b) => { if (b.onscreen_text.tr.length > VO_ONSCREEN_MAX) out.push(`vuruş ${b.id}: ekran yazısı seslendirmeli videoda en çok ${VO_ONSCREEN_MAX} karakter (üst bant iki satır)`); });
   const est = estimateVoS(s);
-  if (est > VO_MAX_S) out.push(`seslendirme tahmini ${trNum(est)} sn: en çok ${VO_MAX_S} sn olmalı; VO metnini kısaltın`);
-  else if (o.minS !== false && est < VO_MIN_S) out.push(`seslendirme tahmini ${trNum(est)} sn: en az ${VO_MIN_S} sn olmalı; VO metnini uzatın`);
+  const vo = voBounds(o.window ?? DEFAULT_DURATION);
+  if (est > vo.maxS) out.push(`seslendirme tahmini ${trNum(est)} sn: en çok ${vo.maxS} sn olmalı; VO metnini kısaltın`);
+  else if (o.minS !== false && est < vo.minS) out.push(`seslendirme tahmini ${trNum(est)} sn: en az ${vo.minS} sn olmalı; VO metnini uzatın`);
   return out;
 }
 
@@ -144,8 +147,6 @@ export const MIN_BEAT_S = 1.2;
 export const KEEP_TOLERANCE_S = 0.3;
 /** Spec §7.6: at least 120 ms between two lines when the beats are kept. */
 const KEEP_MIN_GAP_S = 0.12;
-const MIN_TOTAL_S = 35;
-const MAX_TOTAL_S = 55;
 
 // Integer milliseconds inside; seconds only at the edges (±0.30 / ±0.31 thresholds must not meet float noise).
 const toMs = (s: number) => Math.round(s * 1000);
@@ -188,7 +189,7 @@ function slotsFrom(ids: string[], lengths: number[]): { starts: number[]; beats:
 }
 
 /**
- * Where each line starts. keep:false lays the beats out afresh (lead + line + gap, min 1.2 s; the first line at 0.10 s) and does NOT pad to 35 s:
+ * Where each line starts. keep:false lays the beats out afresh (lead + line + gap, min 1.2 s; the first line at 0.10 s) and does NOT pad to the window minimum:
  * the voice step must take the line starts from retimeStoryboard().starts_ms.
  * keep:true leaves the beats alone: line i+1 starts at max(its beat start + lead, line i end + 0.12 s); overflowS is how far each line runs past its beat.
  */
@@ -225,12 +226,15 @@ function carry(at: number, from: Slot[], to: { t_start: number; t_end: number }[
 const shiftOf = (from: Slot[], to: { t_start: number; t_end: number }[]) =>
   Math.max(0, ...from.flatMap((b, i) => [Math.abs(toMs(to[i]!.t_start) - toMs(b.t_start)), Math.abs(toMs(to[i]!.t_end) - toMs(b.t_end))])) / 1000;
 
-/** The storyboard laid out on the real line durations (K26): 35–55 s; rehook/payoff follow their beat and are clamped into the schema ranges. */
-export function retimeStoryboard(s: Storyboard, durationsMs: number[]): { storyboard: Storyboard; maxShiftS: number; starts_ms: number[] } | { error: string } {
+/**
+ * The storyboard laid out on the real line durations (K26) inside the video's window (default 35–55 s, brief design Y9): padded to its
+ * minimum, refused over its maximum; rehook/payoff follow their beat and are clamped into the schema ranges.
+ */
+export function retimeStoryboard(s: Storyboard, durationsMs: number[], window: DurationWindow = DEFAULT_DURATION): { storyboard: Storyboard; maxShiftS: number; starts_ms: number[] } | { error: string } {
   if (s.beats.length !== durationsMs.length) throw new Error('beats and durations differ in length');
   const raw = durationsMs.map(neededMs).reduce((a, b) => a + b, 0);
-  if (raw > MAX_TOTAL_S * 1000) return { error: `seslendirme ${MAX_TOTAL_S} sn'yi aşıyor (${trNum(raw / 1000)} sn): storyboard'daki VO metni kısaltılmalı` };
-  const { starts, beats: placed } = slotsFrom(s.beats.map((b) => b.id), retimedLengths(durationsMs, MIN_TOTAL_S * 1000));
+  if (raw > window.maxS * 1000) return { error: `seslendirme ${window.maxS} sn'yi aşıyor (${trNum(raw / 1000)} sn): storyboard'daki VO metni kısaltılmalı` };
+  const { starts, beats: placed } = slotsFrom(s.beats.map((b) => b.id), retimedLengths(durationsMs, window.minS * 1000));
   const durMs = toMs(placed.at(-1)!.t_end);
   const rehookAt = clamp(toMs(carry(s.rehook_at, s.beats, placed)), Math.ceil(0.4 * durMs + 1), Math.floor(0.6 * durMs - 1)) / 1000;
   const payoffAt = clamp(toMs(carry(s.payoff_at, s.beats, placed)), Math.ceil(0.7 * durMs + 1), durMs) / 1000;
@@ -245,7 +249,7 @@ export function retimeStoryboard(s: Storyboard, durationsMs: number[]): { storyb
  * H13: keep the beat times when every beat's needed length is within ±0.3 s of its current one, no line drifts more than 0.3 s from
  * (beat start + lead) once lines are pushed apart, and the last line ends inside the video; otherwise retime (maxShiftS: how far the beats would move).
  */
-export function keepOrRetime(source: Storyboard, durationsMs: number[]): { keep: true; starts_ms: number[] } | { keep: false; maxShiftS: number } {
+export function keepOrRetime(source: Storyboard, durationsMs: number[], window: DurationWindow = DEFAULT_DURATION): { keep: true; starts_ms: number[] } | { keep: false; maxShiftS: number } {
   if (source.beats.length !== durationsMs.length) throw new Error('beats and durations differ in length');
   const fits = source.beats.every((b, i) => Math.abs(neededMs(durationsMs[i]!) - (toMs(b.t_end) - toMs(b.t_start))) <= TOL);
   if (fits) {
@@ -254,7 +258,7 @@ export function keepOrRetime(source: Storyboard, durationsMs: number[]): { keep:
     const lastEnd = p.starts_ms.at(-1)! + durationsMs.at(-1)!;
     if (drift && lastEnd <= toMs(source.duration_s)) return { keep: true, starts_ms: p.starts_ms };
   }
-  const { beats } = slotsFrom(source.beats.map((b) => b.id), retimedLengths(durationsMs, MIN_TOTAL_S * 1000));
+  const { beats } = slotsFrom(source.beats.map((b) => b.id), retimedLengths(durationsMs, window.minS * 1000));
   return { keep: false, maxShiftS: shiftOf(source.beats, beats) };
 }
 

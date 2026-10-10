@@ -1,4 +1,4 @@
-import type { AudioMode, ProgressSource, Resource, StepKey } from '@videogen/shared';
+import type { AudioMode, DurationSource, DurationWindow, ProgressSource, Resource, StepKey } from '@videogen/shared';
 
 export interface StepContext {
   runId: string;
@@ -16,6 +16,11 @@ export interface StepContext {
   productName: string;
   audioMode: AudioMode;
   versionId: string | null;
+  /** Brief design Y4: the user's production brief (null: none). */
+  brief: string | null;
+  /** Brief design Y1/Y9: the video's effective duration window and who set it (re-read at every step launch). */
+  duration: DurationWindow;
+  durationSource: DurationSource;
   /** ~/videogen-data/runs/<runId> */
   runDir: string;
   /** Aborted when the run is cancelled. */

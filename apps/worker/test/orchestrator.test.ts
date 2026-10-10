@@ -56,7 +56,8 @@ describe('Orchestrator', () => {
     expect(run.steps.map((s) => [s.key, s.status, s.progress, s.attempt])).toEqual([['research', 'done', 100, 1], ['storyboard', 'done', 100, 1]]);
     expect(run.steps[0]!.note).toBe('tükenmez kalem');
     expect(run).toMatchObject({ progress: 99, etaS: null });
-    expect(await getVideoView(t.pool, r.videoId)).toMatchObject({ status: 'needs_human', statusNote: 'Storyboard hazır. Sahne kurulumu ve taslak render bu sürümde henüz yok.' });
+    // The run row is written before the video row (two statements): wait for the video too.
+    await vi.waitFor(async () => expect(await getVideoView(t.pool, r.videoId)).toMatchObject({ status: 'needs_human', statusNote: 'Storyboard hazır. Sahne kurulumu ve taslak render bu sürümde henüz yok.' }));
     const series = await progressSeries(r.runId);
     expect(series.length).toBeGreaterThan(3);
     expect(series).toEqual([...series].sort((a, b) => a - b));
@@ -74,7 +75,7 @@ describe('Orchestrator', () => {
     await vi.waitFor(async () => expect(await runStatus(r.runId)).toBe('needs_human'));
     expect((await getRunView(t.pool, r.runId))!.steps.map((s) => s.status)).toEqual(['done', 'skipped']);
     expect(storyboard.calls).toBe(0);
-    expect(await getVideoView(t.pool, r.videoId)).toMatchObject({ status: 'needs_human', statusNote: 'Prosedürel olarak modellenemiyor.' });
+    await vi.waitFor(async () => expect(await getVideoView(t.pool, r.videoId)).toMatchObject({ status: 'needs_human', statusNote: 'Prosedürel olarak modellenemiyor.' }));
     // Gate-skipped steps earn nothing: the header must not read "%99" when only research was done.
     expect((await getRunView(t.pool, r.runId))!.progress).toBe(53.3);
   });
@@ -95,7 +96,7 @@ describe('Orchestrator', () => {
     await o2.startRun(r2.runId);
     await vi.waitFor(async () => expect(await runStatus(r2.runId)).toBe('failed'));
     expect((await getRunView(t.pool, r2.runId))!.steps[0]).toMatchObject({ status: 'failed', attempt: 2, error: 'boom' });
-    expect(await getVideoView(t.pool, r2.videoId)).toMatchObject({ status: 'failed', statusNote: 'Araştırma: boom' });
+    await vi.waitFor(async () => expect(await getVideoView(t.pool, r2.videoId)).toMatchObject({ status: 'failed', statusNote: 'Araştırma: boom' }));
   });
 
   it('cancel aborts the running executor, cancels jobs and steps, and nothing advances afterwards', async () => {
@@ -233,7 +234,7 @@ describe('Orchestrator', () => {
     expect(await runStatus(r.runId)).toBe('needs_human');
     expect(research.calls).toBe(0);
     expect((await getRunView(t.pool, r.runId))!.steps.map((s) => [s.status, s.note])).toEqual([['skipped', 'durduruldu: ön kontrol'], ['skipped', 'durduruldu: ön kontrol']]);
-    expect(await getVideoView(t.pool, r.videoId)).toMatchObject({ status: 'needs_human', statusNote: 'Seslendirme kullanılamıyor: deneme' });
+    await vi.waitFor(async () => expect(await getVideoView(t.pool, r.videoId)).toMatchObject({ status: 'needs_human', statusNote: 'Seslendirme kullanılamıyor: deneme' }));
     const pre = await t.pool.query("SELECT data FROM audit_log WHERE run_id = $1 AND action = 'run.preflight_failed'", [r.runId]);
     expect(pre.rows.map((x) => x.data)).toEqual([{ reason: 'Seslendirme kullanılamıyor: deneme' }]);
 

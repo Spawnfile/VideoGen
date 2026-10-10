@@ -1,10 +1,10 @@
 import { checksOf, FINAL_CHECKS, formatClock, HOOK_PATTERN_LABELS, RUBRIC_VERSION, type FinalReviewerRole, type ProductResearch, type SceneSpec, type Storyboard } from '@videogen/shared';
 import type { ManifestFacts, QcFact, VoInputs, WebTarget } from './review-inputs.ts';
 import { usedClaims } from './review-inputs.ts';
-import { fenced } from './fence.ts';
+import { briefBlock, fenced } from './fence.ts';
 
 /** What every final reviewer is told about the reviewed final (the music variant, plan F9). */
-interface Common { name: string; durationS: number; frames: number; times: number[]; sheet: string }
+interface Common { name: string; durationS: number; frames: number; times: number[]; sheet: string; brief?: string | null }
 
 const TASK: Record<FinalReviewerRole, string> = {
   reviewer_visual: 'görsel kaliteyi (kahraman ve mekanizma kareleri, parçalar, hareket, ekran yazısı, ucuz/yapay görünüm; kapılar G3 ve G5) incele',
@@ -27,6 +27,7 @@ function common(role: FinalReviewerRole, o: Common, extra: string[]): string[] {
     `Final: 1080×1920, 30 fps, ${o.frames} kare, ${formatClock(o.durationS)}.`,
     `Kontakt sayfası: ${o.sheet} (12 kare; soldan sağa, yukarıdan aşağı; zamanlar sn: ${o.times.join(', ')}). Read ile aç. ${tools}`,
     ...extra,
+    ...(o.brief?.trim() ? ['', ...briefBlock(o.brief, 'reviewer')] : []),
     '',
     'Kontroller (her biri tam bir kez, bu kimliklerle; önemi ve puanı kimlik belirler, sen belirlemezsin):',
     ...checkLines(role),
