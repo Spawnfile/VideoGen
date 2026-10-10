@@ -35,6 +35,7 @@ describe('production view helpers', () => {
     const vids = [{ id: 'b' }, { id: 'a' }] as VideoView[];
     expect(pickVideoId('a', vids)).toBe('a');
     expect(pickVideoId('zzz', vids)).toBe('b');
+    expect(pickVideoId('none', vids)).toBeNull(); // "Yeni sohbet" clears the Studio's video on purpose
     expect(pickVideoId(null, [])).toBeNull();
   });
 });

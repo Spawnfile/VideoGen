@@ -5,7 +5,7 @@ import { ChatPanel } from '../components/chat/ChatPanel.tsx';
 import { ProduceBar } from '../components/production/ProduceBar.tsx';
 import { ProductionPanel } from '../components/production/ProductionPanel.tsx';
 import { api } from '../lib/api.ts';
-import { pickVideoId } from '../lib/production-view.ts';
+import { NO_VIDEO, pickVideoId } from '../lib/production-view.ts';
 import { pipeline, seedVideos, useStore, videoList } from '../lib/stores.ts';
 
 const param = () => new URLSearchParams(location.search).get('video');
@@ -20,6 +20,7 @@ export function Studio() {
     setWanted(id);
     history.replaceState(null, '', `/?video=${id}`);
   };
+  const clear = () => select(NO_VIDEO);
   return (
     <div className="grid h-full grid-rows-[auto_1fr]">
       <ProduceBar onCreated={select} />
@@ -29,7 +30,7 @@ export function Studio() {
           <AgentPanel />
         </section>
         <section aria-label="Chat" className="flex min-h-0 flex-col p-6">
-          <ChatPanel />
+          <ChatPanel onNewThread={clear} />
         </section>
       </div>
     </div>

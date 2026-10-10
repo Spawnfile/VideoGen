@@ -36,7 +36,10 @@ export function stepDuration(s: StepView, now: number): string {
   return formatElapsed(end - Date.parse(s.startedAt));
 }
 
+/** `none`: nothing selected on purpose ("Yeni sohbet" clears the Studio); otherwise the wanted video, else the newest. */
+export const NO_VIDEO = 'none';
 export function pickVideoId(param: string | null, videos: Pick<VideoView, 'id'>[]): string | null {
+  if (param === NO_VIDEO) return null;
   if (param && videos.some((v) => v.id === param)) return param;
   return videos[0]?.id ?? null;
 }

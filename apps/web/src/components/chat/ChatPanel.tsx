@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import type { ChatMessage, ChatMode } from '@videogen/shared/browser';
+import type { ChatMessage, ChatMode, ChatThread } from '@videogen/shared/browser';
 import { api } from '../../lib/api.ts';
 import { chatMessages, chats, seedMessages, seedTrace, traceRows, traces, useStore } from '../../lib/stores.ts';
 import { TraceView } from '../thinking/TraceView.tsx';
@@ -31,7 +31,8 @@ function TurnTrace({ sessionId, turn, answered }: { sessionId: string; turn: num
   return rows.length ? <TraceView rows={rows} answered={answered} /> : null;
 }
 
-export function ChatPanel() {
+/** `onNewThread`: "Yeni sohbet" also clears the Studio's selected video (a fresh start on both sides). */
+export function ChatPanel({ onNewThread }: { onNewThread?: () => void } = {}) {
   const qc = useQueryClient();
   const threadsQ = useQuery({ queryKey: ['threads'], queryFn: api.threads });
   const threads = useMemo(() => threadsQ.data ?? [], [threadsQ.data]);
@@ -86,11 +87,15 @@ export function ChatPanel() {
   const newThread = async () => {
     const p = (async () => {
       const t = await api.createThread();
-      await qc.invalidateQueries({ queryKey: ['threads'] }); // select after the list has it, or the effect above resets it
+      // The list must hold the new thread before it is selected, or the reset effect above snaps back to threads[0] (the old thread):
+      // an awaited invalidate resolves before React renders the refetched list.
+      qc.setQueryData<ChatThread[]>(['threads'], (old) => [t, ...(old ?? []).filter((x) => x.id !== t.id)]);
       select(t.id);
+      void qc.invalidateQueries({ queryKey: ['threads'] });
       return t.id;
     })();
     creatingRef.current = p;
+    onNewThread?.();
     try { await p; } finally { if (creatingRef.current === p) creatingRef.current = null; }
     boxRef.current?.focus();
   };

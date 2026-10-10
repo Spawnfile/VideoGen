@@ -56,3 +56,27 @@ test('S5: a message sent while "Yeni sohbet" is still creating the thread lands 
   await expect(mine).toContainText('Yeni sohbette ilk soru');
   expect(await count()).toBe(before + 1);
 });
+
+test('S5: "Yeni sohbet" starts empty: the old messages leave the screen and the Studio drops its video', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  // A video on the left (the Studio otherwise falls back to the newest one).
+  await request.post('/api/videos', { data: { productName: 'Sohbet kalemi', audioMode: 'silent' } });
+  await page.goto('/');
+  await expect(page.getByText('Worker canlı')).toBeVisible({ timeout: 15_000 });
+  const chat = page.getByRole('region', { name: 'Chat' });
+  const studio = page.getByRole('region', { name: 'Üretim' });
+  await expect(studio.getByTestId('video-header')).toBeVisible({ timeout: 15_000 });
+  await chat.getByRole('button', { name: 'Yeni sohbet' }).click();
+  const box = chat.getByRole('textbox', { name: 'Mesaj' });
+  await box.fill('Eski sohbetin sorusu');
+  await box.press('Enter');
+  await expect(chat.locator('[data-testid="chat-message"][data-role="user"]')).toHaveCount(1, { timeout: 10_000 });
+  await chat.getByRole('button', { name: 'Yeni sohbet' }).click();
+  await expect(chat.locator('[data-testid="chat-message"]')).toHaveCount(0);
+  await expect(chat.getByText('Platform ya da bir video hakkında soru sorun.')).toBeVisible();
+  await expect(studio.getByTestId('video-header')).toHaveCount(0);
+  await expect(studio.getByText("Üstteki alana bir ürün adı yazıp Üret'e basın.")).toBeVisible();
+  // The new thread is the selected one and stays selected (no snap back to the previous thread).
+  await page.waitForTimeout(500);
+  await expect(chat.locator('[data-testid="chat-message"]')).toHaveCount(0);
+});
