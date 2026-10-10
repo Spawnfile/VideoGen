@@ -210,7 +210,8 @@ export async function publishSource(db: Queryable, videoId: string, o: { version
     byVersion ? [runId, kind, versionId] : [runId, kind],
   )).rows[0]?.content ?? null;
   const plan = (await latest('audio_plan', true)) ?? (await latest('audio_plan', false));
-  const soundPlan = plan ? { cues: ((plan.cues ?? []) as { assetId: string }[]).map((c) => ({ assetId: c.assetId })), music: plan.music ? { assetId: plan.music.assetId as string } : null } : null;
+  // Agent music design A4: the composer's own music (assetId null) is no ledger asset and carries no attribution.
+  const soundPlan = plan ? { cues: ((plan.cues ?? []) as { assetId: string }[]).map((c) => ({ assetId: c.assetId })), music: plan.music?.assetId ? { assetId: plan.music.assetId as string } : null } : null;
   const ids = soundPlan ? [...new Set([...soundPlan.cues.map((c) => c.assetId), ...(soundPlan.music ? [soundPlan.music.assetId] : [])])] : [];
   const assets = ids.length
     ? (await db.query('SELECT id, title, license_spdx, attribution, allowed, kind, author FROM assets WHERE id = ANY($1::uuid[])', [ids])).rows.map((a) => ({

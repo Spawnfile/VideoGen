@@ -10,12 +10,12 @@ import { bundleHash, FINAL_MASTER } from '@videogen/remotion/hash';
 import { finalProps, type FinalProps } from '@videogen/remotion/props';
 import { layoutIssues, layoutManifest, type LayoutManifest } from '@videogen/remotion/layout';
 import { ensureSfxLibrary } from '../assets.ts';
-import { masterVariant, mixTrack } from '../render/audio.ts';
+import { masterVariant, mixTrack, toFlac } from '../render/audio.ts';
 import { RenderError } from '../render/driver.ts';
 import { draftProbeErrors, encodeDelivery, extractFrame, FINAL_ENCODE, probeVideo } from '../render/ffmpeg.ts';
 import { missingFrames, removeStaleFrames } from '../render/frames.ts';
 import { probeQc } from '../render/qc.ts';
-import { DUCK, duckingEnvelope, effectiveAudioPlan, LicenseError, planSfx, soundPlan, withImportedSfx, type SoundPlan } from './sound.ts';
+import { DUCK, duckingEnvelope, effectiveAudioPlan, LicenseError, planSfx, soundPlan, withImportedSfx, type GeneratedMusic, type SoundPlan } from './sound.ts';
 import { persist, record, sha, type StepDeps } from './steps.ts';
 import { voKey } from './voice-step.ts';
 import type { StepExecutor, StepOutcome } from './types.ts';
@@ -107,6 +107,8 @@ export interface ComposeSource {
   /** H9: the voice stem and its lines (VO mode only); `stemSha` is the blob's sha. */
   vo: { file: string; stemSha: string; durationMs: number; lines: { start_ms: number; end_ms: number }[] } | null;
   files: Map<string, string>;
+  /** Agent music design A4: the composer's music_stem when the plan plays it. */
+  generated: GeneratedMusic | null;
 }
 
 /** Python's `round` (banker's: .5 goes to the even integer), which is what Blender's events_manifest used for the frames. */
@@ -171,14 +173,18 @@ export async function composeSource(deps: StepDeps, runId: string, videoId: stri
   const durationS = (props.frames + 1) / 30;
   const library = withImportedSfx(await ensureSfxLibrary(deps.pool, deps.dataDir, ffmpeg), await listAssets(deps.pool, { kind: 'sfx', allowedOnly: true }));
   const tracks = await listAssets(deps.pool, { kind: 'music', allowedOnly: true });
+  // Agent music design A4: the newest rendered score of this run (the music step's output).
+  const stemArt = await latestArtifact(deps.pool, runId, 'music_stem');
+  const stemBlob = stemArt?.blobSha ? await getBlob(deps.pool, stemArt.blobSha) : null;
+  const generated: GeneratedMusic | null = stemBlob && existsSync(join(deps.dataDir, stemBlob.path)) ? { sha: stemBlob.sha256, file: join(deps.dataDir, stemBlob.path) } : null;
   // H3: a stored `audio` plan wins; otherwise the default is computed here (in memory) and only run() persists it.
   const storedPlan = audio ? validateArtifact('AudioPlan', audio.content) : null;
   if (storedPlan && !storedPlan.ok) return { error: `ses planı geçersiz: ${storedPlan.errors.join('; ')}` };
   let sound: SoundPlan;
   let eff: ReturnType<typeof effectiveAudioPlan>;
   try {
-    eff = effectiveAudioPlan({ stored: storedPlan?.ok ? storedPlan.value : null, mode: audioMode, music: tracks, seed: videoId });
-    sound = soundPlan(planSfx({ events: currentEvents(ev.data.events, b.value.beats, 30), beats: b.value.beats, fps: 30, durationS }), library, eff.music, eff.plan);
+    eff = effectiveAudioPlan({ stored: storedPlan?.ok ? storedPlan.value : null, mode: audioMode, music: tracks, seed: videoId, generated });
+    sound = soundPlan(planSfx({ events: currentEvents(ev.data.events, b.value.beats, 30), beats: b.value.beats, fps: 30, durationS }), library, eff.music, eff.plan, eff.generated);
   } catch (e) {
     if (e instanceof LicenseError) return { error: `lisans kapısı: ${e.message}` };
     throw e;
@@ -187,7 +193,7 @@ export async function composeSource(deps: StepDeps, runId: string, videoId: stri
   const files = new Map<string, string>();
   for (const a of [...Object.values(library), ...(music ? [music] : [])]) files.set(a.id, join(deps.dataDir, (await getBlob(deps.pool, a.blobSha))!.path));
   const hash = composeInputHash({ framesHash: frames.inputHash, glbSha: glbBlob.sha256, props, preset: deps.scene?.encodePreset ?? 'slow', sound, vo: vo ? { stemSha: vo.stemSha, plan } : null, safeArea });
-  return { hash, framesHash: frames.inputHash, currentFramesHash: current.hash, framesDir: meta.dir, glbPath: join(deps.dataDir, glbBlob.path), props, durationS, sound, plan, persist: eff.persist, vo, files };
+  return { hash, framesHash: frames.inputHash, currentFramesHash: current.hash, framesDir: meta.dir, glbPath: join(deps.dataDir, glbBlob.path), props, durationS, sound, plan, persist: eff.persist, vo, files, generated: eff.generated };
 }
 
 /** Spec §7.1 step 8: Final3D over the frames → delivery encode → SFX + music + mastering → the two variants (plan E7–E12). heavy_cpu. */
@@ -243,7 +249,9 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
         ctx.progress(85, 'render');
         ctx.status('running', 'ses: efektler, müzik, mastering');
         const cues = src.sound.cues.map((c) => ({ atMs: c.atMs, gainDb: c.gainDb, file: src.files.get(c.assetId)! }));
-        const music = src.sound.music ? { file: src.files.get(src.sound.music.assetId)!, gainDb: src.sound.music.gainDb } : null;
+        // A ledger track fades in over 1 s; the composer's music opens on the hook accent and carries its own short fade (A4).
+        const sm = src.sound.music;
+        const music = sm ? { file: sm.assetId ? src.files.get(sm.assetId)! : src.generated!.file, gainDb: sm.gainDb, fadeInS: sm.assetId ? 1 : 0.02 } : null;
         const vo = src.vo ? { file: src.vo.file, gainDb: src.plan.vo_gain_db } : null;
         // H9: the envelope rides on the music chain only; the TikTok variant is VO + SFX without music.
         const duck = src.vo && music ? duckingEnvelope(src.vo.lines, { duckDb: src.plan.duck_db, ...DUCK }) : null;
@@ -252,6 +260,17 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
           await mixTrack(scene.ffmpeg, { cues, music: v === 'music' ? music : null, vo, duck: v === 'music' ? duck : null, durationS: src.durationS, out: join(dir, `mix-${v}.wav`), signal: ctx.signal });
           await masterVariant(scene.ffmpeg, join(dir, `mix-${v}.wav`), video, out[v], ctx.signal);
         }
+        // Agent music design A5: the stems the user gets, at their levels in the mix (music with its ducking); mastering acts on the sum only.
+        const stems: { kind: string; file: string }[] = [];
+        if (music) {
+          await mixTrack(scene.ffmpeg, { cues: [], music, vo: null, duck, durationS: src.durationS, out: join(dir, 'stem-music.wav'), signal: ctx.signal });
+          await toFlac(scene.ffmpeg, join(dir, 'stem-music.wav'), join(dir, 'stem-music.flac'), ctx.signal);
+          stems.push({ kind: 'stem_music', file: join(dir, 'stem-music.flac') });
+        }
+        await mixTrack(scene.ffmpeg, { cues, music: null, vo: null, duck: null, durationS: src.durationS, out: join(dir, 'stem-sfx.wav'), signal: ctx.signal });
+        await toFlac(scene.ffmpeg, join(dir, 'stem-sfx.wav'), join(dir, 'stem-sfx.flac'), ctx.signal);
+        stems.push({ kind: 'stem_sfx', file: join(dir, 'stem-sfx.flac') });
+        if (src.vo) stems.push({ kind: 'stem_voice', file: src.vo.file });
         ctx.status('running', null);
         ctx.progress(95, 'render');
         const cover = join(dir, 'cover.png');
@@ -264,6 +283,7 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
         await record(deps, ctx, { kind: 'final_video_music', file: out.music, inputHash: hash, media, meta: { music: src.sound.music?.title ?? null, framesHash: src.framesHash, ...(src.vo ? { voiceStemSha: src.vo.stemSha } : {}) } });
         await record(deps, ctx, { kind: 'final_video_tiktok', file: out.tiktok, inputHash: hash, media, meta: { music: null, framesHash: src.framesHash } });
         await record(deps, ctx, { kind: 'final_cover', file: cover, inputHash: hash });
+        for (const st of stems) await record(deps, ctx, { kind: st.kind, file: st.file, inputHash: hash, meta: { ...(st.kind === 'stem_music' ? { title: sm?.title ?? null, gainDb: sm?.gainDb ?? null, ducked: !!duck } : {}) } });
         await removeIntermediates(dir);
         const voNote = src.vo ? ` · VO ${formatClock(src.vo.durationMs / 1000)}${duck ? ` · ducking ${src.plan.duck_db} dB` : ''}` : '';
         return { status: 'done', note: `1080×1920 · ${formatClock(probe.durationS)} · ${src.sound.cues.length} efekt · müzik: ${src.sound.music?.title ?? 'yok'}${voNote}` };

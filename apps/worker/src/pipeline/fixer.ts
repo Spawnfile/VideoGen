@@ -94,7 +94,11 @@ export function audioRefErrors(o: { next: AudioPlan | null; prev: AudioPlan | nu
     const list = [...o.allowedMusic].map(([i, title]) => `${i} (${title})`).join(', ') || 'yok';
     out.push(`ses planı: müzik ${id} izinli müzik listesinde yok; izinli parçalar: ${list}`);
   }
-  if (id === null && mode === 'silent' && prev?.music.asset_id) out.push('ses planı: seslendirmesiz videoda müzik kaldırılamaz');
+  if (next.music.source === 'generated' && id !== null) out.push('ses planı: üretilen müzikte asset_id null olmalı');
+  // Agent music design A4: the composer's music counts as music; switching between it and a ledger track is allowed.
+  const hadMusic = !!prev && (prev.music.asset_id !== null || prev.music.source === 'generated');
+  const hasMusic = id !== null || next.music.source === 'generated';
+  if (!hasMusic && mode === 'silent' && hadMusic) out.push('ses planı: seslendirmesiz videoda müzik kaldırılamaz');
   return out;
 }
 

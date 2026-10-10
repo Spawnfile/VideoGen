@@ -207,6 +207,10 @@ describe('Orchestrator', () => {
     expect(preflightFor({ audioMode: 'vo', plan: ['research', 'storyboard', 'voice', 'build', 'review'], musicCount: 0, voice: no })).toBe('Seslendirme kullanılamıyor: Python bulunamadı (python)');
     expect(preflightFor({ audioMode: 'vo', plan: ['research', 'storyboard', 'voice', 'build', 'review'], musicCount: 0, voice: ok })).toBeNull();
     expect(preflightFor({ audioMode: 'vo', plan: ['research', 'storyboard', 'build'], musicCount: 0, voice: no })).toBeNull();
+    // Agent music design A4: a plan with the music step needs the synthesizer, not a ledger track.
+    const composed: StepKey[] = ['research', 'storyboard', 'music', 'build', 'review', 'finalize'];
+    expect(preflightFor({ audioMode: 'silent', plan: composed, musicCount: 0, voice: ok, music: ok })).toBeNull();
+    expect(preflightFor({ audioMode: 'silent', plan: composed, musicCount: 5, voice: ok, music: { ok: false, reason: 'fluidsynth yok' } })).toBe('Müzik kullanılamıyor: fluidsynth yok');
 
     // runPreflight reads the ledger and the driver; a stored narrator choice is what the driver is asked about.
     const asked: string[] = [];

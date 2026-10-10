@@ -11,7 +11,7 @@ const run = (ffmpeg: string, args: string[], signal?: AbortSignal) => new Promis
  * M5c (H9): `vo` is the voice stem (already placed on the video's timeline), `duck` the music's `volume` expression (duckingEnvelope); only the
  * music chain sees it, cues and voice never.
  */
-export function mixTrack(ffmpeg: string, o: { cues: { atMs: number; file: string; gainDb: number }[]; music?: { file: string; gainDb: number } | null; vo?: { file: string; gainDb: number } | null; duck?: string | null; durationS: number; out: string; signal?: AbortSignal }): Promise<void> {
+export function mixTrack(ffmpeg: string, o: { cues: { atMs: number; file: string; gainDb: number }[]; music?: { file: string; gainDb: number; fadeInS?: number } | null; vo?: { file: string; gainDb: number } | null; duck?: string | null; durationS: number; out: string; signal?: AbortSignal }): Promise<void> {
   const d = o.durationS;
   const args = ['-f', 'lavfi', '-t', String(d), '-i', 'anullsrc=r=48000:cl=stereo'];
   for (const c of o.cues) args.push('-i', c.file);
@@ -24,7 +24,7 @@ export function mixTrack(ffmpeg: string, o: { cues: { atMs: number; file: string
     labels.push(`[c${i}]`);
   });
   if (o.music) {
-    parts.push(`[${o.cues.length + 1}:a]aformat=sample_rates=48000:channel_layouts=stereo,atrim=0:${d},afade=t=in:d=1,afade=t=out:st=${Math.max(0, d - 2)}:d=2,volume=${o.music.gainDb}dB${o.duck && o.duck !== '1' ? `,volume='${o.duck}':eval=frame` : ''}[m]`);
+    parts.push(`[${o.cues.length + 1}:a]aformat=sample_rates=48000:channel_layouts=stereo,atrim=0:${d},afade=t=in:d=${o.music.fadeInS ?? 1},afade=t=out:st=${Math.max(0, d - 2)}:d=2,volume=${o.music.gainDb}dB${o.duck && o.duck !== '1' ? `,volume='${o.duck}':eval=frame` : ''}[m]`);
     labels.push('[m]');
   }
   if (o.vo) {
@@ -89,4 +89,9 @@ export async function masterVariant(ffmpeg: string, mix: string, video: string, 
     m = await measureLoudnorm(ffmpeg, out, signal);
   }
   return { before, tp: m && Number.isFinite(m.tp) ? m.tp : null, tpTarget };
+}
+
+/** Agent music design A5: a stem for the user (lossless, 48 kHz stereo FLAC). */
+export function toFlac(ffmpeg: string, wav: string, out: string, signal?: AbortSignal): Promise<void> {
+  return run(ffmpeg, ['-i', wav, '-c:a', 'flac', '-ar', '48000', out], signal);
 }

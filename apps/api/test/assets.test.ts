@@ -161,7 +161,7 @@ describe('asset ledger endpoints (plan M7 T5)', () => {
     const allowedMusic = async () => listAssets(t.pool, { kind: 'music', allowedOnly: true });
     const ctx = (await getRunContext(t.pool, v.runId))!;
     const preflight = runPreflight({ pool: t.pool, audio: new FakeAudioDriver(), dataDir });
-    const silent = { ...ctx, audioMode: 'silent' as const, run: { ...ctx.run, plan: producePlan('silent') } };
+    const silent = { ...ctx, audioMode: 'silent' as const, run: { ...ctx.run, plan: producePlan('silent').filter((s) => s.key !== 'music') } }; // the ledger rule applies to plans without the composer (agent music design A4)
     const before = (await allowedMusic()).length;
     expect(before).toBeGreaterThan(0);
     expect(await preflight(silent)).toBeNull();

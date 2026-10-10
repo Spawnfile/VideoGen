@@ -1,10 +1,12 @@
 import { readFileSync, truncateSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { insertArtifact, latestArtifact } from '@videogen/db';
+import { getBlob, insertArtifact, latestArtifact, putBlob } from '@videogen/db';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
 import { composeExecutor, composeSource, currentEvents, type FinalFramesMeta } from '../src/pipeline/final-steps.ts';
 import { framePath } from '../src/render/frames.ts';
+import { fakeMusicBed } from '../src/render/ffmpeg.ts';
+import { musicRenderS } from '../src/pipeline/music-step.ts';
 import { finalHarness } from './final-helpers.ts';
 
 let t: Awaited<ReturnType<typeof createTestDb>>;
@@ -24,6 +26,25 @@ describe('compose step', () => {
     const out = await ex.run(ctx('compose'), await ex.inputHash(ctx('compose')));
     expect(out).toMatchObject({ status: 'done', note: expect.stringMatching(/^1080×1920 · 0:45 · \d+ efekt · müzik: yok$/) });
     expect((await latestArtifact(t.pool, r.runId, 'audio_plan'))!.content).toMatchObject({ music: null });
+  }, 180_000);
+
+  it('agent music design A4/A5: the composer\'s stem is the music of the music variant (no ledger asset, no attribution); music and SFX stems are recorded as FLAC', async () => {
+    const h = setup();
+    const { r, ctx } = await h.framed('Tükenmez kalem müzikli');
+    const file = join(h.deps.dataDir, 'stem-src.wav');
+    await fakeMusicBed(process.env.VG_FFMPEG ?? 'ffmpeg', file, musicRenderS(45));
+    const blob = await putBlob(t.pool, h.deps.dataDir, file);
+    await insertArtifact(t.pool, { runId: r.runId, kind: 'music_stem', blobSha: blob.sha256, inputHash: 'm1' });
+    const ex = composeExecutor(h.deps);
+    const out = await ex.run(ctx('compose'), await ex.inputHash(ctx('compose')));
+    expect(out).toMatchObject({ status: 'done', note: expect.stringMatching(/müzik: Özgün müzik \(besteci ajan\)$/) });
+    expect((await latestArtifact(t.pool, r.runId, 'audio_plan'))!.content).toMatchObject({ music: { assetId: null, generatedSha: blob.sha256, attribution: null, gainDb: -18 } });
+    expect((await latestArtifact(t.pool, r.runId, 'audio'))!.content).toMatchObject({ music: { source: 'generated', asset_id: null } });
+    for (const kind of ['stem_music', 'stem_sfx']) {
+      const a = (await latestArtifact(t.pool, r.runId, kind))!;
+      expect((await getBlob(t.pool, a.blobSha!))!.path).toMatch(/\.flac$/);
+    }
+    expect(await latestArtifact(t.pool, r.runId, 'stem_voice')).toBeNull(); // silent video
   }, 180_000);
 
   it('renaming a part label (name_tr) keeps the final frames current; a lens change makes them stale', async () => {

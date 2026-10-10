@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { licenseVerdict, type AudioMode, type AudioPlan, type SfxName } from '@videogen/shared';
+import { GENERATED_MUSIC_TITLE, licenseVerdict, type AudioMode, type AudioPlan, type SfxName } from '@videogen/shared';
 import type { AssetRecord } from '@videogen/db';
 
 /** Plan E10: scene events → sounds (spec §7.6: explode_start → whoosh, part_lock → click/snap). */
@@ -49,8 +49,12 @@ export class LicenseError extends Error {
 }
 export interface SoundPlan {
   cues: (SfxCue & { assetId: string; gainDb: number })[];
-  music: { assetId: string; title: string; license: string; attribution: string | null; gainDb: number } | null;
+  /** `assetId` null and `generatedSha` set: the composer's own music (agent music design A4; no ledger asset, no attribution). */
+  music: { assetId: string | null; generatedSha?: string; title: string; license: string; attribution: string | null; gainDb: number } | null;
 }
+/** The composer's rendered music_stem (agent music design A4). */
+export interface GeneratedMusic { sha: string; file: string }
+export const GENERATED_MUSIC_LICENSE = 'LicenseRef-VideoGen-Generated';
 
 /** The stored verdict and today's policy (review #3: a tightened license list or a cleared attribution also blocks). */
 const permitted = (a: AssetRecord) => a.allowed && licenseVerdict({ spdx: a.licenseSpdx, attribution: a.attribution, kind: a.kind }).allowed;
@@ -74,22 +78,25 @@ export function withImportedSfx(library: Record<SfxName, AssetRecord>, imported:
 }
 
 /** Spec §9: the render refuses an asset that is not in the ledger or not allowed (checked again here, at use). `plan` (H4): excluded sounds drop out, the offset adds to every cue, the music gain is the plan's. */
-export function soundPlan(cues: SfxCue[], library: Record<SfxName, AssetRecord>, music: AssetRecord | null, plan?: AudioPlan): SoundPlan {
+export function soundPlan(cues: SfxCue[], library: Record<SfxName, AssetRecord>, music: AssetRecord | null, plan?: AudioPlan, generated?: GeneratedMusic | null): SoundPlan {
   const out = cues.filter((c) => !plan?.sfx.exclude.includes(c.name)).map((c) => {
     const a = library[c.name];
     if (!a || !permitted(a) || a.kind !== 'sfx') throw new LicenseError(`izinsiz ses: ${c.name}`);
     return { ...c, assetId: a.id, gainDb: SFX_GAIN_DB[c.name] + (plan?.sfx.gain_offset_db ?? 0) };
   });
+  const gainDb = plan?.music.gain_db ?? MUSIC_GAIN_DB;
+  if (generated) return { cues: out, music: { assetId: null, generatedSha: generated.sha, title: GENERATED_MUSIC_TITLE, license: GENERATED_MUSIC_LICENSE, attribution: null, gainDb } };
   if (music && (!permitted(music) || music.kind !== 'music')) throw new LicenseError(`izinsiz müzik: ${music.title} (${music.licenseSpdx})`);
-  return { cues: out, music: music ? { assetId: music.id, title: music.title, license: music.licenseSpdx, attribution: music.attribution, gainDb: plan?.music.gain_db ?? MUSIC_GAIN_DB } : null };
+  return { cues: out, music: music ? { assetId: music.id, title: music.title, license: music.licenseSpdx, attribution: music.attribution, gainDb } : null };
 }
 
 /**
  * H3/H4: the deterministic stand-in of the audio director. The defaults reproduce today's silent mix (music at MUSIC_GAIN_DB, SFX as is);
  * a missing music track is a valid plan (the "silent video needs music" rule lives in the preflight and the fixer, H10).
  */
-export function defaultAudioPlan(o: { mode: AudioMode; music: AssetRecord | null }): AudioPlan {
-  return { version: 1, mode: o.mode, music: { asset_id: o.music?.id ?? null, gain_db: MUSIC_GAIN_DB }, vo_gain_db: 0, duck_db: 12, sfx: { gain_offset_db: 0, exclude: [] }, mastering: { target_lufs: -14, tp: -1 } };
+export function defaultAudioPlan(o: { mode: AudioMode; music: AssetRecord | null; generated?: boolean }): AudioPlan {
+  const music = o.generated ? { source: 'generated' as const, asset_id: null, gain_db: MUSIC_GAIN_DB } : { asset_id: o.music?.id ?? null, gain_db: MUSIC_GAIN_DB };
+  return { version: 1, mode: o.mode, music, vo_gain_db: 0, duck_db: 12, sfx: { gain_offset_db: 0, exclude: [] }, mastering: { target_lufs: -14, tp: -1 } };
 }
 
 /**
@@ -97,17 +104,23 @@ export function defaultAudioPlan(o: { mode: AudioMode; music: AssetRecord | null
  * written by compose's run only). A stored music track must still be permitted today. `music` are the ledger's allowed music tracks,
  * `seed` the video id of pickMusic. Returns the resolved music asset too.
  */
-export function effectiveAudioPlan(o: { stored: AudioPlan | null; mode: AudioMode; music: AssetRecord[]; seed: string }): { plan: AudioPlan; persist: boolean; music: AssetRecord | null } {
+export function effectiveAudioPlan(o: { stored: AudioPlan | null; mode: AudioMode; music: AssetRecord[]; seed: string; generated?: GeneratedMusic | null }): { plan: AudioPlan; persist: boolean; music: AssetRecord | null; generated: GeneratedMusic | null } {
+  // Agent music design A4: the composer's music is the default whenever the music step rendered one.
   if (!o.stored) {
+    if (o.generated) return { plan: defaultAudioPlan({ mode: o.mode, music: null, generated: true }), persist: true, music: null, generated: o.generated };
     const music = pickMusic(o.music, o.seed);
-    return { plan: defaultAudioPlan({ mode: o.mode, music }), persist: true, music };
+    return { plan: defaultAudioPlan({ mode: o.mode, music }), persist: true, music, generated: null };
+  }
+  if (o.stored.music.source === 'generated') {
+    if (!o.generated) throw new LicenseError('üretilen müzik bulunamadı (music adımı çalışmadı)');
+    return { plan: o.stored, persist: false, music: null, generated: o.generated };
   }
   const id = o.stored.music.asset_id;
-  if (id === null) return { plan: o.stored, persist: false, music: null };
+  if (id === null) return { plan: o.stored, persist: false, music: null, generated: null };
   const music = o.music.find((a) => a.id === id);
   if (!music) throw new LicenseError(`müzik bulunamadı: ${id}`);
   if (!permitted(music) || music.kind !== 'music') throw new LicenseError(`izinsiz müzik: ${music.title} (${music.licenseSpdx})`);
-  return { plan: o.stored, persist: false, music };
+  return { plan: o.stored, persist: false, music, generated: null };
 }
 
 /** `lines`' merged windows (plateau from `preMs` before a line to `postMs` after it) of H9, in ms; two windows closer than both ramps merge. */

@@ -83,12 +83,18 @@ describe('sound plan, mix, mastering and the two variants', { timeout: 60_000 },
     expect(AudioPlanSchema.safeParse(none.plan).success).toBe(true);
     // a stored plan wins over the pick, and is not persisted again
     const stored = { ...defaultAudioPlan({ mode: 'vo', music: m2 }), vo_gain_db: 2 };
-    expect(effectiveAudioPlan({ stored, mode: 'vo', music: [m1, m2], seed: 'x' })).toEqual({ plan: stored, persist: false, music: m2 });
+    expect(effectiveAudioPlan({ stored, mode: 'vo', music: [m1, m2], seed: 'x' })).toEqual({ plan: stored, persist: false, music: m2, generated: null });
     expect(effectiveAudioPlan({ stored: { ...stored, music: { ...stored.music, asset_id: null } }, mode: 'vo', music: [m1], seed: 'x' })).toMatchObject({ persist: false, music: null });
     // a stored track that is gone, disallowed or no longer permitted by today's policy is a license error
     expect(() => effectiveAudioPlan({ stored, mode: 'vo', music: [m1], seed: 'x' })).toThrow(`müzik bulunamadı: ${U2}`);
     expect(() => effectiveAudioPlan({ stored, mode: 'vo', music: [{ ...m2, allowed: false }], seed: 'x' })).toThrow(/^izinsiz müzik: B/);
     expect(() => effectiveAudioPlan({ stored, mode: 'vo', music: [{ ...m2, licenseSpdx: 'CC-BY-4.0', attribution: null }], seed: 'x' })).toThrow(LicenseError);
+    // Agent music design A4: the composer's stem is the default; a stored generated plan needs it; it has no asset and no attribution.
+    const gen = { sha: 'a'.repeat(64), file: '/x/music.wav' };
+    const g = effectiveAudioPlan({ stored: null, mode: 'silent', music: [m1, m2], seed: 'video-1', generated: gen });
+    expect(g).toMatchObject({ persist: true, music: null, generated: gen, plan: { music: { source: 'generated', asset_id: null, gain_db: -18 } } });
+    expect(effectiveAudioPlan({ stored: g.plan, mode: 'silent', music: [], seed: 'x', generated: gen })).toMatchObject({ persist: false, generated: gen });
+    expect(() => effectiveAudioPlan({ stored: g.plan, mode: 'silent', music: [], seed: 'x', generated: null })).toThrow(/üretilen müzik bulunamadı/);
     // exclude, the SFX offset and the music gain reach the cues
     const plan = { ...stored, music: { asset_id: U2, gain_db: -22 }, sfx: { gain_offset_db: -3, exclude: ['click' as const] } };
     expect(soundPlan(cues, lib, m2, plan)).toEqual({

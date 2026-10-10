@@ -35,8 +35,11 @@ export const aigcRequired = (v: NarratorVoice): boolean => v.voice.kind === 'clo
 export const AudioPlanSchema = z.object({
   version: z.number().int().min(1),
   mode: z.enum(['vo', 'silent']),
-  /** null is valid in the schema; a silent video that is meant to ship needs music (H10, a preflight and fixer rule). */
-  music: z.object({ asset_id: z.uuid().nullable(), gain_db: z.number().min(-30).max(-10) }),
+  /**
+   * Agent music design A4: `source` 'generated' plays the composer's music_stem (asset_id null); 'asset' (or absent, older plans) a ledger
+   * track by asset_id; null asset_id without a generated source is no music.
+   */
+  music: z.object({ source: z.enum(['generated', 'asset']).optional(), asset_id: z.uuid().nullable(), gain_db: z.number().min(-30).max(-10) }),
   vo_gain_db: z.number().min(-6).max(6),
   duck_db: z.number().min(6).max(18),
   sfx: z.object({ gain_offset_db: z.number().min(-12).max(6), exclude: z.array(z.enum(SFX_NAMES)).max(SFX_NAMES.length) }),
