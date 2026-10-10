@@ -2,10 +2,12 @@ import { join } from 'node:path';
 import {
   MUSIC_INSTRUMENTS, MUSIC_PATTERNS, musicScoreErrors, validateArtifact, type MusicScore, type Storyboard,
 } from '@videogen/shared';
-import { findArtifact, latestArtifact } from '@videogen/db';
+import { findArtifact, latestArtifact, originRunId } from '@videogen/db';
 import { runStructured } from './agent-step.ts';
 import { briefBlock, fenced } from './fence.ts';
 import { briefKeys, failure, persist, record, sha, type StepDeps } from './steps.ts';
+import { SpecStore } from '@videogen/claude';
+import { ARTIFACT_VALIDATOR } from './validator.ts';
 import type { StepContext, StepExecutor } from './types.ts';
 import { RenderError } from '../render/driver.ts';
 
@@ -14,7 +16,7 @@ const SCHEMA = 'MusicScore@1';
 export const musicRenderS = (durationS: number) => Math.ceil(((Math.round(durationS * 30) + 1) / 30 + 0.05) * 1000) / 1000;
 
 /** Agent music design A1/A3/A6: the composer's instruction. `edit`: the previous score and the user's instruction (a user decision). */
-export function composerPrompt(o: { name: string; storyboard: Storyboard; audioMode: 'vo' | 'silent'; brief?: string | null; edit?: { instruction: string; previous: MusicScore } }): string {
+export function composerPrompt(o: { name: string; storyboard: Storyboard; audioMode: 'vo' | 'silent'; brief?: string | null; edit?: { instruction: string; previous: MusicScore | null } }): string {
   const s = o.storyboard;
   const timing = {
     duration_s: s.duration_s, hook: s.hook, rehook_at: s.rehook_at, payoff_at: s.payoff_at, loop_strategy: s.loop_strategy,
@@ -26,7 +28,7 @@ export function composerPrompt(o: { name: string; storyboard: Storyboard; audioM
     '',
     fenced('Storyboard zamanlaması', timing),
     '',
-    ...(o.edit ? [fenced('Önceki partisyon (temel al; yalnızca istenen değişikliği yap)', o.edit.previous), '', ...userInstruction(o.edit.instruction), ''] : []),
+    ...(o.edit ? [o.edit.previous ? fenced('Önceki partisyon (temel al; yalnızca istenen değişikliği yap)', o.edit.previous) : 'Önceki partisyon yok (müzik defterden bir parçaydı): talimata göre yeni bir partisyon yaz.', '', ...userInstruction(o.edit.instruction), '', 'Müzik seviyesi, ducking ya da efekt seviyesi istenirse write_spec(audio) ile ses planını da güncelle (read_spec(audio) mevcut planı verir).', ''] : []),
     ...(o.brief?.trim() ? [...briefBlock(o.brief, 'composer'), ''] : []),
     `Kurallar: duration_s ${s.duration_s}; bölümler 0 sn'den ${s.duration_s} sn'ye boşluksuz ve bitişik (1–8 bölüm), sınırlar mümkünse vuruş sınırlarında; bar başına bir akor (4/4), akorlar bölüm boyunca tekrar eder.`,
     `Kanca 0 sn'de bir vurgu (hit) ile açılır; ikinci kancadan (${s.rehook_at} sn) hemen önce riser; ödülde (${s.payoff_at} sn) drop ve enerjinin doruğu. bpm 60–160 (çoğunlukla 85–115). key: kök ve major/minor.`,
@@ -50,8 +52,10 @@ function userInstruction(text: string): string[] {
 
 export function musicExecutor(deps: StepDeps): StepExecutor {
   const inputs = async (ctx: StepContext) => {
-    const sb = await latestArtifact(deps.pool, ctx.runId, 'storyboard');
-    const vt = ctx.audioMode === 'vo' ? await latestArtifact(deps.pool, ctx.runId, 'voice_track') : null;
+    // An audio edit (A6) has no storyboard of its own: the produce run the edit chain started from has it.
+    const from = ctx.edit ? await originRunId(deps.pool, ctx.edit.parentRunId) : ctx.runId;
+    const sb = await latestArtifact(deps.pool, from, 'storyboard');
+    const vt = ctx.audioMode === 'vo' ? await latestArtifact(deps.pool, from, 'voice_track') : null;
     return { sb, vt };
   };
   return {
@@ -73,11 +77,17 @@ export function musicExecutor(deps: StepDeps): StepExecutor {
       const storyboard = sb ? validateArtifact('Storyboard', sb.content) : null;
       if (!storyboard?.ok) return { status: 'failed', error: 'storyboard yok', retry: false };
       const previous = ctx.edit ? validateArtifact('MusicScore', (await latestArtifact(deps.pool, ctx.edit.parentRunId, 'music'))?.content) : null;
-      if (ctx.edit && !previous?.ok) return { status: 'failed', error: 'düzenlenecek önceki partisyon yok', retry: false };
+      if (ctx.edit) {
+        // The edit run's SpecStore starts with the source's audio plan, so read_spec(audio) shows it and a write_spec(audio) edits it (remix reads it).
+        const specs = new SpecStore(join(ctx.runDir, 'spec'), ARTIFACT_VALIDATOR);
+        const from = await originRunId(deps.pool, ctx.edit.parentRunId);
+        const plan = (await latestArtifact(deps.pool, ctx.edit.parentRunId, 'audio')) ?? (await latestArtifact(deps.pool, from, 'audio'));
+        if (plan?.content && !(await specs.read('audio'))) await specs.write('audio', plan.content);
+      }
       const durationS = storyboard.value.duration_s;
       const r = await runStructured<MusicScore>({
         manager: deps.manager, ctx, role: 'audio_director', schema: 'MusicScore',
-        prompt: composerPrompt({ name: ctx.productName, storyboard: storyboard.value, audioMode: ctx.audioMode, brief: ctx.brief, ...(ctx.edit && previous?.ok ? { edit: { instruction: ctx.edit.instruction, previous: previous.value } } : {}) }),
+        prompt: composerPrompt({ name: ctx.productName, storyboard: storyboard.value, audioMode: ctx.audioMode, brief: ctx.brief, ...(ctx.edit ? { edit: { instruction: ctx.edit.instruction, previous: previous?.ok ? previous.value : null } } : {}) }),
         check: (s) => musicScoreErrors(s, { durationS }),
         fakeScript: deps.fakeScript ? (n) => deps.fakeScript!('audio_director', ctx, n, { durationS }) : undefined,
       });

@@ -214,6 +214,9 @@ export const runs = pgTable(
     kind: text('kind').notNull(),
     trigger: text('trigger').notNull(),
     parentRunId: uuid('parent_run_id').references((): AnyPgColumn => runs.id),
+    /** Agent music design A6/A8: an audio edit's instruction (the user's decision) and the version it produces. */
+    instruction: text('instruction'),
+    versionId: uuid('version_id').references((): AnyPgColumn => versions.id),
     plan: jsonb('plan').notNull(),
     progress: real('progress').notNull().default(0),
     etaS: integer('eta_s'),

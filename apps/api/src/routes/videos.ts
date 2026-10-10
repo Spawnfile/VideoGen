@@ -1,9 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import { z } from 'zod';
-import { AUDIO_MODES, BRIEF_MAX, durationWindowErrors, IMPLEMENTED_STEPS, producePlan, STEP_KEYS } from '@videogen/shared';
+import { audioEditPlan, AUDIO_MODES, BRIEF_MAX, durationWindowErrors, IMPLEMENTED_STEPS, producePlan, STEP_KEYS } from '@videogen/shared';
 import {
-  appendAudit, createProduceRun, getArtifact, getRun, getRunView, getVideoView, isUuid, listArtifacts, listVersionReviews, listVersions, listVideoReviews, listRunViews, listVideoViews, publishRunAndVideo, versionVideoId,
+  appendAudit, AUDIO_EDIT_MAX, createAudioEditRun, createProduceRun, getArtifact, getRun, getRunView, getVideoView, isUuid, listArtifacts, listVersionReviews, listVersions, listVideoReviews, listRunViews, listVideoViews, publishRunAndVideo, versionVideoId,
 } from '@videogen/db';
 import { sendCommand } from './notify.ts';
 
@@ -36,6 +36,18 @@ export function registerVideoRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
     await publishRunAndVideo(pool, created.runId);
     await sendCommand(pool, { type: 'run.start', runId: created.runId });
     return reply.code(202).send({ videoId: created.videoId, runId: created.runId });
+  });
+
+  // Agent music design A6: the user's audio instruction on a finished video → an audio_edit run (music → remix) under a new version.
+  app.post('/api/videos/:id/audio-edits', async (req, reply) => {
+    if (!isUuid(id(req))) return reply.code(404).send({ error: 'not found' });
+    const b = z.object({ instruction: z.string().trim().min(1, 'talimat boş olamaz').max(AUDIO_EDIT_MAX, `talimat en çok ${AUDIO_EDIT_MAX} karakter olabilir`) }).safeParse(req.body ?? {});
+    if (!b.success) return reply.code(400).send({ error: b.error.issues[0]?.message ?? 'geçersiz istek' });
+    const created = await createAudioEditRun(pool, { videoId: id(req), instruction: b.data.instruction, plan: audioEditPlan() });
+    if ('error' in created) return reply.code(created.error === 'video bulunamadı' ? 404 : 409).send({ error: created.error });
+    await publishRunAndVideo(pool, created.runId);
+    await sendCommand(pool, { type: 'run.start', runId: created.runId });
+    return reply.code(202).send({ runId: created.runId, versionId: created.versionId });
   });
 
   app.get('/api/videos', async () => listVideoViews(pool));

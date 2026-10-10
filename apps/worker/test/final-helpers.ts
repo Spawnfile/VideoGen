@@ -28,8 +28,11 @@ export function finalHarness(t: { pool: pg.Pool }) {
   const dataDir = mkdtempSync(join(tmpdir(), 'vg-final-h-'));
   const scene: SceneDeps = { pool: t.pool, render: new FakeRenderDriver({ ffmpeg: FFMPEG, delayMs: 1 }), locks: new ResourceLocks(), ffmpeg: FFMPEG, capability: () => ({ ok: true }), waitMs: 10, encodePreset: 'ultrafast' };
   const reviews = new ReviewTargets();
+  // Every started session spec (prompt, role) for assertions on what an agent was told.
+  const specs: SessionSpec[] = [];
+  const fakeClaude = new FakeClaudeDriver({ speed: 0 });
   const manager = new SessionManager({
-    pool: t.pool, dataDir, driver: new FakeClaudeDriver({ speed: 0 }), pluginDir: resolve(import.meta.dirname, '../../../claude-plugin'), sampleEveryMs: 50, pumpRetryMs: 30,
+    pool: t.pool, dataDir, driver: { kind: 'fake', start: (s) => { specs.push(s); return fakeClaude.start(s); } }, pluginDir: resolve(import.meta.dirname, '../../../claude-plugin'), sampleEveryMs: 50, pumpRetryMs: 30,
     validator: ARTIFACT_VALIDATOR, memAvailableMb: () => 8000, runner: { flushMs: 5, resultWaitMs: 50, cancelGraceMs: 50, killGraceMs: 50 },
     tools: toolHosts(sceneToolHost(scene), reviewToolHost({ ffmpeg: FFMPEG, targets: reviews })),
   });
@@ -57,6 +60,7 @@ export function finalHarness(t: { pool: pg.Pool }) {
     dataDir, deps,
     framed: (name: string, o: { vo?: boolean } = {}) => run(name, ['build', 'final_render'], o),
     composed: (name: string) => run(name, ['build', 'final_render', 'compose']),
+    specs,
     stop: () => manager.stop(),
   };
 }

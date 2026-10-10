@@ -72,7 +72,7 @@ describe('produce', () => {
     for (const [body, msg] of [
       [{ brief: 'x'.repeat(2001) }, /yönerge en çok 2000/],
       [{ brief: 'a\u0007' }, /kontrol karakteri/],
-      [{ duration: { minS: 10, maxS: 20 } }, /en az 15/],
+      [{ duration: { minS: 8, maxS: 20 } }, /en az 10/],
       [{ duration: { minS: 20, maxS: 70 } }, /en çok 60/],
       [{ duration: { minS: 30, maxS: 20 } }, /üst sınırı/],
       [{ duration: { minS: 20.5, maxS: 25 } }, /tam saniye/],
@@ -81,6 +81,17 @@ describe('produce', () => {
       expect(bad.statusCode).toBe(400);
       expect(bad.json().error).toMatch(msg);
     }
+  });
+
+  it('audio edits (agent music design A6): only a finished video, a non-empty instruction ≤ 1000 chars; unknown ids 404', async () => {
+    const r = (await produce({ productName: 'Kalem ses', audioMode: 'silent' })).json();
+    const post = (vid: string, body: unknown) => app.inject({ method: 'POST', url: `/api/videos/${vid}/audio-edits`, headers: H, payload: body as object });
+    expect((await post(r.videoId, { instruction: '' })).json().error).toBe('talimat boş olamaz');
+    expect((await post(r.videoId, { instruction: 'x'.repeat(1001) })).json().error).toMatch(/1000/);
+    const busy = await post(r.videoId, { instruction: 'Müziği sakinleştir.' });
+    expect([busy.statusCode, busy.json().error]).toEqual([409, 'yalnızca yayına hazır ya da yayınlanmış bir videonun sesi düzenlenebilir']);
+    expect((await post('00000000-0000-4000-8000-000000000000', { instruction: 'x' })).statusCode).toBe(404);
+    expect((await post('nope', { instruction: 'x' })).statusCode).toBe(404);
   });
 
   it('rejects bad input with a Turkish message and unknown ids with 404', async () => {

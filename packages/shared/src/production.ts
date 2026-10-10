@@ -9,8 +9,11 @@ export type DurationSource = (typeof DURATION_SOURCES)[number];
 
 /** Spec K8: the channel default. */
 export const DEFAULT_DURATION: DurationWindow = { minS: 35, maxS: 55 };
-/** Y2: under 15 s the rehook (40–60 %) runs into the 0–3 s hook window; over 60 s the single-chunk upload and render time are at risk. */
-export const DURATION_HARD: DurationWindow = { minS: 15, maxS: 60 };
+/**
+ * Y2 (lowered 2026-10-11 at the user's request, "max 10-15 saniye"): at 10 s hook (0–3 s), rehook (4–6 s) and payoff (≥ 7 s) still stand apart and
+ * four beats last 2,5 s each; over 60 s the single-chunk upload and render time are at risk.
+ */
+export const DURATION_HARD: DurationWindow = { minS: 10, maxS: 60 };
 const MIN_WIDTH_S = 2;
 export const BRIEF_MAX = 2000;
 

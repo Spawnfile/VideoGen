@@ -18,7 +18,7 @@ export const STEP_DEFAULT_S: Record<StepKey, number> = {
   research: 300, storyboard: 180, voice: 270, music: 90, build: 1500, draft_render: 60, draft_review: 180, final_render: 1380, compose: 300, qc: 5, review: 300, finalize: 30, remix: 60,
 };
 /** Steps with an executor in this build. M4a: research → storyboard; M4b: + build; M4c: + draft_render, draft_review; M5a: + final_render, compose, qc; M5b: + review, finalize. */
-export const IMPLEMENTED_STEPS: readonly StepKey[] = ['research', 'storyboard', 'voice', 'music', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc', 'review', 'finalize'];
+export const IMPLEMENTED_STEPS: readonly StepKey[] = ['research', 'storyboard', 'voice', 'music', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc', 'review', 'finalize', 'remix'];
 
 /** "0:45", "1:02": a video length for cards and notes. */
 export function formatClock(seconds: number): string {
@@ -28,7 +28,8 @@ export function formatClock(seconds: number): string {
 
 export type VideoStatus = 'queued' | 'running' | 'ready' | 'needs_human' | 'failed' | 'cancelled' | 'published';
 export type RunStatus = 'queued' | 'running' | 'done' | 'needs_human' | 'failed' | 'cancelled';
-export type RunKind = 'produce' | 'fix' | 'chat_edit' | 'rerender';
+/** `audio_edit` (agent music design A6): the user's audio instruction on a finished video. */
+export type RunKind = 'produce' | 'fix' | 'chat_edit' | 'rerender' | 'audio_edit';
 export type StepStatus = 'pending' | 'queued' | 'running' | 'waiting_gpu' | 'waiting_limit' | 'waiting_disk' | 'done' | 'failed' | 'skipped' | 'cancelled';
 export type ProgressSource = 'render' | 'agent' | 'time' | 'deterministic';
 export type Resource = 'gpu' | 'heavy_cpu' | 'claude';

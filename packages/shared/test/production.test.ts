@@ -4,13 +4,13 @@ import {
 } from '../src/production.ts';
 
 describe('production brief and duration window (brief design Y1–Y3, Y9)', () => {
-  it('defaults and hard bounds: 35–55 s by default, 15–60 s at most, a window at least 2 s wide', () => {
+  it('defaults and hard bounds: 35–55 s by default, 10–60 s at most, a window at least 2 s wide', () => {
     expect(DEFAULT_DURATION).toEqual({ minS: 35, maxS: 55 });
-    expect(DURATION_HARD).toEqual({ minS: 15, maxS: 60 });
+    expect(DURATION_HARD).toEqual({ minS: 10, maxS: 60 });
     expect(BRIEF_MAX).toBe(2000);
     expect(durationWindowErrors({ minS: 20, maxS: 25 })).toEqual([]);
-    expect(durationWindowErrors({ minS: 15, maxS: 60 })).toEqual([]);
-    expect(durationWindowErrors({ minS: 10, maxS: 25 })[0]).toMatch(/15/);
+    expect(durationWindowErrors({ minS: 10, maxS: 60 })).toEqual([]);
+    expect(durationWindowErrors({ minS: 8, maxS: 25 })[0]).toMatch(/10/);
     expect(durationWindowErrors({ minS: 20, maxS: 61 })[0]).toMatch(/60/);
     expect(durationWindowErrors({ minS: 25, maxS: 20 })[0]).toMatch(/en az/);
     expect(durationWindowErrors({ minS: 20, maxS: 21 })[0]).toMatch(/2 sn/);
@@ -29,7 +29,8 @@ describe('production brief and duration window (brief design Y1–Y3, Y9)', () =
     expect(parseBriefDuration('kısa olsun')).toBeNull();
     expect(parseBriefDuration('')).toBeNull();
     // Clamped into the hard bounds, never rejected: the form shows what was understood.
-    expect(parseBriefDuration('8 sn')).toEqual({ minS: 15, maxS: 17 });
+    expect(parseBriefDuration('8 sn')).toEqual({ minS: 10, maxS: 12 });
+    expect(parseBriefDuration('max 10-15 saniyelik olsun')).toEqual({ minS: 10, maxS: 15 }); // the user's own brief
     expect(parseBriefDuration('90 saniye')).toEqual({ minS: 58, maxS: 60 });
     // Review findings: Turkish words starting with s/dk are not units; the video length wins over per-scene timings (< 5 s) and
     // other durations (> 180 s); a unit may follow both ends of a range.
@@ -44,7 +45,7 @@ describe('production brief and duration window (brief design Y1–Y3, Y9)', () =
     expect(effectiveDuration({ user: { minS: 20, maxS: 25 }, agent: { minS: 40, maxS: 50 } })).toEqual({ window: { minS: 20, maxS: 25 }, source: 'user' });
     expect(effectiveDuration({ user: null, agent: { minS: 40, maxS: 50 } })).toEqual({ window: { minS: 40, maxS: 50 }, source: 'agent' });
     expect(effectiveDuration({ user: null, agent: null })).toEqual({ window: DEFAULT_DURATION, source: 'default' });
-    expect(recommendedWindow({ duration_min_s: 5, duration_max_s: 90 })).toEqual({ minS: 15, maxS: 60 });
+    expect(recommendedWindow({ duration_min_s: 5, duration_max_s: 90 })).toEqual({ minS: 10, maxS: 60 });
     expect(recommendedWindow({ duration_min_s: 30, duration_max_s: 30 })).toEqual({ minS: 29, maxS: 31 });
     expect(recommendedWindow({ duration_min_s: 50, duration_max_s: 30 })).toEqual({ minS: 30, maxS: 50 });
   });
@@ -53,6 +54,7 @@ describe('production brief and duration window (brief design Y1–Y3, Y9)', () =
     expect(voBounds(DEFAULT_DURATION)).toEqual({ minS: 36, maxS: 52 });
     expect(voBounds({ minS: 20, maxS: 25 })).toEqual({ minS: 19, maxS: 22 });
     expect(voBounds({ minS: 15, maxS: 17 })).toEqual({ minS: 11, maxS: 14 });
+    expect(voBounds({ minS: 10, maxS: 12 })).toEqual({ minS: 6, maxS: 9 });
     expect(voBounds({ minS: 20, maxS: 22 })).toEqual({ minS: 16, maxS: 19 }); // never a single exact value
   });
 

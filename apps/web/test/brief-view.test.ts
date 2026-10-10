@@ -7,8 +7,8 @@ describe('Studio brief and duration form (brief design Y1–Y3)', () => {
     expect(s0).toEqual({ mode: 'auto', minS: 35, maxS: 55, origin: 'default' });
     expect(durationBadge(s0)).toBe('Otomatik · ajan önerir, yoksa varsayılan 35–55 sn');
     const s1 = onBriefChange(s0, 'Kısa olsun, 20 saniyeyi geçmesin.');
-    expect(s1).toEqual({ mode: 'manual', minS: 15, maxS: 20, origin: 'brief' });
-    expect(durationBadge(s1)).toBe('15–20 sn · yönergeden');
+    expect(s1).toEqual({ mode: 'manual', minS: 14, maxS: 20, origin: 'brief' }); // "en fazla 20" → 70 % of it as the floor
+    expect(durationBadge(s1)).toBe('14–20 sn · yönergeden');
     // the brief loses its duration: back to Otomatik
     expect(onBriefChange(s1, 'Kısa olsun.')).toEqual(s0);
   });

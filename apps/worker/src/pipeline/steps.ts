@@ -19,6 +19,7 @@ import { RESUME_PROMPT, type SessionManager, type UsageGate } from '../agents/ma
 import type { AudioDriver } from '../audio/driver.ts';
 import type { MusicDriver } from '../audio/music.ts';
 import { musicExecutor } from './music-step.ts';
+import { remixExecutor } from './remix-step.ts';
 import { fileSha256, putBlob } from '../media.ts';
 import { RenderError, type BuildFiles } from '../render/driver.ts';
 import { contactSheet, draftProbeErrors, extractFrame, probeVideo } from '../render/ffmpeg.ts';
@@ -561,5 +562,6 @@ export function pipelineExecutors(deps: StepDeps): Partial<Record<StepKey, StepE
     final_render: finalRenderExecutor(deps), compose: composeExecutor(deps), qc: qcExecutor(deps),
     // T8: `fixer: null` means no fixer; unset means the real one.
     review: reviewExecutor({ ...deps, fixer: deps.fixer === undefined ? runFixer : deps.fixer }), finalize: finalizeExecutor(deps),
+    remix: remixExecutor(deps),
   };
 }

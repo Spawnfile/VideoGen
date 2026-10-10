@@ -49,7 +49,7 @@ describe('Storyboard', () => {
     expect(errs('Storyboard', { ...board(), payoff_at: 20 })).toEqual(["payoff_at: ödül sürenin %70'inden sonra olmalı"]);
   });
 
-  it('requires vo_text in vo mode and forbids it in silent mode; duration within the 15–60 s hard bounds (the video window is checked by the step); hook pattern from the list', () => {
+  it('requires vo_text in vo mode and forbids it in silent mode; duration within the 10–60 s hard bounds (the video window is checked by the step); hook pattern from the list', () => {
     const s = board();
     expect(errs('Storyboard', { ...s, audio_mode: 'vo' })).toHaveLength(7);
     expect(errs('Storyboard', { ...s, beats: s.beats.map((b) => ({ ...b, vo_text: { tr: 'x' } })) })).toHaveLength(7);

@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { DEFAULT_SAFE_AREA, type SafeArea } from '@videogen/shared';
 
-const run = (ffmpeg: string, args: string[], signal?: AbortSignal, timeoutMs = 60_000) => new Promise<void>((resolve, reject) => {
+export const run = (ffmpeg: string, args: string[], signal?: AbortSignal, timeoutMs = 60_000) => new Promise<void>((resolve, reject) => {
   execFile(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', ...args], { timeout: timeoutMs, signal, maxBuffer: 16 * 1024 * 1024 }, (err, _o, stderr) => {
     if (err) reject(new Error(`ffmpeg: ${String(stderr).split('\n').filter(Boolean).at(-1) ?? (err as Error).message}`));
     else resolve();

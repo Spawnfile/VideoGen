@@ -61,6 +61,65 @@ export async function createProduceRun(pool: pg.Pool, inp: { productName: string
   }
 }
 
+export const AUDIO_EDIT_MAX = 1000;
+
+/**
+ * Agent music design A6/A8: an audio edit of a finished video. The source is the newest done run with a music final (a produce run or an
+ * earlier edit); the new version's parent is the video's best version. One transaction; refusals come back as Turkish errors.
+ */
+export async function createAudioEditRun(pool: pg.Pool, inp: { videoId: string; instruction: string; plan: PlanStep[] }): Promise<CreatedRun | { error: string }> {
+  const instruction = inp.instruction.trim();
+  if (!instruction) return { error: 'talimat boş olamaz' };
+  if (instruction.length > AUDIO_EDIT_MAX) return { error: `talimat en çok ${AUDIO_EDIT_MAX} karakter olabilir` };
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    const v = (await c.query('SELECT id, product_id, status, best_version_id, current_version_id FROM videos WHERE id = $1 FOR UPDATE', [inp.videoId])).rows[0];
+    if (!v) { await c.query('ROLLBACK'); return { error: 'video bulunamadı' }; }
+    if (v.status !== 'ready' && v.status !== 'published') { await c.query('ROLLBACK'); return { error: 'yalnızca yayına hazır ya da yayınlanmış bir videonun sesi düzenlenebilir' }; }
+    const active = await c.query("SELECT 1 FROM runs WHERE video_id = $1 AND status IN ('queued', 'running')", [inp.videoId]);
+    if (active.rowCount) { await c.query('ROLLBACK'); return { error: 'bu videoda devam eden bir üretim var' }; }
+    const src = (await c.query(
+      `SELECT r.id FROM runs r WHERE r.video_id = $1 AND r.status = 'done' AND EXISTS (SELECT 1 FROM artifacts a WHERE a.run_id = r.id AND a.kind = 'final_video_music')
+       ORDER BY r.created_at DESC LIMIT 1`, [inp.videoId],
+    )).rows[0];
+    if (!src) { await c.query('ROLLBACK'); return { error: 'düzenlenecek bir final yok' }; }
+    const round = Number((await c.query('SELECT coalesce(max(round), 0) + 1 AS n FROM versions WHERE video_id = $1', [inp.videoId])).rows[0].n);
+    const runId = randomUUID();
+    const versionId = randomUUID();
+    await c.query(`INSERT INTO versions (id, video_id, parent_version_id, round, reason) VALUES ($1, $2, $3, $4, 'audio_edit')`, [versionId, inp.videoId, v.best_version_id ?? v.current_version_id, round]);
+    await c.query(
+      `INSERT INTO runs (id, video_id, kind, trigger, parent_run_id, instruction, version_id, plan, status) VALUES ($1, $2, 'audio_edit', 'user', $3, $4, $5, $6, 'queued')`,
+      [runId, inp.videoId, src.id, instruction, versionId, JSON.stringify(inp.plan)],
+    );
+    for (const [i, s] of inp.plan.entries()) {
+      await c.query(`INSERT INTO steps (id, run_id, key, ordinal, weight, status) VALUES ($1, $2, $3, $4, $5, 'pending')`, [randomUUID(), runId, s.key, i, s.weight]);
+    }
+    await appendAudit(c, {
+      actorType: 'user', action: 'video.audio_edit_requested', subjectType: 'video', subjectId: inp.videoId, runId,
+      data: { parentRunId: src.id, versionId, round, chars: instruction.length, preview: instruction.slice(0, 200) },
+    });
+    await c.query('COMMIT');
+    return { productId: v.product_id, videoId: inp.videoId, runId, versionId };
+  } catch (e) {
+    await c.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    c.release();
+  }
+}
+
+/** The produce run an audio edit chain started from (storyboard, voice and scene live there). */
+export async function originRunId(db: Queryable, runId: string): Promise<string> {
+  let id = runId;
+  for (let i = 0; i < 32; i++) {
+    const r = (await db.query('SELECT kind, parent_run_id FROM runs WHERE id = $1', [id])).rows[0];
+    if (!r || r.kind !== 'audio_edit' || !r.parent_run_id) return id;
+    id = r.parent_run_id;
+  }
+  return id;
+}
+
 export interface RunRecord { id: string; videoId: string; kind: RunKind; status: RunStatus; plan: PlanStep[]; progress: number; etaS: number | null; error: string | null; usageStart: UsageMark | null; createdAt: string; startedAt: string | null; endedAt: string | null }
 export interface StepRecord extends StepView { inputHash: string | null }
 export interface RunPatch { status?: RunStatus; progress?: number; etaS?: number | null; error?: string | null; startedAt?: Date; endedAt?: Date; usageStart?: UsageMark | null; usageEnd?: UsageMark | null }
@@ -117,18 +176,22 @@ export async function getStep(db: Queryable, id: string): Promise<StepRecord | n
 
 export interface RunContext {
   run: RunRecord; videoId: string; productId: string; productName: string; audioMode: AudioMode; versionId: string | null;
+  /** Agent music design A6: an audio edit's instruction and the run it edits (null for other runs). */
+  instruction: string | null; parentRunId: string | null;
   /** Brief design Y1/Y4: read at every step launch, so the agent's window set after research reaches the later steps. */
   brief: string | null; duration: DurationWindow; durationSource: DurationSource;
 }
 export async function getRunContext(db: Queryable, runId: string): Promise<RunContext | null> {
   const { rows } = await db.query(
-    `SELECT r.*, v.audio_mode, v.current_version_id, v.brief, v.duration_min_s, v.duration_max_s, v.duration_source, p.id AS product_id, p.name AS product_name
+    `SELECT r.*, r.version_id AS run_version_id, v.audio_mode, v.current_version_id, v.brief, v.duration_min_s, v.duration_max_s, v.duration_source, p.id AS product_id, p.name AS product_name
      FROM runs r JOIN videos v ON v.id = r.video_id JOIN products p ON p.id = v.product_id WHERE r.id = $1`,
     [runId],
   );
   const r = rows[0];
   return r ? {
-    run: toRun(r), videoId: r.video_id, productId: r.product_id, productName: r.product_name, audioMode: r.audio_mode, versionId: r.current_version_id,
+    // An audio edit writes under its own version (A6); every other run under the video's current version.
+    run: toRun(r), videoId: r.video_id, productId: r.product_id, productName: r.product_name, audioMode: r.audio_mode, versionId: r.run_version_id ?? r.current_version_id,
+    instruction: r.instruction ?? null, parentRunId: r.parent_run_id ?? null,
     brief: r.brief ?? null, duration: { minS: Number(r.duration_min_s), maxS: Number(r.duration_max_s) }, durationSource: r.duration_source,
   } : null;
 }
@@ -276,6 +339,10 @@ export async function insertVersion(db: Queryable, v: { id: string; videoId: str
     `INSERT INTO versions (id, video_id, parent_version_id, round, reason) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
     [v.id, v.videoId, v.parentVersionId, v.round, v.reason],
   );
+}
+/** Agent music design A6: an audio edit's version becomes the one the Studio and the player show. */
+export async function setCurrentVersion(db: Queryable, videoId: string, versionId: string): Promise<void> {
+  await db.query('UPDATE videos SET current_version_id = $2, updated_at = now() WHERE id = $1', [videoId, versionId]);
 }
 /** Plan F16: `finalize` records the best version. */
 export async function setBestVersion(db: Queryable, videoId: string, versionId: string): Promise<void> {

@@ -17,7 +17,8 @@ const FFMPEG = process.env.VG_FFMPEG ?? 'ffmpeg';
 // importAsset dedupes by content: every run gets its own bed (a disabled earlier one must not be reused).
 let beds = 0;
 /** The M5b plan end to end: fake Claude drivers, fake render, real ffmpeg; resolves when the run is terminal. `vo`: the seslendirmeli plan with the fake TTS (M5c). */
-export async function runEndToEnd(t: TestDb, name: string, opt: { vo?: boolean } = {}) {
+/** `after`: runs with the orchestrator and the harness still up (an audio edit of the finished video, agent music design A6). */
+export async function runEndToEnd(t: TestDb, name: string, opt: { vo?: boolean; after?: (x: { o: Orchestrator; h: ReturnType<typeof finalHarness>; run: Awaited<ReturnType<typeof createProduceRun>> }) => Promise<void> } = {}) {
   const mode = opt.vo ? 'vo' : 'silent';
   const h = finalHarness(t);
   if (opt.vo) h.deps.audio = new FakeAudioDriver();
@@ -39,6 +40,7 @@ export async function runEndToEnd(t: TestDb, name: string, opt: { vo?: boolean }
     }, { timeout: 200_000, interval: 500 });
     const end = (await getRunView(t.pool, run.runId))!;
     if (end.status !== 'done') throw new Error(`run ${end.status}: ${JSON.stringify(end.steps.map((s) => [s.key, s.status, s.note, s.error]))}`);
+    await opt.after?.({ o, h, run });
     return { run, h };
   } finally {
     o.stop();
