@@ -1,7 +1,7 @@
 /** Browser-safe agent types shared by worker, API and web. */
 export const ROLE_NAMES = [
   'researcher', 'storyboarder', 'builder', 'audio_director', 'reviewer_visual',
-  'reviewer_facts', 'reviewer_retention', 'fixer', 'chat', 'summarizer',
+  'reviewer_facts', 'reviewer_retention', 'reviewer_audio', 'fixer', 'chat', 'summarizer',
 ] as const;
 export type RoleName = (typeof ROLE_NAMES)[number];
 
@@ -13,6 +13,7 @@ export const ROLE_LABELS: Record<RoleName, string> = {
   reviewer_visual: 'Görsel reviewer',
   reviewer_facts: 'Doğruluk reviewer',
   reviewer_retention: 'İzlenme reviewer',
+  reviewer_audio: 'Ses reviewer',
   fixer: 'Düzeltici',
   chat: 'Chat',
   summarizer: 'Özetleyici',

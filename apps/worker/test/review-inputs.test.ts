@@ -7,11 +7,11 @@ import { createProduceRun, insertArtifact } from '@videogen/db';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
 import { fenced } from '../src/pipeline/fence.ts';
 import {
-  buildQcReport, checksOf, voTextErrors, type VoiceTrack, FINAL_CHECKS, FINAL_REVIEWER_ROLES, finalReviewRefErrors, fixReportRefErrors, producePlan, finalVerdict, formatScore, isBorderline, panelScore, QC_CHECKS, validateArtifact,
+  buildQcReport, checksOf, voTextErrors, type VoiceTrack, FINAL_CHECKS, FINAL_REVIEWER_ROLES, finalReviewRefErrors, fixReportRefErrors, producePlan, finalVerdict, formatScore, isBorderline, panelScore, QC_CHECKS, RUBRIC_VERSION, validateArtifact,
   type FinalReview, type FinalReviewerRole, type ProductResearch, type QcCheckResult, type SceneSpec, type Storyboard,
 } from '@videogen/shared';
 import { fakePipelineScript } from '../src/pipeline/fake-scripts.ts';
-import { factsPrompt, retentionPrompt, visualPrompt } from '../src/pipeline/review-prompts.ts';
+import { factsPrompt, retentionPrompt, audioPrompt, visualPrompt } from '../src/pipeline/review-prompts.ts';
 import { manifestFacts, numericGaps, qcFacts, recentHooks, retentionTimes, voInputs, webCheckTargets } from '../src/pipeline/review-inputs.ts';
 import type { StepContext } from '../src/pipeline/types.ts';
 
@@ -97,6 +97,7 @@ describe('review inputs, prompts and fake reviewers', () => {
       reviewer_visual: visualPrompt({ ...base, ...leaky, scene, facts: { maxEventGapS: 2, eventGapAtS: 3, minBeatDwellS: 3, minLabelDwellS: 1, maxLabelsAtOnce: 2 }, qc: qcFacts('reviewer_visual', qcReport()), hooks: ['Önceki kanca'], mixed64: 10 } as never),
       reviewer_facts: factsPrompt({ ...base, ...leaky, research: research(), targets } as never),
       reviewer_retention: retentionPrompt({ ...base, ...leaky, qc: qcFacts('reviewer_retention', qcReport()), hookSheet: 'review/f0/hook.png', hookTimes: retentionTimes(board(), 45) } as never),
+      reviewer_audio: audioPrompt({ ...base, ...leaky, storyboard: board(), score: null, facts: null, qc: qcFacts('reviewer_audio', qcReport()) } as never),
     };
     for (const role of FINAL_REVIEWER_ROLES) {
       const p = prompts[role];
@@ -109,7 +110,7 @@ describe('review inputs, prompts and fake reviewers', () => {
         const { points, gate } = FINAL_CHECKS[id];
         expect(line[0]).toContain(gate ? `kapı ${gate}` : `${points} puan`);
       }
-      expect(p).toContain('final@1');
+      expect(p).toContain('final@2');
       expect(p).toContain(role);
     }
     for (const t of targets) expect(prompts.reviewer_facts).toContain(t.url);
@@ -239,7 +240,7 @@ describe('review inputs, prompts and fake reviewers', () => {
     expect(r).toContain('sesi dinleyemezsin, transkripte ve ölçüme bak');
     expect(v).toContain('Alt banttaki yazı seslendirmenin altyazısıdır; text_readable ve text_dwell altyazıyı da kapsar');
     expect(v).not.toContain('Whisper');
-    // silent prompts: byte-identical to M5b (sha-256 of the pre-M5c output for these fixed inputs)
+    // silent prompts: byte-identical to M5b (sha-256 of the pre-M5c output for these fixed inputs); only the rubric version moved (final@2, agent music design A12)
     const sha = (s: string) => createHash('sha256').update(s).digest('hex');
     const sb = board();
     const silent = { ...base, storyboard: sb };
@@ -247,7 +248,7 @@ describe('review inputs, prompts and fake reviewers', () => {
       factsPrompt({ ...silent, research: research(), targets: webCheckTargets(research(), sb, 'run-1:0') }),
       retentionPrompt({ ...silent, qc: [], hookSheet: 'review/f0/hook.png', hookTimes: retentionTimes(sb, 45) }),
       visualPrompt({ ...silent, scene, facts, qc: [], hooks: ['Önceki kanca'], mixed64: 10 }),
-    ].map(sha)).toEqual(['7a064b281bcb1adcd516b2ab1e3cb3d31052e8a258cb36cc9c54d8244e89b22c', '9c728f31b80c193c606f5ab593e449818cbcb876473868d0f4d076ec4eff7ad7', '826b80798976e08092a38413dce24b68ab4d63257dd132c205d9d0244fd78542']);
+    ].map((x) => x.replaceAll(RUBRIC_VERSION, 'final@1')).map(sha)).toEqual(['7a064b281bcb1adcd516b2ab1e3cb3d31052e8a258cb36cc9c54d8244e89b22c', '9c728f31b80c193c606f5ab593e449818cbcb876473868d0f4d076ec4eff7ad7', '826b80798976e08092a38413dce24b68ab4d63257dd132c205d9d0244fd78542']);
   });
 
   it("fake VO: 'telaffuz' fails claims_supported in round 0 with a VO hint; its fixer rewrites a vo_text and claims voice", () => {

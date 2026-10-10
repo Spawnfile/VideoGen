@@ -4,11 +4,12 @@ import { buildQcReport, QC_CHECKS, type QcReport } from './qc.ts';
 import { DIMENSIONS, DIMENSION_IDS, GATE_IDS, RUBRIC_VERSION, type DimensionId, type GateId } from './rubric.ts';
 
 /** Plan F4/F5: the final review's contract. The reviewer scores only fixed-id checks; dimensions, gates and the K13 verdict are computed here. */
-export const FINAL_REVIEWER_ROLES = ['reviewer_visual', 'reviewer_facts', 'reviewer_retention'] as const;
+/** `reviewer_audio` (agent music design A10): does the music and the mix fit the video. */
+export const FINAL_REVIEWER_ROLES = ['reviewer_visual', 'reviewer_facts', 'reviewer_retention', 'reviewer_audio'] as const;
 export type FinalReviewerRole = (typeof FINAL_REVIEWER_ROLES)[number];
 
 /** Which fixer model a failure calls for (F19: visual/narrative → opus, factual/technical → sonnet). */
-export type FixCategory = 'visual' | 'narrative' | 'factual' | 'technical';
+export type FixCategory = 'visual' | 'narrative' | 'factual' | 'technical' | 'audio';
 /** Only orders the fixer's work and the UI; it never decides (F4). */
 export type CheckSeverity = DraftSeverity;
 
@@ -30,6 +31,7 @@ export const FINAL_CHECK_IDS = [
   'claims_supported', 'info_density', 'mechanism_explained', 'engineer_insight', 'storyboard_match', 'claims_verified',
   'hook_frame0', 'hook_pattern', 'open_question', 'hook_text_short',
   'loop_seam', 'rehook', 'payoff',
+  'music_mood', 'music_sync', 'mix_balance',
 ] as const;
 export type FinalCheckId = (typeof FINAL_CHECK_IDS)[number];
 
@@ -44,14 +46,14 @@ export interface FinalCheck {
   ask_tr: string;
 }
 
-const V = 'reviewer_visual', F = 'reviewer_facts', R = 'reviewer_retention';
+const V = 'reviewer_visual', F = 'reviewer_facts', R = 'reviewer_retention', A = 'reviewer_audio';
 const dim = (owner: FinalReviewerRole, dimension: DimensionId, points: number, severity: CheckSeverity, category: FixCategory, label_tr: string, ask_tr: string): FinalCheck =>
   ({ owner, dimension, gate: null, points, severity, category, label_tr, ask_tr });
 const gate = (owner: FinalReviewerRole, g: GateId, category: FixCategory, label_tr: string, ask_tr: string): FinalCheck =>
   ({ owner, dimension: null, gate: g, points: 0, severity: 'blocker', category, label_tr, ask_tr });
 
 /**
- * Spec §8.1/§8.2, plan F5 (30 checks): the points of a dimension's checks add up to its §8.1 weight; LLM 83 + D6 12 + D7 5 (qc) = 100.
+ * Spec §8.1/§8.2, plan F5 (33 checks): the points of a dimension's checks add up to its §8.1 weight; LLM 87 (D6: 4 of them) + qc D6 8 + D7 5 = 100.
  * Gate checks carry no points. G4 is a rule (M5b: always passes), G1/G6/G5-flash come from qc.
  */
 export const FINAL_CHECKS: Record<FinalCheckId, FinalCheck> = {
@@ -85,6 +87,9 @@ export const FINAL_CHECKS: Record<FinalCheckId, FinalCheck> = {
   loop_seam: dim(R, 'D8', 3, 'minor', 'visual', 'Döngü dikişi', 'qc SSIM ölçümüne göre son kare ilk kareye doğal biçimde bağlanıyor mu?'),
   rehook: dim(R, 'D8', 2, 'minor', 'narrative', 'Yeniden kanca', 'Orta noktada izleyiciyi yeniden yakalayan bir an (rehook) var mı?'),
   payoff: dim(R, 'D8', 3, 'major', 'narrative', 'Ödül anı', 'Kancanın vaat ettiği cevap videoda net bir ödül anıyla veriliyor mu?'),
+  music_mood: dim(A, 'D6', 2, 'major', 'audio', 'Müzik uyumu', 'Müziğin ruh hâli, tempo ve tonu ürüne, videonun anlatımına ve (varsa) kullanıcı yönergesine uyuyor mu?'),
+  music_sync: dim(A, 'D6', 1, 'minor', 'audio', 'Müzik senkronu', 'Ölçülen müzik enerjisi ve partisyon vurguları kanca, ikinci kanca ve ödül anıyla hizalı mı; bölüm geçişleri vuruşlara oturuyor mu?'),
+  mix_balance: dim(A, 'D6', 1, 'major', 'audio', 'Karışım dengesi', 'Müzik seslendirmeyi ve efektleri bastırmıyor (seslendirme anlarında yeterince kısık) ve hiçbir yerde duyulmayacak kadar kısık değil mi?'),
 };
 
 export const checksOf = (role: FinalReviewerRole): FinalCheckId[] => FINAL_CHECK_IDS.filter((id) => FINAL_CHECKS[id].owner === role);
@@ -231,9 +236,11 @@ export interface PanelScore {
 export function panelScore(i: { qc: QcReport; reviews: Partial<Record<FinalReviewerRole, FinalReview>> | null; g4: boolean }): PanelScore {
   const scored = FINAL_REVIEWER_ROLES.map((role) => (i.reviews?.[role] ? scoreReview(i.reviews[role]!) : null));
   const dimensions = Object.fromEntries(DIMENSION_IDS.map((d) => [d, null])) as Record<DimensionId, number | null>;
-  dimensions.D6 = i.qc.scores.D6;
   dimensions.D7 = i.qc.scores.D7;
-  for (const s of scored) if (s) for (const [d, v] of Object.entries(s.dimensions)) dimensions[d as DimensionId] = v;
+  for (const s of scored) if (s) for (const [d, v] of Object.entries(s.dimensions)) if (d !== 'D6') dimensions[d as DimensionId] = v;
+  // final@2: D6 is qc's measured part plus reviewer_audio's fit checks; unknown until both are there.
+  const audio = scored[FINAL_REVIEWER_ROLES.indexOf('reviewer_audio')];
+  dimensions.D6 = audio ? r2(i.qc.scores.D6 + (audio.dimensions.D6 ?? 0)) : null;
   const checkOk = (id: FinalCheckId): boolean | null => {
     const c = i.reviews?.[FINAL_CHECKS[id].owner]?.checks.find((x) => x.id === id);
     return c ? c.pass : null;

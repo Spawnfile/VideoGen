@@ -2,9 +2,9 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  averageVisual, checksOf, FINAL_CHECK_IDS, FINAL_CHECKS, FINAL_REVIEWER_ROLES, finalReviewRefErrors, finalVerdict, formatScore, GATE_IDS, isBorderline, loopAction,
+  audioFailures, averageVisual, checksOf, FINAL_CHECK_IDS, FINAL_CHECKS, FINAL_REVIEWER_ROLES, finalReviewRefErrors, finalVerdict, formatScore, GATE_IDS, isBorderline, loopAction,
   checkHistory, g4Gate, licenseVerdict, panelScore, QC_CHECKS, QcReportSchema, RUBRIC_VERSION, SceneEventsSchema, scoreReview, STOP_NOTE, validateArtifact, VoiceTrackSchema,
-  type AudioMode, type FinalCheckId, type FinalReview, type FinalReviewerRole, type LoopStop, type PanelScore, type ProductResearch, type QcReport, type RoundChecks, type SceneSpec, type Storyboard, type VoiceTrack,
+  type AudioMode, type FinalCheckId, type FinalReview, type FinalReviewerRole, type LoopStop, type PanelScore, type ProductResearch, type QcReport, type RoundChecks, type SceneSpec, type Storyboard, type VoiceTrack, type MusicScore,
 } from '@videogen/shared';
 import {
   appendAudit, findArtifact, getBlob, insertVersion, latestArtifact, latestStepSession, listAssets, listRunReviews, recordReviewRound,
@@ -18,7 +18,8 @@ import { runStructured } from './agent-step.ts';
 import { currentEvents, finalSource, type FinalFramesMeta } from './final-steps.ts';
 import { LIMIT_NOTE } from './notes.ts';
 import { manifestFacts, numericGaps, qcFacts, recentHooks, retentionTimes, voInputs, webCheckTargets, type VoInputs, type WebTarget } from './review-inputs.ts';
-import { factsPrompt, retentionPrompt, visualPrompt } from './review-prompts.ts';
+import { audioPrompt, factsPrompt, retentionPrompt, visualPrompt } from './review-prompts.ts';
+import { audioFacts, rmsCurve, type AudioFacts } from './audio-facts.ts';
 import { labelOf } from './fix-round.ts';
 import { failure, record, sha, sheetTimes, type StepDeps } from './steps.ts';
 import { voKey } from './voice-step.ts';
@@ -26,9 +27,9 @@ import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
 
 type Verdict = 'ready' | 'fix' | 'rework';
 const FPS = 30;
-const ROLE_KIND: Record<FinalReviewerRole, string> = { reviewer_visual: 'final_review_visual', reviewer_facts: 'final_review_facts', reviewer_retention: 'final_review_retention' };
+const ROLE_KIND: Record<FinalReviewerRole, string> = { reviewer_visual: 'final_review_visual', reviewer_facts: 'final_review_facts', reviewer_retention: 'final_review_retention', reviewer_audio: 'final_review_audio' };
 const SECOND_KIND = 'final_review_visual2';
-const ROLE_LABEL: Record<FinalReviewerRole, string> = { reviewer_visual: 'görsel reviewer', reviewer_facts: 'doğruluk reviewer', reviewer_retention: 'izlenme reviewer' };
+const ROLE_LABEL: Record<FinalReviewerRole, string> = { reviewer_visual: 'görsel reviewer', reviewer_facts: 'doğruluk reviewer', reviewer_retention: 'izlenme reviewer', reviewer_audio: 'ses reviewer' };
 
 /** What `final_verdict` stores (plan T7 step 6) and a restarted review decides from again. */
 export interface StoredVerdict {
@@ -209,6 +210,8 @@ function panelContexts(ctx: StepContext, active: FinalReviewerRole[], o: { sessi
 interface Inputs {
   video: string; durationS: number; frames: number; sheetRel: string; sheetTimes: number[]; hookRel: string; hookTimes: number[];
   storyboard: Storyboard; scene: SceneSpec; research: ProductResearch; qc: QcReport; targets: WebTarget[]; mixed64?: number; vo?: VoInputs; g4: boolean;
+  /** Agent music design A11: the score and the stems' measurements of the reviewed final (reviewer_audio). */
+  score: MusicScore | null; audio: AudioFacts | null;
 }
 
 /**
@@ -221,7 +224,7 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
 
   async function act(ctx: StepContext, hash: string, v: StoredVerdict, findings: FixFinding[], replay = false): Promise<StepOutcome> {
     const usageBlocked = !!deps.gate && !deps.gate.allowsNewPipeline();
-    const a = loopAction({ verdict: v.verdict, fixRound: ctx.fixRound, oscillating: v.oscillating.length > 0, usageBlocked, declarationFailed: v.gates.G4 === false });
+    const a = loopAction({ verdict: v.verdict, fixRound: ctx.fixRound, oscillating: v.oscillating.length > 0, usageBlocked, declarationFailed: v.gates.G4 === false, audioPolish: audioFailures(v.failed).length > 0 });
     if (a.kind === 'ready') return { status: 'done', note: `Yayına hazır: ${formatScore(v.total!)} puan` };
     const stop = async (reason: LoopStop): Promise<StepOutcome> => {
       // A replay of a stored verdict decides again; the audit is idempotent (a crash between the stored verdict and the audit must not lose the stop reason).
@@ -303,7 +306,7 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
           video: join(deps.dataDir, blob.path), durationS: probe.durationS, frames: probe.frames, sheetRel: `${rel}/sheet.png`, sheetTimes: sheetTimes(probe.durationS),
           hookRel: `${rel}/hook.png`, hookTimes: retentionTimes(storyboard.value, probe.durationS), storyboard: storyboard.value, scene: sceneSpec.value, research: research.value,
           qc: qc.data, targets: webCheckTargets(research.value, storyboard.value, `${ctx.runId}:${ctx.fixRound}`), ...(frames?.mixed64 ? { mixed64: frames.mixed64 } : {}),
-          ...(track ? { vo: voInputs(track, storyboard.value) } : {}), g4,
+          ...(track ? { vo: voInputs(track, storyboard.value) } : {}), g4, ...(await reviewAudio(ctx, music.inputHash, storyboard.value)),
         };
         gaps = numericGaps(research.value, storyboard.value);
         try {
@@ -378,6 +381,20 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
     },
   };
 
+  /** Agent music design A11: the stems of the reviewed final (same compose hash) measured, and the score that made its music. */
+  async function reviewAudio(ctx: StepContext, composeHash: string | null, storyboard: Storyboard): Promise<{ score: MusicScore | null; audio: AudioFacts | null }> {
+    const ffmpeg = deps.scene?.ffmpeg ?? 'ffmpeg';
+    const curve = async (kind: string) => {
+      const a = composeHash ? await findArtifact(deps.pool, { runId: ctx.runId, kind, inputHash: composeHash }) : null;
+      const b = a?.blobSha ? await getBlob(deps.pool, a.blobSha) : null;
+      return b && existsSync(join(deps.dataDir, b.path)) ? rmsCurve(ffmpeg, join(deps.dataDir, b.path), undefined, ctx.signal) : null;
+    };
+    const [m, v, s] = await Promise.all([curve('stem_music'), curve('stem_voice'), curve('stem_sfx')]);
+    const sc = await latestArtifact(deps.pool, ctx.runId, 'music');
+    const score = sc ? validateArtifact('MusicScore', sc.content) : null;
+    return { score: score?.ok ? score.value : null, audio: m || v || s ? audioFacts({ music: m, voice: v, sfx: s, storyboard }) : null };
+  }
+
   /** The failed checks of the round as the fixer reads them (reviewer hints; qc checks carry their measurement). */
   async function openFindings(ctx: StepContext, v: StoredVerdict): Promise<FixFinding[]> {
     const rows = (await listRunReviews(deps.pool, ctx.runId)).filter((r) => r.round === ctx.fixRound && r.seq === 1);
@@ -435,6 +452,7 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
         }),
         reviewer_facts: factsPrompt({ ...common, research: i.research, storyboard: i.storyboard, targets: i.targets, ...(i.vo ? { vo: i.vo } : {}) }),
         reviewer_retention: retentionPrompt({ ...common, storyboard: i.storyboard, qc: qcFacts('reviewer_retention', i.qc), hookSheet: i.hookRel, hookTimes: i.hookTimes, ...(i.vo ? { vo: i.vo } : {}) }),
+        reviewer_audio: audioPrompt({ ...common, storyboard: i.storyboard, score: i.score, facts: i.audio, qc: qcFacts('reviewer_audio', i.qc), ...(i.vo ? { vo: i.vo } : {}) }),
       };
     };
     const register = (role: FinalReviewerRole, seq: number) => deps.reviews?.set(ctx.stepId, {

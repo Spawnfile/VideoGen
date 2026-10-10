@@ -14,8 +14,8 @@ const V1 = '33333333-3333-4333-8333-333333333333';
 
 const finding = (checkId: string, status: 'open' | 'regressed' = 'open') => ({ checkId, severity: 'major', dimension: 'D2', gate: null, evidence: { note: checkId }, fixHint: 'düzelt', status });
 const panel = (total: number | null, findings: ReturnType<typeof finding>[], seq = 1): NewReview[] => [
-  { reviewerRole: 'reviewer_visual', seq, rubricVersion: 'final@1', total: null, dimensionScores: null, gates: null, verdict: null, summaryTr: null, findings },
-  { reviewerRole: 'orchestrator', seq: 1, rubricVersion: 'final@1', total, dimensionScores: { D2: 8 }, gates: { G1: true }, verdict: total !== null && total >= 80 ? 'ready' : 'fix', summaryTr: `toplam ${total}`, findings: [] },
+  { reviewerRole: 'reviewer_visual', seq, rubricVersion: 'final@2', total: null, dimensionScores: null, gates: null, verdict: null, summaryTr: null, findings },
+  { reviewerRole: 'orchestrator', seq: 1, rubricVersion: 'final@2', total, dimensionScores: { D2: 8 }, gates: { G1: true }, verdict: total !== null && total >= 80 ? 'ready' : 'fix', summaryTr: `toplam ${total}`, findings: [] },
 ];
 
 async function setup(name: string) {

@@ -1,7 +1,7 @@
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { DRAFT_RUBRIC_VERSION, factsHint, STOP_NOTE, type AudioPlan, type FinalReview, type FixReport, type SceneSpec, type Storyboard, type VoiceTrack } from '@videogen/shared';
+import { DRAFT_RUBRIC_VERSION, factsHint, STOP_NOTE, type AudioPlan, type MusicScore, type FinalReview, type FixReport, type SceneSpec, type Storyboard, type VoiceTrack } from '@videogen/shared';
 import { findArtifact, getChannelStyle, insertArtifact, insertVersion, latestArtifact, listRunReviews } from '@videogen/db';
 import { SpecStore, type FakeScript } from '@videogen/claude';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
@@ -9,7 +9,8 @@ import { FakeAudioDriver, type FakeAudioOptions, type VoiceOutput } from '../src
 import { putBlob } from '../src/media.ts';
 import { finalRenderExecutor, finalSource } from '../src/pipeline/final-steps.ts';
 import { causeKey, reworkStoryboardPrompt, roundCause } from '../src/pipeline/fix-round.ts';
-import { audioRefErrors, fixerPrompt, runFixer } from '../src/pipeline/fixer.ts';
+import { audioRefErrors, fixerModel, fixerPrompt, runFixer } from '../src/pipeline/fixer.ts';
+import { fakeScore } from '../src/pipeline/fake-scripts.ts';
 import { fixVersionId, reviewExecutor, type FixFinding } from '../src/pipeline/review-step.ts';
 import { buildExecutor, draftRenderExecutor, draftReviewExecutor, sha, storyboardExecutor } from '../src/pipeline/steps.ts';
 import { voiceExecutor, voKey } from '../src/pipeline/voice-step.ts';
@@ -91,7 +92,7 @@ describe('fixer (final review loop)', () => {
     const { c, out } = await s.review();
     const vid = fixVersionId(s.p.r.runId, 1);
     expect(out).toMatchObject({ status: 'rewind', to: 'compose', loop: 'final', version: { id: vid, reason: 'fix:compose' } });
-    expect(await s.h.sessionRoles(c.stepId)).toEqual(['fixer', 'reviewer_facts', 'reviewer_retention', 'reviewer_visual']);
+    expect(await s.h.sessionRoles(c.stepId)).toEqual(['fixer', 'reviewer_audio', 'reviewer_facts', 'reviewer_retention', 'reviewer_visual']);
     const report = await s.latest('fix_report');
     // Persist first, report last: the storyboard sits under the pending version and the report names it.
     expect(report.meta).toEqual({ fixRound: 0, scope: 'compose', changed: ['storyboard.text'], versionId: vid, claimed: 'compose' });
@@ -106,6 +107,29 @@ describe('fixer (final review loop)', () => {
     expect((await s.latest('scene')).versionId).toBeNull();
     expect((await t.pool.query("SELECT 1 FROM artifacts WHERE run_id = $1 AND kind IN ('scene_glb', 'product_py') AND version_id = $2", [s.p.r.runId, vid])).rowCount).toBe(0);
     expect(await s.audits('fix.scope')).toEqual([]);
+  }, 180_000);
+
+  it('agent music design A13: the audio reviewer fails music_mood; the fixer (sonnet) rewrites the score, the step re-renders the music under the new version and rewinds to compose only', async () => {
+    const s = await setup('Tükenmez kalem ahenksiz');
+    // What the music step left: the composer's score in the SpecStore and the DB (the reviewed version).
+    const score = fakeScore(45);
+    await s.store.write('music', score);
+    await insertArtifact(t.pool, { runId: s.p.r.runId, kind: 'music', content: score, inputHash: 'music-0', versionId: s.p.r.versionId });
+    expect(fixerModel(['music_mood'])).toBe('sonnet');
+    const { c, out } = await s.review();
+    const vid = fixVersionId(s.p.r.runId, 1);
+    expect(out).toMatchObject({ status: 'rewind', to: 'compose', loop: 'final', version: { id: vid, reason: 'fix:compose' } });
+    const fixerSpec = s.h.specs.find((x) => x.role === 'fixer')!;
+    expect(fixerSpec.prompt).toContain('Mevcut müzik partisyonu (MusicScore)');
+    expect(fixerSpec.prompt).toContain('write_spec(music)');
+    expect((await s.latest('fix_report')).meta).toMatchObject({ scope: 'compose', changed: ['music'], versionId: vid });
+    const music = await s.latest('music');
+    expect(music.versionId).toBe(vid);
+    expect((music.content as MusicScore).bpm).toBe(90);
+    expect((music.content as MusicScore).sections.every((x) => x.layers.every((l) => l.instrument !== 'drums'))).toBe(true);
+    const stem = await s.latest('music_stem');
+    expect(stem.versionId).toBe(vid);
+    expect(await s.h.sessionRoles(c.stepId)).toContain('reviewer_audio');
   }, 180_000);
 
   it('build scope: a lens change is built in the fixer session (build_scene), the step rewinds to build; the next build runs without a builder session and draft_review passes through', async () => {

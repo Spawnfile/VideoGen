@@ -8,7 +8,7 @@ import {
 
 const fx = (n: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `final-review-${n}.json`), 'utf8')) as FinalReview;
 const errorsOf = (v: unknown) => { const r = validateArtifact('FinalReview', v); return r.ok ? [] : r.errors; };
-const reviews = () => ({ reviewer_visual: fx('visual-pass'), reviewer_facts: fx('facts-pass'), reviewer_retention: fx('retention-pass') });
+const reviews = () => ({ reviewer_visual: fx('visual-pass'), reviewer_facts: fx('facts-pass'), reviewer_retention: fx('retention-pass'), reviewer_audio: fx('audio-pass') });
 /** A music + TikTok qc report where every check passes except the given ids (spec §8.2 AUTO part). */
 const qcReport = (failing: string[] = ['d7_bitrate']) => {
   const run = (variant: 'music' | 'tiktok'): QcCheckResult[] => (Object.keys(QC_CHECKS) as (keyof typeof QC_CHECKS)[])
@@ -25,7 +25,7 @@ const withChecks = (r: FinalReview, set: Record<string, { score: number; pass?: 
   }),
 });
 
-describe('final@1 review contract', () => {
+describe('final@2 review contract', () => {
   it('every LLM dimension has one owner and its check points add up to the §8.1 weight; LLM + D6 + D7 = 100', () => {
     const llm = Object.entries(DIMENSIONS).filter(([, d]) => d.owner.startsWith('reviewer_'));
     for (const [id, d] of llm) {
@@ -39,14 +39,16 @@ describe('final@1 review contract', () => {
     expect(gates).toHaveLength(3);
     expect(gates.map((c) => FINAL_CHECKS[c].gate).sort()).toEqual(['G2', 'G3', 'G5']);
     expect(gates.every((c) => FINAL_CHECKS[c].points === 0 && FINAL_CHECKS[c].dimension === null && FINAL_CHECKS[c].severity === 'blocker')).toBe(true);
-    expect(FINAL_CHECK_IDS).toHaveLength(30);
-    expect(FINAL_REVIEWER_ROLES.map((r) => checksOf(r).length)).toEqual([17, 6, 7]);
-    expect(FINAL_CHECK_IDS.reduce((a, c) => a + FINAL_CHECKS[c].points, 0) + 12 + 5).toBe(100);
+    expect(FINAL_CHECK_IDS).toHaveLength(33);
+    expect(FINAL_REVIEWER_ROLES.map((r) => checksOf(r).length)).toEqual([17, 6, 7, 3]);
+    // final@2: D6 is 4 (reviewer_audio) + 8 (qc); D7 5 (qc)
+    expect(FINAL_CHECK_IDS.reduce((a, c) => a + FINAL_CHECKS[c].points, 0) + 8 + 5).toBe(100);
+    expect(checksOf('reviewer_audio').reduce((a, c) => a + FINAL_CHECKS[c].points, 0)).toBe(4);
     expect(JSON.stringify(outputJsonSchema('FinalReview'))).not.toContain('propertyNames');
   });
 
   it('accepts the fixtures; rejects a foreign or missing check, a failure without evidence or hint, pass/score disagreement, facts without web checks', () => {
-    for (const n of ['visual-pass', 'visual-fix', 'facts-pass', 'retention-pass']) expect(errorsOf(fx(n)), n).toEqual([]);
+    for (const n of ['visual-pass', 'visual-fix', 'facts-pass', 'retention-pass', 'audio-pass']) expect(errorsOf(fx(n)), n).toEqual([]);
     const v = fx('visual-pass');
     expect(errorsOf({ ...v, checks: v.checks.slice(1) }).join(' ')).toContain('eksik kontrol: hero_frame0');
     expect(errorsOf({ ...v, checks: [...v.checks, { id: 'hook_frame0', pass: true, score: 1 }] }).join(' ')).toContain('bu rolün kontrolü değil: hook_frame0');
@@ -110,7 +112,8 @@ describe('final@1 review contract', () => {
     const auto = panelScore({ qc: qcReport(['g6_layout']), reviews: null, g4: true });
     expect(auto.total).toBeNull();
     expect(auto.gates).toMatchObject({ G1: true, G2: null, G3: null, G4: true, G5: null, G6: false });
-    expect(auto.dimensions).toMatchObject({ D1: null, D2: null, D6: 12, D7: 5 });
+    // final@2: D6 needs the audio reviewer too, so it is unknown here
+    expect(auto.dimensions).toMatchObject({ D1: null, D2: null, D6: null, D7: 5 });
     expect(auto.failedGates).toEqual(['G6']);
     expect(auto.failed).toEqual(['g6_layout']);
   });
@@ -135,10 +138,10 @@ describe('final@1 review contract', () => {
     expect(fixer.low).toEqual(['D5']);
     expect(finalVerdict(fixer)).toBe('fix');
     expect(finalVerdict(panelScore({ qc: qcReport(['g1_size']), reviews: null, g4: true }))).toBe('fix');
-    // Every score 0.55: 83 × 0.55 + 16 = 61.65 → rework.
+    // Every score 0.55: 87 × 0.55 + 12 (qc: D6 8 + D7 4) = 59.85 → rework.
     const flat = Object.fromEntries(FINAL_REVIEWER_ROLES.map((role) => [role, withChecks(reviews()[role], Object.fromEntries(checksOf(role).map((id) => [id, { score: 0.55 }])))]));
     const vasat = panelScore({ qc: qcReport(), reviews: flat, g4: true });
-    expect(vasat.total).toBe(61.65);
+    expect(vasat.total).toBe(59.85);
     expect(finalVerdict(vasat)).toBe('rework');
   });
 

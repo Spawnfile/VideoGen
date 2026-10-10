@@ -22,7 +22,7 @@ describe('review panel helpers', () => {
     id: checkId, checkId, severity: 'minor', dimension: null, gate: null, evidence: null, fixHint: null, status: 'open', fixedInVersionId: null, ...o,
   });
   const row = (round: number, role: string, seq: number, o: Partial<ReviewRecord> = {}): ReviewRecord => ({
-    id: `${round}-${role}-${seq}`, videoId: 'v', versionId: null, runId: 'r1', stepId: null, round, reviewerRole: role, seq, sessionId: null, rubricVersion: 'final@1', total: null,
+    id: `${round}-${role}-${seq}`, videoId: 'v', versionId: null, runId: 'r1', stepId: null, round, reviewerRole: role, seq, sessionId: null, rubricVersion: 'final@2', total: null,
     dimensionScores: null, gates: null, verdict: null, summaryTr: null, createdAt: '', findings: [], ...o,
   });
 

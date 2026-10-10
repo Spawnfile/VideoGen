@@ -7,9 +7,8 @@ import { extractFrame } from '../render/ffmpeg.ts';
 
 /** Inherited frame budget: a 12-frame contact sheet (prepared by the step) + at most 12 single frames per review round. */
 export const FRAME_BUDGET = 12;
-
-/** The three final reviewers and the draft reviewer (the draft only uses reviewer_visual). */
-export const REVIEW_ROLES = ['reviewer_visual', 'reviewer_facts', 'reviewer_retention'] as const;
+/** The four final reviewers and the draft reviewer (the draft only uses reviewer_visual). */
+export const REVIEW_ROLES = ['reviewer_visual', 'reviewer_facts', 'reviewer_retention', 'reviewer_audio'] as const;
 export type ReviewRole = (typeof REVIEW_ROLES)[number];
 
 /**

@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { CHANNEL_STYLES, DEFAULT_CHANNEL_STYLE, normalizeProductName, type FinalReview, type MusicScore, type FixReport, type ProductResearch, type Storyboard } from '@videogen/shared';
+import { CHANNEL_STYLES, DEFAULT_CHANNEL_STYLE, FINAL_CHECKS, normalizeProductName, RUBRIC_VERSION, type FinalCheckId, type FinalReview, type MusicScore, type FixReport, type ProductResearch, type Storyboard } from '@videogen/shared';
 import type { FakeScript } from '@videogen/claude';
 import { webCheckTargets } from './review-inputs.ts';
 import type { FakeExtra, PipelineRole } from './steps.ts';
@@ -20,6 +20,7 @@ const load = (name: string) => JSON.parse(readFileSync(resolve(DIR, `${name}.jso
  * in every round, and its fixer changes nothing). In a seslendirmeli run (M5c) `telaffuz` fails the facts reviewer's claims_supported and claims_verified in round 0 (a number is
  * read wrong), and its fixer rewrites beat 2's vo_text ("Düzeltilmiş anlatım <tur>", scope voice). The fixer writes the next spec version into <runDir>/spec/<kind>/ the way write_spec does.
  * "öneri …": the researcher recommends 40–50 s and two brief lines (brief design Y5).
+ * `ahenksiz` (agent music design A13): the audio reviewer fails music_mood in fix round 0; its fixer rewrites the score (scope compose).
  * The draft reviewer passes, except: "kusurlu …" fails the first review only, "umutsuz …" and "inatçı …" fail every review.
  */
 export function fakePipelineScript(role: PipelineRole, ctx: StepContext, attempt: number, extra?: FakeExtra): FakeScript {
@@ -45,6 +46,7 @@ export function fakePipelineScript(role: PipelineRole, ctx: StepContext, attempt
   }
   if (role === 'fixer') return fakeFixer(ctx, name, extra);
   if (role === 'audio_director') return { fixture: 'basic', structured: fakeScore(extra?.durationS ?? 45) };
+  if (ctx.key === 'review' && role === 'reviewer_audio') return { fixture: 'basic', structured: fakeAudioReview(ctx, name) };
   if (ctx.key === 'review' && (role === 'reviewer_visual' || role === 'reviewer_facts' || role === 'reviewer_retention')) return { fixture: 'basic', structured: fakeFinalReview(role, ctx, name, extra) };
   if (role === 'reviewer_visual') {
     const fail = /umutsuz|[iı]nat[çc][ıi]/.test(name) || (/kusurlu/.test(name) && ctx.round === 0);
@@ -101,7 +103,7 @@ function fakeFinalReview(role: 'reviewer_visual' | 'reviewer_facts' | 'reviewer_
 }
 
 /** The next free spec version number of `kind` in the run's spec dir (what SpecStore.write would take) and its latest value. */
-function nextSpec<T>(ctx: StepContext, kind: 'storyboard' | 'scene', fallback: T): { path: string; latest: T } {
+function nextSpec<T>(ctx: StepContext, kind: 'storyboard' | 'scene' | 'music', fallback: T): { path: string; latest: T } {
   const dir = resolve(ctx.runDir, 'spec', kind);
   const taken = (() => { try { return readdirSync(dir); } catch { return [] as string[]; } })().flatMap((n) => { const m = /^v(\d{4})\.json$/.exec(n); return m ? [Number(m[1])] : []; }).sort((a, b) => a - b);
   const last = taken.at(-1);
@@ -116,7 +118,12 @@ function fakeFixer(ctx: StepContext, name: string, extra?: FakeExtra): FakeScrip
   const geometry = /geometri/.test(name);
   const spoken = /telaffuz/.test(name) && ctx.audioMode === 'vo';
   const files: Record<string, string> = {};
-  if (!unchanged && geometry) {
+  const audioFix = failed.some((id) => id in FINAL_CHECKS && FINAL_CHECKS[id as FinalCheckId].category === 'audio');
+  if (!unchanged && audioFix) {
+    // Agent music design A13: a calmer score (90 BPM, no drums) answers the audio reviewer.
+    const m = nextSpec(ctx, 'music', fakeScore(45));
+    files[m.path] = JSON.stringify({ ...m.latest, version: m.latest.version + 1, bpm: 90, sections: m.latest.sections.map((s) => ({ ...s, layers: s.layers.filter((l) => l.instrument !== 'drums') })) }, null, 2);
+  } else if (!unchanged && geometry) {
     const base = load('scene-kalem') as { camera_keys: { lens_mm: number }[] };
     const s = nextSpec(ctx, 'scene', base);
     files[s.path] = JSON.stringify({ ...s.latest, camera_keys: s.latest.camera_keys.map((k, i) => (i === 0 ? { ...k, lens_mm: base.camera_keys[0]!.lens_mm + 5 } : k)) }, null, 2);
@@ -128,9 +135,9 @@ function fakeFixer(ctx: StepContext, name: string, extra?: FakeExtra): FakeScrip
   const touched = Object.keys(files);
   const report: FixReport = {
     round,
-    addressed: failed.filter((id) => !id.startsWith('d7_')).map((id) => ({ check_id: id, change_summary_tr: geometry ? 'Kamera lensi değiştirildi' : spoken ? 'Seslendirme metni sözle yazıldı' : 'Vuruş yazısı kısaltıldı', files: touched })),
+    addressed: failed.filter((id) => !id.startsWith('d7_')).map((id) => ({ check_id: id, change_summary_tr: audioFix ? 'Müzik sakinleştirildi (90 BPM, davulsuz)' : geometry ? 'Kamera lensi değiştirildi' : spoken ? 'Seslendirme metni sözle yazıldı' : 'Vuruş yazısı kısaltıldı', files: touched })),
     not_addressed: failed.filter((id) => id.startsWith('d7_')).map((id) => ({ check_id: id, reason: 'Kodlama ayarı bu turda değiştirilemez' })),
-    rerender_scope: geometry && !unchanged ? 'build' : spoken && !unchanged ? 'voice' : 'compose',
+    rerender_scope: audioFix ? 'compose' : geometry && !unchanged ? 'build' : spoken && !unchanged ? 'voice' : 'compose',
     spec_diffs: touched.map((f) => `${f} yazıldı`),
   };
   return { fixture: 'coding', files, structured: report };
@@ -148,5 +155,21 @@ export function fakeScore(durationS: number): MusicScore {
       { id: 'odul', t_start: b, t_end: durationS, chords: ['F', 'G', 'Am'], energy: 0.8, layers: [{ instrument: 'pad', pattern: 'sustain', level: 0.5 }, { instrument: 'drums', pattern: 'pulse', level: 0.45 }] },
     ],
     accents: [{ t: 0, kind: 'hit' }, { t: b, kind: 'drop' }],
+  };
+}
+
+/** Agent music design A10: the fake audio reviewer passes (1.0, so the pass panel keeps its total), except `ahenksiz` in fix round 0 (music_mood fails at the hook). */
+function fakeAudioReview(ctx: StepContext, name: string): FinalReview {
+  const off = /ahenksiz/.test(name) && ctx.fixRound === 0;
+  return {
+    rubric_version: RUBRIC_VERSION, reviewer_role: 'reviewer_audio',
+    checks: [
+      off
+        ? { id: 'music_mood', pass: false, score: 0.2, evidence: { frame: 0, timecode: 0 }, fix_hint: 'Müzik ürünün sakin anlatımına göre fazla gergin: tempoyu 90 BPM\'e indir, davulu kaldır, pad ağırlıklı yap.' }
+        : { id: 'music_mood', pass: true, score: 1 },
+      { id: 'music_sync', pass: true, score: 1 },
+      { id: 'mix_balance', pass: true, score: 1 },
+    ],
+    summary_tr: off ? 'Müzik ruh hâli ürüne uymuyor; denge ve senkron iyi.' : 'Müzik ve karışım videoya uyuyor.',
   };
 }

@@ -110,6 +110,7 @@ const QC_FACT_IDS: Record<FinalReviewerRole, (keyof typeof QC_CHECKS)[]> = {
   reviewer_visual: ['d2_black', 'd3_freeze', 'g6_layout'],
   reviewer_retention: ['d8_loop', 'd6_first_audio'],
   reviewer_facts: [],
+  reviewer_audio: ['d6_loudness', 'd6_true_peak', 'd6_lra', 'd6_first_audio', 'd6_silence'],
 };
 
 /** The recorded qc measurements a role may look at (music variant); the reviewer never re-measures (F9). */

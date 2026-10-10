@@ -32,13 +32,13 @@ const auditCount = async (runId: string, action: string) => (await t.pool.query(
 const stored = async (runId: string, kind: string) => (await latestArtifact(t.pool, runId, kind))!;
 
 describe('review step (final panel)', () => {
-  it('ready: three reviewers in one fan-out, the panel score from checks + qc, reviews/findings rows and the final_verdict; the note says Yayına hazır', async () => {
+  it('ready: four reviewers in one fan-out, the panel score from checks + qc, reviews/findings rows and the final_verdict; the note says Yayına hazır', async () => {
     const h = setup();
     const p = await h.prepare('Tükenmez kalem');
     const ex = reviewExecutor(h.deps);
     const c = p.ctx('review');
     expect(await ex.run(c, await ex.inputHash(c))).toEqual({ status: 'done', note: 'Yayına hazır: 87,5 puan' });
-    expect(await h.sessionRoles(c.stepId)).toEqual(['reviewer_facts', 'reviewer_retention', 'reviewer_visual']);
+    expect(await h.sessionRoles(c.stepId)).toEqual(['reviewer_audio', 'reviewer_facts', 'reviewer_retention', 'reviewer_visual']);
     const facts = h.specs.find((s) => s.role === 'reviewer_facts')!;
     const targets = webCheckTargets(fx('research-kalem') as ProductResearch, fx('storyboard-kalem') as Storyboard, `${p.r.runId}:0`);
     expect(targets.length).toBeGreaterThan(0);
@@ -48,7 +48,7 @@ describe('review step (final panel)', () => {
     expect(await facts.preToolUse('WebFetch', { url: targets[0]!.url, prompt: 'x' }, 'w1')).toEqual({ allow: true });
     expect(await facts.preToolUse('WebFetch', { url: `${targets[0]!.url}?q=sizinti`, prompt: 'x' }, 'w2')).toMatchObject({ allow: false });
     const rows = await listRunReviews(t.pool, p.r.runId);
-    expect(rows.map((r) => [r.reviewerRole, r.seq, r.round])).toEqual([['orchestrator', 1, 0], ['reviewer_facts', 1, 0], ['reviewer_retention', 1, 0], ['reviewer_visual', 1, 0]]);
+    expect(rows.map((r) => [r.reviewerRole, r.seq, r.round])).toEqual([['orchestrator', 1, 0], ['reviewer_audio', 1, 0], ['reviewer_facts', 1, 0], ['reviewer_retention', 1, 0], ['reviewer_visual', 1, 0]]);
     expect(rows[0]).toMatchObject({ total: 87.5, verdict: 'ready', stepId: c.stepId, versionId: p.r.versionId });
     expect(rows[0]!.dimensionScores).toMatchObject({ D1: 13, D6: 12, D7: 4 });
     expect(rows[0]!.gates).toEqual({ G1: true, G2: true, G3: true, G4: true, G5: true, G6: true });
@@ -57,7 +57,7 @@ describe('review step (final panel)', () => {
     expect(verdict.meta).toMatchObject({ fixRound: 0 });
     for (const k of ['final_review_visual', 'final_review_facts', 'final_review_retention']) expect(FinalReviewSchema.safeParse((await stored(p.r.runId, k)).content).success, k).toBe(true);
     expect((await t.pool.query("SELECT meta FROM artifacts WHERE run_id = $1 AND kind = 'final_review_sheet' ORDER BY meta->>'kind'", [p.r.runId])).rows.map((x) => x.meta.kind)).toEqual(['hook', 'main']);
-    for (const role of ['reviewer_visual', 'reviewer_facts', 'reviewer_retention'] as const) expect(h.deps.reviews!.get(c.stepId, role)).toBeUndefined();
+    for (const role of ['reviewer_visual', 'reviewer_facts', 'reviewer_retention', 'reviewer_audio'] as const) expect(h.deps.reviews!.get(c.stepId, role)).toBeUndefined();
     expect(await auditCount(p.r.runId, 'review.verdict')).toBe(1);
 
     // A numeric claim of the video without a rule-satisfying source fails G2 deterministically, whatever the reviewer said; the finding sits on
@@ -85,7 +85,7 @@ describe('review step (final panel)', () => {
     expect((await stored(q.r.runId, 'final_verdict')).content).toMatchObject({ verdict: 'fix', failed: expect.arrayContaining(['claims_verified']) });
   }, 120_000);
 
-  it('a usage block holds the whole fan-out (waiting_limit with the reason) and starts all three when it clears', async () => {
+  it('a usage block holds the whole fan-out (waiting_limit with the reason) and starts all four when it clears', async () => {
     const h = setup();
     let open = false;
     h.deps.gate = { allowsNewPipeline: () => open, resumeAt: () => null };
@@ -103,7 +103,7 @@ describe('review step (final panel)', () => {
     expect(h.deps.reviews!.get(c.stepId, 'reviewer_visual')).toBeUndefined();
     open = true;
     expect(await done).toEqual({ status: 'done', note: 'Yayına hazır: 87,5 puan' });
-    expect(await h.sessionRoles(c.stepId)).toEqual(['reviewer_facts', 'reviewer_retention', 'reviewer_visual']);
+    expect(await h.sessionRoles(c.stepId)).toEqual(['reviewer_audio', 'reviewer_facts', 'reviewer_retention', 'reviewer_visual']);
     expect(statuses.some(([s]) => s === 'running')).toBe(true);
     expect(statuses.at(-1)![0]).not.toBe('waiting_limit');
 
@@ -119,7 +119,7 @@ describe('review step (final panel)', () => {
     ac2.abort();
     expect(await within(held, 5000, 'the closed gate did not release on abort')).toEqual({ status: 'cancelled' });
     expect(await h.sessionRoles(c2.stepId)).toEqual([]);
-    for (const role of ['reviewer_visual', 'reviewer_facts', 'reviewer_retention'] as const) expect(h.deps.reviews!.get(c2.stepId, role)).toBeUndefined();
+    for (const role of ['reviewer_visual', 'reviewer_facts', 'reviewer_retention', 'reviewer_audio'] as const) expect(h.deps.reviews!.get(c2.stepId, role)).toBeUndefined();
   }, 120_000);
 
   it('restart mid-panel: stored reviewer outputs are reused, only the missing role opens a session; a replay of the round gives the same verdict without sessions', async () => {
@@ -130,22 +130,22 @@ describe('review step (final panel)', () => {
     const hash = await ex.inputHash(c);
     const first = await ex.run(c, hash);
     expect(first).toEqual({ status: 'done', note: 'Yayına hazır: 87,5 puan' });
-    expect(await h.sessionRoles(c.stepId)).toHaveLength(3);
+    expect(await h.sessionRoles(c.stepId)).toHaveLength(4);
     const sheets = async () => (await t.pool.query("SELECT count(*)::int AS n FROM artifacts WHERE run_id = $1 AND kind = 'final_review_sheet'", [p.r.runId])).rows[0].n as number;
     expect(await sheets()).toBe(2);
     // The worker died after two reviewers were stored but before the third and the verdict: forget those two.
     await t.pool.query("DELETE FROM artifacts WHERE run_id = $1 AND kind IN ('final_review_retention', 'final_verdict')", [p.r.runId]);
     const again = p.ctx('review', { attempt: 2 });
     expect(await ex.run(again, hash)).toEqual(first);
-    expect(await h.sessionRoles(c.stepId)).toEqual(['reviewer_facts', 'reviewer_retention', 'reviewer_retention', 'reviewer_visual']);
+    expect(await h.sessionRoles(c.stepId)).toEqual(['reviewer_audio', 'reviewer_facts', 'reviewer_retention', 'reviewer_retention', 'reviewer_visual']);
     expect(h.specs.at(-1)).toMatchObject({ role: 'reviewer_retention', resume: true });
     expect(await auditCount(p.r.runId, 'review.recorded')).toBe(1);
-    expect((await listRunReviews(t.pool, p.r.runId))).toHaveLength(4);
+    expect((await listRunReviews(t.pool, p.r.runId))).toHaveLength(5);
     expect(await sheets()).toBe(2); // the restart found its sheets
     // Everything stored: the decision is made again without a session.
     expect(await ex.run(p.ctx('review', { attempt: 3 }), hash)).toEqual(first);
-    expect(await h.sessionRoles(c.stepId)).toHaveLength(4);
-    expect((await listRunReviews(t.pool, p.r.runId))).toHaveLength(4);
+    expect(await h.sessionRoles(c.stepId)).toHaveLength(5);
+    expect((await listRunReviews(t.pool, p.r.runId))).toHaveLength(5);
 
     // Fix round 1: the step still carries the round-0 sessions, but a restart (attempt 2) never resumes a session of an earlier round.
     const before = h.specs.length;
@@ -153,7 +153,7 @@ describe('review step (final panel)', () => {
     const c1 = p.ctx('review', { fixRound: 1, attempt: 2 });
     expect(await ex.run(c1, await ex.inputHash(c1))).toEqual(first);
     const fresh = h.specs.slice(before);
-    expect(fresh.map((x) => x.role).sort()).toEqual(['reviewer_facts', 'reviewer_retention', 'reviewer_visual']);
+    expect(fresh.map((x) => x.role).sort()).toEqual(['reviewer_audio', 'reviewer_facts', 'reviewer_retention', 'reviewer_visual']);
     expect(fresh.every((x) => !x.resume)).toBe(true);
   }, 120_000);
 
@@ -199,19 +199,19 @@ describe('review step (final panel)', () => {
     const ex = reviewExecutor(h.deps);
     const c = p.ctx('review');
     const out = await ex.run(c, await ex.inputHash(c));
-    expect(await h.sessionRoles(c.stepId)).toEqual(['reviewer_facts', 'reviewer_retention', 'reviewer_visual', 'reviewer_visual']);
+    expect(await h.sessionRoles(c.stepId)).toEqual(['reviewer_audio', 'reviewer_facts', 'reviewer_retention', 'reviewer_visual', 'reviewer_visual']);
     const visual = h.specs.filter((s) => s.role === 'reviewer_visual');
     expect(visual).toHaveLength(2);
     expect(visual.every((s) => !s.resume)).toBe(true);
     const rows = await listRunReviews(t.pool, p.r.runId);
-    expect(rows.map((r) => [r.reviewerRole, r.seq])).toEqual([['orchestrator', 1], ['reviewer_facts', 1], ['reviewer_retention', 1], ['reviewer_visual', 1], ['reviewer_visual', 2]]);
+    expect(rows.map((r) => [r.reviewerRole, r.seq])).toEqual([['orchestrator', 1], ['reviewer_audio', 1], ['reviewer_facts', 1], ['reviewer_retention', 1], ['reviewer_visual', 1], ['reviewer_visual', 2]]);
     // The merged panel is the deterministic average of the two stored visual reviews.
     const one = (await stored(p.r.runId, 'final_review_visual')).content as FinalReview;
     const two = (await stored(p.r.runId, 'final_review_visual2')).content as FinalReview;
-    const first = panelScore({ qc: qcReportFailing(), reviews: { reviewer_visual: one, reviewer_facts: (await stored(p.r.runId, 'final_review_facts')).content as FinalReview, reviewer_retention: (await stored(p.r.runId, 'final_review_retention')).content as FinalReview }, g4: true });
+    const first = panelScore({ qc: qcReportFailing(), reviews: { reviewer_visual: one, reviewer_facts: (await stored(p.r.runId, 'final_review_facts')).content as FinalReview, reviewer_retention: (await stored(p.r.runId, 'final_review_retention')).content as FinalReview, reviewer_audio: (await stored(p.r.runId, 'final_review_audio')).content as FinalReview }, g4: true });
     expect(first.total).toBeGreaterThanOrEqual(78);
     expect(first.total).toBeLessThanOrEqual(82);
-    const merged = panelScore({ qc: qcReportFailing(), reviews: { reviewer_visual: averageVisual(one, two), reviewer_facts: (await stored(p.r.runId, 'final_review_facts')).content as FinalReview, reviewer_retention: (await stored(p.r.runId, 'final_review_retention')).content as FinalReview }, g4: true });
+    const merged = panelScore({ qc: qcReportFailing(), reviews: { reviewer_visual: averageVisual(one, two), reviewer_facts: (await stored(p.r.runId, 'final_review_facts')).content as FinalReview, reviewer_retention: (await stored(p.r.runId, 'final_review_retention')).content as FinalReview, reviewer_audio: (await stored(p.r.runId, 'final_review_audio')).content as FinalReview }, g4: true });
     expect(merged.total).toBeGreaterThan(80);
     expect(rows[0]).toMatchObject({ total: merged.total, verdict: 'ready' });
     expect(out).toEqual({ status: 'done', note: expect.stringMatching(/^Yayına hazır: \d\d,\d puan$/) });
@@ -286,10 +286,10 @@ describe('review step (final panel)', () => {
     const seed = (round: number, failing: boolean) => recordReviewRound(t.pool, {
       runId: d.r.runId, round, versionId: null, fixed: round === 1 ? ['hook_frame0', 'hook_pattern'] : [],
       rows: [
-        { reviewerRole: 'orchestrator', seq: 1, rubricVersion: 'final@1', total: 78, verdict: 'fix', findings: [] },
-        { reviewerRole: 'reviewer_visual', seq: 1, rubricVersion: 'final@1', findings: [] },
-        { reviewerRole: 'reviewer_facts', seq: 1, rubricVersion: 'final@1', findings: [] },
-        { reviewerRole: 'reviewer_retention', seq: 1, rubricVersion: 'final@1', findings: failing ? [{ checkId: 'hook_frame0', severity: 'blocker', dimension: 'D1' }, { checkId: 'hook_pattern', severity: 'major', dimension: 'D1' }] : [] },
+        { reviewerRole: 'orchestrator', seq: 1, rubricVersion: 'final@2', total: 78, verdict: 'fix', findings: [] },
+        { reviewerRole: 'reviewer_visual', seq: 1, rubricVersion: 'final@2', findings: [] },
+        { reviewerRole: 'reviewer_facts', seq: 1, rubricVersion: 'final@2', findings: [] },
+        { reviewerRole: 'reviewer_retention', seq: 1, rubricVersion: 'final@2', findings: failing ? [{ checkId: 'hook_frame0', severity: 'blocker', dimension: 'D1' }, { checkId: 'hook_pattern', severity: 'major', dimension: 'D1' }] : [] },
       ],
     });
     await seed(0, true);
@@ -355,7 +355,7 @@ describe('review step (final panel)', () => {
     expect(s.specs).toHaveLength(0);
     expect(await listRunReviews(t.pool, st.r.runId)).toEqual([]);
 
-    // Cancelled mid-panel (all three sessions running, stalled): the step is cancelled and every session with it.
+    // Cancelled mid-panel (all four sessions running, stalled): the step is cancelled and every session with it.
     const m = setup();
     m.deps.fakeScript = (role) => stall(fx(role === 'reviewer_visual' ? 'final-review-visual-pass' : role === 'reviewer_facts' ? 'final-review-facts-pass' : 'final-review-retention-pass'));
     const mp = await m.prepare('Tükenmez kalem');
@@ -364,11 +364,11 @@ describe('review step (final panel)', () => {
     const cm = mp.ctx('review', { signal: ac.signal });
     const exm = reviewExecutor(m.deps);
     const running = exm.run(cm, await exm.inputHash(cm));
-    await vi.waitFor(async () => expect(await m.sessionRoles(cm.stepId)).toHaveLength(3), { timeout: 20_000 });
+    await vi.waitFor(async () => expect(await m.sessionRoles(cm.stepId)).toHaveLength(4), { timeout: 20_000 });
     ac.abort();
     expect(await within(running, 20_000, 'the panel did not stop after the abort')).toEqual({ status: 'cancelled' });
-    await vi.waitFor(async () => expect((await t.pool.query('SELECT status FROM agent_sessions WHERE step_id = $1', [cm.stepId])).rows.map((x) => x.status)).toEqual(['cancelled', 'cancelled', 'cancelled']), { timeout: 10_000 });
-    for (const role of ['reviewer_visual', 'reviewer_facts', 'reviewer_retention'] as const) expect(m.deps.reviews!.get(cm.stepId, role)).toBeUndefined();
+    await vi.waitFor(async () => expect((await t.pool.query('SELECT status FROM agent_sessions WHERE step_id = $1', [cm.stepId])).rows.map((x) => x.status)).toEqual(['cancelled', 'cancelled', 'cancelled', 'cancelled']), { timeout: 10_000 });
+    for (const role of ['reviewer_visual', 'reviewer_facts', 'reviewer_retention', 'reviewer_audio'] as const) expect(m.deps.reviews!.get(cm.stepId, role)).toBeUndefined();
     expect(await listRunReviews(t.pool, mp.r.runId)).toEqual([]);
   }, 180_000);
   it('G4 is a rule: a VO final with the preset voice passes, a clone without its label or a VO final without a voice_track fails G4 (G4 finding on the orchestrator row, loop stops with \'declaration\', no fixer session), a silent final passes', async () => {
@@ -423,7 +423,7 @@ describe('review step (final panel)', () => {
     expect((await stored(p.r.runId, 'final_verdict')).content).toMatchObject({ verdict: 'fix', failed: ['d7_bitrate'] }); // G4 is a gate, not a check id
     expect(roundChecks(rows)[0]!.failed).toEqual(['d7_bitrate']); // nor does the loop's history carry it
     expect((await t.pool.query("SELECT data FROM audit_log WHERE run_id = $1 AND action = 'loop.stop'", [p.r.runId])).rows.map((x) => x.data)).toEqual([expect.objectContaining({ reason: 'declaration', fixRound: 0 })]);
-    expect(await h.sessionRoles(c.stepId)).toHaveLength(3); // the panel ran; no fixer session
+    expect(await h.sessionRoles(c.stepId)).toHaveLength(4); // the panel ran; no fixer session
     // the reviewers of a VO final read its narration (the track of the reviewed stem)
     expect(h.specs.find((x) => x.role === 'reviewer_facts')!.prompt).toContain('Seslendirme metinleri ve Whisper transkripti');
     expect(h.specs.find((x) => x.role === 'reviewer_retention')!.prompt).toContain('İlk seslendirme cümlesi');

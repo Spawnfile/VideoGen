@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  checkHistory, fixReportRefErrors, fixScope, FixReportSchema, loopAction, pickBest, STOP_NOTE, tracked,
+  audioFailures, checkHistory, fixReportRefErrors, fixScope, FixReportSchema, loopAction, pickBest, STOP_NOTE, tracked,
   type AudioMode, type AudioPlan, type FixReport, type ProductResearch, type RoundChecks, type SceneSpec, type Storyboard,
 } from '../src/index.ts';
 
@@ -101,6 +101,11 @@ describe('fix loop', () => {
   it('loopAction and pickBest: ready first, then the G4 declaration, the round limit, usage, oscillation, rework, fix; best round avoids regressions', () => {
     const o = { fixRound: 0, oscillating: false, usageBlocked: false, declarationFailed: false };
     expect(loopAction({ ...o, verdict: 'ready', fixRound: 3, oscillating: true, usageBlocked: true, declarationFailed: true })).toEqual({ kind: 'ready' });
+    // Agent music design A14: a ready final with an audio failure gets an audio fix round while rounds and usage allow; never past the limit.
+    expect(audioFailures(['music_mood', 'payoff', 'd7_bitrate', 'mix_balance'])).toEqual(['music_mood', 'mix_balance']);
+    expect(loopAction({ ...o, verdict: 'ready', fixRound: 0, audioPolish: true })).toEqual({ kind: 'fix' });
+    expect(loopAction({ ...o, verdict: 'ready', fixRound: 3, audioPolish: true })).toEqual({ kind: 'ready' });
+    expect(loopAction({ ...o, verdict: 'ready', fixRound: 1, usageBlocked: true, audioPolish: true })).toEqual({ kind: 'ready' });
     expect(loopAction({ ...o, verdict: 'fix', fixRound: 3, usageBlocked: true, declarationFailed: true })).toEqual({ kind: 'stop', reason: 'declaration' });
     expect(loopAction({ ...o, verdict: 'rework', declarationFailed: true })).toEqual({ kind: 'stop', reason: 'declaration' });
     expect(loopAction({ ...o, verdict: 'fix', fixRound: 3, usageBlocked: true })).toEqual({ kind: 'stop', reason: 'limit' });

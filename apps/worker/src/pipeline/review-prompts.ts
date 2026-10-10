@@ -1,4 +1,5 @@
-import { checksOf, FINAL_CHECKS, formatClock, HOOK_PATTERN_LABELS, RUBRIC_VERSION, type FinalReviewerRole, type ProductResearch, type SceneSpec, type Storyboard } from '@videogen/shared';
+import { checksOf, FINAL_CHECKS, formatClock, HOOK_PATTERN_LABELS, RUBRIC_VERSION, type FinalReviewerRole, type MusicScore, type ProductResearch, type SceneSpec, type Storyboard } from '@videogen/shared';
+import type { AudioFacts } from './audio-facts.ts';
 import type { ManifestFacts, QcFact, VoInputs, WebTarget } from './review-inputs.ts';
 import { usedClaims } from './review-inputs.ts';
 import { briefBlock, fenced } from './fence.ts';
@@ -10,6 +11,7 @@ const TASK: Record<FinalReviewerRole, string> = {
   reviewer_visual: 'görsel kaliteyi (kahraman ve mekanizma kareleri, parçalar, hareket, ekran yazısı, ucuz/yapay görünüm; kapılar G3 ve G5) incele',
   reviewer_facts: 'ekrandaki iddiaların doğruluğunu ve anlatımın araştırmayla uyumunu incele (kapı G2)',
   reviewer_retention: 'izlenme tutmayı (ilk kare ve kanca kalıbı, ikinci kanca, ödül, döngü dikişi) incele',
+  reviewer_audio: 'müziğin ve ses karışımının videoya uyumunu (ruh hâli, tempo, vurgu senkronu, seslendirme ve efektlerle denge) incele',
 };
 
 const checkLines = (role: FinalReviewerRole) => checksOf(role).map((id) => {
@@ -93,5 +95,27 @@ export function retentionPrompt(o: Common & { storyboard: Storyboard; qc: QcFact
     ] : []),
     `Kanca kalıpları: ${Object.entries(HOOK_PATTERN_LABELS).map(([k, v]) => `${k} (${v})`).join(', ')}.`,
     'Yasaklı açılışlar (örnekler): selamlama ("Merhaba", "Selam arkadaşlar"), kendini tanıtma, "bu videoda", "bugün sizlere", abone ol / takip et çağrısı.',
+  ]).join('\n');
+}
+
+/**
+ * Agent music design A10/A11: reviewer_audio judges from measurements, never from "listening": the stems' loudness curves, the music under the
+ * voice, the energy change at the hook, rehook and payoff, the score the composer wrote and the storyboard's timing.
+ */
+export function audioPrompt(o: Common & { storyboard: Storyboard; score: MusicScore | null; facts: AudioFacts | null; qc: QcFact[]; vo?: VoInputs }): string {
+  const s = o.storyboard;
+  return common('reviewer_audio', o, [
+    'Sesi duyamazsın: yalnızca ölçümlere, partisyona ve zamanlamaya göre yargıla; ölçümde görmediğin bir şeyi iddia etme. Bir kontrol kanıtla yargılanamıyorsa 0,6 ver ve özetinde söyle.',
+    '',
+    fenced('Storyboard zamanlaması', { duration_s: s.duration_s, hook: s.hook, rehook_at: s.rehook_at, payoff_at: s.payoff_at, beats: s.beats.map((b) => ({ id: b.id, t_start: b.t_start, t_end: b.t_end, action: b.action, onscreen_text: b.onscreen_text.tr })) }),
+    '',
+    o.score ? fenced('Müzik partisyonu (besteci ajan)', o.score) : 'Müzik partisyonu yok: müzik defterden bir parça ya da müzik yok.',
+    '',
+    o.facts ? fenced(`Ölçümler (dBFS RMS, ${o.facts.windowS} sn pencereler; -90 sessizlik)`, o.facts) : 'Ses parçası ölçümü yok.',
+    ...(o.qc.length ? ['', fenced('qc ses ölçümleri (müzikli varyant)', o.qc)] : []),
+    ...(o.vo ? ['', fenced('Seslendirme (metin ve zamanlar)', o.vo.lines.map((l) => ({ beat_id: l.beat_id, t_start: l.t_start, vo_text: l.vo_text })))] : []),
+    '',
+    'Ölçüt notları: seslendirme varken voiceOverMusicDb yaklaşık 10 dB ve üstü anlatımı rahat duyurur, 6 dB altı bastırma riskidir; müzik hiçbir bölümde -45 dBFS altına düşmemeli (duyulmaz); ödülde liftDb belirgin pozitif (yaklaşık +2 dB ve üstü) beklenir; kanca 0 sn\'de müzik sesi olmalı.',
+    `Kanıt: başarısız kontrolde evidence.frame ilgili anın karesi (zaman × 30), evidence.timecode o zaman; fix_hint fixer için somut olsun (ör. "ödülde pad ve bas seviyesini artır, davul pulse ekle" ya da "müzik seviyesini 3 dB düşür").`,
   ]).join('\n');
 }

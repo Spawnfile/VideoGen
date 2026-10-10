@@ -26,20 +26,20 @@ const pilot = (): QcMeasure => {
 };
 const failed = (r: { id: string; pass: boolean }[]) => r.filter((c) => !c.pass).map((c) => c.id).sort();
 
-describe('rubric final@1 and the QC contract', () => {
-  it('has the spec weights, one owner per dimension, and QC points only on the orchestrator-owned D6 (12) and D7 (5)', () => {
-    expect(RUBRIC_VERSION).toBe('final@1');
+describe('rubric final@2 and the QC contract', () => {
+  it('has the spec weights, one owner per dimension, and QC points only on D6 (8 of 12: the audio reviewer has 4, final@2) and D7 (5)', () => {
+    expect(RUBRIC_VERSION).toBe('final@2');
     expect(Object.values(DIMENSIONS).reduce((a, d) => a + d.weight, 0)).toBe(100);
     expect(DIMENSIONS.D6).toMatchObject({ weight: 12, owner: 'orchestrator' });
     expect(GATES.G6.owner).toBe('orchestrator');
     const points = (d: string) => QC_CHECK_IDS.filter((id) => QC_CHECKS[id].dimension === d).reduce((a, id) => a + QC_CHECKS[id].points, 0);
-    expect([points('D6'), points('D7'), points('D2'), points('D3'), points('D8')]).toEqual([12, 5, 0, 0, 0]);
+    expect([points('D6'), points('D7'), points('D2'), points('D3'), points('D8')]).toEqual([8, 5, 0, 0, 0]);
   });
 
-  it('passes a well made final: every gate and full D6/D7', () => {
+  it('passes a well made final: every gate and full qc D6 (8) / D7', () => {
     const r = evaluateQc(good(), { variant: 'music', layoutIssues: [], coverOk: true });
     expect(failed(r)).toEqual([]);
-    expect(qcScores(r)).toEqual({ D6: 12, D7: 5 });
+    expect(qcScores(r)).toEqual({ D6: 8, D7: 5 });
     expect(r.map((c) => c.id)).toContain('g6_layout');
     expect(r.map((c) => c.id)).not.toContain('g6_edges');
   });
@@ -49,7 +49,7 @@ describe('rubric final@1 and the QC contract', () => {
     expect(failed(r)).toEqual(['d3_freeze', 'd6_first_audio', 'd6_loudness', 'd6_lra', 'd6_silence', 'g1_color', 'g6_edges']);
     expect(r.find((c) => c.id === 'd6_loudness')).toMatchObject({ value: '-23,4 LUFS', limit: '−14 ±1 LUFS' });
     expect(r.find((c) => c.id === 'd6_silence')).toMatchObject({ at: 12.1 });
-    expect(qcScores(r).D6).toBe(2); // only the true peak (−3,1 dBTP) passes
+    expect(qcScores(r).D6).toBe(1); // only the true peak (−3,1 dBTP) passes (1 point in final@2)
   });
 
   it('checks only delivery and true peak on the TikTok variant (its sound is added in the app); LRA only on ≥ 10 s', () => {
@@ -78,7 +78,7 @@ describe('rubric final@1 and the QC contract', () => {
     const tiktok = evaluateQc({ ...good(), video: { ...good().video, pixFmt: 'yuvj420p', colorRange: 'pc' } }, { variant: 'tiktok' });
     const rep = buildQcReport(music, tiktok);
     expect(QcReportSchema.safeParse(rep).success).toBe(true);
-    expect(rep).toMatchObject({ rubric_version: 'final@1', gates: { G1: false, G5: true, G6: false }, scores: { D6: 12, D7: 5 }, pass: false });
+    expect(rep).toMatchObject({ rubric_version: 'final@2', gates: { G1: false, G5: true, G6: false }, scores: { D6: 8, D7: 5 }, pass: false });
     expect(qcFailures(rep)).toEqual(['Teslim (müziksiz): Renk etiketleri yuvj420p/pc/bt709/bt709/bt709 (yuv420p/tv/bt709)', 'Güvenli alan: 1 kutu dışarıda (3,0 sn)']);
   });
 });

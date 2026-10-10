@@ -115,6 +115,8 @@ export function playerTabs(o: { final: boolean; draft: boolean; compare?: boolea
 }
 
 /** The QC card's lines: gate marks, the D6/D7 scores, every failed check (value, limit, time). */
+const qcMax = (d: 'D6' | 'D7') => Object.values(QC_CHECKS).filter((c) => c.dimension === d).reduce((a, c) => a + c.points, 0);
+
 export function qcLines(r: QcReport): { gates: string; scores: string; failures: string[] } {
   const mark = (b: boolean) => (b ? '✓' : '✗');
   const failures = [...r.music, ...r.tiktok.filter((c) => !r.music.some((m) => m.id === c.id))]
@@ -122,12 +124,13 @@ export function qcLines(r: QcReport): { gates: string; scores: string; failures:
     .map((c) => `${QC_CHECKS[c.id].label_tr}: ${c.value} (${c.limit})${c.at !== undefined ? ` · ${formatClock(c.at)}` : ''}`);
   return {
     gates: `${GATES.G1.label_tr} ${mark(r.gates.G1)} · ${GATES.G5.label_tr} ${mark(r.gates.G5)} · ${GATES.G6.label_tr} ${mark(r.gates.G6)}`,
-    scores: `${DIMENSIONS.D6.label_tr} ${r.scores.D6}/12 · ${DIMENSIONS.D7.label_tr} ${r.scores.D7}/5`,
+    // final@2: qc's own share of D6 (the audio reviewer holds the rest of the 12), so the card never reads as a low score.
+    scores: `${DIMENSIONS.D6.label_tr} (ölçüm) ${r.scores.D6}/${qcMax('D6')} · ${DIMENSIONS.D7.label_tr} ${r.scores.D7}/${qcMax('D7')}`,
     failures,
   };
 }
 
-const REVIEWER_LABEL: Record<FinalReviewerRole, string> = { reviewer_visual: 'Görsel', reviewer_facts: 'Doğruluk', reviewer_retention: 'İzlenme' };
+const REVIEWER_LABEL: Record<FinalReviewerRole, string> = { reviewer_visual: 'Görsel', reviewer_facts: 'Doğruluk', reviewer_retention: 'İzlenme', reviewer_audio: 'Ses' };
 const SEVERITY_ORDER = ['blocker', 'major', 'minor'];
 const r2 = (x: number) => Math.round(x * 100) / 100;
 

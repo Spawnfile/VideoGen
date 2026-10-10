@@ -33,8 +33,8 @@ async function seed(name: string, rounds: Round[]) {
     await recordReviewRound(t.pool, {
       runId: p.r.runId, round, versionId, fixed: [],
       rows: [
-        { reviewerRole: 'orchestrator', seq: 1, rubricVersion: 'final@1', total: r.total, verdict: r.verdict, findings: [] },
-        { reviewerRole: 'reviewer_visual', seq: 1, rubricVersion: 'final@1', findings: r.failed.map((id) => ({ checkId: id, severity: 'major', status: r.regressed?.includes(id) ? 'regressed' as const : 'open' as const })) },
+        { reviewerRole: 'orchestrator', seq: 1, rubricVersion: 'final@2', total: r.total, verdict: r.verdict, findings: [] },
+        { reviewerRole: 'reviewer_visual', seq: 1, rubricVersion: 'final@2', findings: r.failed.map((id) => ({ checkId: id, severity: 'major', status: r.regressed?.includes(id) ? 'regressed' as const : 'open' as const })) },
       ],
     });
   }

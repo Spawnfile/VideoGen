@@ -51,7 +51,7 @@ describe('compare view', () => {
     id: `${checkId}-${o.status ?? 'open'}`, checkId, severity: 'minor', dimension: null, gate: null, evidence: null, fixHint: null, status: 'open', fixedInVersionId: null, ...o,
   });
   const row = (runId: string, round: number, role: string, o: Partial<ReviewRecord> = {}): ReviewRecord => ({
-    id: `${runId}-${round}-${role}`, videoId: 'v', versionId: null, runId, stepId: null, round, reviewerRole: role, seq: 1, sessionId: null, rubricVersion: 'final@1', total: null,
+    id: `${runId}-${round}-${role}`, videoId: 'v', versionId: null, runId, stepId: null, round, reviewerRole: role, seq: 1, sessionId: null, rubricVersion: 'final@2', total: null,
     dimensionScores: null, gates: null, verdict: null, summaryTr: null, createdAt: `2026-10-08T10:0${round}:00.000Z`, findings: [], ...o,
   });
 

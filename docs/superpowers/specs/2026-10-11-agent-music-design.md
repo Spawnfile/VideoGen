@@ -16,6 +16,18 @@ Kullanıcı isteği: "müziği de agent'lar üretecek; bu müziği ayrı bir ses
 | A8 | Talimat ≤ 1000 karakter; koşu satırında saklanır (`runs.instruction`), kaynak koşu `runs.parent_run_id`. Audit: `video.audio_edit_requested`. | İzlenebilirlik; düzenleme kendi koşusu olarak listelenir ve iptal edilebilir. |
 | A9 | Sahte sürücü: besteci için kayıtlı partisyon; sentez için ffmpeg ile kısa bir pad (fluidsynth'siz makinede testler çalışır). Smoke yığını sahte sentezi kullanır. | Mevcut test düzeniyle aynı (FakeAudioDriver deseni). |
 
+## Ses uyumu incelemesi (kullanıcı eki, 2026-10-11)
+
+İstek: "Agentlar ses/müziğin videoya uyup uymadığına da bakıyor ve gerekirse düzenliyor olmalı; gerekiyorsa dedike bir agent ekleyelim."
+
+| # | Karar | Gerekçe |
+|---|---|---|
+| A10 | **Yeni reviewer `reviewer_audio`** ("Ses reviewer"), final inceleme panelinin dördüncü üyesi. | Mevcut üç reviewer sese ait yalnızca metin dökümü ve ölçüm görüyor; görsel/doğruluk/izlenme işine sesi eklemek sorumlulukları karıştırır. Ayrı rol, ayrı model ve çaba ayarı (Sonnet, orta). |
+| A11 | Claude ses dinleyemez; reviewer **ölçülmüş kanıtla** karar verir: müzik, seslendirme ve efekt parçalarının 0,5 sn'lik RMS eğrileri, seslendirme anlarında müzik seviyesi ve fark (ducking etkinliği), kanca/ikinci kanca/ödül çevresinde müzik enerjisindeki değişim, partisyon (tempo, ton, bölüm enerjileri, vurgular), storyboard zamanlaması ve yönerge. | Kanıta dayalı, tekrarlanabilir yargı; uydurma "dinledim" yok. |
+| A12 | Üç kontrol, D6 (Ses) içinde: `music_mood` (2 puan; ruh hâli, tempo, ton ürüne/yönergeye uygun), `music_sync` (1; vurgular ve enerji kanca, ikinci kanca, ödülle hizalı), `mix_balance` (1; müzik anlatımı/efektleri bastırmıyor, çok kısık da değil). QC'nin teknik ses kontrolleri 12 → 8 puan (yüksek ses 3, tepe 1, LRA 1, ilk ses 1, sessizlik 2). D6 = QC + ses reviewer'ı; toplam 100 değişmez. `RUBRIC_VERSION` → `final@2`. | Boyut ağırlıkları (spec §8.1) korunur; ses uyumu puana ve K13 kararına girer. |
+| A13 | Düzeltme: ses kontrolleri `audio` kategorisinde (fixer Sonnet). Fixer partisyonu (`write_spec(music)`) ve/veya ses planını (`write_spec(audio)`) değiştirir; partisyon değiştiyse fixer müziği kendisi yeniden sentezler (`music_stem`, bekleyen sürümle), kapsam `compose` (yalnızca yeniden birleştirme). | Görüntü yeniden render edilmez; düzeltme dakikalar sürer. Döngü sınırları (en çok 3 tur) aynı. |
+| A14 | Ses kontrolleri 100 puanın 4'ünü taşır; tek bir ses düşüşü toplamı 80'in altına indirmez. Bu yüzden: tur kararı `ready` olsa da ses reviewer'ının bir kontrolü düştüyse ve tur hakkı ile kullanım izin veriyorsa **bir ses düzeltme turu** açılır (yalnızca yeniden birleştirme). Turun kararı `ready` olarak kalır; düzeltme tutmazsa en iyi sürüm seçimi hazır turu seçer, son turda hazır video bekletilmez. | "Gerekirse düzenliyor olmalı": ses uyumsuzluğu puana gömülüp kaybolmaz; maliyeti dakikalar. |
+
 ## Kapsam dışı
 
 Sohbetten doğrudan düzenleme başlatmak (sonra: sohbet videoya bağlanınca "Düzelt" bu yolu çağırabilir); seslendirme metnini düzenleme (görüntü zamanlamasını değiştirir, yeniden render ister); nöral müzik modelleri.

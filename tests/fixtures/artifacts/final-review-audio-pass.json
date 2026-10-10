@@ -1,0 +1,10 @@
+{
+  "rubric_version": "final@2",
+  "reviewer_role": "reviewer_audio",
+  "checks": [
+    { "id": "music_mood", "pass": true, "score": 1 },
+    { "id": "music_sync", "pass": true, "score": 1 },
+    { "id": "mix_balance", "pass": true, "score": 1 }
+  ],
+  "summary_tr": "Müzik sakin ve meraklı tonuyla ürüne uyuyor; ödülde yükseliyor, anlatımı bastırmıyor."
+}

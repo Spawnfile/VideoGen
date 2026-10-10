@@ -3,6 +3,7 @@ import { FINAL_CHECKS, FINAL_MAX_ROUNDS, type FinalCheckId } from './final-revie
 import { QC_CHECKS, type QcCheckId } from './qc.ts';
 import type { SceneSpec } from './scene.ts';
 import type { AudioPlan } from './voice.ts';
+import type { MusicScore } from './music.ts';
 
 /** Plan F3/F11/F14/F15: the pure logic of the final fix loop. Types only from artifacts.ts (no value cycle). */
 export const RERENDER_SCOPES = ['compose', 'voice', 'build', 'storyboard'] as const;
@@ -38,8 +39,9 @@ export function sceneRender(scene: SceneSpec): unknown {
 }
 
 export type ScopeChange = 'product.py' | 'scene.render' | 'storyboard.structure' | 'scene.labels' | 'storyboard.text' | 'research'
-  | 'storyboard.vo' | 'storyboard.timing' | 'audio';
-export interface ScopeInput { storyboard: Storyboard; scene: SceneSpec; research: ProductResearch; productSha: string; audio: AudioPlan | null; audioMode: AudioMode }
+  | 'storyboard.vo' | 'storyboard.timing' | 'audio' | 'music';
+/** `music`: the composer's score (agent music design A13); a change re-renders the stem and recomposes. Absent on older callers: no change. */
+export interface ScopeInput { storyboard: Storyboard; scene: SceneSpec; research: ProductResearch; productSha: string; audio: AudioPlan | null; audioMode: AudioMode; music?: MusicScore | null }
 
 /** On-screen text the overlay and the SFX list read: the hook line, each beat's text and its SFX cue words (props.ts draftProps, sound.ts planSfx). */
 function storyboardText(s: Storyboard): unknown {
@@ -51,6 +53,8 @@ const storyboardVo = (s: Storyboard): unknown => s.beats.map((b) => b.vo_text ??
 const storyboardTiming = (s: Storyboard): unknown => ({ duration_s: s.duration_s, rehook_at: s.rehook_at, payoff_at: s.payoff_at, beats: s.beats.map((b) => [b.t_start, b.t_end]) });
 /** The audio plan without its version counter (a bump alone changes nothing audible). */
 const audioPlan = (a: AudioPlan | null): unknown => { if (!a) return null; const { version: _v, ...rest } = a; return rest; };
+/** The score without its version counter and its prose (intent_tr renders nothing). */
+const musicScore = (m: MusicScore | null): unknown => { if (!m) return null; const { version: _v, intent_tr: _i, ...rest } = m; return rest; };
 /** Everything else the storyboard says (parts, claims, camera, pattern …) except the fields nothing reads: version, cta, loop_strategy. */
 function storyboardStructure(s: Storyboard): unknown {
   // Dropped: fields nothing reads (version, cta, loop_strategy), the clock (storyboardTiming), the VO lines (storyboardVo) and the on-screen text (storyboardText).
@@ -77,6 +81,7 @@ export function fixScope(i: { prev: ScopeInput; next: ScopeInput }): { scope: 'n
   if (differs((x) => labels(x.scene))) changed.push('scene.labels');
   if (differs((x) => storyboardText(x.storyboard))) changed.push('storyboard.text');
   if (differs((x) => audioPlan(x.audio))) changed.push('audio');
+  if (differs((x) => musicScore(x.music ?? null))) changed.push('music');
   if (differs((x) => x.research)) changed.push('research');
   const voiceChanged = i.next.audioMode === 'vo' && changed.some((c) => c === 'storyboard.vo' || c === 'storyboard.timing');
   const buildChanged = rendersChanged(changed);
@@ -144,8 +149,10 @@ export const STOP_NOTE: Record<LoopStop, string> = {
 export type LoopAction = { kind: 'ready' | 'fix' | 'rework' } | { kind: 'stop'; reason: LoopStop };
 
 /** F15 order: ready; G4 declaration (no fix round can add the label); round limit; usage guard; oscillation; rework; fix. */
-export function loopAction(i: { verdict: 'ready' | 'fix' | 'rework'; fixRound: number; oscillating: boolean; usageBlocked: boolean; declarationFailed: boolean }): LoopAction {
-  if (i.verdict === 'ready') return { kind: 'ready' };
+export function loopAction(i: { verdict: 'ready' | 'fix' | 'rework'; fixRound: number; oscillating: boolean; usageBlocked: boolean; declarationFailed: boolean; audioPolish?: boolean }): LoopAction {
+  // Agent music design A14: a ready final whose music or mix failed the audio reviewer gets a cheap audio fix round (recompose only) while rounds
+  // and usage allow; the round's verdict stays `ready`, so pickBest can still choose it if the polish does not land.
+  if (i.verdict === 'ready') return i.audioPolish && i.fixRound < FINAL_MAX_ROUNDS && !i.usageBlocked && !i.oscillating ? { kind: 'fix' } : { kind: 'ready' };
   if (i.declarationFailed) return { kind: 'stop', reason: 'declaration' };
   if (i.fixRound >= FINAL_MAX_ROUNDS) return { kind: 'stop', reason: 'limit' };
   if (i.usageBlocked) return { kind: 'stop', reason: 'usage' };
@@ -161,3 +168,6 @@ export function pickBest<R extends RoundChecks & { regressed: boolean }>(rounds:
   const pool = clean.length ? clean : rounds;
   return [...pool].sort((a, b) => (b.total ?? -1) - (a.total ?? -1) || b.round - a.round)[0] ?? null;
 }
+
+/** Agent music design A14: failed checks of the audio reviewer (category `audio`) among a round's failures. */
+export const audioFailures = (failed: string[]): string[] => failed.filter((id) => id in FINAL_CHECKS && FINAL_CHECKS[id as FinalCheckId].category === 'audio');

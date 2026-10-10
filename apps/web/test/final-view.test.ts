@@ -25,7 +25,7 @@ describe('final player and QC card helpers', () => {
     const rep = buildQcReport(evaluateQc(m, { variant: 'music', layoutIssues: [], coverOk: true }), evaluateQc(m, { variant: 'tiktok' }));
     expect(qcLines(rep)).toEqual({
       gates: 'Teslim ✓ · Güvenlik ✓ · Güvenli alan ✓',
-      scores: 'Ses 9/12 · Teknik cila 4/5',
+      scores: 'Ses (ölçüm) 6/8 · Teknik cila 4/5', // final@2: qc holds 8 of D6's 12
       failures: ['Sessizlik: 1,3 sn (≤ 0,3 sn) · 0:12', 'Bit hızı: 1,2 Mbps (3–11 Mbps)'],
     });
   });

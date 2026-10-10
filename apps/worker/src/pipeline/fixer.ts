@@ -3,8 +3,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type pg from 'pg';
 import {
-  canonical, FINAL_CHECKS, FINAL_MAX_ROUNDS, fixReportRefErrors, fixScope, formatScore, rendersChanged, sceneRefErrors, STOP_NOTE, storyboardRefErrors, storyboardVoErrors, validateArtifact, windowErrors,
-  type AudioMode, type AudioPlan, type FinalCheckId, type FixReport, type ModelAlias, type ProductResearch, type SceneSpec, type ScopeInput, type Storyboard,
+  canonical, FINAL_CHECKS, FINAL_MAX_ROUNDS, fixReportRefErrors, musicScoreErrors, fixScope, formatScore, rendersChanged, sceneRefErrors, STOP_NOTE, storyboardRefErrors, storyboardVoErrors, validateArtifact, windowErrors,
+  type AudioMode, type AudioPlan, type FinalCheckId, type MusicScore, type FixReport, type ModelAlias, type ProductResearch, type SceneSpec, type ScopeInput, type Storyboard,
 } from '@videogen/shared';
 import { appendAudit, findArtifact, getChannelStyle, insertVersion, listAssets } from '@videogen/db';
 import { SpecStore } from '@videogen/claude';
@@ -18,9 +18,10 @@ import { failure, persist, record, type StepDeps } from './steps.ts';
 import type { StepContext, StepOutcome } from './types.ts';
 import { ARTIFACT_VALIDATOR } from './validator.ts';
 import { voKey } from './voice-step.ts';
+import { musicRenderS } from './music-step.ts';
 
 /** Plan T8: the fixer's instruction. Only failed checks (with owner, severity, evidence and hint) are given; reviewer summaries and passing checks never are (spec §8.3). */
-export function fixerPrompt(o: { name: string; round: number; reviewedRound: number; findings: FixFinding[]; audioMode?: AudioMode; audio?: AudioPlan | null; brief?: string | null }): string {
+export function fixerPrompt(o: { name: string; round: number; reviewedRound: number; findings: FixFinding[]; audioMode?: AudioMode; audio?: AudioPlan | null; brief?: string | null; music?: MusicScore | null }): string {
   const rel = `review/final/r${o.reviewedRound}`;
   return [
     `Ürün: ${JSON.stringify(o.name)}. Final inceleme (tur ${o.reviewedRound}) videoyu düzeltmeye gönderdi; bu düzeltme turu ${o.round}/${FINAL_MAX_ROUNDS}.`,
@@ -32,7 +33,9 @@ export function fixerPrompt(o: { name: string; round: number; reviewedRound: num
     'Yalnızca bu bulguları düzelt. Ekran yazısı, kanca ve etiket adları → write_spec(storyboard/scene) (yeniden birleştirme, dakikalar). Kamera, zamanlama, geometri, malzeme → write_spec(scene) ve/veya scene/product.py, sonra build_scene ve render_preview_stills ile kontrol (final yeniden render, ~35 dk). Araştırmayı değiştirme; desteksiz bir iddiayı ekrandan çıkar ya da yumuşat. cta ve loop_strategy hiçbir şey çizmez. Düzeltemediğini not_addressed\'e gerekçesiyle yaz.',
     ...(o.audioMode === 'vo' ? ["Seslendirme metni ya da telaffuz → write_spec(storyboard) içinde vo_text (yeniden seslendirme; bir vuruş 0,3 sn'den fazla uzarsa sahne yeniden kurulur, ~35 dk). Vuruş zamanlarını değiştirme: zamanları seslendirme belirler."] : []),
     `Müzik seviyesi, ducking, efektler → write_spec(audio) (yeniden birleştirme, dakikalar).${o.audioMode === 'silent' ? ' Seslendirmesiz videoda müzik kaldırılamaz.' : ''}`,
+    ...(o.music ? ['Müziğin kendisi (ruh hâli, tempo, ton, enerji, vurgu yerleri, enstrümanlar) → write_spec(music) ile partisyonu değiştir (duration_s, bölümler 0 sn\'den sona boşluksuz; adım müziği yeniden sentezler ve yeniden birleştirir, dakikalar). Müziği seslendirmenin altında daha kısık istiyorsan duck_db ya da music.gain_db (write_spec(audio)).'] : []),
     ...(o.audio ? ['', fenced('Mevcut ses planı (AudioPlan)', o.audio)] : []),
+    ...(o.music ? ['', fenced('Mevcut müzik partisyonu (MusicScore)', o.music)] : []),
     `Çıktı: FixReport şeması. round ${o.round}; her başarısız kontrol kimliği addressed (check_id, change_summary_tr, files) ya da not_addressed (check_id, reason) içinde tam bir kez; rerender_scope: yazı/etiket/storyboard değişimi ve ses planı için "compose", ${o.audioMode === 'vo' ? 'seslendirme (vo_text) için "voice", ' : ''}sahne ya da product.py için "build", storyboard'un baştan yazılması gerekiyorsa "storyboard"; spec_diffs kısa Türkçe özet.`,
   ].join('\n');
 }
@@ -45,38 +48,41 @@ export function fixerModel(failed: string[]): ModelAlias {
   return failed.some((id) => category(id) === 'visual' || category(id) === 'narrative') ? 'opus' : 'sonnet';
 }
 
-interface Prev { storyboard: Storyboard; scene: SceneSpec; research: ProductResearch; productSha: string | null; audio: AudioPlan | null }
+interface Prev { storyboard: Storyboard; scene: SceneSpec; research: ProductResearch; productSha: string | null; audio: AudioPlan | null; music: MusicScore | null }
 
 /** Per kind, the newest artifact that does not belong to the pending version: what the round started from (not the SpecStore: a crashed fixer may have written there). */
 async function loadPrev(pool: pg.Pool, runId: string, pendingId: string): Promise<Prev | null> {
   const row = async (kind: string) => (await pool.query(
     'SELECT content, blob_sha FROM artifacts WHERE run_id = $1 AND kind = $2 AND version_id IS DISTINCT FROM $3 ORDER BY created_at DESC LIMIT 1', [runId, kind, pendingId],
   )).rows[0] as { content: unknown; blob_sha: string | null } | undefined;
-  const [sb, sc, rs, py, au] = await Promise.all(['storyboard', 'scene', 'research', 'product_py', 'audio'].map(row));
+  const [sb, sc, rs, py, au, mu] = await Promise.all(['storyboard', 'scene', 'research', 'product_py', 'audio', 'music'].map(row));
   const storyboard = sb ? validateArtifact('Storyboard', sb.content) : null;
   const scene = sc ? validateArtifact('SceneSpec', sc.content) : null;
   const research = rs ? validateArtifact('ProductResearch', rs.content) : null;
   // The audio plan compose persists (SpecStore + DB, H3); read from the DB here and from the SpecStore in readNext, so an untouched plan is no change.
   const audio = au ? validateArtifact('AudioPlan', au.content) : null;
+  const music = mu ? validateArtifact('MusicScore', mu.content) : null;
   if (!storyboard?.ok || !scene?.ok || !research?.ok) return null;
-  return { storyboard: storyboard.value, scene: scene.value, research: research.value, productSha: py?.blob_sha ?? null, audio: audio?.ok ? audio.value : null };
+  return { storyboard: storyboard.value, scene: scene.value, research: research.value, productSha: py?.blob_sha ?? null, audio: audio?.ok ? audio.value : null, music: music?.ok ? music.value : null };
 }
 
 /** The SpecStore's latest state, validated, as the scope function wants it (a research spec absent from the store counts as unchanged). */
 async function readNext(ctx: StepContext, prev: Prev): Promise<{ next: ScopeInput } | { errors: string[] }> {
   const specs = new SpecStore(join(ctx.runDir, 'spec'), ARTIFACT_VALIDATOR);
-  const [sb, sc, rs, au] = await Promise.all((['storyboard', 'scene', 'research', 'audio'] as const).map((k) => specs.read(k)));
+  const [sb, sc, rs, au, mu] = await Promise.all((['storyboard', 'scene', 'research', 'audio', 'music'] as const).map((k) => specs.read(k)));
   const storyboard = validateArtifact('Storyboard', sb?.value);
   const scene = validateArtifact('SceneSpec', sc?.value);
   const research = rs ? validateArtifact('ProductResearch', rs.value) : null;
   const audio = au ? validateArtifact('AudioPlan', au.value) : null;
+  const music = mu ? validateArtifact('MusicScore', mu.value) : null;
   const errors = [
+    ...(music && !music.ok ? music.errors.map((e) => `music: ${e}`) : []),
     ...(storyboard.ok ? [] : storyboard.errors.map((e) => `storyboard: ${e}`)), ...(scene.ok ? [] : scene.errors.map((e) => `scene: ${e}`)),
     ...(research && !research.ok ? research.errors.map((e) => `research: ${e}`) : []), ...(audio && !audio.ok ? audio.errors.map((e) => `audio: ${e}`) : []),
   ];
   if (errors.length || !storyboard.ok || !scene.ok) return { errors };
   const productSha = (await sha256(join(ctx.runDir, 'scene', 'product.py'))) ?? prev.productSha ?? '';
-  return { next: { storyboard: storyboard.value, scene: scene.value, research: research?.ok ? research.value : prev.research, productSha, audio: audio?.ok ? audio.value : prev.audio, audioMode: ctx.audioMode } };
+  return { next: { storyboard: storyboard.value, scene: scene.value, research: research?.ok ? research.value : prev.research, productSha, audio: audio?.ok ? audio.value : prev.audio, audioMode: ctx.audioMode, music: music?.ok ? music.value : prev.music } };
 }
 
 /**
@@ -131,7 +137,7 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
   const prev = await loadPrev(deps.pool, ctx.runId, versionId);
   if (!prev) return { status: 'failed', error: 'düzeltilecek storyboard, sahne ya da araştırma çıktısı yok', retry: false };
   const style = await getChannelStyle(deps.pool);
-  const prevInput: ScopeInput = { storyboard: prev.storyboard, scene: prev.scene, research: prev.research, productSha: prev.productSha ?? '', audio: prev.audio, audioMode: ctx.audioMode };
+  const prevInput: ScopeInput = { storyboard: prev.storyboard, scene: prev.scene, research: prev.research, productSha: prev.productSha ?? '', audio: prev.audio, audioMode: ctx.audioMode, music: prev.music };
 
   let computed: { next: ScopeInput; scope: 'none' | 'compose' | 'voice' | 'build'; changed: string[] } | null = null;
   // The fixer may not touch the research; a render change is built by the step itself (trusted), and its errors go back to the same session.
@@ -142,6 +148,8 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
       ...storyboardRefErrors(n.next.storyboard, prev.research), ...sceneRefErrors(n.next.scene, n.next.storyboard, style.id), ...(n.next.storyboard.audio_mode === ctx.audioMode ? [] : [`audio_mode ${ctx.audioMode} olmalı`]),
       // H6: the VO text rules and the VO ceiling of the window (the floor is the storyboarder's, not a fix's); brief design Y9: the video window holds.
       ...storyboardVoErrors(n.next.storyboard, { minS: false, window: ctx.duration }), ...windowErrors(n.next.storyboard.duration_s, ctx.duration),
+      // Agent music design A13: a changed score must still fit the (possibly changed) storyboard.
+      ...(n.next.music && canonical(n.next.music) !== canonical(prev.music) ? musicScoreErrors(n.next.music, { durationS: n.next.storyboard.duration_s }).map((e) => `music: ${e}`) : []),
       ...audioRefErrors({ next: n.next.audio, prev: prev.audio, mode: ctx.audioMode, allowedMusic: new Map((await listAssets(deps.pool, { kind: 'music', allowedOnly: true })).map((a) => [a.id, a.title])) }),
     ];
     const s = fixScope({ prev: prevInput, next: n.next });
@@ -168,7 +176,7 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
   const prior = await priorSession(deps.pool, { ...ctx, fixRound: round }, 'fixer');
   const r = await runStructured<FixReport>({
     manager: deps.manager, ctx, role: 'fixer', schema: 'FixReport', model: fixerModel(failed),
-    prompt: fixerPrompt({ name: ctx.productName, round, reviewedRound: ctx.fixRound, findings, audioMode: ctx.audioMode, audio: prev.audio, brief: ctx.brief }),
+    prompt: fixerPrompt({ name: ctx.productName, round, reviewedRound: ctx.fixRound, findings, audioMode: ctx.audioMode, audio: prev.audio, brief: ctx.brief, music: prev.music }),
     initialResume: prior ? { claudeSessionId: prior.claudeSessionId, parent: prior.id, prompt: RESUME_PROMPT } : undefined,
     check: (v) => fixReportRefErrors(v, { round, failed, audioMode: ctx.audioMode }),
     checkAsync,
@@ -189,12 +197,22 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
   // Scope `none` writes no artifact on purpose: the SpecStore may then be ahead of the DB (a spec edit that changed nothing that renders, e.g. only `cta`).
   // Harmless: such a round ends the loop (unchanged) or is a storyboard rework, the next `prev` is read from the DB, and a later round persists whatever differs.
   if (done.scope !== 'none') {
-    for (const [kind, before, after] of [['storyboard', prev.storyboard, done.next.storyboard], ['scene', prev.scene, done.next.scene], ['audio', prev.audio, done.next.audio]] as const) {
+    for (const [kind, before, after] of [['storyboard', prev.storyboard, done.next.storyboard], ['scene', prev.scene, done.next.scene], ['audio', prev.audio, done.next.audio], ['music', prev.music, done.next.music ?? null]] as const) {
       if (after === null) continue;
       // An artifact of this version already there (a crashed earlier attempt) is replaced when the head moved on, even back to the reviewed state.
       const have = await pendingOf(kind);
       if (have ? canonical(have.content) === canonical(after) : canonical(before) === canonical(after)) continue;
       await persist(deps, fixCtx, kind, after, hash, { latest: true });
+    }
+    // Agent music design A13: a new score is rendered here (seconds), so the recompose plays it; the stem belongs to the pending version.
+    if (done.changed.includes('music') && done.next.music) {
+      const have = await pendingOf('music_stem');
+      if (!have) {
+        if (!deps.music) return { status: 'failed', error: 'müzik sentezleyici yapılandırılmadı', retry: false };
+        const out = join(ctx.runDir, 'music', `music-fix-r${round}.wav`);
+        const m = await deps.music.render({ score: done.next.music, out, renderS: musicRenderS(done.next.storyboard.duration_s), owner: ctx.stepId, signal: ctx.signal });
+        await record(deps, fixCtx, { kind: 'music_stem', file: m.file, inputHash: hash, meta: { renderer: m.renderer, notes: m.notes, peakDb: m.peakDb, renderS: m.durationS, fixRound: round } });
+      }
     }
     if (done.changed.includes('product.py')) {
       const file = join(ctx.runDir, 'scene', 'product.py');

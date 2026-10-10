@@ -48,7 +48,7 @@ describe('voice card helpers', () => {
     expect(b.note).toBe('');
     expect(PRODUCE_VO_HINT).toBe("Anlatım yerel TTS ile; ses seçimi Ayarlar'da");
     // The orchestrator's G4 finding reads in Turkish, not as a bare gate id.
-    const g4: ReviewRecord = { id: 'o', videoId: 'v', versionId: null, runId: 'r', stepId: null, round: 0, reviewerRole: 'orchestrator', seq: 1, sessionId: null, rubricVersion: 'final@1', total: 80, dimensionScores: null, gates: { G4: false }, verdict: 'fix', summaryTr: '', createdAt: '', findings: [{ id: 'f', checkId: 'G4', severity: 'blocker', dimension: null, gate: 'G4', evidence: null, fixHint: 'seslendirme izi bulunamadı', status: 'open', fixedInVersionId: null }] };
+    const g4: ReviewRecord = { id: 'o', videoId: 'v', versionId: null, runId: 'r', stepId: null, round: 0, reviewerRole: 'orchestrator', seq: 1, sessionId: null, rubricVersion: 'final@2', total: 80, dimensionScores: null, gates: { G4: false }, verdict: 'fix', summaryTr: '', createdAt: '', findings: [{ id: 'f', checkId: 'G4', severity: 'blocker', dimension: null, gate: 'G4', evidence: null, fixHint: 'seslendirme izi bulunamadı', status: 'open', fixedInVersionId: null }] };
     expect(panelView([g4])!.auto!.findings[0]!.label).toBe('AI beyanı (G4)');
   });
 });

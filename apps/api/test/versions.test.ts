@@ -20,8 +20,8 @@ beforeAll(async () => {
 afterAll(async () => { await app.close(); await hub.stop(); await t.drop(); });
 
 const plan = [{ key: 'research' as const, weight: 100 }];
-const orch = (total: number, d1: number) => ({ reviewerRole: 'orchestrator', seq: 1, rubricVersion: 'final@1', total, dimensionScores: { D1: d1 }, gates: { G1: true }, verdict: total >= 80 ? 'ready' : 'fix', summaryTr: `Toplam ${total}`, findings: [] });
-const visual = (summary: string) => ({ reviewerRole: 'reviewer_visual', seq: 1, rubricVersion: 'final@1', summaryTr: summary, findings: [] });
+const orch = (total: number, d1: number) => ({ reviewerRole: 'orchestrator', seq: 1, rubricVersion: 'final@2', total, dimensionScores: { D1: d1 }, gates: { G1: true }, verdict: total >= 80 ? 'ready' : 'fix', summaryTr: `Toplam ${total}`, findings: [] });
+const visual = (summary: string) => ({ reviewerRole: 'reviewer_visual', seq: 1, rubricVersion: 'final@2', summaryTr: summary, findings: [] });
 
 /** Produce version (round 0) and two fix rounds: round 1 is finished, scored, best and published; round 2 is an orphaned fix:pending row. */
 async function seed(name: string) {

@@ -122,8 +122,8 @@ describe('runs and artifacts', () => {
     await recordReviewRound(t.pool, {
       runId, round: 0, versionId: null, fixed: [],
       rows: [
-        { reviewerRole: 'orchestrator', seq: 1, rubricVersion: 'final@1', total: 76, dimensionScores: { D2: 9 }, gates: { G1: true }, verdict: 'fix', summaryTr: 'Toplam 76,0 puan', findings: [] },
-        { reviewerRole: 'reviewer_visual', seq: 1, rubricVersion: 'final@1', dimensionScores: { D2: 9 }, gates: { G3: true }, summaryTr: 'özet', findings: [finding] },
+        { reviewerRole: 'orchestrator', seq: 1, rubricVersion: 'final@2', total: 76, dimensionScores: { D2: 9 }, gates: { G1: true }, verdict: 'fix', summaryTr: 'Toplam 76,0 puan', findings: [] },
+        { reviewerRole: 'reviewer_visual', seq: 1, rubricVersion: 'final@2', dimensionScores: { D2: 9 }, gates: { G3: true }, summaryTr: 'özet', findings: [finding] },
       ],
     });
     const r = await app.inject({ url: `/api/videos/${videoId}/reviews`, headers: H });
