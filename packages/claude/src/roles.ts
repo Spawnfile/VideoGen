@@ -1,6 +1,6 @@
 import type { Effort, ModelAlias, RoleName } from '@videogen/shared';
 
-export const SPEC_KINDS = ['research', 'storyboard', 'scene', 'audio'] as const;
+export const SPEC_KINDS = ['research', 'storyboard', 'scene', 'audio', 'music'] as const;
 export type SpecKind = (typeof SPEC_KINDS)[number];
 
 /** MCP tools that exist. M4b adds the scene tools, M4c extract_frames, M5b run_qc; render_draft stays out (plan B7: the draft_render step makes the draft); tts_* … arrive in M5. */
@@ -30,7 +30,8 @@ export const ROLES: Record<RoleName, RoleDef> = {
   researcher: { role: 'researcher', model: 'sonnet', effort: 'high', maxTurns: 40, tools: ['WebSearch', 'WebFetch', ...READ, 'Write'], bash: false, subagents: false, mcp: ['report_progress', 'get_context'], writeDirs: ['research'], specWrite: [], outputSchema: 'ProductResearch' },
   storyboarder: { role: 'storyboarder', model: 'opus', effort: 'high', maxTurns: 20, tools: [...READ], bash: false, subagents: false, mcp: ['read_spec', 'report_progress', 'get_context'], writeDirs: [], specWrite: [], outputSchema: 'Storyboard' },
   builder: { role: 'builder', model: 'opus', effort: 'high', maxTurns: 60, tools: [...READ, 'Write', 'Edit'], bash: true, subagents: true, mcp: ['build_scene', 'render_preview_stills', 'read_spec', 'write_spec', 'report_progress', 'register_artifact', 'get_context'], writeDirs: ['scene'], specWrite: ['scene'], outputSchema: 'SceneSpec' },
-  audio_director: { role: 'audio_director', model: 'sonnet', effort: 'medium', maxTurns: 25, tools: [...READ], bash: false, subagents: false, mcp: ['tts_synthesize', 'align_captions', 'search_assets', 'read_spec', 'write_spec', 'get_context'], writeDirs: [], specWrite: ['audio'], outputSchema: 'AudioPlan' },
+  // Agent music design A1/A6: the composer (score) and, in an audio edit, the mix levels (AudioPlan).
+  audio_director: { role: 'audio_director', model: 'sonnet', effort: 'medium', maxTurns: 25, tools: [...READ], bash: false, subagents: false, mcp: ['read_spec', 'write_spec', 'report_progress', 'get_context'], writeDirs: [], specWrite: ['music', 'audio'], outputSchema: 'MusicScore' },
   reviewer_visual: { role: 'reviewer_visual', model: 'opus', effort: 'high', maxTurns: 25, tools: [...READ], bash: false, subagents: false, mcp: ['extract_frames', 'run_qc', 'get_context'], writeDirs: [], specWrite: [], outputSchema: 'Review' },
   // M7 Y19: WebFetch only to the review's check targets (GuardContext.webAllow, set by the session manager); WebSearch stays open.
   reviewer_facts: { role: 'reviewer_facts', model: 'sonnet', effort: 'high', maxTurns: 40, tools: [...READ, 'WebFetch', 'WebSearch'], bash: false, subagents: false, mcp: ['read_spec', 'extract_frames', 'get_context'], writeDirs: [], specWrite: [], outputSchema: 'Review' },

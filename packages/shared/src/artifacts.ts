@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { FinalReviewSchema, type FinalReview } from './final-review.ts';
 import { RERENDER_SCOPES } from './fix-loop.ts';
 import { ReviewSchema, type Review } from './review.ts';
+import { MusicScoreSchema, type MusicScore } from './music.ts';
 import { DURATION_HARD } from './production.ts';
 import { SceneSpecSchema, type SceneSpec } from './scene.ts';
 import { AudioPlanSchema, type AudioPlan } from './voice.ts';
@@ -173,9 +174,9 @@ export const FixReportSchema = FixReportBase.superRefine((r, ctx) => {
   if (dup) ctx.addIssue({ code: 'custom', path: ['addressed'], message: `tekrarlanan kontrol kimliği: ${dup}` });
 });
 
-export const ARTIFACT_SCHEMAS = { ProductResearch: ProductResearchSchema, Storyboard: StoryboardSchema, SceneSpec: SceneSpecSchema, Review: ReviewSchema, FinalReview: FinalReviewSchema, FixReport: FixReportSchema, AudioPlan: AudioPlanSchema } as const;
+export const ARTIFACT_SCHEMAS = { ProductResearch: ProductResearchSchema, Storyboard: StoryboardSchema, SceneSpec: SceneSpecSchema, Review: ReviewSchema, FinalReview: FinalReviewSchema, FixReport: FixReportSchema, AudioPlan: AudioPlanSchema, MusicScore: MusicScoreSchema } as const;
 export type ArtifactSchemaName = keyof typeof ARTIFACT_SCHEMAS;
-export interface ArtifactValues { ProductResearch: ProductResearch; Storyboard: Storyboard; SceneSpec: SceneSpec; Review: Review; FinalReview: FinalReview; FixReport: FixReport; AudioPlan: AudioPlan }
+export interface ArtifactValues { ProductResearch: ProductResearch; Storyboard: Storyboard; SceneSpec: SceneSpec; Review: Review; FinalReview: FinalReview; FixReport: FixReport; AudioPlan: AudioPlan; MusicScore: MusicScore }
 export type ArtifactValue<N extends ArtifactSchemaName> = ArtifactValues[N];
 
 /** JSON Schema for the SDK's outputFormat. Refinements are not expressible there; validateArtifact re-checks them. */
