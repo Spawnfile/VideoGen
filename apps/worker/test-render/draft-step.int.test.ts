@@ -16,6 +16,7 @@ import { ARTIFACT_VALIDATOR } from '../src/pipeline/validator.ts';
 import { BlenderRenderDriver, FakeRenderDriver, type RenderDriver } from '../src/render/driver.ts';
 import { draftProbeErrors, probeVideo } from '../src/render/ffmpeg.ts';
 import { ResourceLocks } from '../src/render/locks.ts';
+import { FakeMusicDriver } from '../src/audio/music.ts';
 
 /**
  * Production path of the draft (no Blender, no Claude): the committed Blender build of the pen (fake build driver) goes through the
@@ -43,7 +44,7 @@ describe('draft_render + draft_review steps on the real Remotion driver', () => 
       tools: toolHosts(sceneToolHost(scene), reviewToolHost({ ffmpeg: FFMPEG, targets: reviews })),
     });
     cleanups.push(() => manager.stop());
-    const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene, reviews };
+    const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene, reviews, music: new FakeMusicDriver({ ffmpeg: process.env.VG_FFMPEG ?? 'ffmpeg' }) };
 
     const name = 'Tükenmez kalem';
     const r = await createProduceRun(t.pool, { productName: name, audioMode: 'silent', plan: producePlan('silent') });

@@ -19,6 +19,7 @@ import { fakePipelineScript } from './pipeline/fake-scripts.ts';
 import { Orchestrator } from './pipeline/orchestrator.ts';
 import { SystemProbe } from './pipeline/resources.ts';
 import { FakeAudioDriver, PythonAudioDriver, type AudioDriver } from './audio/driver.ts';
+import { FakeMusicDriver, FluidMusicDriver, type MusicDriver } from './audio/music.ts';
 import { runPreflight } from './pipeline/preflight.ts';
 import { BlenderRenderDriver, FakeRenderDriver, type Capability, type RenderDriver } from './render/driver.ts';
 import { ResourceLocks } from './render/locks.ts';
@@ -55,6 +56,10 @@ const render: RenderDriver = config.render.driver === 'fake'
 const audio: AudioDriver = config.render.driver === 'fake'
   ? new FakeAudioDriver({ ffmpeg: config.render.ffmpeg })
   : new PythonAudioDriver({ ...config.audio, dataDir: config.dataDir, audit: renderAudit });
+// Agent music design A2/A9: the score renderer (FluidSynth on the machine; an ffmpeg pad with the fake render driver).
+const music: MusicDriver = config.render.driver === 'fake'
+  ? new FakeMusicDriver({ ffmpeg: config.render.ffmpeg })
+  : new FluidMusicDriver({ python: config.audio.python, soundfont: config.audio.soundfont, dataDir: config.dataDir, audit: renderAudit });
 const locks = new ResourceLocks();
 const probe = new SystemProbe(config.dataDir);
 let renderCapability: Capability = { ok: false, reason: 'denetlenmedi' };
@@ -73,7 +78,7 @@ const manager = new SessionManager({
 const orchestrator = new Orchestrator({
   pool, dataDir: config.dataDir, probe, locks, gate: guard, preflight: runPreflight({ pool, audio, dataDir: config.dataDir }),
   executors: pipelineExecutors({
-    pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined, reviews, gate: guard, audio,
+    pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined, reviews, gate: guard, audio, music,
     scene: { pool, render, locks, probe, ffmpeg: config.render.ffmpeg, encodePreset: config.render.encodePreset, capability: () => renderCapability },
   }),
 });

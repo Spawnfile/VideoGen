@@ -2,22 +2,23 @@ import type { AudioMode } from './artifacts.ts';
 import type { DurationSource, DurationWindow } from './production.ts';
 
 /** Spec §7.1, in order. */
-export const STEP_KEYS = ['research', 'storyboard', 'voice', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc', 'review', 'finalize'] as const;
+/** `music` (agent music design A3) follows the voice; `remix` only runs in an audio edit (A6), never in the produce plan. */
+export const STEP_KEYS = ['research', 'storyboard', 'voice', 'music', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc', 'review', 'finalize', 'remix'] as const;
 export type StepKey = (typeof STEP_KEYS)[number];
 
 export const STEP_WEIGHTS: Record<StepKey, number> = {
-  research: 8, storyboard: 7, voice: 5, build: 18, draft_render: 4, draft_review: 5, final_render: 26, compose: 10, qc: 2, review: 12, finalize: 3,
+  research: 8, storyboard: 7, voice: 5, music: 3, build: 18, draft_render: 4, draft_review: 5, final_render: 23, compose: 10, qc: 2, review: 12, finalize: 3, remix: 10,
 };
 export const STEP_LABELS: Record<StepKey, string> = {
-  research: 'Araştırma', storyboard: 'Storyboard', voice: 'Seslendirme', build: 'Sahne kurulumu', draft_render: 'Taslak render',
-  draft_review: 'Taslak incelemesi', final_render: 'Final render', compose: 'Birleştirme', qc: 'Otomatik kontrol', review: 'İnceleme', finalize: 'Sonlandırma',
+  research: 'Araştırma', storyboard: 'Storyboard', voice: 'Seslendirme', music: 'Müzik', build: 'Sahne kurulumu', draft_render: 'Taslak render',
+  draft_review: 'Taslak incelemesi', final_render: 'Final render', compose: 'Birleştirme', qc: 'Otomatik kontrol', review: 'İnceleme', finalize: 'Sonlandırma', remix: 'Ses karışımı',
 };
 /** Spec §7.1 duration midpoints (s), used until a step has history. */
 export const STEP_DEFAULT_S: Record<StepKey, number> = {
-  research: 300, storyboard: 180, voice: 270, build: 1500, draft_render: 60, draft_review: 180, final_render: 1380, compose: 300, qc: 5, review: 300, finalize: 30,
+  research: 300, storyboard: 180, voice: 270, music: 90, build: 1500, draft_render: 60, draft_review: 180, final_render: 1380, compose: 300, qc: 5, review: 300, finalize: 30, remix: 60,
 };
 /** Steps with an executor in this build. M4a: research → storyboard; M4b: + build; M4c: + draft_render, draft_review; M5a: + final_render, compose, qc; M5b: + review, finalize. */
-export const IMPLEMENTED_STEPS: readonly StepKey[] = ['research', 'storyboard', 'voice', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc', 'review', 'finalize'];
+export const IMPLEMENTED_STEPS: readonly StepKey[] = ['research', 'storyboard', 'voice', 'music', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc', 'review', 'finalize'];
 
 /** "0:45", "1:02": a video length for cards and notes. */
 export function formatClock(seconds: number): string {
@@ -135,7 +136,14 @@ export function normalizeProductName(name: string): string {
 
 /** Spec §7.1: the produce plan. Skipped steps (voice in silent mode) leave the plan; weights rescale to 100 (2 decimals). */
 export function producePlan(audioMode: AudioMode, implemented: readonly StepKey[] = IMPLEMENTED_STEPS): PlanStep[] {
-  const keys = STEP_KEYS.filter((k) => implemented.includes(k) && !(k === 'voice' && audioMode === 'silent'));
+  const keys = STEP_KEYS.filter((k) => implemented.includes(k) && k !== 'remix' && !(k === 'voice' && audioMode === 'silent'));
+  return weighted(keys);
+}
+
+const weighted = (keys: StepKey[]): PlanStep[] => {
   const total = keys.reduce((s, k) => s + STEP_WEIGHTS[k], 0);
   return keys.map((k) => ({ key: k, weight: Math.round((STEP_WEIGHTS[k] / total) * 10_000) / 100 }));
-}
+};
+
+/** Agent music design A6: an audio edit re-composes the music and remixes it onto the existing picture. */
+export const audioEditPlan = (): PlanStep[] => weighted(['music', 'remix']);

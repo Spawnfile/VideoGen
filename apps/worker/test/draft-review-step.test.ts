@@ -17,6 +17,7 @@ import type { StepContext } from '../src/pipeline/types.ts';
 import { ARTIFACT_VALIDATOR } from '../src/pipeline/validator.ts';
 import { FakeRenderDriver } from '../src/render/driver.ts';
 import { ResourceLocks } from '../src/render/locks.ts';
+import { FakeMusicDriver } from '../src/audio/music.ts';
 
 /** The M4 plan (research … draft_review): these end-to-end tests are about the draft loop and keep the M4 notes. */
 const M4_STEPS: StepKey[] = ['research', 'storyboard', 'build', 'draft_render', 'draft_review'];
@@ -44,7 +45,7 @@ function setup(script: Script = fakePipelineScript) {
     tools: toolHosts(sceneToolHost(scene), reviewToolHost({ ffmpeg: FFMPEG, targets: reviews })),
   });
   cleanups.push(() => manager.stop());
-  const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: script, scene, reviews };
+  const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: script, scene, reviews, music: new FakeMusicDriver({ ffmpeg: process.env.VG_FFMPEG ?? 'ffmpeg' }) };
   return { dataDir, specs, deps };
 }
 

@@ -17,6 +17,7 @@ import { ARTIFACT_VALIDATOR } from '../src/pipeline/validator.ts';
 import { FakeRenderDriver, RenderError, retryFinal, type FinalOutput } from '../src/render/driver.ts';
 import { framePath, missingFrames, removeRunFrames } from '../src/render/frames.ts';
 import { ResourceLocks } from '../src/render/locks.ts';
+import { FakeMusicDriver } from '../src/audio/music.ts';
 
 const FFMPEG = process.env.VG_FFMPEG ?? 'ffmpeg';
 let t: Awaited<ReturnType<typeof createTestDb>>;
@@ -36,7 +37,7 @@ function setup() {
     validator: ARTIFACT_VALIDATOR, memAvailableMb: () => 8000, runner: { flushMs: 5, resultWaitMs: 50, cancelGraceMs: 50, killGraceMs: 50 }, tools: sceneToolHost(scene),
   });
   cleanups.push(() => manager.stop());
-  const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene };
+  const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene, music: new FakeMusicDriver({ ffmpeg: process.env.VG_FFMPEG ?? 'ffmpeg' }) };
   return { dataDir, deps, render };
 }
 async function built(deps: StepDeps, name = 'Tükenmez kalem') {

@@ -9,13 +9,14 @@ export const fenced = (label: string, value: unknown) => [
   'VERI>>>',
 ].join('\n');
 
-export type BriefRole = 'researcher' | 'storyboarder' | 'builder' | 'reviewer' | 'fixer';
+export type BriefRole = 'researcher' | 'storyboarder' | 'builder' | 'reviewer' | 'fixer' | 'composer';
 const ROLE_LINE: Record<BriefRole, string> = {
   researcher: 'Araştırmayı bu yönergeye göre odakla (hangi parçalar, hangi mekanizma, hangi iddialar); recommendation alanında yönergeyle çelişme.',
   storyboarder: 'Storyboard\'u bu yönergeye göre kur; çeliştiği her varsayılanı ve ajan önerisini yönerge ezer.',
   builder: 'Sahneyi (kamera, ışık vurgusu, tempo, parça sunumu) bu yönergeye göre kur; storyboard ile çelişirse storyboard\'a uy (o zaten yönergeye göre yazıldı).',
   reviewer: 'Yönergeden gelen tercihleri (süre, tempo, ton, vurgu, kamera) kusur sayma; yönergeye açıkça aykırı bir şey görürsen ilgili kontrolün bulgusu olarak yaz.',
   fixer: 'Düzeltirken yönergeye uyan kararları bozma.',
+  composer: 'Müziği (tempo, ton, enerji, enstrümanlar, ruh hâli) bu yönergeye göre kur.',
 };
 
 /**

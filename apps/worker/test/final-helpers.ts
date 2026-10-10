@@ -18,6 +18,7 @@ import type { StepContext } from '../src/pipeline/types.ts';
 import { ARTIFACT_VALIDATOR } from '../src/pipeline/validator.ts';
 import { FakeRenderDriver } from '../src/render/driver.ts';
 import { ResourceLocks } from '../src/render/locks.ts';
+import { FakeMusicDriver } from '../src/audio/music.ts';
 
 const FFMPEG = process.env.VG_FFMPEG ?? 'ffmpeg';
 const fx = (n: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${n}.json`), 'utf8'));
@@ -32,7 +33,7 @@ export function finalHarness(t: { pool: pg.Pool }) {
     validator: ARTIFACT_VALIDATOR, memAvailableMb: () => 8000, runner: { flushMs: 5, resultWaitMs: 50, cancelGraceMs: 50, killGraceMs: 50 },
     tools: toolHosts(sceneToolHost(scene), reviewToolHost({ ffmpeg: FFMPEG, targets: reviews })),
   });
-  const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene, reviews };
+  const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene, reviews, music: new FakeMusicDriver({ ffmpeg: process.env.VG_FFMPEG ?? 'ffmpeg' }) };
   /** `vo`: a seslendirmeli run (VO storyboard fixture; the voice track is the caller's to insert). */
   async function run(name: string, through: StepKey[], o: { vo?: boolean } = {}) {
     const mode = o.vo ? 'vo' : 'silent';
@@ -84,7 +85,7 @@ export function panelHarness(t: { pool: pg.Pool }) {
     validator: ARTIFACT_VALIDATOR, memAvailableMb: () => 8000, runner: { flushMs: 5, resultWaitMs: 50, cancelGraceMs: 50, killGraceMs: 50 },
     tools: toolHosts(sceneToolHost(scene), reviewToolHost({ ffmpeg: FFMPEG, targets: reviews })),
   });
-  const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene, reviews };
+  const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene, reviews, music: new FakeMusicDriver({ ffmpeg: process.env.VG_FFMPEG ?? 'ffmpeg' }) };
   /** `qc`: the check ids that fail in the qc report (a gate id makes the AUTO gate fail). */
   async function prepare(name: string, o: { qc?: string[]; musicShaInQc?: string; vo?: boolean } = {}) {
     const mode = o.vo ? 'vo' : 'silent';

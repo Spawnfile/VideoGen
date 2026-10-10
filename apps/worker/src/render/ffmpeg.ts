@@ -161,3 +161,10 @@ export function encodeDelivery(ffmpeg: string, master: string, out: string, o: {
 export function muxVariant(ffmpeg: string, video: string, audio: string, out: string, signal?: AbortSignal): Promise<void> {
   return run(ffmpeg, ['-i', video, '-i', audio, '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2', '-shortest', '-movflags', '+faststart', out], signal, 300_000);
 }
+
+/** Fake music driver (agent music design A9): a quiet A-minor pad, 48 kHz stereo WAV, `seconds` long, faded at both ends. */
+export function fakeMusicBed(ffmpeg: string, out: string, seconds: number, signal?: AbortSignal): Promise<void> {
+  const d = seconds.toFixed(3);
+  return run(ffmpeg, ['-y', '-f', 'lavfi', '-i', `aevalsrc=0.08*sin(2*PI*220*t)+0.06*sin(2*PI*261.63*t)+0.06*sin(2*PI*329.63*t):s=48000:c=stereo:d=${d}`,
+    '-af', `afade=t=in:d=0.02,afade=t=out:st=${Math.max(0, seconds - 1.5).toFixed(3)}:d=1.5`, '-c:a', 'pcm_s16le', out], signal);
+}

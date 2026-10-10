@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { CHANNEL_STYLES, DEFAULT_CHANNEL_STYLE, normalizeProductName, type FinalReview, type FixReport, type ProductResearch, type Storyboard } from '@videogen/shared';
+import { CHANNEL_STYLES, DEFAULT_CHANNEL_STYLE, normalizeProductName, type FinalReview, type MusicScore, type FixReport, type ProductResearch, type Storyboard } from '@videogen/shared';
 import type { FakeScript } from '@videogen/claude';
 import { webCheckTargets } from './review-inputs.ts';
 import type { FakeExtra, PipelineRole } from './steps.ts';
@@ -44,6 +44,7 @@ export function fakePipelineScript(role: PipelineRole, ctx: StepContext, attempt
     };
   }
   if (role === 'fixer') return fakeFixer(ctx, name, extra);
+  if (role === 'audio_director') return { fixture: 'basic', structured: fakeScore(extra?.durationS ?? 45) };
   if (ctx.key === 'review' && (role === 'reviewer_visual' || role === 'reviewer_facts' || role === 'reviewer_retention')) return { fixture: 'basic', structured: fakeFinalReview(role, ctx, name, extra) };
   if (role === 'reviewer_visual') {
     const fail = /umutsuz|[iı]nat[çc][ıi]/.test(name) || (/kusurlu/.test(name) && ctx.round === 0);
@@ -133,4 +134,19 @@ function fakeFixer(ctx: StepContext, name: string, extra?: FakeExtra): FakeScrip
     spec_diffs: touched.map((f) => `${f} yazıldı`),
   };
   return { fixture: 'coding', files, structured: report };
+}
+
+/** Agent music design A9: a valid three-part score for any storyboard length (the fake composer). */
+export function fakeScore(durationS: number): MusicScore {
+  const a = Math.round(durationS * 0.3 * 100) / 100;
+  const b = Math.round(durationS * 0.7 * 100) / 100;
+  return {
+    version: 1, bpm: 100, key: { root: 'A', mode: 'minor' }, duration_s: durationS, intent_tr: 'Sahte besteci: sakin giriş, ödülde doruk.',
+    sections: [
+      { id: 'kanca', t_start: 0, t_end: a, chords: ['Am', 'F'], energy: 0.4, layers: [{ instrument: 'pad', pattern: 'swell', level: 0.5 }] },
+      { id: 'mekanizma', t_start: a, t_end: b, chords: ['Am', 'F', 'C', 'G'], energy: 0.55, layers: [{ instrument: 'pad', pattern: 'sustain', level: 0.45 }, { instrument: 'bass', pattern: 'pulse', level: 0.5 }] },
+      { id: 'odul', t_start: b, t_end: durationS, chords: ['F', 'G', 'Am'], energy: 0.8, layers: [{ instrument: 'pad', pattern: 'sustain', level: 0.5 }, { instrument: 'drums', pattern: 'pulse', level: 0.45 }] },
+    ],
+    accents: [{ t: 0, kind: 'hit' }, { t: b, kind: 'drop' }],
+  };
 }

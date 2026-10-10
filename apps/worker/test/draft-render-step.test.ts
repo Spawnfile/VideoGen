@@ -15,6 +15,7 @@ import type { StepContext } from '../src/pipeline/types.ts';
 import { ARTIFACT_VALIDATOR } from '../src/pipeline/validator.ts';
 import { FakeRenderDriver, type DraftInput, type RenderDriver } from '../src/render/driver.ts';
 import { ResourceLocks } from '../src/render/locks.ts';
+import { FakeMusicDriver } from '../src/audio/music.ts';
 
 let t: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => { t = await createTestDb(); });
@@ -36,7 +37,7 @@ function setup(render: RenderDriver = new FakeRenderDriver({ ffmpeg: FFMPEG, del
     memAvailableMb: () => 8000, runner: { flushMs: 5, resultWaitMs: 50, cancelGraceMs: 50, killGraceMs: 50 }, tools: sceneToolHost(scene),
   });
   cleanups.push(() => manager.stop());
-  const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene };
+  const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene, music: new FakeMusicDriver({ ffmpeg: process.env.VG_FFMPEG ?? 'ffmpeg' }) };
   return { dataDir, specs, deps };
 }
 

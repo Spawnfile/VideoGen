@@ -44,7 +44,7 @@ describe('qc step and the M5a plan', () => {
   const starts = async (runId: string, key: string) => (await t.pool.query("SELECT count(*)::int AS n FROM audit_log WHERE action = 'step.started' AND run_id = $1 AND data->>'key' = $2", [runId, key])).rows[0].n as number;
 
   it('end to end (orchestrator, fake drivers): produce → … → review → finalize; the video is ready with its score; progress reaches 100 only at the end; frames deleted once', async () => {
-    expect(producePlan('silent').map((s) => s.key)).toEqual(['research', 'storyboard', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc', 'review', 'finalize']);
+    expect(producePlan('silent').map((s) => s.key)).toEqual(['research', 'storyboard', 'music', 'build', 'draft_render', 'draft_review', 'final_render', 'compose', 'qc', 'review', 'finalize']);
     const { run } = await endToEnd('Tükenmez kalem uçtan uca');
     const video = (await getVideoView(t.pool, run.videoId))!;
     expect(video).toMatchObject({ status: 'ready', statusNote: null });

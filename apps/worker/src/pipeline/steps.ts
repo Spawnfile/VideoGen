@@ -17,6 +17,8 @@ import { briefBlock, fenced } from './fence.ts';
 import { ARTIFACT_VALIDATOR } from './validator.ts';
 import { RESUME_PROMPT, type SessionManager, type UsageGate } from '../agents/manager.ts';
 import type { AudioDriver } from '../audio/driver.ts';
+import type { MusicDriver } from '../audio/music.ts';
+import { musicExecutor } from './music-step.ts';
 import { fileSha256, putBlob } from '../media.ts';
 import { RenderError, type BuildFiles } from '../render/driver.ts';
 import { contactSheet, draftProbeErrors, extractFrame, probeVideo } from '../render/ffmpeg.ts';
@@ -34,9 +36,9 @@ import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
 export { ARTIFACT_VALIDATOR } from './validator.ts';
 /** Bump when a contract changes: old outputs stop matching and are not reused. */
 const SCHEMA_VERSION = { research: 'ProductResearch@2', storyboard: 'Storyboard@1', scene: 'SceneSpec@1' } as const;
-export type PipelineRole = 'researcher' | 'storyboarder' | 'builder' | 'reviewer_visual' | 'reviewer_facts' | 'reviewer_retention' | 'fixer';
+export type PipelineRole = 'researcher' | 'storyboarder' | 'builder' | 'audio_director' | 'reviewer_visual' | 'reviewer_facts' | 'reviewer_retention' | 'fixer';
 /** Fake driver only: `styleId` for a fake build, `seq` (the second visual review is 2) and `failed` (the check ids a fixer is sent) for the final review loop. */
-export interface FakeExtra { styleId?: ChannelStyleId; seq?: number; failed?: string[] }
+export interface FakeExtra { styleId?: ChannelStyleId; seq?: number; failed?: string[]; durationS?: number }
 
 export interface StepDeps {
   pool: pg.Pool;
@@ -54,6 +56,8 @@ export interface StepDeps {
   fixer?: FixerRun | null;
   /** M5c: the TTS + alignment driver of the voice step (absent: the step fails with a reason). */
   audio?: AudioDriver;
+  /** Agent music design A2: the score renderer of the music step (absent: the step stops for a human). */
+  music?: MusicDriver;
 }
 
 export const sha = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
@@ -63,7 +67,7 @@ export { fenced };
 export interface BriefInputs { brief?: string | null; duration?: DurationWindow; durationSource?: DurationSource }
 const briefOf = (ctx: StepContext): BriefInputs => ({ brief: ctx.brief, duration: ctx.duration, durationSource: ctx.durationSource });
 /** Y10: hash keys only when they differ from "no brief, default window", so a plain video keeps its pre-brief hashes. */
-const briefKeys = (ctx: StepContext, o: { duration: 'user' | 'any' }) => ({
+export const briefKeys = (ctx: StepContext, o: { duration: 'user' | 'any' }) => ({
   ...(ctx.brief?.trim() ? { brief: ctx.brief.trim() } : {}),
   ...((o.duration === 'user' ? ctx.durationSource === 'user' : ctx.durationSource !== 'default') ? { duration: ctx.duration } : {}),
 });
@@ -552,7 +556,7 @@ export function draftReviewExecutor(deps: StepDeps): StepExecutor {
 
 export function pipelineExecutors(deps: StepDeps): Partial<Record<StepKey, StepExecutor>> {
   return {
-    research: researchExecutor(deps), storyboard: storyboardExecutor(deps), voice: voiceExecutor(deps), build: buildExecutor(deps),
+    research: researchExecutor(deps), storyboard: storyboardExecutor(deps), voice: voiceExecutor(deps), music: musicExecutor(deps), build: buildExecutor(deps),
     draft_render: draftRenderExecutor(deps), draft_review: draftReviewExecutor(deps),
     final_render: finalRenderExecutor(deps), compose: composeExecutor(deps), qc: qcExecutor(deps),
     // T8: `fixer: null` means no fixer; unset means the real one.

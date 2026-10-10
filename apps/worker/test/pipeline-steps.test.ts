@@ -13,6 +13,7 @@ import { Orchestrator } from '../src/pipeline/orchestrator.ts';
 import { pipelineExecutors, researchExecutor, researchPrompt, storyboardExecutor, storyboardPrompt, type PipelineRole, type StepDeps } from '../src/pipeline/steps.ts';
 import { briefBlock } from '../src/pipeline/fence.ts';
 import type { StepContext } from '../src/pipeline/types.ts';
+import { FakeMusicDriver } from '../src/audio/music.ts';
 
 let t: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => { t = await createTestDb(); });
@@ -33,7 +34,7 @@ function setup(o: { script?: (role: PipelineRole, ctx: StepContext, attempt: num
     memAvailableMb: () => 8000, runner: { flushMs: 5, resultWaitMs: 50, cancelGraceMs: 50, killGraceMs: 50 },
   });
   cleanups.push(() => manager.stop());
-  const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: o.script ?? fakePipelineScript };
+  const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: o.script ?? fakePipelineScript, music: new FakeMusicDriver({ ffmpeg: process.env.VG_FFMPEG ?? 'ffmpeg' }) };
   return { dataDir, specs, manager, deps };
 }
 

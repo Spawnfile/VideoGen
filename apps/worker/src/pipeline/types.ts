@@ -21,6 +21,8 @@ export interface StepContext {
   /** Brief design Y1/Y9: the video's effective duration window and who set it (re-read at every step launch). */
   duration: DurationWindow;
   durationSource: DurationSource;
+  /** Agent music design A6: an audio edit run's instruction (a user decision) and the run whose artifacts it edits. */
+  edit?: { instruction: string; parentRunId: string };
   /** ~/videogen-data/runs/<runId> */
   runDir: string;
   /** Aborted when the run is cancelled. */

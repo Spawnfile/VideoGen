@@ -14,6 +14,7 @@ import { buildStem, voiceExecutor } from '../src/pipeline/voice-step.ts';
 import type { StepDeps } from '../src/pipeline/steps.ts';
 import type { StepContext, StepOutcome } from '../src/pipeline/types.ts';
 import { ARTIFACT_VALIDATOR } from '../src/pipeline/validator.ts';
+import { FakeMusicDriver } from '../src/audio/music.ts';
 
 export const fx = (n: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${n}.json`), 'utf8'));
 
@@ -50,7 +51,7 @@ export function voiceHarness(t: { pool: pg.Pool }) {
     pool: t.pool, dataDir, driver, pluginDir: resolve(import.meta.dirname, '../../../claude-plugin'), sampleEveryMs: 50, pumpRetryMs: 30,
     validator: ARTIFACT_VALIDATOR, memAvailableMb: () => 8000, runner: { flushMs: 5, resultWaitMs: 50, cancelGraceMs: 50, killGraceMs: 50 },
   });
-  const deps: StepDeps = { pool: t.pool, dataDir, manager, audio };
+  const deps: StepDeps = { pool: t.pool, dataDir, manager, audio, music: new FakeMusicDriver({ ffmpeg: process.env.VG_FFMPEG ?? 'ffmpeg' }) };
   // The ffmpeg mix takes ~0.7 s per stem (M5c time budget, H18): only the first-pass test runs it (`o.realStem`), the others store a stub.
   const o2 = { realStem: false, crashAfterStoryboard: false };
   const executor = voiceExecutor(deps, {
