@@ -73,7 +73,7 @@ describe('vg_commands connection loss', () => {
   it('reports an unexpected disconnect so the worker can crash for the supervisor', async () => {
     let lost = 0;
     const stop = await listenCommands(t.appUrl, {}, { onConnectionLost: () => { lost++; } });
-    await t.pool.query("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query LIKE 'LISTEN vg_commands%' AND pid <> pg_backend_pid()");
+    await t.pool.query("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query LIKE 'LISTEN vg_commands%' AND datname = current_database() AND pid <> pg_backend_pid()");
     await vi.waitFor(() => expect(lost).toBeGreaterThan(0));
     await stop().catch(() => {});
   });
