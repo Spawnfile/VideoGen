@@ -1,59 +1,35 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { formatClock } from '@videogen/shared/browser';
-import { score as formatScore, VIDEO_STATUS_EN } from '../lib/i18n.ts';
-import { api, blobUrl } from '../lib/api.ts';
-import { formatDay, formatUsage, videoTone } from '../lib/production-view.ts';
-import { pipeline, seedVideos, useStore, videoList } from '../lib/stores.ts';
+import { PosterCard } from '../components/library/PosterCard.tsx';
+import { api } from '../lib/api.ts';
+import { libraryTotals } from '../lib/poster.ts';
+import { latestRunOf, pipeline, seedVideos, useStore, videoList } from '../lib/stores.ts';
 
-const DOT: Record<ReturnType<typeof videoTone>, string> = {
-  active: 'bg-accent-glow', ok: 'bg-green/70', error: 'bg-red/80', waiting: 'border border-ink-2 bg-transparent', muted: 'bg-line-strong',
-};
-
+/** Spec E13: the library as a contact sheet of 9:16 posters (2 columns on a phone up to 5 on a desktop). */
 export function Library({ go }: { go: (url: string) => void }) {
   const q = useQuery({ queryKey: ['videos'], queryFn: async () => { const r = await api.videos(); seedVideos(r.data, r.eventId); return r.data.length; } });
   const state = useStore(pipeline);
   const videos = useMemo(() => videoList(state), [state]);
+  const totals = libraryTotals(videos);
   return (
-    <div className="mx-auto flex max-w-[900px] flex-col gap-4 px-4 pt-2 pb-6 md:p-8">
+    <div className="mx-auto flex max-w-[1100px] flex-col gap-5 px-4 pt-2 pb-8 md:p-8">
       <div className="flex items-baseline gap-3">
-        <h1 className="hidden text-[16px] font-medium md:block">Library</h1>
-        <span className="text-[12px] text-ink-3">{videos.length ? `${videos.length} video${videos.length === 1 ? '' : 's'}` : ''}</span>
+        <h1 className="hidden text-[28px] leading-none font-bold tracking-[-0.035em] md:block">Library</h1>
+        {totals.count > 0 && (
+          <span className="label-mono text-ink-3">
+            {totals.count} video{totals.count === 1 ? '' : 's'}{totals.totalS > 0 ? ` · ${formatClock(totals.totalS)} total` : ''}
+          </span>
+        )}
       </div>
       {q.isSuccess && videos.length === 0 && (
         <p className="text-[13px] text-ink-2">No videos yet. Type a product name in the Studio to start one.</p>
       )}
-      <ul className="flex flex-col divide-y divide-line rounded-card bg-paper">
-        {videos.map((v) => {
-          // Plan E18: the final's cover and length first, the draft's until a final exists.
-          const cover = v.final?.coverSha ?? v.draft?.coverSha;
-          const len = v.final?.durationS ?? v.draft?.durationS;
-          return (
-          <li key={v.id}>
-            <button
-              type="button"
-              data-testid="library-item"
-              data-status={v.status}
-              onClick={() => go(`/library/${v.id}`)}
-              className="flex w-full items-center gap-3 px-3 py-3 text-left md:gap-4 md:px-4 transition-colors duration-100 first:rounded-t-card last:rounded-b-card hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-glow"
-            >
-              <span aria-hidden className={`size-2 shrink-0 rounded-full ${DOT[videoTone(v.status)]}`} />
-              <span aria-hidden className="h-[72px] w-[41px] shrink-0 overflow-hidden rounded-[6px] bg-inset md:h-12 md:w-[27px] md:rounded-[4px]">
-                {cover && <img data-testid="library-cover" src={blobUrl(cover)} alt="" loading="lazy" className="size-full object-cover" />}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[14px] font-medium">{v.productName}</span>
-                <span className="block truncate text-[12px] text-ink-2">{VIDEO_STATUS_EN[v.status]}{v.score !== null ? <span data-testid="library-score" className="tabular-nums"> · {formatScore(v.score)} points</span> : null}{v.statusNote ? ` · ${v.statusNote}` : ''}</span>
-              </span>
-              <span className="shrink-0 text-right text-[12px] tabular-nums text-ink-3">
-                <span className="block">{formatDay(v.createdAt)}{len !== undefined ? <span data-testid="library-duration"> · {formatClock(len)}</span> : null}</span>
-                <span className="hidden md:block">{formatUsage(v.usage)}</span>
-              </span>
-            </button>
-          </li>
-          );
-        })}
-      </ul>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-5 min-[480px]:grid-cols-3 md:grid-cols-4 desk:grid-cols-5">
+        {videos.map((v) => (
+          <PosterCard key={v.id} video={v} run={latestRunOf(state, v.id)} onOpen={() => go(`/library/${v.id}`)} />
+        ))}
+      </div>
     </div>
   );
 }

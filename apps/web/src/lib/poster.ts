@@ -47,3 +47,8 @@ export function pickNeedsYou<V extends Pick<VideoView, 'id' | 'status' | 'create
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
     .slice(0, 2);
 }
+
+/** The library header's count and running time ("14 VIDEOS · 3:41 TOTAL"); a video without a length adds nothing. */
+export function libraryTotals(videos: Pick<VideoView, 'final' | 'draft'>[]): { count: number; totalS: number } {
+  return { count: videos.length, totalS: videos.reduce((t, v) => t + (lengthOf(v) ?? 0), 0) };
+}

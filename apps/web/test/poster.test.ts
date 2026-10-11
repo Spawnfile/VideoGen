@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VideoStatus } from '@videogen/shared/browser';
-import { coverOf, lengthOf, pickNeedsYou, posterTint, videoLabel } from '../src/lib/poster.ts';
+import { coverOf, lengthOf, libraryTotals, pickNeedsYou, posterTint, videoLabel } from '../src/lib/poster.ts';
 
 describe('posterTint', () => {
   it('is stable for the same name and ignores case and outer spaces', () => {
@@ -75,5 +75,13 @@ describe('pickNeedsYou', () => {
 
   it('is empty when nothing needs the user', () => {
     expect(pickNeedsYou([v('a', 'ready', '2026-10-11T01:00:00Z'), v('b', 'running', '2026-10-11T02:00:00Z')], null)).toEqual([]);
+  });
+});
+
+describe('libraryTotals', () => {
+  it('sums known lengths and counts every video', () => {
+    const final = { musicSha: 'm', tiktokSha: null, coverSha: null, durationS: 31 };
+    const draft = { videoSha: 'd', coverSha: null, durationS: 14 };
+    expect(libraryTotals([{ final, draft }, { final: null, draft }, { final: null, draft: null }])).toEqual({ count: 3, totalS: 45 });
   });
 });
