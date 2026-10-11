@@ -2,7 +2,7 @@ import type { AudioMode, ProductResearch, Storyboard, FixReport } from './artifa
 import { FINAL_CHECKS, FINAL_MAX_ROUNDS, type FinalCheckId } from './final-review.ts';
 import { QC_CHECKS, type QcCheckId } from './qc.ts';
 import type { SceneSpec } from './scene.ts';
-import type { AudioPlan } from './voice.ts';
+import type { AudioPlan } from './audio-plan.ts';
 import type { MusicScore } from './music.ts';
 
 /** Plan F3/F11/F14/F15: the pure logic of the final fix loop. Types only from artifacts.ts (no value cycle). */

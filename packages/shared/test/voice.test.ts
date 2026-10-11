@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { outputJsonSchema, StoryboardSchema, validateArtifact, type Storyboard } from '../src/artifacts.ts';
 import {
-  aigcRequired, AudioPlanSchema, captionPages, DEFAULT_NARRATOR, estimateVoS, g4Gate, keepOrRetime, NarratorVoiceSchema, placeLines, retimeStoryboard, storyboardVoErrors,
-  turkishSyllables, voFacts, VoiceTrackSchema, voTextErrors, type CaptionWord, type VoiceTrack,
+  aigcRequired, captionPages, DEFAULT_NARRATOR, estimateVoS, g4Gate, keepOrRetime, NarratorVoiceSchema, placeLines, retimeStoryboard, storyboardVoErrors, turkishSyllables, voFacts, VoiceTrackSchema, voTextErrors, type CaptionWord, type VoiceTrack,
 } from '../src/voice.ts';
+import { AudioPlanSchema } from '../src/audio-plan.ts';
 
 const fx = <T>(name: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${name}.json`), 'utf8')) as T;
 const track = () => fx<VoiceTrack>('voice-track-kalem');

@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { SFX_NAMES } from './assets.ts';
 import type { AudioMode, Beat, Storyboard } from './artifacts.ts';
 import { voBounds, type DurationWindow } from './production.ts';
 
@@ -32,26 +31,6 @@ export const DEFAULT_NARRATOR: Readonly<NarratorVoice> = Object.freeze({ engine:
 
 /** A cloned voice must be labelled as AI-generated (spec §8.1 G4). */
 export const aigcRequired = (v: NarratorVoice): boolean => v.voice.kind === 'clone';
-
-// ---------------------------------------------------------------- audio plan (H4)
-
-export const AudioPlanSchema = z.object({
-  version: z.number().int().min(1),
-  mode: z.enum(['vo', 'silent']),
-  /**
-   * Agent music design A4: `source` 'generated' plays the composer's music_stem (asset_id null); 'asset' (or absent, older plans) a ledger
-   * track by asset_id; null asset_id without a generated source is no music.
-   */
-  music: z.object({ source: z.enum(['generated', 'asset']).optional(), asset_id: z.uuid().nullable(), gain_db: z.number().min(-30).max(-10) }),
-  vo_gain_db: z.number().min(-6).max(6),
-  duck_db: z.number().min(6).max(18),
-  sfx: z.object({ gain_offset_db: z.number().min(-12).max(6), exclude: z.array(z.enum(SFX_NAMES)).max(SFX_NAMES.length) }),
-  mastering: z.object({ target_lufs: z.literal(-14), tp: z.literal(-1) }),
-}).superRefine((a, ctx) => {
-  const dup = a.sfx.exclude.find((n, i) => a.sfx.exclude.indexOf(n) !== i);
-  if (dup) ctx.addIssue({ code: 'custom', path: ['sfx', 'exclude'], message: `tekrarlanan ses adı: ${dup}` });
-});
-export type AudioPlan = z.infer<typeof AudioPlanSchema>;
 
 // ---------------------------------------------------------------- voice track (H4)
 
