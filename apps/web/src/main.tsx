@@ -16,7 +16,7 @@ import { useLayout } from './lib/viewport.ts';
 import { Library } from './routes/Library.tsx';
 import { LibraryDetail } from './routes/LibraryDetail.tsx';
 import { Settings } from './routes/Settings.tsx';
-import { Studio } from './routes/Studio.tsx';
+import { NEW_VIDEO_EVENT, Studio } from './routes/Studio.tsx';
 import './styles/theme.css';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, refetchOnWindowFocus: true } } });
@@ -62,7 +62,7 @@ function App() {
       if (a === 'new') {
         e.preventDefault();
         if (location.pathname !== '/') goRef.current('/');
-        requestAnimationFrame(() => document.getElementById('product-name')?.focus());
+        requestAnimationFrame(() => { dispatchEvent(new Event(NEW_VIDEO_EVENT)); requestAnimationFrame(() => document.getElementById('product-name')?.focus()); });
         return;
       }
       const p = activePlayer();

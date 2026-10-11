@@ -36,7 +36,7 @@ export function PublishPanel({ videoId }: { videoId: string }) {
     const r = await api.publish(videoId, { variant, caption: caption ?? view.caption, ...(confirmResend ? { confirmResend } : {}) });
     setBusy(false);
     if (!r.ok && r.body.confirmResend === true && !confirmResend) {
-      if (window.confirm('Bu sürüm zaten taslak olarak gönderildi. Yeniden taslak gönderilsin mi?')) await send(true);
+      if (window.confirm('This version was already sent as a draft. Send it again?')) await send(true);
       return;
     }
     if (!r.ok) setError(r.error);
@@ -64,28 +64,28 @@ export function PublishPanel({ videoId }: { videoId: string }) {
         type="button"
         data-testid="publish-open"
         onClick={() => setOpen(true)}
-        className="self-start rounded-control bg-accent px-4 py-1.5 text-[13px] text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow"
+        className="min-h-11 self-stretch rounded-input bg-accent px-4 py-1.5 text-[14px] font-medium text-white md:min-h-0 md:self-start md:rounded-control md:text-[13px] md:font-normal hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow"
       >
-        Yayınla
+        Publish
       </button>
     );
   }
   return (
-    <section role="region" aria-labelledby="publish-heading" data-testid="publish-panel" className="flex flex-col gap-3 rounded-card bg-paper p-4 shadow-subtle">
+    <section role="region" aria-labelledby="publish-heading" data-testid="publish-panel" className="flex flex-col gap-3 rounded-card bg-paper p-4">
       <div className="flex flex-wrap items-baseline gap-2">
-        <h2 id="publish-heading" className="text-[14px] font-medium">Yayın</h2>
+        <h2 id="publish-heading" className="text-[14px] font-medium">Publish</h2>
         {q.data && <span className="text-[12px] text-ink-2">{q.data.username ? `@${q.data.username} · ` : ''}{view?.draftsLabel}</span>}
-        <button type="button" onClick={() => setOpen(false)} className="ml-auto text-[12px] text-ink-2 hover:text-ink">Kapat</button>
+        <button type="button" onClick={() => setOpen(false)} className="ml-auto min-h-8 px-1 text-[12px] text-ink-2 hover:text-ink">Close</button>
       </div>
-      {q.isPending && <p className="text-[12.5px] text-ink-2">Yayın bilgisi alınıyor</p>}
-      {q.isError && <p role="alert" className="text-[12.5px] text-red/80">Yayın bilgisi alınamadı.</p>}
+      {q.isPending && <p className="text-[12.5px] text-ink-2">Loading publishing details</p>}
+      {q.isError && <p role="alert" className="text-[12.5px] text-red">Could not load publishing details.</p>}
       {view && q.data && (
         <>
           <p className="text-[12.5px] text-ink-2">
-            Video TikTok gelen kutunuza <span className="text-ink">taslak</span> olarak gider; açıklamayı ve sesi uygulamada ekleyip Herkes ile paylaşırsınız.
+            The video goes to your TikTok inbox as a <span className="text-ink">draft</span>; you add the caption and sound in the app and post it to Everyone.
           </p>
-          <div className="flex gap-1" role="radiogroup" aria-label="Gönderilecek varyant">
-            {([['tiktok', 'Müziksiz (önerilen)'], ['music', 'Müzikli']] as const).map(([id, label]) => (
+          <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Variant to send">
+            {([['tiktok', 'No music (recommended)'], ['music', 'With music']] as const).map(([id, label]) => (
               <button
                 key={id}
                 type="button"
@@ -94,7 +94,7 @@ export function PublishPanel({ videoId }: { videoId: string }) {
                 data-testid={`publish-variant-${id}`}
                 disabled={!q.data.variants[id]}
                 onClick={() => setVariant(id)}
-                className={`rounded-full px-3 py-1 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-accent-glow disabled:opacity-40 ${variant === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
+                className={`min-h-9 rounded-full px-3.5 py-1 text-[12px] transition-colors md:min-h-0 md:px-3 duration-100 focus-visible:outline-2 focus-visible:outline-accent-glow disabled:opacity-40 ${variant === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
               >
                 {label}
               </button>
@@ -107,14 +107,14 @@ export function PublishPanel({ videoId }: { videoId: string }) {
           )}
           {!view.showFinish && (
             <label className="flex flex-col gap-1 text-[12.5px]">
-              <span className="font-medium">Açıklama (taslakla birlikte kaydedilir; atıf satırları korunur)</span>
+              <span className="font-medium">Caption (saved with the draft; attribution lines are kept)</span>
               <textarea
                 data-testid="publish-caption"
                 value={caption ?? view.caption}
                 onChange={(e) => setCaption(e.target.value)}
                 rows={5}
                 maxLength={2200}
-                className="rounded-input border border-line bg-paper px-2.5 py-1.5 text-[13px] leading-relaxed focus-visible:outline-2 focus-visible:outline-accent-glow"
+                className="rounded-input border border-line bg-inset px-2.5 py-1.5 text-[13px] leading-relaxed focus-visible:outline-2 focus-visible:outline-accent-glow"
               />
             </label>
           )}
@@ -125,30 +125,30 @@ export function PublishPanel({ videoId }: { videoId: string }) {
                 data-testid="publish-send"
                 disabled={!view.canSend || busy}
                 onClick={() => void send()}
-                className="rounded-control bg-accent px-3 py-1.5 text-[13px] text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40"
+                className="min-h-10 rounded-input bg-accent px-4 py-1.5 text-[13px] text-white hover:opacity-90 md:min-h-0 md:rounded-control md:px-3 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40"
               >
-                {view.resend ? 'Yeniden taslak gönder' : "TikTok'a taslak gönder"}
+                {view.resend ? 'Send the draft again' : 'Send draft to TikTok'}
               </button>
             )}
             {view.stageLabel && (
-              <span role="status" data-testid="publish-stage" data-stage={view.stage} className={`text-[12.5px] ${view.stage === 'failed' ? 'text-red/80' : view.stage === 'published' ? 'text-green' : 'text-ink'}`}>
+              <span role="status" data-testid="publish-stage" data-stage={view.stage} className={`text-[12.5px] ${view.stage === 'failed' ? 'text-red' : view.stage === 'published' ? 'text-green' : 'text-ink'}`}>
                 {view.stageLabel}
               </span>
             )}
             {view.canCancel && (
-              <button type="button" onClick={() => void cancel()} className="rounded-control border border-line-strong px-2.5 py-1 text-[12px] hover:bg-hover-2">İptal</button>
+              <button type="button" onClick={() => void cancel()} className="min-h-9 rounded-control border border-line-strong px-3 py-1 text-[12px] hover:bg-hover-2">Cancel</button>
             )}
           </div>
           {view.resend && view.latest?.status === 'published' && view.latest.url && (
-            <p className="text-[12.5px]">Yayında: <a href={view.latest.url} target="_blank" rel="noreferrer noopener" className="text-accent-glow underline">{view.latest.url}</a></p>
+            <p className="text-[12.5px] break-all">Published: <a href={view.latest.url} target="_blank" rel="noreferrer noopener" className="text-accent-glow underline">{view.latest.url}</a></p>
           )}
           {view.showFinish && view.latest && (
             <FinishCard publication={view.latest} checklist={q.data.checklist[view.latest.variant]} aigcNote={view.aigcNote} onMarked={() => void refresh().then(() => qc.invalidateQueries({ queryKey: ['video', videoId] }))} />
           )}
-          {error && <p role="alert" className="text-[12.5px] text-red/80">{error}</p>}
+          {error && <p role="alert" className="text-[12.5px] text-red">{error}</p>}
           {q.data.claims.length > 0 && (
             <details className="text-[12.5px]">
-              <summary className="cursor-pointer text-ink-2">Kaynaklar ({q.data.claims.length})</summary>
+              <summary className="cursor-pointer py-1 text-ink-2">Sources ({q.data.claims.length})</summary>
               <ul className="mt-2 flex flex-col gap-1.5">
                 {q.data.claims.map((c) => (
                   <li key={c.id}>
@@ -163,10 +163,10 @@ export function PublishPanel({ videoId }: { videoId: string }) {
           )}
           <PublishHistory publications={q.data.publications} />
           <div className="flex flex-col gap-1 border-t border-line pt-3">
-            <button type="button" data-testid="shorts-download" disabled={!q.data.variants.music} onClick={() => void exportShorts()} className="self-start rounded-control border border-line-strong px-3 py-1 text-[12.5px] hover:bg-hover-2 disabled:opacity-40">
-              Shorts için indir (müzikli)
+            <button type="button" data-testid="shorts-download" disabled={!q.data.variants.music} onClick={() => void exportShorts()} className="min-h-9 self-start rounded-control border border-line-strong px-3 py-1 text-[12.5px] hover:bg-hover-2 disabled:opacity-40">
+              Download for Shorts (with music)
             </button>
-            {shorts && <p className="text-[12px] text-ink-2">{shorts.fileName} indiriliyor. Açıklama ve atıflar: <span className="whitespace-pre-wrap text-ink">{shorts.caption}</span></p>}
+            {shorts && <p className="text-[12px] text-ink-2">Downloading {shorts.fileName}. Caption and attributions: <span className="whitespace-pre-wrap text-ink">{shorts.caption}</span></p>}
           </div>
         </>
       )}

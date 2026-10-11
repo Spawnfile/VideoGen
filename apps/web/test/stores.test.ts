@@ -88,3 +88,13 @@ describe('pipeline store', () => {
     expect(st.pipeline.get().runs.r1!.value.progress).toBe(50);
   });
 });
+
+describe('studio pick (the Studio video survives tab switches; New chat clears it)', () => {
+  it('keeps the picked video and clears it on demand', async () => {
+    const { studioPick, pickStudioVideo, clearStudioVideo } = await import('../src/lib/stores.ts');
+    pickStudioVideo('v1');
+    expect(studioPick.get()).toBe('v1');
+    clearStudioVideo();
+    expect(studioPick.get()).toBe('none');
+  });
+});

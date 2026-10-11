@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { canMarkPublished, type ChecklistItem, type Publication } from '@videogen/shared/browser';
+import type { ChecklistItem, Publication } from '@videogen/shared/browser';
+import { CHECKLIST_EN, markBlocker } from '../../lib/i18n.ts';
 import { api } from '../../lib/api.ts';
 
 /**
@@ -12,14 +13,14 @@ export function FinishCard({ publication, checklist, aigcNote, onMarked }: { pub
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const why = canMarkPublished(checklist, ticked, url);
+  const why = markBlocker(checklist, ticked, url);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(publication.caption);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      setError('Panoya kopyalanamadı; metni seçip kopyalayın.');
+      setError('Could not copy; select the text and copy it.');
     }
   };
   const mark = async () => {
@@ -34,57 +35,57 @@ export function FinishCard({ publication, checklist, aigcNote, onMarked }: { pub
   return (
     <div data-testid="finish-card" className="flex flex-col gap-3 rounded-input border border-line p-3">
       <p className="text-[13px]">
-        Taslak TikTok gelen kutunuzda. Uygulamada açın, açıklamayı yapıştırın ve aşağıdaki maddeleri tamamlayıp paylaşın.
+        The draft is in your TikTok inbox. Open it in the app, paste the caption, finish the items below and post it.
       </p>
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[12.5px] font-medium">Açıklama</span>
-          <button type="button" data-testid="caption-copy" onClick={() => void copy()} className="rounded-control border border-line-strong px-2.5 py-0.5 text-[12px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-accent-glow">
-            {copied ? 'Kopyalandı' : 'Kopyala'}
+          <span className="text-[12.5px] font-medium">Caption</span>
+          <button type="button" data-testid="caption-copy" onClick={() => void copy()} className="min-h-8 rounded-control border border-line-strong px-3 py-0.5 text-[12px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-accent-glow">
+            {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
         <pre data-testid="finish-caption" className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-input bg-inset p-2 font-sans text-[12.5px] leading-relaxed">{publication.caption}</pre>
       </div>
       {aigcNote && <p className="text-[12.5px] font-medium text-accent-glow">{aigcNote}</p>}
       <fieldset className="flex flex-col gap-1.5">
-        <legend className="mb-1 text-[12.5px] font-medium">Paylaşmadan önce</legend>
+        <legend className="mb-1 text-[12.5px] font-medium">Before you post</legend>
         {checklist.map((i) => (
-          <label key={i.id} className="flex items-start gap-2 text-[13px]">
+          <label key={i.id} className="flex min-h-9 items-start gap-2.5 py-1 text-[13px]">
             <input
               type="checkbox"
               data-testid={`check-${i.id}`}
               checked={!!ticked[i.id]}
               onChange={(e) => setTicked((t) => ({ ...t, [i.id]: e.target.checked }))}
-              className="mt-0.5 accent-[var(--color-accent)]"
+              className="mt-0.5 size-4 accent-[var(--color-accent-glow)]"
             />
-            <span>{i.label_tr}{i.required && <span className="text-ink-3"> · zorunlu</span>}</span>
+            <span>{CHECKLIST_EN(i)}{i.required && <span className="text-ink-3"> · required</span>}</span>
           </label>
         ))}
       </fieldset>
       <label className="flex flex-col gap-1 text-[12.5px]">
-        <span className="font-medium">TikTok video bağlantısı</span>
+        <span className="font-medium">TikTok video link</span>
         <input
           type="url"
           data-testid="published-url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://www.tiktok.com/@hesap/video/…"
-          className="rounded-input border border-line bg-paper px-2.5 py-1.5 text-[13px] focus-visible:outline-2 focus-visible:outline-accent-glow"
+          placeholder="https://www.tiktok.com/@account/video/…"
+          className="min-h-10 rounded-input border border-line bg-inset px-2.5 py-1.5 text-[13px] focus-visible:outline-2 focus-visible:outline-accent-glow"
         />
       </label>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           data-testid="mark-published"
           disabled={!!why || busy}
           onClick={() => void mark()}
-          className="rounded-control bg-accent px-3 py-1.5 text-[13px] text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40"
+          className="min-h-10 rounded-input bg-accent px-4 py-1.5 text-[13px] text-white md:min-h-0 md:rounded-control md:px-3 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40"
         >
-          Yayınlandı olarak işaretle
+          Mark as published
         </button>
         {why && <span className="text-[12px] text-ink-2">{why}</span>}
       </div>
-      {error && <p role="alert" className="text-[12.5px] text-red/80">{error}</p>}
+      {error && <p role="alert" className="text-[12.5px] text-red">{error}</p>}
     </div>
   );
 }

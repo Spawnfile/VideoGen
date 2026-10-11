@@ -48,7 +48,7 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
   }, [detail.data, run]);
 
   if (!videoId) {
-    return <p className="text-[13px] leading-relaxed text-ink-2">Üstteki alana bir ürün adı yazıp Üret'e basın. Araştırma, storyboard, sahne kurulumu ve taslak burada canlı ilerler.</p>;
+    return <p className="text-[13px] leading-relaxed text-ink-2">Type a product name and choose Create video. Research, storyboard, scene build and the draft show up here live.</p>;
   }
   if (!video) return null;
   return (

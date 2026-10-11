@@ -147,3 +147,8 @@ export function latestRunOf(s: PipelineState, videoId: string): RunView | null {
   for (const { value } of Object.values(s.runs)) if (value.videoId === videoId && (!best || value.createdAt > best.createdAt)) best = value;
   return best;
 }
+
+/** The Studio's picked video: the `?video=` of the first load, kept across tab switches; "New chat" sets it to `none` (production-view NO_VIDEO). */
+export const studioPick = createStore<string | null>(typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('video'));
+export const pickStudioVideo = (id: string): void => studioPick.set(() => id);
+export const clearStudioVideo = (): void => studioPick.set(() => 'none');

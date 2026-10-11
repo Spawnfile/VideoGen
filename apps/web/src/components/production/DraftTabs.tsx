@@ -44,8 +44,8 @@ function FinalPanel({ final }: { final: FinalPick }) {
   return (
     <div className="flex flex-col gap-2">
       <Mp4 key={sha} sha={sha} cover={final.coverSha} testId="final-video" kind="final" />
-      <div className="flex justify-center gap-1" role="group" aria-label="Varyant">
-        {([['music', 'Müzikli'], ['tiktok', 'Müziksiz']] as const).map(([id, label]) => (
+      <div className="flex justify-center gap-1" role="group" aria-label="Variant">
+        {([['music', 'With music'], ['tiktok', 'No music']] as const).map(([id, label]) => (
           <button
             key={id}
             type="button"
@@ -53,7 +53,7 @@ function FinalPanel({ final }: { final: FinalPick }) {
             aria-pressed={variant === id}
             disabled={id === 'tiktok' && !final.tiktokSha}
             onClick={() => setVariant(id)}
-            className={`rounded-full px-3 py-1 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40 ${variant === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
+            className={`min-h-8 rounded-full px-3 py-1 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40 ${variant === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
           >
             {label}
           </button>
@@ -78,9 +78,9 @@ export function DraftTabs({ pick, final, versions = [] }: { pick: DraftPick; fin
   }, [hasFinal]);
   if (!tabs.length) return null;
   return (
-    <section aria-label="Taslak oynatıcı" data-testid="draft-tabs" className="flex flex-col gap-3">
+    <section aria-label="Player" data-testid="draft-tabs" className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <div role="tablist" aria-label="Oynatıcı" className="flex gap-1">
+        <div role="tablist" aria-label="Player" className="no-scrollbar flex gap-1 overflow-x-auto">
         {tabs.map(([id, label]) => (
           <button
             key={id}
@@ -90,15 +90,15 @@ export function DraftTabs({ pick, final, versions = [] }: { pick: DraftPick; fin
             aria-selected={tab === id}
             aria-controls="draft-panel"
             onClick={() => setTab(id)}
-            className={`rounded-full px-3 py-1 text-[13px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${tab === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
+            className={`min-h-9 shrink-0 rounded-full px-3 py-1 text-[13px] whitespace-nowrap transition-colors md:min-h-0 duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${tab === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
           >
             {label}
           </button>
         ))}
         </div>
-        <span className="ml-auto text-[12px] text-ink-3">Boşluk oynat · J/L ±5 sn · K durdur</span>
+        <span className="ml-auto hidden text-[12px] text-ink-3 md:inline">Space play · J/L ±5 s · K pause</span>
       </div>
-      <div role="tabpanel" id="draft-panel" aria-labelledby={`draft-tab-${tab}`} className={`mx-auto w-full ${tab === 'compare' ? 'max-w-[660px]' : 'max-w-[320px]'}`}>
+      <div role="tabpanel" id="draft-panel" aria-labelledby={`draft-tab-${tab}`} className={`mx-auto w-full ${tab === 'compare' ? 'max-w-[660px]' : 'max-w-[min(320px,31.5dvh)] md:max-w-[320px]'}`}>
         {tab === 'final' ? (
           <FinalPanel final={final} />
         ) : tab === 'compare' ? (
@@ -106,7 +106,7 @@ export function DraftTabs({ pick, final, versions = [] }: { pick: DraftPick; fin
         ) : tab === 'mp4' ? (
           <Mp4 sha={pick.videoSha!} cover={pick.coverSha} testId="draft-video" kind="draft" />
         ) : (
-          <Suspense fallback={<p className="py-10 text-center text-[13px] text-ink-3">Oynatıcı yükleniyor…</p>}>
+          <Suspense fallback={<p className="py-10 text-center text-[13px] text-ink-3">Loading the player…</p>}>
             <DraftPlayer pick={pick} />
           </Suspense>
         )}

@@ -6,15 +6,15 @@ import { chatMessages, chats, seedMessages, seedTrace, traceRows, traces, useSto
 import { TraceView } from '../thinking/TraceView.tsx';
 
 const MODES: { id: ChatMode; label: string }[] = [
-  { id: 'ask', label: 'Soru' },
-  { id: 'analyze', label: 'Analiz et' },
-  { id: 'fix', label: 'Düzelt' },
+  { id: 'ask', label: 'Ask' },
+  { id: 'analyze', label: 'Analyze' },
+  { id: 'fix', label: 'Fix' },
 ];
 const NOTE: Partial<Record<ChatMessage['status'], string>> = {
-  queued: 'Sırada',
-  interrupted: 'Durduruldu',
-  failed: 'Yanıt alınamadı. Mesajı yeniden gönderebilirsiniz.',
-  waiting_limit: 'Kullanım limiti doldu; sıfırlanınca kendiliğinden devam edecek.',
+  queued: 'Queued',
+  interrupted: 'Stopped',
+  failed: 'No reply came back. You can send the message again.',
+  waiting_limit: 'Usage limit reached; it continues by itself when the window resets.',
 };
 const LS_KEY = 'vg.chat.thread';
 const readLs = (): string | null => { try { return localStorage.getItem(LS_KEY); } catch { return null; } };
@@ -116,34 +116,35 @@ export function ChatPanel({ onNewThread }: { onNewThread?: () => void } = {}) {
     }
   };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void submit(); }
+    // On a touch keyboard Enter is a new line; the Send button sends.
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !matchMedia('(pointer: coarse)').matches) { e.preventDefault(); void submit(); }
   };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <h2 className="sr-only">Chat</h2>
       <div className="flex items-center gap-2 pb-3">
-        <label htmlFor="chat-thread" className="sr-only">Sohbet</label>
+        <label htmlFor="chat-thread" className="sr-only">Conversation</label>
         <select
           id="chat-thread"
           value={threadId ?? ''}
           onChange={(e) => select(e.target.value)}
           disabled={!threads.length}
-          className="min-w-0 flex-1 truncate rounded-control border border-line bg-paper px-2 py-1.5 text-[13px] focus-visible:outline-2 focus-visible:outline-accent-glow disabled:text-ink-3"
+          className="min-h-10 min-w-0 flex-1 truncate rounded-input border border-line bg-paper px-3 py-1.5 text-[13px] md:min-h-0 md:rounded-control md:px-2 focus-visible:outline-2 focus-visible:outline-accent-glow disabled:text-ink-3"
         >
-          {!threads.length && <option value="">Henüz sohbet yok</option>}
+          {!threads.length && <option value="">No conversations yet</option>}
           {threads.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
         </select>
-        <button type="button" onClick={() => void newThread()} className="shrink-0 rounded-control border border-line px-3 py-1.5 text-[13px] text-ink-2 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-glow">
-          Yeni sohbet
+        <button type="button" onClick={() => void newThread()} className="min-h-10 shrink-0 rounded-input border border-line px-3 py-1.5 text-[13px] text-ink-2 hover:bg-hover-2 md:min-h-0 md:rounded-control hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-glow">
+          New chat
         </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 pb-4">
-        <span aria-disabled="true" title="Video seçimi Kütüphane ile M4'te gelecek" className="rounded-full border border-dashed border-line-strong px-2.5 py-0.5 text-[12px] text-ink-3">
-          Video seçilmedi
+        <span aria-disabled="true" title="Questions are about the platform; pick a video in the Library to ask about it" className="hidden rounded-full border border-dashed border-line-strong px-2.5 py-0.5 text-[12px] text-ink-3 md:inline">
+          No video selected
         </span>
-        <div role="radiogroup" aria-label="Mod" className="flex gap-1">
+        <div role="radiogroup" aria-label="Mode" className="flex gap-1">
           {MODES.map((m) => (
             <button
               key={m.id}
@@ -151,7 +152,7 @@ export function ChatPanel({ onNewThread }: { onNewThread?: () => void } = {}) {
               role="radio"
               aria-checked={mode === m.id}
               onClick={() => setMode(m.id)}
-              className={`rounded-full px-2.5 py-0.5 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${mode === m.id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
+              className={`min-h-9 rounded-full px-3.5 text-[13px] transition-colors duration-100 md:min-h-0 md:px-2.5 md:py-0.5 md:text-[12px] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${mode === m.id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
             >
               {m.label}
             </button>
@@ -162,7 +163,7 @@ export function ChatPanel({ onNewThread }: { onNewThread?: () => void } = {}) {
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto pr-1">
         {turns.length === 0 ? (
           <p className="max-w-[46ch] pt-8 text-[13px] leading-relaxed text-ink-2">
-            Platform ya da bir video hakkında soru sorun. Agent'ın düşünmesini, aramalarını ve araç çağrılarını yanıt gelene kadar burada canlı izleyebilirsiniz.
+            Ask about the platform or a video. You can watch the agent think, search and call tools here, live, until it answers.
           </p>
         ) : (
           <ol className="flex flex-col gap-6 pb-4">
@@ -171,15 +172,15 @@ export function ChatPanel({ onNewThread }: { onNewThread?: () => void } = {}) {
                 <div data-testid="chat-message" data-role="user" className="ml-auto flex max-w-[85%] flex-col items-end gap-1">
                   <p className="rounded-input bg-inset px-3 py-2 text-[14px] leading-relaxed whitespace-pre-wrap">{u.text}</p>
                   {(u.mode !== 'ask' || NOTE[u.status]) && (
-                    <p className={`text-[11.5px] ${u.status === 'failed' ? 'text-red/80' : 'text-ink-3'}`}>
-                      {[u.mode === 'analyze' ? 'Analiz' : u.mode === 'fix' ? 'Düzeltme' : null, NOTE[u.status]].filter(Boolean).join(' · ')}
+                    <p className={`text-[11.5px] ${u.status === 'failed' ? 'text-red' : 'text-ink-3'}`}>
+                      {[u.mode === 'analyze' ? 'Analysis' : u.mode === 'fix' ? 'Fix' : null, NOTE[u.status]].filter(Boolean).join(' · ')}
                     </p>
                   )}
                 </div>
                 {u.sessionId && u.turn !== null && <TurnTrace sessionId={u.sessionId} turn={u.turn} answered={!!reply} />}
                 {reply && (
                   <p data-testid="chat-message" data-role="assistant" className="text-[14px] leading-relaxed whitespace-pre-wrap">
-                    {reply.text || 'Yanıt boş döndü.'}
+                    {reply.text || 'The reply came back empty.'}
                   </p>
                 )}
               </li>
@@ -188,26 +189,26 @@ export function ChatPanel({ onNewThread }: { onNewThread?: () => void } = {}) {
         )}
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); void submit(); }} className="mt-2 rounded-input border border-line bg-paper p-2 shadow-subtle transition-colors focus-within:border-accent-glow/60">
+      <form onSubmit={(e) => { e.preventDefault(); void submit(); }} className="mt-2 mb-2 rounded-input border border-line bg-paper p-2 transition-colors focus-within:border-accent-glow/60 md:mb-0">
         <textarea
           ref={boxRef}
-          aria-label="Mesaj"
+          aria-label="Message"
           rows={2}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKey}
-          placeholder="Bir şey sorun…"
-          className="max-h-48 w-full resize-none bg-transparent px-2 py-1 text-[14px] leading-relaxed outline-none placeholder:text-ink-3"
+          placeholder="Ask anything…"
+          className="max-h-48 w-full resize-none bg-transparent px-2 py-1 text-[15px] leading-relaxed md:text-[14px] outline-none placeholder:text-ink-3"
         />
         <div className="flex items-center gap-2 px-1 pt-1">
-          <span className="text-[11.5px] text-ink-3">Enter gönderir, Shift+Enter yeni satır</span>
+          <span className="hidden text-[11.5px] text-ink-3 md:inline">Enter sends, Shift+Enter adds a line</span>
           {running && threadId && (
             <button type="button" onClick={() => void api.interrupt(threadId)} className="ml-auto rounded-control border border-line-strong px-3 py-1.5 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-accent-glow">
-              Durdur
+              Stop
             </button>
           )}
-          <button type="submit" disabled={!text.trim() || sending} className={`${running ? '' : 'ml-auto'} rounded-control bg-accent px-3 py-1.5 text-[13px] font-medium text-white transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow disabled:opacity-40`}>
-            Gönder
+          <button type="submit" disabled={!text.trim() || sending} className={`${running ? '' : 'ml-auto'} min-h-10 rounded-input bg-accent px-4 py-1.5 md:min-h-0 md:rounded-control md:px-3 text-[13px] font-medium text-white transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow disabled:opacity-40`}>
+            Send
           </button>
         </div>
       </form>

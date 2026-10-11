@@ -1,4 +1,5 @@
-import { STEP_LABELS, STEP_STATUS_LABEL, type RunView, type StepView } from '@videogen/shared/browser';
+import type { RunView, StepView } from '@videogen/shared/browser';
+import { STEP_EN, STEP_STATUS_EN } from '../../lib/i18n.ts';
 import { sourceLabel, stepDuration } from '../../lib/production-view.ts';
 import { useNow } from '../../lib/use-now.ts';
 import { StepMark } from '../thinking/ThinkingState.tsx';
@@ -14,17 +15,17 @@ function Mark({ s }: { s: StepView }) {
 export function StepList({ run }: { run: RunView }) {
   const now = useNow(1000);
   return (
-    <ol aria-label="Adımlar" className="flex flex-col gap-0.5">
+    <ol aria-label="Steps" className="flex flex-col gap-0.5">
       {run.steps.map((s) => {
         const dur = stepDuration(s, now);
-        const detail = s.status === 'running' && s.progress > 0 ? `%${Math.round(s.progress)} · ${sourceLabel(s.progressSource)}` : '';
+        const detail = s.status === 'running' && s.progress > 0 ? `${Math.round(s.progress)}% · ${sourceLabel(s.progressSource)}` : '';
         return (
           <li key={s.id} data-testid="step" data-key={s.key} data-status={s.status} className="flex min-h-8 items-start gap-2.5 rounded-control px-1.5 py-1.5">
             <span className="mt-[3px] flex w-3.5 justify-center"><Mark s={s} /></span>
             <div className="min-w-0 flex-1">
-              <p className="flex items-baseline gap-2 text-[13px]">
-                <span className={s.status === 'pending' || s.status === 'skipped' ? 'text-ink-3' : 'font-medium text-ink'}>{STEP_LABELS[s.key]}</span>
-                <span className="text-[12px] text-ink-3">{STEP_STATUS_LABEL[s.status]}</span>
+              <p className="flex flex-wrap items-baseline gap-x-2 text-[13px]">
+                <span className={s.status === 'pending' || s.status === 'skipped' ? 'text-ink-3' : 'font-medium text-ink'}>{STEP_EN[s.key] ?? s.key}</span>
+                <span className="text-[12px] text-ink-3">{STEP_STATUS_EN[s.status]}</span>
                 {detail && <span className="text-[12px] tabular-nums text-ink-2">{detail}</span>}
                 <span className="ml-auto text-[12px] tabular-nums text-ink-3">{dur}</span>
               </p>

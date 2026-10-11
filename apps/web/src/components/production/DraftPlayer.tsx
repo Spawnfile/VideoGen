@@ -32,7 +32,7 @@ export default function DraftPlayer({ pick }: { pick: DraftPick }) {
     setActivePlayer({ kind: 'draft', toggle: () => p.toggle(), pause: () => p.pause(), seekBy: (s) => p.seekTo(Math.max(0, Math.min(props.frames, p.getCurrentFrame() + Math.round(s * 30)))), seekTo: (s) => p.seekTo(Math.max(0, Math.min(props.frames, Math.round(s * 30)))) });
     return () => { p.removeEventListener('frameupdate', on); setActivePlayer(null); };
   }, [props]);
-  if (!props) return <p className="py-10 text-center text-[13px] text-ink-3">Taslak yükleniyor…</p>;
+  if (!props) return <p className="py-10 text-center text-[13px] text-ink-3">Loading the draft…</p>;
   return (
     <div data-testid="draft-live" data-frame={frame}>
       <Player

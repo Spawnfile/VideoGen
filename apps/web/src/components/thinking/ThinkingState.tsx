@@ -13,8 +13,8 @@ import type { BlockVariant, ThinkingRowView } from '../../lib/trace-view.ts';
  * rows grow with the stream, status live → settled, open while live, closed when settled unless toggled by hand.
  * ───────────────────────────────────────────────────────── */
 
-const ACTIVE: Record<BlockVariant, string> = { steps: 'Adımlar sürüyor', reasoning: 'Düşünüyor', search: "Web'de arıyor", coding: 'Araç çalıştırıyor' };
-const DONE: Record<BlockVariant, string> = { steps: 'Adımlar tamamlandı', reasoning: 'Düşündü', search: "Web'de arandı", coding: 'Araçlar çalıştı' };
+const ACTIVE: Record<BlockVariant, string> = { steps: 'Working through steps', reasoning: 'Thinking', search: 'Searching the web', coding: 'Running tools' };
+const DONE: Record<BlockVariant, string> = { steps: 'Steps done', reasoning: 'Thought', search: 'Searched the web', coding: 'Ran tools' };
 // Spec §13.3: the original orange/green search dots become ink tones.
 const TONES = ['bg-ink-2', 'bg-ink-3', 'bg-line-strong'];
 
@@ -159,7 +159,7 @@ export default function ThinkingState({ variant, status, rows, active, done, ico
                 const rowClass = 'flex min-h-7 w-full items-center gap-2 rounded-[6px] px-1.5 py-0.5 text-left';
                 const isSelected = selected === row.id;
                 const hasDetail = !!(row.detail || row.children);
-                const flag = row.tone === 'denied' ? 'reddedildi' : row.tone === 'error' ? 'hata' : null;
+                const flag = row.tone === 'denied' ? 'denied' : row.tone === 'error' ? 'error' : null;
 
                 if (row.kind === 'query') {
                   return (

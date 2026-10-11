@@ -4,7 +4,7 @@ import { api, blobUrl } from '../../lib/api.ts';
 import { voiceView } from '../../lib/production-view.ts';
 import { useContent } from './ArtifactCards.tsx';
 
-const card = 'rounded-card border border-line/60 bg-paper px-4 py-3 shadow-subtle';
+const card = 'rounded-card bg-paper px-4 py-3';
 const chip = 'rounded-full bg-inset px-2.5 py-0.5 text-[12px] text-ink';
 
 /** Spec §13.1 Seslendirme card (M5c): engine and voice, the provisional K17 mark, the track's facts, the stem to listen to and one row per line. */
@@ -15,22 +15,22 @@ export function VoiceCard({ trackId, stemSha }: { trackId: string | null; stemSh
   const v = voiceView(track ?? null, { chosen: narrator.data?.chosen ?? false });
   if (!v) return null;
   return (
-    <section data-testid="voice-card" aria-label="Seslendirme" className={card}>
+    <section data-testid="voice-card" aria-label="Voiceover" className={card}>
       <div className="flex flex-wrap items-baseline gap-2">
         <h3 className="text-[14px] font-medium">{v.title}</h3>
-        {v.provisional && <span className={chip}>GEÇİCİ (K17)</span>}
-        {v.aigc && <span className={chip}>AI etiketi zorunlu</span>}
+        {v.provisional && <span className={chip}>Provisional voice</span>}
+        {v.aigc && <span className={chip}>AI label required</span>}
       </div>
       <p className="mt-1 text-[12.5px] tabular-nums text-ink-2">
-        {v.lines} satır · {v.duration} · en kötü CER {v.worstCer} · ilk kelime {v.firstWord} · {v.pace}
+        {v.lines} lines · {v.duration} · worst CER {v.worstCer} · first word at {v.firstWord} · {v.pace}
       </p>
-      {stemSha && <audio controls preload="metadata" data-testid="voice-audio" src={blobUrl(stemSha)} aria-label="Seslendirme dinle" className="mt-2 w-full" />}
-      <ol aria-label="Seslendirme satırları" className="mt-2 flex flex-col gap-1">
+      {stemSha && <audio controls preload="metadata" data-testid="voice-audio" src={blobUrl(stemSha)} aria-label="Play the voiceover" className="mt-2 w-full" />}
+      <ol aria-label="Voiceover lines" className="mt-2 flex flex-col gap-1">
         {v.rows.map((r) => (
-          <li key={r.beat} className="grid grid-cols-[96px_1fr_auto] gap-2 text-[12.5px]">
+          <li key={r.beat} className="grid grid-cols-[64px_minmax(0,1fr)_auto] gap-2 text-[12.5px] md:grid-cols-[96px_minmax(0,1fr)_auto]">
             <span className="truncate text-ink-3" title={r.beat}>{r.beat}</span>
             <span>{r.text}</span>
-            <span className={`tabular-nums ${r.warn ? 'font-medium text-ink' : 'text-ink-3'}`} title={r.warn ? 'CER %3 üstünde' : undefined}>{r.cer}{r.warn && <span aria-label="CER %3 üstünde"> !</span>}</span>
+            <span className={`tabular-nums ${r.warn ? 'font-medium text-ink' : 'text-ink-3'}`} title={r.warn ? 'CER above 3%' : undefined}>{r.cer}{r.warn && <span aria-label="CER above 3%"> !</span>}</span>
           </li>
         ))}
       </ol>

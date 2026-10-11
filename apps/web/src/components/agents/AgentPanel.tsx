@@ -18,11 +18,11 @@ export function AgentPanel() {
   return (
     <section aria-labelledby="agents-heading" className="flex min-h-0 flex-col gap-3">
       <div className="flex items-baseline gap-2">
-        <h2 id="agents-heading" className="text-[14px] font-medium">Agent'lar</h2>
-        <span className="text-[12px] text-ink-3">{active.length ? `${active.length} aktif` : 'şu an çalışan yok'}</span>
+        <h2 id="agents-heading" className="text-[14px] font-medium">Agents</h2>
+        <span className="text-[12px] text-ink-3">{active.length ? `${active.length} running` : 'none running'}</span>
       </div>
       {active.length + recent.length === 0 ? (
-        <p className="text-[13px] text-ink-2">Agent başladığında burada canlı kartıyla görünür: ne yaptığı, ilerlemesi ve süreç durumu.</p>
+        <p className="text-[13px] text-ink-2">When an agent starts, its live card shows up here: what it is doing, its progress and its process state.</p>
       ) : (
         <div className="flex flex-col gap-3">
           {[...active, ...recent].map((s) => <AgentCard key={s.id} session={s} sample={state.samples[s.id]} gpu={state.gpu[s.id]} />)}
