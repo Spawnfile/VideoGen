@@ -2,9 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import pg from 'pg';
-import { SMOKE_DIR } from './helpers.ts';
+import { APP_SMOKE, SMOKE_DIR } from './helpers.ts';
 
-const APP_SMOKE = 'postgres://videogen_app:videogen_app@127.0.0.1:5433/videogen_smoke';
 const URL_OK = 'https://www.tiktok.com/@whats.inside59/video/7423456789012345678';
 
 async function readyVideo(request: APIRequestContext, productName: string): Promise<string> {

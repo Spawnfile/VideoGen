@@ -30,6 +30,7 @@ export function Timeline({ run }: { run: RunView }) {
     return () => removeEventListener('resize', measure);
   }, []);
   const [nowLabel, nowClass] = NOW[v.now.kind];
+  const running = v.now.kind === 'live' || v.now.kind === 'queued';
   // A run whose every step was skipped has no time to show.
   if (v.totalS === 0) return null;
   return (
@@ -73,8 +74,8 @@ export function Timeline({ run }: { run: RunView }) {
           </div>
         ))}
         <div aria-hidden className="pointer-events-none absolute inset-y-[-4px] right-0 left-[30px]">
-          <span className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-ember transition-[left] duration-500" style={{ left: `${v.playheadPct}%` }}>
-            <span className="absolute -top-1 left-1/2 size-0 -translate-x-1/2 border-x-[5px] border-t-[6px] border-x-transparent border-t-ember-a" />
+          <span className={`absolute inset-y-0 w-0.5 -translate-x-1/2 transition-[left] duration-500 ${running ? 'bg-ember' : 'bg-ink-3'}`} style={{ left: `${v.playheadPct}%` }}>
+            <span className={`absolute -top-1 left-1/2 size-0 -translate-x-1/2 border-x-[5px] border-t-[6px] border-x-transparent ${running ? 'border-t-ember-a' : 'border-t-ink-3'}`} />
           </span>
         </div>
       </div>

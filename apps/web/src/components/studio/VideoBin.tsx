@@ -23,7 +23,7 @@ export function VideoBin({ videos, selected, onSelect, onNew }: { videos: VideoV
             onClick={() => onSelect(v.id)}
             className="flex w-[60px] shrink-0 snap-start flex-col gap-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
           >
-            <span className={`block rounded-[8px] ${on ? 'ring-ember [--ring-fill:var(--color-canvas)]' : 'border border-line'}`}>
+            <span className={`block rounded-[8px] ${label.tone === 'live' ? 'ring-ember [--ring-fill:var(--color-canvas)]' : on ? 'border-2 border-ink' : 'border-2 border-transparent'}`}>
               <Poster video={v} className="text-[11px]" />
             </span>
             <span className={`label-mono truncate text-[9px] ${LABEL_CLASS[label.tone]}`}>{label.text}</span>

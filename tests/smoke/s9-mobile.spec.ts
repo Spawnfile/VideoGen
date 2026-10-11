@@ -6,7 +6,9 @@ async function noSideScroll(page: Page, where: string) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), `${where} scrolls sideways`).toBeLessThanOrEqual(0);
 }
 
-test('S9: the phone layout covers produce, chat, library and settings without sideways scrolling', async ({ page }) => {
+test('S9: the phone layout covers produce, chat, library and settings without sideways scrolling', async ({ page, request }) => {
+  // A second video for the library grid check, seeded before the worker gets busy with this test's production.
+  await request.post('/api/dev/videos/ready', { data: { productName: 'Izgara kalem' } });
   await page.goto('/');
   const tabs = page.getByRole('navigation', { name: 'Main menu' });
   await expect(tabs).toBeVisible();
@@ -42,6 +44,11 @@ test('S9: the phone layout covers produce, chat, library and settings without si
   await form.getByRole('button', { name: 'Create video' }).click();
   await expect(page.getByTestId('video-header')).toContainText('Mobil kalem', { timeout: 15_000 });
   await expect(page.getByRole('tab', { name: /Mobil kalem/ })).toHaveAttribute('aria-selected', 'true');
+  // Ember Studio: the video bin holds the selection, the timeline shows the run, LIVE shows while it runs.
+  await expect(page.getByTestId('video-bin').getByRole('tab', { name: /Mobil kalem/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('timeline')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-testid="timeline-block"][data-tone="live"], [data-testid="timeline-block"][data-tone="done"], [data-testid="timeline-block"][data-tone="pending"]').first()).toBeVisible();
+  await expect(page.getByTestId('live-indicator').or(page.getByTestId('timeline').getByText(/^Done ·/))).toBeVisible();
 
   // Status pill → usage sheet.
   await page.getByTestId('status-pill').click();
@@ -52,6 +59,11 @@ test('S9: the phone layout covers produce, chat, library and settings without si
 
   // Library → detail (back arrow in the top bar) → back.
   await tabs.getByRole('link', { name: 'Library' }).click();
+  // A contact sheet: two posters side by side on a phone (the video seeded at the start makes two on a fresh stack).
+  const cards = page.getByTestId('library-item');
+  await expect(cards.nth(1)).toBeVisible();
+  expect(Math.round((await cards.nth(0).boundingBox())!.y)).toBe(Math.round((await cards.nth(1).boundingBox())!.y));
+  await expect(cards.filter({ hasText: 'Mobil kalem' }).first().locator('[data-poster]')).toHaveAttribute('data-poster', /tint|cover/);
   await page.getByTestId('library-item').filter({ hasText: 'Mobil kalem' }).first().click();
   await expect(page.getByTestId('library-detail')).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Versions' })).toHaveAttribute('aria-selected', 'true');
@@ -115,4 +127,28 @@ test('S9: installable — manifest, icons and an active service worker that leav
   // The worker caches the shell only; a live API answer still comes from the server.
   expect(await page.evaluate(async () => (await fetch('/api/health', { cache: 'no-store' })).ok)).toBe(true);
   expect(await page.evaluate(async () => (await caches.keys()).some((k) => k.startsWith('vg-shell-')))).toBe(true);
+});
+
+test('S9: 320 px no sideways scroll with a long product name', async ({ page, request }) => {
+  const name = 'Çok uzun ürün adı: paslanmaz çelik çift cidarlı vakumlu termos';
+  await request.post('/api/dev/videos/ready', { data: { productName: name } });
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto('/');
+  await expect(page.getByTestId('video-bin')).toBeVisible();
+  await noSideScroll(page, 'Studio at 320 px');
+  await page.getByRole('navigation', { name: 'Main menu' }).getByRole('link', { name: 'Library' }).click();
+  const card = page.getByTestId('library-item').filter({ hasText: 'paslanmaz' }).first();
+  await expect(card).toBeVisible();
+  await noSideScroll(page, 'Library at 320 px');
+  expect(await card.evaluate((el) => el.scrollWidth <= el.clientWidth), 'the long name stays inside its card').toBe(true);
+});
+
+test('S9: a video without a cover shows the derived poster', async ({ page }) => {
+  await page.goto('/');
+  const dock = page.getByTestId('produce-dock');
+  if (await dock.isVisible()) await dock.click();
+  const form = page.getByRole('region', { name: 'New production' });
+  await form.getByRole('textbox', { name: 'Product name' }).fill('Kapaksız ataş');
+  await form.getByRole('button', { name: 'Create video' }).click();
+  await expect(page.getByTestId('video-bin').getByRole('tab', { name: /Kapaksız ataş/ }).locator('[data-poster="tint"]')).toBeVisible({ timeout: 15_000 });
 });

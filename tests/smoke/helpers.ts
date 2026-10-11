@@ -3,7 +3,11 @@ import { join } from 'node:path';
 import type { APIRequestContext } from '@playwright/test';
 
 /** Fixed so specs can find pids.json; created and removed by stack.mjs. */
-export const SMOKE_DIR = '/tmp/videogen-smoke';
+// A second checkout (git worktree) can run its own stack beside another: VG_SMOKE_PORT / VG_SMOKE_DB / VG_SMOKE_DIR (keep in sync with stack.mjs).
+export const SMOKE_DIR = process.env.VG_SMOKE_DIR ?? '/tmp/videogen-smoke';
+export const SMOKE_PORT = Number(process.env.VG_SMOKE_PORT ?? 5190);
+export const SMOKE_DB = process.env.VG_SMOKE_DB ?? 'videogen_smoke';
+export const APP_SMOKE = `postgres://videogen_app:videogen_app@127.0.0.1:5433/${SMOKE_DB}`;
 
 export function readPids(): { api: number; worker: number } {
   return JSON.parse(readFileSync(join(SMOKE_DIR, 'pids.json'), 'utf8')) as { api: number; worker: number };
