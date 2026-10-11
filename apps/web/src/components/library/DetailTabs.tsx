@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 
-export type DetailTab = 'versions' | 'reviews' | 'storyboard' | 'research' | 'audit';
+export type DetailTab = 'platforms' | 'versions' | 'reviews' | 'storyboard' | 'research' | 'audit';
 export const DETAIL_TABS: [DetailTab, string][] = [
-  ['versions', 'Versions'], ['reviews', 'Reviews'], ['storyboard', 'Storyboard'], ['research', 'Research and sources'], ['audit', 'Audit log'],
+  ['platforms', 'Platforms'], ['versions', 'Versions'], ['reviews', 'Reviews'], ['storyboard', 'Storyboard'], ['research', 'Research and sources'], ['audit', 'Audit log'],
 ];
 
 /** Plan M7 Y7 library detail tabs; only the open tab's panel is mounted (the audit list loads when opened). */

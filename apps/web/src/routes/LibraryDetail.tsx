@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import type { ArtifactMeta, ProductResearch, RunView, VersionView, VideoStatus } from '@videogen/shared/browser';
 import { DetailTabs, type DetailTab } from '../components/library/DetailTabs.tsx';
 import { VersionList } from '../components/library/VersionList.tsx';
+import { PlatformsPanel } from '../components/platforms/PlatformsPanel.tsx';
 import { ResearchCard, StoryboardCard, useContent } from '../components/production/ArtifactCards.tsx';
 import { DraftTabs } from '../components/production/DraftTabs.tsx';
 import { ReviewPanel } from '../components/production/ReviewPanel.tsx';
@@ -92,7 +93,11 @@ export function LibraryDetail({ videoId, go }: { videoId: string; go: (url: stri
     queryFn: async () => { const r = await api.video(videoId); seedVideos([r.data.video], r.eventId); seedRuns(r.data.runs, r.eventId); return r.data.artifacts; },
   });
   const versions = useQuery({ queryKey: ['versions', videoId, doneSteps, video?.status], queryFn: () => api.versions(videoId) });
-  const [tab, setTab] = useState<DetailTab>('versions');
+  // Video library L22: imported videos and phones open on Platforms (watch → save → mark); the choice sticks once the user picks a tab.
+  const [picked, setTab] = useState<DetailTab | null>(null);
+  const tab: DetailTab = picked ?? (video?.origin === 'import' || window.matchMedia('(max-width: 599px)').matches ? 'platforms' : 'versions');
+  const imported = video?.origin === 'import';
+  const importedNote = <p className="text-[13px] text-ink-2">Imported: made outside the pipeline, so there is nothing here.</p>;
   const openInStudio = () => { pickStudioVideo(videoId); go(`/?video=${videoId}`); };
   useShellBar({
     title: video?.productName ?? 'Library',
@@ -140,11 +145,13 @@ export function LibraryDetail({ videoId, go }: { videoId: string; go: (url: stri
             {versions.isSuccess && vs.length === 0 && <p className="text-[13px] text-ink-2">No versions.</p>}
           </>
         )}
-        {tab === 'reviews' && video && <ReviewsTab videoId={videoId} versions={vs} run={run} status={video.status} artifacts={list} />}
-        {tab === 'storyboard' && (newest(list, 'storyboard', run?.id ?? null)
+        {tab === 'platforms' && video && <PlatformsPanel video={video} />}
+        {imported && (tab === 'reviews' || tab === 'storyboard' || tab === 'research') && importedNote}
+        {!imported && tab === 'reviews' && video && <ReviewsTab videoId={videoId} versions={vs} run={run} status={video.status} artifacts={list} />}
+        {!imported && tab === 'storyboard' && (newest(list, 'storyboard', run?.id ?? null)
           ? <StoryboardCard artifactId={newest(list, 'storyboard', run?.id ?? null)} />
           : <p className="text-[13px] text-ink-2">No storyboard.</p>)}
-        {tab === 'research' && <ResearchTab artifactId={newest(list, 'research', run?.id ?? null)} />}
+        {!imported && tab === 'research' && <ResearchTab artifactId={newest(list, 'research', run?.id ?? null)} />}
         {tab === 'audit' && <Audit embedded initial={{ videoId }} fixed={['videoId']} />}
       </DetailTabs>
     </div>
