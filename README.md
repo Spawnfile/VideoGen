@@ -22,6 +22,12 @@ Prerequisites: Docker (for Postgres 17), a logged-in Claude subscription (`claud
 
 If you run `npm run build` while the API is running (for example next to `npm run dev:api`), restart the API afterwards: static assets are registered when the API starts. `npm start` always builds first, so it is not affected.
 
+## Run as a service (survives reboots)
+
+`node bin/service.mjs install` writes a systemd user unit (`~/.config/systemd/user/videogen.service`), enables it and starts it: the same launcher as `npm start`, without the browser, restarted 10 s after any exit and started at boot. It runs without a desktop login only when lingering is on (`sudo loginctl enable-linger $USER`; the installer tells you if it is off). Docker must be enabled at boot (`systemctl is-enabled docker`); the Postgres container restarts by itself (`restart: unless-stopped`), and the Tailscale Serve setting below persists across reboots.
+
+Machine-specific variables (`VG_TAILNET_HOST`, `VG_TAILNET_USERS`, `VG_PORT`, …) live in `~/.config/videogen/env`; `install` fills the two tailnet ones from `tailscale` the first time and never overwrites the file. After editing it: `systemctl --user restart videogen`. Logs: `journalctl --user -u videogen -f` (launcher) and `~/videogen-data/logs` (API, worker). `node bin/service.mjs status|uninstall`. While the service runs, `npm start` refuses to start (port 5180 is taken); stop it first with `systemctl --user stop videogen`. After pulling new code, `systemctl --user restart videogen` rebuilds and restarts.
+
 ## Phone access (Tailscale)
 
 The same interface runs on a phone as an installable app (PWA), reached over your tailnet only. The API keeps listening on `127.0.0.1`; Tailscale Serve terminates HTTPS with the tailnet certificate and forwards to it. Funnel (public internet) is never used: the launcher refuses to start if it is on.
@@ -45,6 +51,7 @@ The same interface runs on a phone as an installable app (PWA), reached over you
 | `npm run dev:web` | Vite dev server on 5173, proxying to the API on 5180 |
 | `npm run build` | Build the SPA into `apps/web/dist` |
 | `npm start` | Single-command launcher with supervised restarts |
+| `node bin/service.mjs install` | Run the launcher as a systemd user service that starts at boot (`status`, `uninstall`) |
 | `npm test` | Unit and integration tests (Vitest; needs the Postgres container). Files run in parallel, each on its own database copied from a migrated template; `VG_TEST_WORKERS` sets the worker count (default `min(3, cores − 1)`). 504 tests, ~3 min with 3 workers |
 | `npm run db:test-clean` | Drop leftover test databases (`vg_test_*`, `vg_tpltest_*`, stale `vg_tpl_*`) when nobody is connected |
 | `npm run test:blender` | vg_blender unit tests inside Blender 5.2 on the NVIDIA GPU (`bin/blender-gpu`) |
