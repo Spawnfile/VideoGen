@@ -12,11 +12,11 @@ export interface PublishInfo {
 /** GET /api/tiktok. */
 export interface TikTokStatus { connected: boolean; username: string | null; expiresAt: string | null; refreshExpiresAt: string | null; scopes: string[]; clientConfigured: boolean }
 
-const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/Istanbul' });
+import { time as hhmm } from './locale.ts';
 
 const STAGE: Record<PublicationStatus, string> = {
-  queued: 'Kuyrukta', uploading: 'Yükleniyor', processing: 'TikTok işliyor', waiting: 'TikTok yanıt vermedi; gelen kutunuzu kontrol edin (yoklama sürüyor)',
-  sent: 'Gelen kutusunda', failed: 'Gönderilemedi', published: 'Yayında',
+  queued: 'Queued', uploading: 'Uploading', processing: 'TikTok is processing', waiting: 'TikTok has not answered; check your inbox (still checking)',
+  sent: 'In your TikTok inbox', failed: 'Not sent', published: 'Published',
 };
 const ACTIVE: PublicationStatus[] = ['queued', 'uploading', 'processing', 'waiting'];
 
@@ -46,7 +46,7 @@ export interface PublishViewModel {
 export function publishView(info: PublishInfo, variant: PublishVariant, now = new Date()): PublishViewModel {
   const latest = info.publications[0] ?? null;
   const stage = latest?.status ?? 'idle';
-  const limit = info.nextSlot && new Date(info.nextSlot) > now ? `Son 24 saatte ${info.draftLimit} taslak gönderildi; sonraki gönderim ${hhmm(info.nextSlot)}` : null;
+  const limit = info.nextSlot && new Date(info.nextSlot) > now ? `${info.draftLimit} drafts sent in the last 24 hours; next send at ${hhmm(info.nextSlot)}` : null;
   const blockers = [...info.blockers, ...(info.variantBlockers[variant] ?? []), ...(limit ? [limit] : [])];
   const busy = !!latest && ACTIVE.includes(latest.status);
   const done = !!latest && (latest.status === 'sent' || latest.status === 'published') && latest.versionId === info.versionId && latest.variant === variant;
@@ -54,27 +54,27 @@ export function publishView(info: PublishInfo, variant: PublishVariant, now = ne
     canSend: blockers.length === 0 && !busy && !done,
     canCancel: latest?.status === 'queued',
     blockers,
-    draftsLabel: `${info.draftsUsed}/${info.draftLimit} taslak (24 saat)${info.nextSlot ? ` · sonraki ${hhmm(info.nextSlot)}` : ''}`,
+    draftsLabel: `${info.draftsUsed}/${info.draftLimit} drafts (24 h)${info.nextSlot ? ` · next at ${hhmm(info.nextSlot)}` : ''}`,
     stage,
-    stageLabel: !latest ? '' : latest.status === 'failed' ? `${STAGE.failed}: ${latest.failReason ?? 'bilinmeyen hata'}` : STAGE[latest.status],
+    stageLabel: !latest ? '' : latest.status === 'failed' ? `${STAGE.failed}: ${latest.failReason ?? 'unknown error'}` : STAGE[latest.status],
     showFinish: latest?.status === 'sent',
     resend: done,
     latest,
     checklist: info.checklist[variant] ?? [],
     caption: info.captions[variant] ?? '',
-    aigcNote: info.aigcRequired ? "Bu video klon ses içeriyor: TikTok'ta AI etiketini açmanız zorunlu." : null,
+    aigcNote: info.aigcRequired ? 'This video uses a cloned voice: you must turn on the AI label in TikTok.' : null,
   };
 }
 
 /** Ayarlar → TikTok bağlantısı (plan Y22): reads only the status fields; the API never sends a token. */
 export function tiktokView(s: TikTokStatus, now = new Date()): { title: string; detail: string; tone: 'ok' | 'warn' | 'off'; action: 'connect' | 'reconnect' | 'import' } {
-  if (!s.clientConfigured) return { title: 'TikTok bağlı değil', detail: 'İstemci bilgisi yok: node bin/tiktok.mjs import', tone: 'off', action: 'import' };
+  if (!s.clientConfigured) return { title: 'TikTok not connected', detail: 'No client credentials: run node bin/tiktok.mjs import', tone: 'off', action: 'import' };
   if (!s.connected) {
     return s.refreshExpiresAt
-      ? { title: 'Bağlantı yenilenmeli', detail: 'TikTok izni sona erdi; yeniden bağlanın.', tone: 'warn', action: 'reconnect' }
-      : { title: 'TikTok bağlı değil', detail: 'Bağlan düğmesiyle TikTok hesabınızı bağlayın.', tone: 'off', action: 'connect' };
+      ? { title: 'Reconnect needed', detail: 'TikTok permission expired; connect again.', tone: 'warn', action: 'reconnect' }
+      : { title: 'TikTok not connected', detail: 'Connect your TikTok account with the Connect button.', tone: 'off', action: 'connect' };
   }
   const hours = s.expiresAt ? Math.floor((new Date(s.expiresAt).getTime() - now.getTime()) / 3_600_000) : 0;
-  const validity = hours > 0 ? `Erişim belirteci ${hours} sa geçerli` : 'Erişim belirteci gönderimde yenilenecek';
-  return { title: `Bağlı: @${s.username ?? '?'}`, detail: `${validity} · izinler: ${s.scopes.join(', ')}`, tone: 'ok', action: 'reconnect' };
+  const validity = hours > 0 ? `Access token valid for ${hours} h` : 'Access token renews on the next send';
+  return { title: `Connected: @${s.username ?? '?'}`, detail: `${validity} · scopes: ${s.scopes.join(', ')}`, tone: 'ok', action: 'reconnect' };
 }

@@ -1,4 +1,5 @@
-import { DEFAULT_DURATION, durationWindowErrors, formatWindow, parseBriefDuration, recommendedWindow, type AudioMode } from '@videogen/shared/browser';
+import { DEFAULT_DURATION, DURATION_HARD, parseBriefDuration, recommendedWindow, type AudioMode, type DurationWindow } from '@videogen/shared/browser';
+import { windowLabel as formatWindow } from './i18n.ts';
 
 /**
  * Studio's duration field (brief design Y1–Y3). `auto`: nothing decided, the agent recommends, else the default.
@@ -26,8 +27,21 @@ export function onDurationMode(s: DurationState, mode: 'auto' | 'manual'): Durat
 }
 
 export function durationBadge(s: DurationState): string {
-  if (s.mode === 'auto') return `Otomatik · ajan önerir, yoksa varsayılan ${formatWindow(DEFAULT_DURATION)}`;
-  return `${formatWindow(s)} · ${s.origin === 'brief' ? 'yönergeden' : 'senin kararın'}`;
+  if (s.mode === 'auto') return `Auto · the agent suggests, else the default ${formatWindow(DEFAULT_DURATION)}`;
+  return `${formatWindow(s)} · ${s.origin === 'brief' ? 'from the brief' : 'your choice'}`;
+}
+
+/** Shared production.ts MIN_WIDTH_S (not exported). */
+const MIN_WIDTH_S = 2;
+
+/** The same rule as shared `durationWindowErrors` (hard bounds, at least a 2 s wide window), in English. */
+export function windowError(w: DurationWindow): string | null {
+  if (!Number.isFinite(w.minS) || !Number.isFinite(w.maxS)) return 'The length must be a number.';
+  if (w.minS < DURATION_HARD.minS) return `The length can be at least ${DURATION_HARD.minS} s.`;
+  if (w.maxS > DURATION_HARD.maxS) return `The length can be at most ${DURATION_HARD.maxS} s.`;
+  if (w.maxS < w.minS) return 'The upper bound must be at least the lower bound.';
+  if (w.maxS - w.minS < MIN_WIDTH_S) return `The length window must be at least ${MIN_WIDTH_S} s wide.`;
+  return null;
 }
 
 export interface ProduceBody { productName: string; audioMode: AudioMode; brief?: string; duration?: { minS: number; maxS: number } }
@@ -38,15 +52,15 @@ export function producePayload(i: { name: string; mode: AudioMode; brief: string
   if (brief) body.brief = brief;
   if (i.duration.mode === 'manual') {
     const w = { minS: i.duration.minS, maxS: i.duration.maxS };
-    const errors = durationWindowErrors(w);
-    if (errors.length) return { ok: false, error: errors[0]! };
+    const error = windowError(w);
+    if (error) return { ok: false, error };
     body.duration = w;
   }
   return { ok: true, body };
 }
 
 /** What the form says the defaults are, and what a brief cannot change (Y7). */
-export const BRIEF_DEFAULTS_TR = `Varsayılanlar: süre ${formatWindow(DEFAULT_DURATION)}, kanca ve anlatım ajanın seçimi, görsel stil Ayarlar'daki kanal kimliği. Yönergen bunları ezer; teknik format, güvenli alan, kaynaklı bilgi ve lisans kuralları değişmez.`;
+export const BRIEF_DEFAULTS = `Defaults: length ${formatWindow(DEFAULT_DURATION)}, hook and narration chosen by the agent, look from the channel identity in Settings. Your brief overrides these; the technical format, safe area, sourced facts and license rules stay fixed.`;
 
 /**
  * Y5: the research card's line about the agent's recommendation, against the video's effective window
@@ -54,9 +68,9 @@ export const BRIEF_DEFAULTS_TR = `Varsayılanlar: süre ${formatWindow(DEFAULT_D
  */
 export function recommendationLine(rec: { duration_min_s: number; duration_max_s: number }, video?: { duration: { minS: number; maxS: number }; durationSource: 'default' | 'agent' | 'user' }): string {
   const w = recommendedWindow(rec);
-  const base = `Ajanın süre önerisi: ${formatWindow(w)}`;
+  const base = `Agent suggests ${formatWindow(w)}`;
   if (!video) return base;
-  if (video.durationSource === 'user') return `${base} · uygulanmadı, senin kararın ${formatWindow(video.duration)} geçerli`;
-  if (video.durationSource === 'agent' && video.duration.minS === w.minS && video.duration.maxS === w.maxS) return `${base} · uygulandı`;
+  if (video.durationSource === 'user') return `${base} · not applied, your choice of ${formatWindow(video.duration)} stands`;
+  if (video.durationSource === 'agent' && video.duration.minS === w.minS && video.duration.maxS === w.maxS) return `${base} · applied`;
   return base;
 }

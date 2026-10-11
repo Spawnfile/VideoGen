@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BRIEF_MAX, DURATION_HARD, type AudioMode } from '@videogen/shared/browser';
 import { api } from '../../lib/api.ts';
-import { BRIEF_DEFAULTS_TR, durationBadge, initialDurationState, onBriefChange, onDurationEdit, onDurationMode, producePayload } from '../../lib/brief-view.ts';
+import { BRIEF_DEFAULTS, durationBadge, initialDurationState, onBriefChange, onDurationEdit, onDurationMode, producePayload } from '../../lib/brief-view.ts';
 import { PRODUCE_VO_HINT } from '../../lib/production-view.ts';
 
 const MODES: { id: AudioMode; label: string; hint: string }[] = [
@@ -118,7 +118,7 @@ export function ProduceBar({ onCreated }: { onCreated: (videoId: string) => void
             className={`${field} resize-y px-3 py-2 text-[14px] leading-relaxed`}
           />
           <div className="flex items-start justify-between gap-4 text-[11.5px] text-ink-3">
-            <p className="max-w-[90ch]">{BRIEF_DEFAULTS_TR}</p>
+            <p className="max-w-[90ch]">{BRIEF_DEFAULTS}</p>
             <span className="shrink-0 tabular-nums">{brief.length}/{BRIEF_MAX}</span>
           </div>
         </div>

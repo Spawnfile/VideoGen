@@ -12,8 +12,8 @@ describe('final player and QC card helpers', () => {
   });
 
   it('opens on "Final" when a final exists, otherwise on the draft MP4; no tabs without media', () => {
-    expect(playerTabs({ final: true, draft: true })).toEqual({ tabs: [['final', 'Final'], ['mp4', 'Taslak MP4'], ['live', 'Taslak']], initial: 'final' });
-    expect(playerTabs({ final: false, draft: true })).toEqual({ tabs: [['mp4', 'Taslak MP4'], ['live', 'Taslak']], initial: 'mp4' });
+    expect(playerTabs({ final: true, draft: true })).toEqual({ tabs: [['final', 'Final'], ['mp4', 'Draft MP4'], ['live', 'Live draft']], initial: 'final' });
+    expect(playerTabs({ final: false, draft: true })).toEqual({ tabs: [['mp4', 'Draft MP4'], ['live', 'Live draft']], initial: 'mp4' });
     expect(playerTabs({ final: false, draft: false }).tabs).toEqual([]);
   });
 
@@ -24,9 +24,9 @@ describe('final player and QC card helpers', () => {
     };
     const rep = buildQcReport(evaluateQc(m, { variant: 'music', layoutIssues: [], coverOk: true }), evaluateQc(m, { variant: 'tiktok' }));
     expect(qcLines(rep)).toEqual({
-      gates: 'Teslim ✓ · Güvenlik ✓ · Güvenli alan ✓',
-      scores: 'Ses (ölçüm) 6/8 · Teknik cila 4/5', // final@2: qc holds 8 of D6's 12
-      failures: ['Sessizlik: 1,3 sn (≤ 0,3 sn) · 0:12', 'Bit hızı: 1,2 Mbps (3–11 Mbps)'],
+      gates: 'Delivery ✓ · Safety ✓ · Safe area ✓',
+      scores: 'Sound (measured) 6/8 · Technical polish 4/5', // final@2: qc holds 8 of D6's 12
+      failures: ['Silence: 1,3 sn (≤ 0,3 sn) · 0:12', 'Bitrate: 1,2 Mbps (3–11 Mbps)'],
     });
   });
 });

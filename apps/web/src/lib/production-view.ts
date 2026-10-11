@@ -4,19 +4,21 @@ import {
   type RunView, type SceneSpec, type StepView, type VideoStatus, type VideoUsage, type VideoView, type VoiceTrack,
 } from '@videogen/shared/browser';
 import type { NarratorVoiceState } from './api.ts';
+import { DIMENSION_EN, FINAL_CHECK_EN, GATE_EN, QC_CHECK_EN, REVIEWER_EN, STYLE_EN } from './i18n.ts';
+import { int, time } from './locale.ts';
 import { formatElapsed, formatTokens } from './trace-view.ts';
 
 const ACTIVE = new Set(['queued', 'running', 'waiting_gpu', 'waiting_limit', 'waiting_disk']);
 
 export function formatEta(s: number | null): string {
   if (s === null) return '';
-  if (s < 60) return 'birkaç saniye kaldı';
+  if (s < 60) return 'a few seconds left';
   const m = Math.round(s / 60);
-  return m < 60 ? `~${m} dk kaldı` : `~${Math.floor(m / 60)} sa ${m % 60} dk kaldı`;
+  return m < 60 ? `about ${m} min left` : `about ${Math.floor(m / 60)} h ${m % 60} min left`;
 }
 
 export function sourceLabel(src: ProgressSource | null): string {
-  return src === 'agent' ? 'agent raporu' : src === 'time' ? 'tahmin' : src === 'render' ? 'gerçek kare' : '';
+  return src === 'agent' ? 'agent report' : src === 'time' ? 'estimate' : src === 'render' ? 'rendered frames' : '';
 }
 
 export function videoTone(s: VideoStatus): 'active' | 'ok' | 'error' | 'waiting' | 'muted' {
@@ -45,24 +47,24 @@ export function pickVideoId(param: string | null, videos: Pick<VideoView, 'id'>[
 }
 
 export function formatUsage(u: VideoUsage): string {
-  const parts = [u.tokens ? `${formatTokens(u.tokens)} token` : '', u.fiveHourDelta !== null ? `5 sa %${Math.round(u.fiveHourDelta * 100)}` : ''];
+  const parts = [u.tokens ? `${formatTokens(u.tokens)} tokens` : '', u.fiveHourDelta !== null ? `5 h ${Math.round(u.fiveHourDelta * 100)}%` : ''];
   return parts.filter(Boolean).join(' · ');
 }
 
 export function formatDay(iso: string, now = Date.now()): string {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-  if (d.toDateString() === new Date(now).toDateString()) return `bugün ${time}`;
-  return `${d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })} ${time}`;
+  const at = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  if (d.toDateString() === new Date(now).toDateString()) return `today ${at}`;
+  return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ${at}`;
 }
 
 /** Build card summary: parts, triangles, hero size at frame 0, channel style; up to five warnings. */
 export function buildFacts(report: BuildReport, scene?: SceneSpec): { line: string; warnings: string[] } {
   const line = [
-    `${report.parts.length} parça`,
-    `${report.triangles.toLocaleString('tr-TR')} üçgen`,
-    `kahraman %${Math.round(report.hero_ratio * 100)}`,
-    scene ? CHANNEL_STYLES[scene.style_id].name_tr : '',
+    `${report.parts.length} parts`,
+    `${int(report.triangles)} triangles`,
+    `hero ${Math.round(report.hero_ratio * 100)}%`,
+    scene && CHANNEL_STYLES[scene.style_id] ? STYLE_EN[scene.style_id].name : '',
   ].filter(Boolean).join(' · ');
   return { line, warnings: report.warnings.slice(0, 5) };
 }
@@ -81,14 +83,14 @@ export function pickDraft(list: ArtifactMeta[], runId: string | null): DraftPick
 export function draftRoundLabel(run: RunView | null | undefined): string {
   if (!isRunActive(run)) return '';
   const d = draftRound(run!.steps);
-  return d ? `Taslak turu ${d.round}/${DRAFT_MAX_RETURNS} · %${d.percent}` : '';
+  return d ? `Draft round ${d.round}/${DRAFT_MAX_RETURNS} · ${d.percent}%` : '';
 }
 
 /** Header line while a final fix round runs: "Düzeltme turu 1/3 · %50" (plan F3); empty otherwise. */
 export function finalRoundLabel(run: RunView | null | undefined): string {
   if (!isRunActive(run)) return '';
   const f = finalRound(run!.steps);
-  return f ? `Düzeltme turu ${f.round}/${FINAL_MAX_ROUNDS} · %${f.percent}` : '';
+  return f ? `Fix round ${f.round}/${FINAL_MAX_ROUNDS} · ${f.percent}%` : '';
 }
 /** The header shows the final fix round first, the draft round otherwise. */
 export const roundLabel = (run: RunView | null | undefined): string => finalRoundLabel(run) || draftRoundLabel(run);
@@ -108,8 +110,8 @@ export type PlayerTab = 'final' | 'compare' | 'mp4' | 'live';
 export function playerTabs(o: { final: boolean; draft: boolean; compare?: boolean }): { tabs: [PlayerTab, string][]; initial: PlayerTab } {
   const tabs: [PlayerTab, string][] = [
     ...(o.final ? [['final', 'Final'] as [PlayerTab, string]] : []),
-    ...(o.final && o.compare ? [['compare', 'Karşılaştır'] as [PlayerTab, string]] : []),
-    ...(o.draft ? [['mp4', 'Taslak MP4'], ['live', 'Taslak']] as [PlayerTab, string][] : []),
+    ...(o.final && o.compare ? [['compare', 'Compare'] as [PlayerTab, string]] : []),
+    ...(o.draft ? [['mp4', 'Draft MP4'], ['live', 'Live draft']] as [PlayerTab, string][] : []),
   ];
   return { tabs, initial: o.final ? 'final' : 'mp4' };
 }
@@ -121,16 +123,16 @@ export function qcLines(r: QcReport): { gates: string; scores: string; failures:
   const mark = (b: boolean) => (b ? '✓' : '✗');
   const failures = [...r.music, ...r.tiktok.filter((c) => !r.music.some((m) => m.id === c.id))]
     .filter((c) => !c.pass)
-    .map((c) => `${QC_CHECKS[c.id].label_tr}: ${c.value} (${c.limit})${c.at !== undefined ? ` · ${formatClock(c.at)}` : ''}`);
+    .map((c) => `${QC_CHECK_EN[c.id] ?? c.id}: ${c.value} (${c.limit})${c.at !== undefined ? ` · ${formatClock(c.at)}` : ''}`);
   return {
-    gates: `${GATES.G1.label_tr} ${mark(r.gates.G1)} · ${GATES.G5.label_tr} ${mark(r.gates.G5)} · ${GATES.G6.label_tr} ${mark(r.gates.G6)}`,
+    gates: `${GATE_EN.G1} ${mark(r.gates.G1)} · ${GATE_EN.G5} ${mark(r.gates.G5)} · ${GATE_EN.G6} ${mark(r.gates.G6)}`,
     // final@2: qc's own share of D6 (the audio reviewer holds the rest of the 12), so the card never reads as a low score.
-    scores: `${DIMENSIONS.D6.label_tr} (ölçüm) ${r.scores.D6}/${qcMax('D6')} · ${DIMENSIONS.D7.label_tr} ${r.scores.D7}/${qcMax('D7')}`,
+    scores: `${DIMENSION_EN.D6} (measured) ${r.scores.D6}/${qcMax('D6')} · ${DIMENSION_EN.D7} ${r.scores.D7}/${qcMax('D7')}`,
     failures,
   };
 }
 
-const REVIEWER_LABEL: Record<FinalReviewerRole, string> = { reviewer_visual: 'Görsel', reviewer_facts: 'Doğruluk', reviewer_retention: 'İzlenme', reviewer_audio: 'Ses' };
+const REVIEWER_LABEL = REVIEWER_EN as Record<FinalReviewerRole, string>;
 const SEVERITY_ORDER = ['blocker', 'major', 'minor'];
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
@@ -157,12 +159,12 @@ const severityRank = (s: string) => { const i = SEVERITY_ORDER.indexOf(s); retur
 function toFinding(f: ReviewRecord['findings'][number]): PanelFinding {
   const ev = f.evidence as { timecode?: unknown; value?: unknown; limit?: unknown; at?: unknown } | null;
   const def = FINAL_CHECKS[f.checkId as FinalCheckId] as (typeof FINAL_CHECKS)[FinalCheckId] | undefined;
-  const qc = (QC_CHECKS as Record<string, { label_tr: string } | undefined>)[f.checkId];
-  const gate = f.checkId === 'G4' ? 'AI beyanı (G4)' : undefined; // GATES.G4 reads just "Beyan"; the finding needs the AI-declaration context // the orchestrator's rule finding (voice/AI-label declaration)
+  const qc = (QC_CHECK_EN as Record<string, string | undefined>)[f.checkId];
+  const gate = f.checkId === 'G4' ? 'AI disclosure (G4)' : undefined; // GATES.G4 reads just "Beyan"; the finding needs the AI-declaration context // the orchestrator's rule finding (voice/AI-label declaration)
   const time = typeof ev?.timecode === 'number' ? ev.timecode : typeof ev?.at === 'number' ? ev.at : undefined;
   const measured = ev && ev.value !== undefined && ev.limit !== undefined ? `${String(ev.value)} / ${String(ev.limit)}` : null;
   const hint = f.fixHint ?? measured;
-  return { id: f.id, check: f.checkId, label: def?.label_tr ?? qc?.label_tr ?? gate ?? f.checkId, severity: f.severity, ...(time !== undefined ? { timecode: time } : {}), ...(hint ? { hint } : {}), status: f.status };
+  return { id: f.id, check: f.checkId, label: (def ? FINAL_CHECK_EN[f.checkId as FinalCheckId] : undefined) ?? qc ?? gate ?? f.checkId, severity: f.severity, ...(time !== undefined ? { timecode: time } : {}), ...(hint ? { hint } : {}), status: f.status };
 }
 
 /**
@@ -190,9 +192,9 @@ export function panelView(all: ReviewRecord[], runId?: string | null, pick?: num
     round, runId: rows[0]!.runId, earlier: rounds.filter((r) => r < round).length, rounds, total: orch?.total ?? null, verdict: orch?.verdict ?? null,
     dimensions: DIMENSION_IDS.map((id) => {
       const score = dims[id] ?? null;
-      return { id, label: DIMENSIONS[id].label_tr, score, weight: DIMENSIONS[id].weight, low: score !== null && score < r2(DIMENSIONS[id].weight * DIMENSION_FLOOR) };
+      return { id, label: DIMENSION_EN[id], score, weight: DIMENSIONS[id].weight, low: score !== null && score < r2(DIMENSIONS[id].weight * DIMENSION_FLOOR) };
     }),
-    gates: GATE_IDS.map((id) => ({ id, label: GATES[id].label_tr, pass: gates[id] ?? null })),
+    gates: GATE_IDS.map((id) => ({ id, label: GATE_EN[id], pass: gates[id] ?? null })),
     auto: autoFindings.length ? { summary: orch!.summaryTr ?? '', findings: autoFindings } : null,
     reviewers,
   };
@@ -200,11 +202,11 @@ export function panelView(all: ReviewRecord[], runId?: string | null, pick?: num
 
 /** The badge next to the panel score: green only when ready; everything else stays neutral. */
 export function reviewBadge(verdict: string | null, status: VideoStatus): { text: string; ok: boolean } {
-  if (status === 'ready' || status === 'published' || ((status === 'running' || status === 'queued') && verdict === 'ready')) return { text: 'yayına hazır', ok: true };
-  if (status === 'needs_human') return { text: 'insan gerekli', ok: false };
-  if (status === 'failed') return { text: 'başarısız', ok: false };
-  if (status === 'cancelled') return { text: 'durduruldu', ok: false };
-  return { text: 'düzeltiliyor', ok: false };
+  if (status === 'ready' || status === 'published' || ((status === 'running' || status === 'queued') && verdict === 'ready')) return { text: 'ready to publish', ok: true };
+  if (status === 'needs_human') return { text: 'needs you', ok: false };
+  if (status === 'failed') return { text: 'failed', ok: false };
+  if (status === 'cancelled') return { text: 'stopped', ok: false };
+  return { text: 'fixing', ok: false };
 }
 
 /** The newest run's contact sheet of the reviewed round (`final_review_sheet`, meta.kind 'main'); the list is newest first. */
@@ -222,10 +224,10 @@ export function pickVoice(list: ArtifactMeta[], runId: string | null): { voiceTr
 }
 
 /** Produce bar hint of the VO mode (K17: the narrator voice is chosen in Settings). */
-export const PRODUCE_VO_HINT = "Anlatım yerel TTS ile; ses seçimi Ayarlar'da";
+export const PRODUCE_VO_HINT = 'Narration uses local TTS; pick the voice in Settings';
 
 const ENGINE_NAME: Record<string, string> = { chatterbox: 'Chatterbox', freya: 'Freya' };
-const trDec = (n: number) => (Number.isFinite(n) ? n.toFixed(1).replace('.', ',') : '–');
+const dec = (n: number) => (Number.isFinite(n) ? n.toFixed(1) : '–');
 /** Spec §8.1: a line whose ASR round trip misses more than 3 % of the characters is flagged. */
 const CER_WARN = 0.03;
 
@@ -238,17 +240,17 @@ export function voiceView(track: VoiceTrack | null, o: { chosen: boolean }): Voi
   // An invalid stored payload draws no card rather than throwing in render.
   if (!track || !track.provider || !track.facts || !Array.isArray(track.lines)) return null;
   const { engine, voice } = track.provider;
-  const who = voice.kind === 'clone' ? 'klon ses' : voice.id === 'hazir' ? 'hazır ses' : voice.id === 'leyla' ? 'Leyla' : voice.id;
+  const who = voice.kind === 'clone' ? 'cloned voice' : voice.id === 'hazir' ? 'stock voice' : voice.id === 'leyla' ? 'Leyla' : voice.id;
   return {
-    title: `Seslendirme · ${ENGINE_NAME[engine] ?? engine} · ${who}`,
+    title: `Voiceover · ${ENGINE_NAME[engine] ?? engine} · ${who}`,
     provisional: !o.chosen,
     lines: track.lines.length,
-    duration: `${trDec(track.duration_ms / 1000)} sn`,
-    worstCer: `%${trDec(track.facts.max_cer * 100)}`,
-    firstWord: `${trDec(track.facts.first_word_s)} sn`,
-    pace: `${trDec(track.facts.syllables_per_s)} hece/sn`,
+    duration: `${dec(track.duration_ms / 1000)} s`,
+    worstCer: `${dec(track.facts.max_cer * 100)}%`,
+    firstWord: `${dec(track.facts.first_word_s)} s`,
+    pace: `${dec(track.facts.syllables_per_s)} syllables/s`,
     aigc: voice.kind === 'clone',
-    rows: track.lines.map((l) => ({ beat: l.beat_id, text: l.text_tr, cer: `%${trDec(l.cer * 100)}`, warn: l.cer > CER_WARN })),
+    rows: track.lines.map((l) => ({ beat: l.beat_id, text: l.text_tr, cer: `${dec(l.cer * 100)}%`, warn: l.cer > CER_WARN })),
   };
 }
 
@@ -260,10 +262,10 @@ export function narratorOptions(s: NarratorVoiceState): { items: NarratorItem[];
     const selected = s.voice.engine === g.engine && s.voice.voice.kind === v.kind && (v.kind === 'clone' ? (s.voice.voice as { asset_id: string }).asset_id === v.asset_id : (s.voice.voice as { id: string }).id === v.id);
     return {
       key: `${g.engine}:${v.kind}:${v.asset_id ?? v.id}`, value, selected, provisional: selected && !s.chosen,
-      label: `${ENGINE_NAME[g.engine] ?? g.engine} · ${v.kind === 'clone' ? `klon: ${v.label_tr}` : v.label_tr}`,
+      label: `${ENGINE_NAME[g.engine] ?? g.engine} · ${v.kind === 'clone' ? `clone: ${v.label_tr}` : v.label_tr}`,
     };
   }));
-  return { items, hasClone: items.some((i) => i.value.voice.kind === 'clone'), note: s.chosen ? '' : 'Henüz seçilmedi: geçici varsayılan' };
+  return { items, hasClone: items.some((i) => i.value.voice.kind === 'clone'), note: s.chosen ? '' : 'Not chosen yet: provisional default' };
 }
 
 /** Agent music design A5: the run's newest stems (a compose or remix records all of them together) and the composer's score. */
@@ -276,8 +278,8 @@ export function pickStems(list: ArtifactMeta[], runId: string | null, o: { fallb
   return { music: newest('stem_music')?.blobSha ?? null, voice: newest('stem_voice')?.blobSha ?? null, sfx: newest('stem_sfx')?.blobSha ?? null, scoreId: newest('music')?.id ?? null };
 }
 
-/** "tükenmez-kalem-muzik.flac": a plain ASCII name the media endpoint accepts for ?download=. */
-export function stemFileName(productName: string, part: 'muzik' | 'seslendirme' | 'efektler'): string {
+/** "tukenmez-kalem-music.flac": a plain ASCII name the media endpoint accepts for ?download=. */
+export function stemFileName(productName: string, part: 'music' | 'voice' | 'effects'): string {
   const slug = productName.toLocaleLowerCase('tr').replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'video';
   return `${slug}-${part}.flac`;

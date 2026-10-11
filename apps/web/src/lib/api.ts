@@ -45,13 +45,13 @@ export const api = {
   produce: async (payload: ProduceBody): Promise<{ ok: true; videoId: string; runId: string } | { ok: false; error: string }> => {
     const r = await fetch('/api/videos', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
     const body = (await r.json().catch(() => ({}))) as { videoId?: string; runId?: string; error?: string };
-    return r.status === 202 && body.videoId && body.runId ? { ok: true, videoId: body.videoId, runId: body.runId } : { ok: false, error: body.error ?? `Üretim başlatılamadı (${r.status})` };
+    return r.status === 202 && body.videoId && body.runId ? { ok: true, videoId: body.videoId, runId: body.runId } : { ok: false, error: body.error ?? `Could not start the production (${r.status})` };
   },
   /** Agent music design A6: the user's audio instruction → an audio edit run. */
   audioEdit: async (videoId: string, instruction: string): Promise<{ ok: true; runId: string } | { ok: false; error: string }> => {
     const r = await fetch(`/api/videos/${videoId}/audio-edits`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ instruction }) });
     const body = (await r.json().catch(() => ({}))) as { runId?: string; error?: string };
-    return r.status === 202 && body.runId ? { ok: true, runId: body.runId } : { ok: false, error: body.error ?? `Ses düzenlemesi başlatılamadı (${r.status})` };
+    return r.status === 202 && body.runId ? { ok: true, runId: body.runId } : { ok: false, error: body.error ?? `Could not start the audio edit (${r.status})` };
   },
   videos: () => getFresh<VideoView[]>('/api/videos'),
   video: (id: string) => getFresh<{ video: VideoView; runs: RunView[]; artifacts: ArtifactMeta[] }>(`/api/videos/${id}`),
@@ -85,7 +85,7 @@ export const api = {
   upload: async (file: File, ext: string): Promise<WriteResult<{ uploadId: string; sha: string; bytes: number; durationMs: number }>> => {
     const r = await fetch(`/api/uploads?ext=${encodeURIComponent(ext)}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: file });
     const j = (await r.json().catch(() => ({}))) as Record<string, unknown>;
-    return r.ok ? { ok: true, data: j as { uploadId: string; sha: string; bytes: number; durationMs: number } } : { ok: false, status: r.status, error: typeof j.error === 'string' ? j.error : `Yükleme başarısız (${r.status})`, body: j };
+    return r.ok ? { ok: true, data: j as { uploadId: string; sha: string; bytes: number; durationMs: number } } : { ok: false, status: r.status, error: typeof j.error === 'string' ? j.error : `Upload failed (${r.status})`, body: j };
   },
   importAsset: (body: { uploadId: string; kind: LedgerKind; title: string; license: string; author: string; licenseText: string; attribution?: string; source?: string }) =>
     write<{ created: boolean; asset: AssetListItem }>('/api/assets', body),
@@ -104,7 +104,7 @@ export type WriteResult<T> = { ok: true; data: T } | { ok: false; status: number
 async function write<T>(path: string, body: unknown, method: 'POST' | 'PUT' = 'POST'): Promise<WriteResult<T>> {
   const r = await fetch(path, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const j = (await r.json().catch(() => ({}))) as Record<string, unknown>;
-  return r.ok ? { ok: true, data: j as T } : { ok: false, status: r.status, error: typeof j.error === 'string' ? j.error : `İstek başarısız (${r.status})`, body: j };
+  return r.ok ? { ok: true, data: j as T } : { ok: false, status: r.status, error: typeof j.error === 'string' ? j.error : `Request failed (${r.status})`, body: j };
 }
 
 /** GET/PUT /api/narrator-voice (K17: `chosen:false` = the provisional default is in use). */

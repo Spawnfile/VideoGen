@@ -6,9 +6,9 @@ import { useContent } from './ArtifactCards.tsx';
 
 const card = 'rounded-card border border-line/60 bg-paper px-4 py-3 shadow-subtle';
 const PARTS = [
-  { key: 'music', label: 'Müzik', file: 'muzik' },
-  { key: 'voice', label: 'Seslendirme', file: 'seslendirme' },
-  { key: 'sfx', label: 'Efektler', file: 'efektler' },
+  { key: 'music', label: 'Müzik', file: 'music' },
+  { key: 'voice', label: 'Seslendirme', file: 'voice' },
+  { key: 'sfx', label: 'Efektler', file: 'effects' },
 ] as const;
 const EDIT_MAX = 1000;
 

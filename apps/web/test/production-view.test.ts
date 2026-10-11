@@ -11,15 +11,15 @@ const run = (steps: StepView[], status: RunView['status'] = 'running'): RunView 
 describe('production view helpers', () => {
   it('formats ETA, progress sources, tones, usage and durations in Turkish', () => {
     expect(formatEta(null)).toBe('');
-    expect(formatEta(40)).toBe('birkaç saniye kaldı');
-    expect(formatEta(250)).toBe('~4 dk kaldı');
-    expect(formatEta(3900)).toBe('~1 sa 5 dk kaldı');
-    expect(sourceLabel('agent')).toBe('agent raporu');
-    expect(sourceLabel('time')).toBe('tahmin');
-    expect(sourceLabel('render')).toBe('gerçek kare');
+    expect(formatEta(40)).toBe('a few seconds left');
+    expect(formatEta(250)).toBe('about 4 min left');
+    expect(formatEta(3900)).toBe('about 1 h 5 min left');
+    expect(sourceLabel('agent')).toBe('agent report');
+    expect(sourceLabel('time')).toBe('estimate');
+    expect(sourceLabel('render')).toBe('rendered frames');
     expect(sourceLabel(null)).toBe('');
     expect([videoTone('running'), videoTone('ready'), videoTone('failed'), videoTone('needs_human'), videoTone('cancelled')]).toEqual(['active', 'ok', 'error', 'waiting', 'muted']);
-    expect(formatUsage({ sessions: 2, tokens: 41_234, costUsd: 0.1, fiveHourDelta: 0.031 })).toBe('41K token · 5 sa %3');
+    expect(formatUsage({ sessions: 2, tokens: 41_234, costUsd: 0.1, fiveHourDelta: 0.031 })).toBe('41K tokens · 5 h 3%');
     expect(formatUsage({ sessions: 0, tokens: 0, costUsd: null, fiveHourDelta: null })).toBe('');
     const now = Date.parse('2026-10-06T10:01:05Z');
     expect(stepDuration(step({ status: 'running', startedAt: '2026-10-06T10:00:00Z' }), now)).toBe('1:05');
@@ -40,17 +40,17 @@ describe('production view helpers', () => {
   });
 });
 describe('formatDay', () => {
-  it('says "bugün" for today and a short Turkish date otherwise (local time)', () => {
+  it('says "today" for today and a short English date otherwise (local time)', () => {
     const now = new Date(2026, 9, 6, 18, 0).getTime();
-    expect(formatDay(new Date(2026, 9, 6, 14, 5).toISOString(), now)).toBe('bugün 14:05');
-    expect(formatDay(new Date(2026, 9, 1, 9, 30).toISOString(), now)).toBe('1 Eki 09:30');
+    expect(formatDay(new Date(2026, 9, 6, 14, 5).toISOString(), now)).toBe('today 14:05');
+    expect(formatDay(new Date(2026, 9, 1, 9, 30).toISOString(), now)).toBe('1 Oct 09:30');
   });
 
   it('summarizes a build: parts, triangles, hero size, channel style and at most five warnings', () => {
     const report = { ok: true, errors: [], parts: ['a', 'b', 'c'], missing_parts: [], extra_parts: [], overlaps: [], hero_ratio: 0.7995, occlusion: [], triangles: 7526, frames: 1350, warnings: ['1', '2', '3', '4', '5', '6'] };
     const f = buildFacts(report, { style_id: 'gece_mavisi' } as never);
-    expect(f.line).toBe('3 parça · 7.526 üçgen · kahraman %80 · Gece mavisi');
+    expect(f.line).toBe('3 parts · 7,526 triangles · hero 80% · Night blue');
     expect(f.warnings).toEqual(['1', '2', '3', '4', '5']);
-    expect(buildFacts({ ...report, warnings: [] }).line).toBe('3 parça · 7.526 üçgen · kahraman %80');
+    expect(buildFacts({ ...report, warnings: [] }).line).toBe('3 parts · 7,526 triangles · hero 80%');
   });
 });

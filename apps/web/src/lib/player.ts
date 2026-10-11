@@ -39,6 +39,6 @@ export function shortcutFor(e: {
   const tag = e.target?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable) return null;
   if (e.key === ' ' && (tag === 'BUTTON' || tag === 'VIDEO')) return null;
-  const action = KEYS[e.key.toLocaleLowerCase('tr')] ?? null;
+  const action = KEYS[e.key.toLowerCase()] ?? null;
   return action && e.repeat && !REPEATS.has(action) ? null : action;
 }

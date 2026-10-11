@@ -20,32 +20,32 @@ const info = (o: Partial<PublishInfo> = {}): PublishInfo => ({
 describe('publish panel helpers (plan M6 T7)', () => {
   it('publishView: blockers in Turkish (not ready, no connection, 5/5 with the next slot, validation errors); stages from the live status; the \'sound\' item required only for the TikTok variant; \'aigc\' required when the finish says so', () => {
     const ok = publishView(info(), 'tiktok', NOW);
-    expect(ok).toMatchObject({ canSend: true, blockers: [], draftsLabel: '3/5 taslak (24 saat)', stage: 'idle', caption: 'Kanca' });
+    expect(ok).toMatchObject({ canSend: true, blockers: [], draftsLabel: '3/5 drafts (24 h)', stage: 'idle', caption: 'Kanca' });
     expect(ok.checklist.find((i) => i.id === 'sound')!.required).toBe(true);
     expect(publishView(info(), 'music', NOW).checklist.find((i) => i.id === 'sound')!.required).toBe(false);
     expect(publishView(info(), 'music', NOW).caption).toContain('Müzik: X (CC BY 4.0)');
 
     const full = publishView(info({ draftsUsed: 5, nextSlot: '2026-10-08T14:20:00Z' }), 'tiktok', NOW);
     expect(full.canSend).toBe(false);
-    expect(full.draftsLabel).toBe('5/5 taslak (24 saat) · sonraki 17:20');
-    expect(full.blockers).toEqual(['Son 24 saatte 5 taslak gönderildi; sonraki gönderim 17:20']);
+    expect(full.draftsLabel).toBe('5/5 drafts (24 h) · next at 17:20');
+    expect(full.blockers).toEqual(['5 drafts sent in the last 24 hours; next send at 17:20']);
     expect(publishView(info({ eligible: false, blockers: ["Yayın yalnızca 'Yayına hazır' videolar için.", 'TikTok bağlı değil: Ayarlar → TikTok bağlantısı.'] }), 'tiktok', NOW).blockers)
       .toEqual(["Yayın yalnızca 'Yayına hazır' videolar için.", 'TikTok bağlı değil: Ayarlar → TikTok bağlantısı.']);
     expect(publishView(info({ variantBlockers: { tiktok: ['video en çok 600 sn olabilir (601,0 sn)'], music: [] } }), 'tiktok', NOW)).toMatchObject({ canSend: false, blockers: ['video en çok 600 sn olabilir (601,0 sn)'] });
     expect(publishView(info({ variantBlockers: { tiktok: ['x'], music: [] } }), 'music', NOW).canSend).toBe(true);
 
     const stage = (p: Partial<Publication>) => publishView(info({ publications: [pub(p)] }), 'tiktok', NOW);
-    expect(stage({ status: 'queued' })).toMatchObject({ stage: 'queued', stageLabel: 'Kuyrukta', canSend: false, canCancel: true });
-    expect(stage({ status: 'uploading' })).toMatchObject({ stage: 'uploading', stageLabel: 'Yükleniyor', canSend: false, canCancel: false });
-    expect(stage({ status: 'processing' }).stageLabel).toBe('TikTok işliyor');
-    expect(stage({ status: 'waiting' }).stageLabel).toBe('TikTok yanıt vermedi; gelen kutunuzu kontrol edin (yoklama sürüyor)');
-    expect(stage({ status: 'sent' })).toMatchObject({ stage: 'sent', stageLabel: 'Gelen kutusunda', showFinish: true, canSend: false });
-    expect(stage({ status: 'failed', failReason: 'TikTok hatası: x' })).toMatchObject({ stage: 'failed', stageLabel: 'Gönderilemedi: TikTok hatası: x', canSend: true });
-    expect(stage({ status: 'published', url: 'https://www.tiktok.com/@a/video/1' })).toMatchObject({ stage: 'published', stageLabel: 'Yayında', canSend: false, resend: true });
+    expect(stage({ status: 'queued' })).toMatchObject({ stage: 'queued', stageLabel: 'Queued', canSend: false, canCancel: true });
+    expect(stage({ status: 'uploading' })).toMatchObject({ stage: 'uploading', stageLabel: 'Uploading', canSend: false, canCancel: false });
+    expect(stage({ status: 'processing' }).stageLabel).toBe('TikTok is processing');
+    expect(stage({ status: 'waiting' }).stageLabel).toBe('TikTok has not answered; check your inbox (still checking)');
+    expect(stage({ status: 'sent' })).toMatchObject({ stage: 'sent', stageLabel: 'In your TikTok inbox', showFinish: true, canSend: false });
+    expect(stage({ status: 'failed', failReason: 'TikTok hatası: x' })).toMatchObject({ stage: 'failed', stageLabel: 'Not sent: TikTok hatası: x', canSend: true });
+    expect(stage({ status: 'published', url: 'https://www.tiktok.com/@a/video/1' })).toMatchObject({ stage: 'published', stageLabel: 'Published', canSend: false, resend: true });
 
     const aigc = publishView(info({ aigcRequired: true, checklist: { tiktok: publishChecklist({ variant: 'tiktok', aigcRequired: true }), music: publishChecklist({ variant: 'music', aigcRequired: true }) } }), 'tiktok', NOW);
     expect(aigc.checklist.find((i) => i.id === 'aigc')).toMatchObject({ required: true });
-    expect(aigc.aigcNote).toBe("Bu video klon ses içeriyor: TikTok'ta AI etiketini açmanız zorunlu.");
+    expect(aigc.aigcNote).toBe('This video uses a cloned voice: you must turn on the AI label in TikTok.');
     expect(ok.aigcNote).toBeNull();
   });
 
@@ -63,11 +63,11 @@ describe('publish panel helpers (plan M6 T7)', () => {
 
   it('tiktokView: connected with the remaining validity, reconnect when the refresh token is dead, import hint without client credentials; no secret field is read', () => {
     const base = { connected: true, username: 'whats.inside59', expiresAt: '2026-10-09T11:00:00Z', refreshExpiresAt: '2027-10-08T12:00:00Z', scopes: ['user.info.basic', 'video.publish', 'video.upload'], clientConfigured: true };
-    expect(tiktokView(base, NOW)).toEqual({ title: 'Bağlı: @whats.inside59', detail: 'Erişim belirteci 23 sa geçerli · izinler: user.info.basic, video.publish, video.upload', tone: 'ok', action: 'reconnect' });
-    expect(tiktokView({ ...base, expiresAt: '2026-10-08T11:00:00Z' }, NOW).detail).toBe('Erişim belirteci gönderimde yenilenecek · izinler: user.info.basic, video.publish, video.upload');
-    expect(tiktokView({ ...base, connected: false, refreshExpiresAt: '2026-10-01T00:00:00Z' }, NOW)).toEqual({ title: 'Bağlantı yenilenmeli', detail: 'TikTok izni sona erdi; yeniden bağlanın.', tone: 'warn', action: 'reconnect' });
-    expect(tiktokView({ connected: false, username: null, expiresAt: null, refreshExpiresAt: null, scopes: [], clientConfigured: true }, NOW)).toEqual({ title: 'TikTok bağlı değil', detail: 'Bağlan düğmesiyle TikTok hesabınızı bağlayın.', tone: 'off', action: 'connect' });
-    expect(tiktokView({ connected: false, username: null, expiresAt: null, refreshExpiresAt: null, scopes: [], clientConfigured: false }, NOW)).toEqual({ title: 'TikTok bağlı değil', detail: 'İstemci bilgisi yok: node bin/tiktok.mjs import', tone: 'off', action: 'import' });
+    expect(tiktokView(base, NOW)).toEqual({ title: 'Connected: @whats.inside59', detail: 'Access token valid for 23 h · scopes: user.info.basic, video.publish, video.upload', tone: 'ok', action: 'reconnect' });
+    expect(tiktokView({ ...base, expiresAt: '2026-10-08T11:00:00Z' }, NOW).detail).toBe('Access token renews on the next send · scopes: user.info.basic, video.publish, video.upload');
+    expect(tiktokView({ ...base, connected: false, refreshExpiresAt: '2026-10-01T00:00:00Z' }, NOW)).toEqual({ title: 'Reconnect needed', detail: 'TikTok permission expired; connect again.', tone: 'warn', action: 'reconnect' });
+    expect(tiktokView({ connected: false, username: null, expiresAt: null, refreshExpiresAt: null, scopes: [], clientConfigured: true }, NOW)).toEqual({ title: 'TikTok not connected', detail: 'Connect your TikTok account with the Connect button.', tone: 'off', action: 'connect' });
+    expect(tiktokView({ connected: false, username: null, expiresAt: null, refreshExpiresAt: null, scopes: [], clientConfigured: false }, NOW)).toEqual({ title: 'TikTok not connected', detail: 'No client credentials: run node bin/tiktok.mjs import', tone: 'off', action: 'import' });
     const seen: string[] = [];
     const spy = new Proxy({ ...base }, { get: (o, k) => { seen.push(String(k)); return (o as Record<string, unknown>)[k as string]; } });
     tiktokView(spy, NOW);

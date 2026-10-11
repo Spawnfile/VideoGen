@@ -8,15 +8,16 @@ export type ChainState = (AuditVerifyResult & { cached?: boolean }) | null;
 export type ToolInputView = { kind: 'edit'; path: string; before: string; after: string } | { kind: 'write'; path: string; content: string } | { kind: 'json'; text: string };
 
 const TZ = 'Europe/Istanbul';
+const LOCALE = 'en-GB';
 const SUMMARY_MAX = 120;
-const ACTOR: Record<string, string> = { user: 'Kullanıcı', orchestrator: 'Orkestratör', system: 'Sistem', agent: 'Agent' };
+const ACTOR: Record<string, string> = { user: 'You', orchestrator: 'Orchestrator', system: 'System', agent: 'Agent' };
 
-const day = (d: Date) => d.toLocaleDateString('tr-TR', { timeZone: TZ });
+const day = (d: Date) => d.toLocaleDateString(LOCALE, { timeZone: TZ });
 const clock = (d: Date, seconds: boolean) =>
-  d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', ...(seconds ? { second: '2-digit' } : {}), hour12: false, timeZone: TZ });
+  d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit', ...(seconds ? { second: '2-digit' } : {}), hour12: false, timeZone: TZ });
 
-/** Thousands grouped with a no-break space ("12 345"), as the spec writes counts. */
-export const groupInt = (n: number): string => String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+/** Thousands grouped with a comma ("12,345"). */
+export const groupInt = (n: number): string => String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 function tone(action: string): AuditTone {
   const last = action.slice(action.lastIndexOf('.') + 1);
@@ -54,7 +55,7 @@ export function auditView(rows: AuditRow[], now: Date = new Date()): { rows: Aud
   return {
     rows: rows.map((r) => {
       const d = new Date(r.ts);
-      const time = day(d) === today ? clock(d, true) : `${d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', timeZone: TZ })} ${clock(d, false)}`;
+      const time = day(d) === today ? clock(d, true) : `${d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short', timeZone: TZ })} ${clock(d, false)}`;
       const subject = r.subjectType ? (r.subjectId ? `${r.subjectType} ${shortId(r.subjectId)}` : r.subjectType) : '—';
       return { seq: r.seq, time, actor: actor(r), action: r.action, subject, summary: summary(r.data), tone: tone(r.action) };
     }),
@@ -64,13 +65,13 @@ export function auditView(rows: AuditRow[], now: Date = new Date()): { rows: Aud
 /** The chain badge: valid with the count and check time, broken at the first bad row, unknown when the check failed. */
 export function chainView(v: ChainState, error?: unknown): { text: string; tone: AuditTone; detail: string } {
   if (!v) {
-    if (error) return { text: 'Doğrulanamadı', tone: 'neutral', detail: error instanceof Error ? error.message : String(error) };
-    return { text: 'Zincir doğrulanıyor…', tone: 'neutral', detail: '' };
+    if (error) return { text: 'Could not verify', tone: 'neutral', detail: error instanceof Error ? error.message : String(error) };
+    return { text: 'Verifying the chain…', tone: 'neutral', detail: '' };
   }
-  const took = v.ms < 100 ? `${Math.round(v.ms)} ms'de` : `${(v.ms / 1000).toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} sn'de`;
-  const detail = `${groupInt(v.checked)} satır ${took} tarandı${v.cached ? ' · önbellekten' : ''}`;
-  if (!v.ok) return { text: `Zincir bozuk: satır ${v.firstBadSeq ?? '?'}`, tone: 'error', detail };
-  return { text: `Zincir geçerli · ${groupInt(v.checked)} satır · ${clock(new Date(v.checkedAt), false)}`, tone: 'ok', detail };
+  const took = v.ms < 100 ? `${Math.round(v.ms)} ms` : `${(v.ms / 1000).toLocaleString(LOCALE, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`;
+  const detail = `${groupInt(v.checked)} rows checked in ${took}${v.cached ? ' · cached' : ''}`;
+  if (!v.ok) return { text: `Chain broken at row ${v.firstBadSeq ?? '?'}`, tone: 'error', detail };
+  return { text: `Chain valid · ${groupInt(v.checked)} rows · ${clock(new Date(v.checkedAt), false)}`, tone: 'ok', detail };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -22,9 +22,9 @@ describe('audit explorer helpers (plan M7 T3)', () => {
     ], NOW);
     expect(rows[0]).toEqual({ seq: 9, time: '10:42:05', actor: 'builder', action: 'agent.tool', subject: 'video 00000000…', summary: 'tool: Edit · file: scene.ts', tone: 'neutral' });
     // Another day (Istanbul time) carries the date.
-    expect(rows[1]).toMatchObject({ time: '7 Eki 21:05', actor: 'Kullanıcı', subject: 'run 00000000…', summary: '', tone: 'warn' });
-    expect(rows[2]).toMatchObject({ actor: 'Orkestratör', subject: '—', tone: 'error' });
-    expect(rows.slice(3).map((r) => [r.actor, r.tone])).toEqual([['Sistem', 'error'], ['Sistem', 'error'], ['Sistem', 'ok']]);
+    expect(rows[1]).toMatchObject({ time: '7 Oct 21:05', actor: 'You', subject: 'run 00000000…', summary: '', tone: 'warn' });
+    expect(rows[2]).toMatchObject({ actor: 'Orchestrator', subject: '—', tone: 'error' });
+    expect(rows.slice(3).map((r) => [r.actor, r.tone])).toEqual([['System', 'error'], ['System', 'error'], ['System', 'ok']]);
     // A path subject shows its file name.
     expect(auditView([row({ subjectType: 'file', subjectId: '/w/spikes/coding/notes.txt' })], NOW).rows[0]!.subject).toBe('file notes.txt');
     // Long data is cut for the table.
@@ -34,13 +34,13 @@ describe('audit explorer helpers (plan M7 T3)', () => {
 
     const base = { checkedAt: '2026-10-08T07:42:30Z', ms: 812, lastSeq: 12345 };
     expect(chainView({ ...base, ok: true, checked: 12345, firstBadSeq: null })).toEqual({
-      text: 'Zincir geçerli · 12 345 satır · 10:42', tone: 'ok', detail: '12 345 satır 0,8 sn\'de tarandı',
+      text: 'Chain valid · 12,345 rows · 10:42', tone: 'ok', detail: '12,345 rows checked in 0.8 s',
     });
-    expect(chainView({ ...base, ok: true, checked: 12345, firstBadSeq: null, cached: true }).detail).toBe('12 345 satır 0,8 sn\'de tarandı · önbellekten');
-    expect(chainView({ ...base, ms: 40, ok: true, checked: 4, firstBadSeq: null }).detail).toBe("4 satır 40 ms'de tarandı");
-    expect(chainView({ ...base, ok: false, checked: 812, firstBadSeq: 812 })).toMatchObject({ text: 'Zincir bozuk: satır 812', tone: 'error' });
-    expect(chainView(null, new Error('/api/audit/verify: 500'))).toEqual({ text: 'Doğrulanamadı', tone: 'neutral', detail: '/api/audit/verify: 500' });
-    expect(chainView(null)).toMatchObject({ text: 'Zincir doğrulanıyor…', tone: 'neutral' });
+    expect(chainView({ ...base, ok: true, checked: 12345, firstBadSeq: null, cached: true }).detail).toBe('12,345 rows checked in 0.8 s · cached');
+    expect(chainView({ ...base, ms: 40, ok: true, checked: 4, firstBadSeq: null }).detail).toBe('4 rows checked in 40 ms');
+    expect(chainView({ ...base, ok: false, checked: 812, firstBadSeq: 812 })).toMatchObject({ text: 'Chain broken at row 812', tone: 'error' });
+    expect(chainView(null, new Error('/api/audit/verify: 500'))).toEqual({ text: 'Could not verify', tone: 'neutral', detail: '/api/audit/verify: 500' });
+    expect(chainView(null)).toMatchObject({ text: 'Verifying the chain…', tone: 'neutral' });
   });
 
   it('filters round-trip through the URL (run, video, role, action prefix, dates); toolInputView turns an Edit into before/after columns, a Write into its content and anything else into pretty JSON', () => {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../lib/api.ts';
-import { REVOKE_CONFIRM_TR, type AssetRowView, type AssetTone } from '../../lib/assets-view.ts';
+import { REVOKE_CONFIRM, type AssetRowView, type AssetTone } from '../../lib/assets-view.ts';
 
 const BADGE: Record<AssetTone, string> = {
   allowed: 'border border-line text-ink',
@@ -60,7 +60,7 @@ function AssetRow({ row: r, onRevoked }: { row: AssetRowView; onRevoked: () => v
       </div>
       {confirming && (
         <div role="alertdialog" aria-label="İzni geri al" className="flex flex-col gap-2 rounded-input bg-inset px-3 py-2.5">
-          <p className="text-[12.5px]">{REVOKE_CONFIRM_TR}. Geri alınamaz.</p>
+          <p className="text-[12.5px]">{REVOKE_CONFIRM}. Geri alınamaz.</p>
           <label className="flex flex-col gap-1 text-[12px] text-ink-2">
             Gerekçe
             <input

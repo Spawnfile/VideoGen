@@ -1,4 +1,5 @@
-import { DIMENSION_IDS, DIMENSIONS, type DimensionId, type VersionView } from '@videogen/shared/browser';
+import { DIMENSION_IDS, type DimensionId, type VersionView } from '@videogen/shared/browser';
+import { DIMENSION_EN } from './i18n.ts';
 
 export type CompareVariant = 'music' | 'tiktok';
 export interface CompareSide { id: string; round: number; label: string; sha: string; coverSha: string | null; durationS: number; total: number | null; best: boolean }
@@ -9,7 +10,7 @@ export interface CompareView { a: CompareSide | null; b: CompareSide | null; del
 export const SYNC_DRIFT_S = 0.15;
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
-export const versionLabel = (v: Pick<VersionView, 'round'>): string => `Sürüm ${v.round + 1}`;
+export const versionLabel = (v: Pick<VersionView, 'round'>): string => `Version ${v.round + 1}`;
 export const finished = (versions: VersionView[]): VersionView[] => versions.filter((v) => !!v.finals);
 
 function side(v: VersionView | undefined, variant: CompareVariant): CompareSide | null {
@@ -41,13 +42,13 @@ export function compareView(versions: VersionView[], aId: string | null | undefi
   const dims = DIMENSION_IDS.map((id) => {
     const x = va?.finals ? (va.dims?.[id] ?? null) : null;
     const y = vb?.finals ? (vb.dims?.[id] ?? null) : null;
-    return { id, label: DIMENSIONS[id].label_tr, a: x, b: y, delta: x !== null && y !== null ? r2(y - x) : null };
+    return { id, label: DIMENSION_EN[id], a: x, b: y, delta: x !== null && y !== null ? r2(y - x) : null };
   });
   const delta = { total: a?.total != null && b?.total != null ? r2(b.total - a.total) : null, dims };
   const unfinished = [va, vb].find((v) => v && !v.finals);
-  const reason = unfinished ? `${versionLabel(unfinished)} tamamlanmadı: finali yok, karşılaştırılamaz`
-    : !a || !b ? 'Karşılaştırmak için finali olan iki sürüm gerekir'
-    : a.id === b.id ? 'Aynı sürüm iki kez seçildi'
+  const reason = unfinished ? `${versionLabel(unfinished)} is unfinished: it has no final to compare`
+    : !a || !b ? 'Comparing needs two versions with a final'
+    : a.id === b.id ? 'The same version is picked twice'
     : undefined;
   return { a, b, delta, canCompare: !reason, ...(reason ? { reason } : {}) };
 }

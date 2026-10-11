@@ -21,10 +21,10 @@ describe('compare view', () => {
     const d = compareView(versions, null, null, 'music');
     expect(d.canCompare).toBe(true);
     expect(d.reason).toBeUndefined();
-    expect(d.a).toMatchObject({ id: 'v1', label: 'Sürüm 2', sha: 'b'.repeat(64), coverSha: 'b2'.repeat(32), total: 78.5 });
-    expect(d.b).toMatchObject({ id: 'v2', label: 'Sürüm 3', sha: 'c'.repeat(64), total: 84, best: true });
+    expect(d.a).toMatchObject({ id: 'v1', label: 'Version 2', sha: 'b'.repeat(64), coverSha: 'b2'.repeat(32), total: 78.5 });
+    expect(d.b).toMatchObject({ id: 'v2', label: 'Version 3', sha: 'c'.repeat(64), total: 84, best: true });
     expect(d.delta.total).toBe(5.5);
-    expect(d.delta.dims.find((x) => x.id === 'D1')).toEqual({ id: 'D1', label: 'Kanca', a: 11, b: 13, delta: 2 });
+    expect(d.delta.dims.find((x) => x.id === 'D1')).toEqual({ id: 'D1', label: 'Hook', a: 11, b: 13, delta: 2 });
     expect(d.delta.dims.find((x) => x.id === 'D2')).toMatchObject({ a: 9, b: 8.5, delta: -0.5 });
     expect(d.delta.dims.find((x) => x.id === 'D9')).toMatchObject({ a: null, b: null, delta: null });
     // The variant applies to both sides; without a TikTok file the music file stands in.
@@ -36,10 +36,10 @@ describe('compare view', () => {
     expect([early.a!.id, early.b!.id]).toEqual(['v1', 'v0']);
     // An unfinished version is refused with a Turkish reason; so are the same version twice and a lone final.
     const bad = compareView(versions, 'v2', 'v3', 'music');
-    expect(bad).toMatchObject({ canCompare: false, reason: 'Sürüm 4 tamamlanmadı: finali yok, karşılaştırılamaz' });
+    expect(bad).toMatchObject({ canCompare: false, reason: 'Version 4 is unfinished: it has no final to compare' });
     expect(bad.b).toBeNull();
-    expect(compareView(versions, 'v2', 'v2', 'music')).toMatchObject({ canCompare: false, reason: 'Aynı sürüm iki kez seçildi' });
-    expect(compareView([ver(0, { finals: fin('a') }), ver(1)], null, null, 'music')).toMatchObject({ canCompare: false, reason: 'Karşılaştırmak için finali olan iki sürüm gerekir' });
+    expect(compareView(versions, 'v2', 'v2', 'music')).toMatchObject({ canCompare: false, reason: 'The same version is picked twice' });
+    expect(compareView([ver(0, { finals: fin('a') }), ver(1)], null, null, 'music')).toMatchObject({ canCompare: false, reason: 'Comparing needs two versions with a final' });
 
     expect(syncPlan(10, 10.1)).toEqual({});
     expect(syncPlan(10, 10.15)).toEqual({});

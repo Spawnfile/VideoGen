@@ -14,8 +14,8 @@ describe('audio card helpers (agent music design A5)', () => {
   });
 
   it('download names are plain ASCII the media endpoint accepts', () => {
-    expect(stemFileName('Tükenmez Kalem', 'muzik')).toBe('tukenmez-kalem-muzik.flac');
-    expect(stemFileName('Şarj aleti (USB-C)', 'efektler')).toBe('sarj-aleti-usb-c-efektler.flac');
-    expect(stemFileName('!!!', 'seslendirme')).toBe('video-seslendirme.flac');
+    expect(stemFileName('Tükenmez Kalem', 'music')).toBe('tukenmez-kalem-music.flac');
+    expect(stemFileName('Şarj aleti (USB-C)', 'effects')).toBe('sarj-aleti-usb-c-effects.flac');
+    expect(stemFileName('!!!', 'voice')).toBe('video-voice.flac');
   });
 });

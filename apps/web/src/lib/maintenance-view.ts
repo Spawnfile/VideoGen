@@ -1,9 +1,9 @@
 import { DISK_LOW_MB, DISK_WARN_MB, GC_BACKUP_MAX_AGE_MS, GC_REPORT_MAX_AGE_MS, type MaintenanceInfo, type MaintenanceJobKind } from '@videogen/shared/browser';
 import { ago } from './format.ts';
 
-const one = (n: number) => n.toLocaleString('tr-TR', { maximumFractionDigits: 1 });
+const one = (n: number) => n.toLocaleString('en-GB', { maximumFractionDigits: 1 });
 
-/** Binary units with a Turkish decimal comma: "1,8 GB", "12,3 MB", "2 KB". */
+/** Binary units: "1.8 GB", "12.3 MB", "2 KB". */
 export function bytesLabel(b: number): string {
   if (b < 1024) return `${Math.round(b)} B`;
   if (b < 1024 ** 2) return `${one(b / 1024)} KB`;
@@ -17,12 +17,12 @@ export function diskLabel(mb: number | null | undefined): { text: string; tone: 
   if (mb === null || mb === undefined) return null;
   const gb = mb / 1024;
   const value = mb < 1024 ? `${Math.round(mb)} MB` : `${gb >= 10 ? Math.round(gb) : one(gb)} GB`;
-  return { text: `disk ${value} boş`, tone: mb < DISK_LOW_MB ? 'low' : mb < DISK_WARN_MB ? 'warn' : 'ok' };
+  return { text: `${value} free`, tone: mb < DISK_LOW_MB ? 'low' : mb < DISK_WARN_MB ? 'warn' : 'ok' };
 }
 
 export type BackupTone = 'ok' | 'old' | 'failed' | 'never';
-const RUNNING_TR: Record<MaintenanceJobKind, string> = {
-  backup: 'Yedek alınıyor…', gc_report: 'Çöp toplama raporu hazırlanıyor…', gc_delete: 'Siliniyor…', orphan_report: 'Yetim dosya raporu hazırlanıyor…',
+const RUNNING: Record<MaintenanceJobKind, string> = {
+  backup: 'Backing up…', gc_report: 'Preparing the cleanup report…', gc_delete: 'Deleting…', orphan_report: 'Preparing the orphan file report…',
 };
 
 export interface DataView {
@@ -44,29 +44,29 @@ export function dataView(m: MaintenanceInfo, now = Date.now()): DataView {
   const b = m.backup;
   const fresh = (iso: string | null, maxMs: number) => iso !== null && now - Date.parse(iso) <= maxMs;
   const backupTone: BackupTone = !b.lastAt ? 'never' : b.ok === false ? 'failed' : fresh(b.lastOkAt, GC_BACKUP_MAX_AGE_MS) ? 'ok' : 'old';
-  const backupText = backupTone === 'never' ? 'Henüz yedek yok'
-    : backupTone === 'failed' ? `Yedek alınamadı: ${b.error ?? 'bilinmeyen hata'}`
-      : ['Son yedek ' + ago(b.lastOkAt, now), b.bytes !== null ? bytesLabel(b.bytes) : null, b.via, `${b.count} dosya`].filter(Boolean).join(' · ');
+  const backupText = backupTone === 'never' ? 'No backup yet'
+    : backupTone === 'failed' ? `Backup failed: ${b.error ?? 'unknown error'}`
+      : ['Last backup ' + ago(b.lastOkAt, now), b.bytes !== null ? bytesLabel(b.bytes) : null, b.via, `${b.count} files`].filter(Boolean).join(' · ');
   const gc = m.gc;
-  const gcText = !gc ? 'Henüz rapor yok' : `Son rapor ${ago(gc.at, now)}: ${gc.candidates ? `${gc.candidates} aday · ${bytesLabel(gc.bytes)}` : 'silinecek dosya yok'}`;
-  const deleteLabel = gc && gc.candidates > 0 ? `${gc.candidates} dosya · ${bytesLabel(gc.bytes)} sil` : null;
+  const gcText = !gc ? 'No report yet' : `Last report ${ago(gc.at, now)}: ${gc.candidates ? `${gc.candidates} candidates · ${bytesLabel(gc.bytes)}` : 'nothing to delete'}`;
+  const deleteLabel = gc && gc.candidates > 0 ? `Delete ${gc.candidates} file${gc.candidates === 1 ? '' : 's'} · ${bytesLabel(gc.bytes)}` : null;
   const deleteNote = !deleteLabel ? null
-    : m.running ? 'Bir bakım işi sürüyor.'
-      : !fresh(gc!.at, GC_REPORT_MAX_AGE_MS) ? 'Rapor 24 saatten eski: yeni bir rapor oluşturun.'
-        : !fresh(b.lastOkAt, GC_BACKUP_MAX_AGE_MS) ? 'Silmek için son 24 saatte başarılı bir yedek gerekir.' : null;
+    : m.running ? 'A maintenance job is running.'
+      : !fresh(gc!.at, GC_REPORT_MAX_AGE_MS) ? 'The report is older than 24 hours: create a new one.'
+        : !fresh(b.lastOkAt, GC_BACKUP_MAX_AGE_MS) ? 'Deleting needs a successful backup in the last 24 hours.' : null;
   const o = m.orphans;
-  const orphanText = !o ? 'Henüz rapor yok'
-    : `Yalnızca diskte ${o.diskOnly} · yalnızca veritabanında ${o.dbOnly} · boyutu tutmayan ${o.sizeMismatch} · sahipsiz run klasörü ${o.strayRunDirs} · silinen yükleme artığı ${o.uploadsRemoved}`;
+  const orphanText = !o ? 'No report yet'
+    : `Only on disk ${o.diskOnly} · only in the database ${o.dbOnly} · size mismatch ${o.sizeMismatch} · stray run folders ${o.strayRunDirs} · upload leftovers removed ${o.uploadsRemoved}`;
   return {
     lines: [
-      { label: 'Veri dizini', value: m.dataDir },
-      { label: 'Boş disk', value: m.diskFreeMb === null ? '—' : diskLabel(m.diskFreeMb)!.text.replace(/^disk | boş$/g, '') },
-      { label: 'Veritabanı', value: bytesLabel(m.dbBytes) },
-      { label: 'Medya', value: bytesLabel(m.mediaBytes) },
+      { label: 'Data folder', value: m.dataDir },
+      { label: 'Free disk', value: m.diskFreeMb === null ? '—' : diskLabel(m.diskFreeMb)!.text.replace(/ free$/, '') },
+      { label: 'Database', value: bytesLabel(m.dbBytes) },
+      { label: 'Media', value: bytesLabel(m.mediaBytes) },
     ],
     backupTone, backupText, gcText, orphanText,
     canDelete: deleteLabel !== null && deleteNote === null,
     deleteLabel, deleteNote,
-    runningText: m.running ? RUNNING_TR[m.running] : null,
+    runningText: m.running ? RUNNING[m.running] : null,
   };
 }

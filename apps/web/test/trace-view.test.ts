@@ -14,9 +14,9 @@ describe('trace view model', () => {
     const s = thinking(blocks).find((b) => b.variant === 'search')!;
     expect(s.rows[0]).toMatchObject({ kind: 'query', primary: 'ballpoint pen parts diagram' });
     expect(s.rows.filter((r) => r.kind === 'result').map((r) => r.secondary).slice(0, 1)).toEqual(['nguyeneng21007.commons.gc.cuny.edu']);
-    expect(s.rows.at(-1)!.primary).toBe('+1 kaynak daha');
-    expect(blockLabels(s).done).toBe("Web'de arandı, 9 kaynak");
-    expect(blockLabels(thinking(blocks)[0]!).done).toMatch(/^\d+ saniye düşündü$/);
+    expect(s.rows.at(-1)!.primary).toBe('+1 more sources');
+    expect(blockLabels(s).done).toBe('Searched the web, 9 sources');
+    expect(blockLabels(thinking(blocks)[0]!).done).toMatch(/^Thought for \d+ s$/);
   });
 
   it('coding: write and edit rows carry run-relative paths and +/- counts', () => {
@@ -27,7 +27,7 @@ describe('trace view model', () => {
   it('guard: the denied write shows the guard reason', () => {
     const rows = thinking(buildBlocks(rowsOf('guard', `${CWD}/guard`))).flatMap((b) => b.rows).filter((r) => r.primary === 'Yaz');
     expect(rows.map((r) => r.tone)).toEqual(['denied', 'normal']);
-    expect(rows[0]!.detail).toMatch(/^Koruma reddetti: Writes are confined/);
+    expect(rows[0]!.detail).toMatch(/^Blocked by the guard: Writes are confined/);
   });
 
   it('subagent: a steps row nests the subagent trace as children', () => {
@@ -40,8 +40,8 @@ describe('trace view model', () => {
     const r: TraceRow = { id: 'x', sessionId: 's', turn: 0, seq: 1, parentToolUseId: null, variant: 'reasoning', kind: 'thinking', title: 'Düşünce', status: 'running', text: '', tokens: 120, startedAt: 0 };
     const [b] = thinking(buildBlocks([r]));
     expect(b).toMatchObject({ live: true, endedAt: null });
-    expect(b!.rows[0]!.primary).toBe('120 token düşündü');
-    expect(blockLabels(b!).active).toBe('Düşünüyor');
+    expect(b!.rows[0]!.primary).toBe('Thought for 120 tokens');
+    expect(blockLabels(b!).active).toBe('Thinking');
   });
 
   it('an answered turn drops only its final text block (the reply message carries it); earlier prose stays', () => {
@@ -60,10 +60,10 @@ describe('trace view model', () => {
     expect(modelLabel('claude-haiku-4-5-20251001')).toBe('Haiku 4.5');
     expect(modelLabel('claude-opus-5-5')).toBe('Opus 5.5');
     expect(modelLabel('opus')).toBe('Opus');
-    expect(STATUS_LABEL.tool).toBe('araç çalıştırıyor');
-    expect(STATUS_LABEL.waiting_limit).toBe('limit bekleniyor');
-    expect(formatAgo(2_400)).toBe('2 sn önce');
-    expect(formatAgo(125_000)).toBe('2 dk önce');
+    expect(STATUS_LABEL.tool).toBe('running a tool');
+    expect(STATUS_LABEL.waiting_limit).toBe('waiting for usage limit');
+    expect(formatAgo(2_400)).toBe('2 s ago');
+    expect(formatAgo(125_000)).toBe('2 min ago');
     expect(formatElapsed(252_000)).toBe('4:12');
     expect(formatElapsed(3_725_000)).toBe('1:02:05');
     expect(formatTokens(41_234)).toBe('41K');

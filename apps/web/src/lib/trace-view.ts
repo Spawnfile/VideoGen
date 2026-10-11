@@ -37,17 +37,17 @@ const join = (parts: (string | undefined)[], sep: string) => parts.filter(Boolea
 function views(r: TraceRow, all: TraceRow[]): ThinkingRowView[] {
   const tone = toneOf(r);
   if (r.variant === 'reasoning' || r.variant === 'text') {
-    return [{ id: r.id, kind: 'text', primary: r.text?.trim() || (r.tokens ? `${r.tokens} token düşündü` : 'Düşünüyor…'), tone }];
+    return [{ id: r.id, kind: 'text', primary: r.text?.trim() || (r.tokens ? `Thought for ${r.tokens} tokens` : 'Thinking…'), tone }];
   }
   if (r.variant === 'search') {
-    if (r.tool === 'WebFetch') return [{ id: r.id, kind: 'item', primary: r.detail ?? 'Sayfa', secondary: 'okundu', href: r.href, tone }];
+    if (r.tool === 'WebFetch') return [{ id: r.id, kind: 'item', primary: r.detail ?? 'Page', secondary: 'read', href: r.href, tone }];
     const items = r.items ?? [];
     const out: ThinkingRowView[] = [{
-      id: r.id, kind: 'query', primary: r.detail ?? 'Web araması', tone,
-      ...(tone === 'denied' ? { detail: `Koruma reddetti: ${r.text ?? ''}` } : tone === 'error' ? { detail: r.text } : {}),
+      id: r.id, kind: 'query', primary: r.detail ?? 'Web search', tone,
+      ...(tone === 'denied' ? { detail: `Blocked by the guard: ${r.text ?? ''}` } : tone === 'error' ? { detail: r.text } : {}),
     }];
     items.slice(0, MAX_RESULTS).forEach((it, i) => out.push({ id: `${r.id}#${i}`, kind: 'result', primary: it.title, secondary: it.domain, href: it.href, tone: 'normal' }));
-    if (items.length > MAX_RESULTS) out.push({ id: `${r.id}#more`, kind: 'result', primary: `+${items.length - MAX_RESULTS} kaynak daha`, tone: 'normal' });
+    if (items.length > MAX_RESULTS) out.push({ id: `${r.id}#more`, kind: 'result', primary: `+${items.length - MAX_RESULTS} more sources`, tone: 'normal' });
     return out;
   }
   if (r.variant === 'steps') {
@@ -56,7 +56,7 @@ function views(r: TraceRow, all: TraceRow[]): ThinkingRowView[] {
   }
   return [{
     id: r.id, primary: r.title, secondary: join([r.detail, r.note], ' — '), mono: r.mono, add: r.add, del: r.del, tone,
-    ...(tone === 'denied' ? { detail: `Koruma reddetti: ${r.text ?? ''}` } : tone === 'error' ? { detail: r.text } : {}),
+    ...(tone === 'denied' ? { detail: `Blocked by the guard: ${r.text ?? ''}` } : tone === 'error' ? { detail: r.text } : {}),
   }];
 }
 
@@ -94,10 +94,10 @@ export function withoutAnswer(blocks: TraceBlock[]): TraceBlock[] {
 export function blockLabels(b: ThinkingBlock): { active: string; done: string } {
   const secs = b.endedAt === null ? 0 : Math.max(1, Math.round((b.endedAt - b.startedAt) / 1000));
   switch (b.variant) {
-    case 'reasoning': return { active: 'Düşünüyor', done: `${secs} saniye düşündü` };
-    case 'search': return { active: "Web'de arıyor", done: b.sources ? `Web'de arandı, ${b.sources} kaynak` : "Web'de arandı" };
-    case 'coding': return { active: 'Araç çalıştırıyor', done: `${b.tools} araç çalıştırdı` };
-    case 'steps': return { active: 'Adımlar sürüyor', done: `${b.tools} adım tamamlandı` };
+    case 'reasoning': return { active: 'Thinking', done: `Thought for ${secs} s` };
+    case 'search': return { active: 'Searching the web', done: b.sources ? `Searched the web, ${b.sources} sources` : 'Searched the web' };
+    case 'coding': return { active: 'Running tools', done: `Ran ${b.tools} tools` };
+    case 'steps': return { active: 'Working through steps', done: `Finished ${b.tools} steps` };
   }
 }
 
@@ -113,22 +113,22 @@ export function subagents(rows: TraceRow[]): TraceRow[] {
 }
 
 export function modelLabel(model: string): string {
-  const cap = (s: string) => s.charAt(0).toLocaleUpperCase('tr') + s.slice(1);
+  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
   const m = /^claude-([a-z]+)-(\d+)-(\d+)/.exec(model);
   return m ? `${cap(m[1]!)} ${m[2]}.${m[3]}` : cap(model);
 }
 
 export const STATUS_LABEL: Record<SessionStatus, string> = {
-  queued: 'sırada',
-  starting: 'başlıyor',
-  thinking: 'düşünüyor',
-  tool: 'araç çalıştırıyor',
-  idle: 'boşta',
-  waiting_limit: 'limit bekleniyor',
-  waiting_gpu: 'GPU bekliyor',
-  done: 'tamamlandı',
-  failed: 'başarısız',
-  cancelled: 'durduruldu',
+  queued: 'queued',
+  starting: 'starting',
+  thinking: 'thinking',
+  tool: 'running a tool',
+  idle: 'idle',
+  waiting_limit: 'waiting for usage limit',
+  waiting_gpu: 'waiting for GPU',
+  done: 'done',
+  failed: 'failed',
+  cancelled: 'stopped',
 };
 
 export function statusTone(s: SessionStatus): 'active' | 'waiting' | 'ok' | 'error' | 'muted' {
@@ -141,7 +141,7 @@ export function statusTone(s: SessionStatus): 'active' | 'waiting' | 'ok' | 'err
 
 export function formatAgo(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
-  return s < 60 ? `${s} sn önce` : `${Math.round(s / 60)} dk önce`;
+  return s < 60 ? `${s} s ago` : `${Math.round(s / 60)} min ago`;
 }
 
 export function formatElapsed(ms: number): string {

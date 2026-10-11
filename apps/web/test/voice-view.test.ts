@@ -19,14 +19,14 @@ describe('voice card helpers', () => {
     edge.lines = [line('b1', 'a', 0, 10, 0.03), line('b2', 'b', 20, 30, 0.0301)];
     expect(voiceView(edge, { chosen: true })!.rows.map((r) => r.warn)).toEqual([false, true]);
     const v = voiceView(track({ kind: 'preset', id: 'hazir' }, false), { chosen: false })!;
-    expect(v).toMatchObject({ title: 'Seslendirme · Chatterbox · hazır ses', provisional: true, lines: 2, duration: '35,0 sn', worstCer: '%4,1', firstWord: '0,1 sn', pace: '5,3 hece/sn', aigc: false });
+    expect(v).toMatchObject({ title: 'Voiceover · Chatterbox · stock voice', provisional: true, lines: 2, duration: '35.0 s', worstCer: '4.1%', firstWord: '0.1 s', pace: '5.3 syllables/s', aigc: false });
     expect(v.rows).toEqual([
-      { beat: 'b1', text: 'Merhaba dünya', cer: '%1,2', warn: false },
-      { beat: 'b2', text: 'Kalem nasıl çalışır', cer: '%4,1', warn: true },
+      { beat: 'b1', text: 'Merhaba dünya', cer: '1.2%', warn: false },
+      { beat: 'b2', text: 'Kalem nasıl çalışır', cer: '4.1%', warn: true },
     ]);
     expect(voiceView(track({ kind: 'preset', id: 'hazir' }, false), { chosen: true })!.provisional).toBe(false);
     const clone = voiceView(track({ kind: 'clone', asset_id: '11111111-1111-4111-8111-111111111111' }, true), { chosen: true })!;
-    expect(clone).toMatchObject({ title: 'Seslendirme · Chatterbox · klon ses', aigc: true });
+    expect(clone).toMatchObject({ title: 'Voiceover · Chatterbox · cloned voice', aigc: true });
   });
 
   it('narratorOptions and the produce hint: the provisional default is marked GEÇİCİ; a clone option only with an allowed reference', () => {
@@ -40,15 +40,15 @@ describe('voice card helpers', () => {
     const a = narratorOptions(state(false, false));
     expect(a.items.map((o) => [o.label, o.selected, o.provisional])).toEqual([['Chatterbox · Hazır ses', true, true], ['Freya · Leyla', false, false]]);
     expect(a.hasClone).toBe(false);
-    expect(a.note).toBe('Henüz seçilmedi: geçici varsayılan');
+    expect(a.note).toBe('Not chosen yet: provisional default');
     const b = narratorOptions(state(true, true));
-    expect(b.items.map((o) => o.label)).toEqual(['Chatterbox · Hazır ses', 'Chatterbox · klon: Sesim', 'Freya · Leyla']);
+    expect(b.items.map((o) => o.label)).toEqual(['Chatterbox · Hazır ses', 'Chatterbox · clone: Sesim', 'Freya · Leyla']);
     expect(b.items[0]).toMatchObject({ selected: true, provisional: false });
     expect(b.hasClone).toBe(true);
     expect(b.note).toBe('');
-    expect(PRODUCE_VO_HINT).toBe("Anlatım yerel TTS ile; ses seçimi Ayarlar'da");
+    expect(PRODUCE_VO_HINT).toBe('Narration uses local TTS; pick the voice in Settings');
     // The orchestrator's G4 finding reads in Turkish, not as a bare gate id.
     const g4: ReviewRecord = { id: 'o', videoId: 'v', versionId: null, runId: 'r', stepId: null, round: 0, reviewerRole: 'orchestrator', seq: 1, sessionId: null, rubricVersion: 'final@2', total: 80, dimensionScores: null, gates: { G4: false }, verdict: 'fix', summaryTr: '', createdAt: '', findings: [{ id: 'f', checkId: 'G4', severity: 'blocker', dimension: null, gate: 'G4', evidence: null, fixHint: 'seslendirme izi bulunamadı', status: 'open', fixedInVersionId: null }] };
-    expect(panelView([g4])!.auto!.findings[0]!.label).toBe('AI beyanı (G4)');
+    expect(panelView([g4])!.auto!.findings[0]!.label).toBe('AI disclosure (G4)');
   });
 });
