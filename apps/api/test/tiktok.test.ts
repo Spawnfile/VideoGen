@@ -22,10 +22,10 @@ beforeAll(async () => { t = await createTestDb(); hub = new EventHub(t.pool, t.a
 afterAll(async () => { await mock.stop(); await hub.stop(); await t.drop(); });
 afterEach(async () => { await app?.close(); app = null; });
 
-async function boot(o: { connectTtlMs?: number } = {}) {
+async function boot(o: { connectTtlMs?: number; tailnet?: { host: string | null; users: string[] } } = {}) {
   const dataDir = mkdtempSync(join(tmpdir(), 'vg-api-tt-'));
   const config = { ...loadConfig(), webDist: '/nonexistent', dataDir, tiktok: { base: mock.base, pollMs: 10, ratePerMinute: 600, callbackPort: 0 } };
-  app = await buildApp({ pool: t.pool, hub, config, ...(o.connectTtlMs ? { tiktokConnectTtlMs: o.connectTtlMs } : {}) });
+  app = await buildApp({ pool: t.pool, hub, config, ...(o.connectTtlMs ? { tiktokConnectTtlMs: o.connectTtlMs } : {}), ...(o.tailnet ? { tailnet: o.tailnet } : {}) });
   const store = new TokenStore({ dir: join(dataDir, 'secrets'), pool: t.pool, base: mock.base });
   return { dataDir, store };
 }
@@ -122,5 +122,16 @@ describe('TikTok connection (plan M6 T5)', () => {
     expect(b.code).not.toBe(0);
     expect(b.out).toContain('TIKTOK_CLIENT_SECRET 32 karakter olmalı');
     expect(b.out).not.toContain('short');
+  });
+
+  it('connect from the phone (tailnet scope) is refused: the PKCE callback is a localhost URL only this computer can open', async () => {
+    const tailnet = { host: 'alper-pc.tailef7c0d.ts.net:8443', users: ['me@example.com'] };
+    const { store } = await boot({ tailnet });
+    await store.writeClient(CLIENT);
+    const headers = { host: tailnet.host, origin: `https://${tailnet.host}`, 'tailscale-user-login': 'me@example.com' };
+    const r = await app!.inject({ method: 'POST', url: '/api/tiktok/connect', headers });
+    expect(r.statusCode).toBe(409);
+    expect(r.json()).toEqual({ error: 'connect_on_host' });
+    expect((await app!.inject({ method: 'POST', url: '/api/tiktok/connect', headers: H })).statusCode).toBe(200);
   });
 });

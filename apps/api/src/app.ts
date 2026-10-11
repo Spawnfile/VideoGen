@@ -7,6 +7,7 @@ import type { ClaudeAuth, Config, GuardState, UsageSnapshot } from '@videogen/sh
 import { appendAudit, maxEventId } from '@videogen/db';
 import type { EventHub } from './event-hub.ts';
 import { registerGuard } from './guard.ts';
+import { tailnetConfig, type TailnetConfig } from './tailnet.ts';
 import { registerAgentRoutes } from './routes/agents.ts';
 import { registerAssetRoutes } from './routes/assets.ts';
 import { registerAuditRoutes } from './routes/audit.ts';
@@ -24,9 +25,9 @@ import { registerSse } from './sse.ts';
 
 const round4 = (n: number | null): number | null => (n === null ? null : Math.round(n * 10_000) / 10_000);
 
-export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Config; heartbeatMs?: number; tiktokConnectTtlMs?: number; uploadMaxBytes?: number }): Promise<FastifyInstance> {
+export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Config; heartbeatMs?: number; tiktokConnectTtlMs?: number; uploadMaxBytes?: number; tailnet?: TailnetConfig }): Promise<FastifyInstance> {
   const app = Fastify({ forceCloseConnections: true, logger: { level: process.env.VG_LOG_LEVEL ?? 'info' } });
-  registerGuard(app);
+  registerGuard(app, deps.tailnet ?? tailnetConfig());
   // Freshness watermark (M2 §7): read before the handler runs, so a client can drop REST data older than SSE it already applied.
   app.addHook('preHandler', async (req, reply) => {
     if (req.method === 'GET' && req.url.startsWith('/api/') && !req.url.startsWith('/api/health')) {

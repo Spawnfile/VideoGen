@@ -96,7 +96,9 @@ export function registerTikTokRoutes(app: FastifyInstance, deps: TikTokDeps): vo
 
   app.get('/api/tiktok', async () => t.store.status());
 
-  app.post('/api/tiktok/connect', async (_req, reply) => {
+  app.post('/api/tiktok/connect', async (req, reply) => {
+    // The PKCE redirect is http://localhost:<port>/callback/: from a phone it would land on the phone's own localhost.
+    if (req.vgScope === 'tailnet') return reply.code(409).send({ error: 'connect_on_host' });
     try {
       return await flow.start();
     } catch (e) {
