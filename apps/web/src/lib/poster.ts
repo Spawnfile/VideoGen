@@ -36,3 +36,6 @@ export function videoLabel(video: Pick<VideoView, 'status'>, run: Pick<RunView, 
 export const LABEL_CLASS: Record<LabelTone, string> = {
   live: 'text-ember', needs: 'text-amber', ok: 'text-green', error: 'text-red', dim: 'text-dim', muted: 'text-ink-3',
 };
+
+/** The top bar's LIVE count: productions that are running or waiting their turn. */
+export const liveCount = (videos: Pick<VideoView, 'status'>[]): number => videos.filter((v) => v.status === 'running' || v.status === 'queued').length;

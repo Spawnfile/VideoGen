@@ -13,10 +13,10 @@ export function StatusPill({ onOpen }: { onOpen: () => void }) {
       data-testid="status-pill"
       onClick={onOpen}
       aria-label={problem ?? `Usage: ${pct(s.fiveHour?.utilization)} of the 5-hour window`}
-      className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-line bg-paper px-3 text-[12px] text-ink-2 tabular-nums focus-visible:outline-2 focus-visible:outline-accent-glow"
+      className="label-mono flex min-h-9 shrink-0 items-center gap-1.5 rounded-control border border-line bg-paper/80 px-2.5 text-ink-2 focus-visible:outline-2 focus-visible:outline-accent-glow"
     >
       <span className={`size-1.5 rounded-full ${problem ? 'bg-red' : s.claude[0]}`} />
-      {problem ?? `${pct(s.fiveHour?.utilization)} · 5 h`}
+      {problem ?? `${pct(s.fiveHour?.utilization)} · 5H`}
     </button>
   );
 }
