@@ -29,7 +29,7 @@ Tokens live in `src/styles/theme.css` (`@theme`); components never spell a colou
 | `--poster-0…7` | dark two-stop gradients | derived posters; none is ember, red or amber |
 
 **Ember is spent only on:** the primary action (`Create video`, the dock's `New video`, `Try again` on the unreachable screen), live work
-(the running video's ring, the running timeline block, the playhead, `LIVE n`, overall progress while running, a running agent's
+(the running video's ring, the running timeline block, the playhead while the run is live, `LIVE n`, overall progress while running, a running agent's
 progress), the active tab line, and the logo. A second filled ember block on a screen means one of them is wrong. Selection is neutral:
 `bg-ink text-canvas` for chips and tabs, `bg-paper` + `ring-line-strong` inside a segmented control. `bg-accent` is not used.
 
@@ -66,7 +66,8 @@ the tab bar steps aside for the keyboard and the sheet sits above it.
 ## Components
 
 - `studio/VideoBin.tsx` — the phone Studio's videos as 60px 9:16 frames with a mono state label (`62%`, `NEEDS YOU`, `READY`, `POSTED`,
-  `FAILED`, `STOPPED`, `QUEUED`); the selected one wears `ring-ember`; `+ New` at the end. `role="tab"` per frame.
+  `FAILED`, `STOPPED`, `QUEUED`); a live frame wears `ring-ember`, the selected frame that is not live a 2px ink border; `+ New` at the
+  end. `role="tab"` per frame.
 - `studio/NeedsYou.tsx` — up to two other videos waiting for the user, amber, with `Open`.
 - `production/Timeline.tsx` + `lib/timeline-view.ts` — the run on one time axis in lanes `V` / `A` / `QC`; widths from real step timings
   (`STEP_DEFAULT_S` where there are none), at least 4 % per block, skipped steps as a 4px mark; the playhead; `● Now · 4:12` with the
