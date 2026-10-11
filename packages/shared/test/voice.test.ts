@@ -30,7 +30,7 @@ describe('voice contracts', () => {
     expect(validateArtifact('AudioPlan', vo).ok).toBe(true);
     expect(JSON.stringify(outputJsonSchema('AudioPlan'))).not.toContain('propertyNames');
     const sfx = (exclude: string[]) => ({ ...vo, sfx: { gain_offset_db: 0, exclude } });
-    expect(AudioPlanSchema.safeParse(sfx(['whoosh', 'thud'])).success).toBe(true);
+    expect(AudioPlanSchema.safeParse(sfx(['y_snap', 'y_land'])).success).toBe(true);
     expect(AudioPlanSchema.safeParse(sfx(['boom'])).success).toBe(false);
     expect(AudioPlanSchema.safeParse(sfx(['click', 'click'])).success).toBe(false);
     expect(AudioPlanSchema.safeParse({ ...vo, music: { asset_id: null, gain_db: -5 } }).success).toBe(false);

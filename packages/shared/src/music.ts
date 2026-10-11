@@ -79,4 +79,4 @@ export function musicScoreErrors(s: MusicScore, o: { durationS: number }): strin
 }
 
 /** What a generated track is called in the UI and in the sound plan (own work: no attribution, spec §9 license gate passes). */
-export const GENERATED_MUSIC_TITLE = 'Özgün müzik (besteci ajan)';
+export const GENERATED_MUSIC_TITLE = 'YAKLASIM müziği';

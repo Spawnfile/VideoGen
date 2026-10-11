@@ -121,7 +121,7 @@ export function audioPrompt(o: Common & { storyboard: Storyboard; score: MusicSc
     '',
     fenced('Storyboard zamanlaması', { duration_s: s.duration_s, hook: s.hook, rehook_at: s.rehook_at, payoff_at: s.payoff_at, beats: s.beats.map((b) => ({ id: b.id, t_start: b.t_start, t_end: b.t_end, action: b.action, onscreen_text: b.onscreen_text.tr })) }),
     '',
-    o.score ? fenced('Müzik partisyonu (besteci ajan)', o.score) : 'Müzik partisyonu yok: müzik defterden bir parça ya da müzik yok.',
+    o.score ? fenced('Müzik partisyonu (sabit YAKLASIM müziği)', o.score) : 'Müzik partisyonu yok.',
     '',
     o.facts ? fenced(`Ölçümler (dBFS RMS, ${o.facts.windowS} sn pencereler; -90 sessizlik)`, o.facts) : 'Ses parçası ölçümü yok.',
     ...(o.qc.length ? ['', fenced('qc ses ölçümleri (müzikli varyant)', o.qc)] : []),

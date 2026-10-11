@@ -10,7 +10,7 @@ import { FakeAudioDriver } from '../../worker/src/audio/driver.ts';
 import { seedReadyVideo } from '../../worker/src/dev/seed-ready.ts';
 import { audioRefErrors } from '../../worker/src/pipeline/fixer.ts';
 import { runPreflight } from '../../worker/src/pipeline/preflight.ts';
-import { effectiveAudioPlan, LicenseError, soundPlan, withImportedSfx } from '../../worker/src/pipeline/sound.ts';
+import { effectiveAudioPlan, LicenseError, soundPlan } from '../../worker/src/pipeline/sound.ts';
 import type { StepDeps } from '../../worker/src/pipeline/steps.ts';
 import type { StepContext } from '../../worker/src/pipeline/types.ts';
 import { voiceExecutor } from '../../worker/src/pipeline/voice-step.ts';
@@ -155,15 +155,14 @@ describe('asset ledger endpoints (plan M7 T5)', () => {
     expect((await audit('asset.revoked')).map((r) => [r.subject_id, r.data.reason])).toEqual([[sakin!.id, 'Kaynak sitesi lisansı değiştirdi'], [tik.id, 'Pixabay sayfası kaldırıldı']]);
   });
 
-  it('a revoked asset is refused by compose (sound plan), the fixer\'s audio check, the preflight music count and marking as uploaded; a revoked voice reference is refused by the voice preflight and the voice step, and revoking the narrator\'s reference resets the narrator to the stock voice in the same transaction (audited); an existing final stays playable', { timeout: 60_000 }, async () => {
+  it('a revoked asset is refused by compose (sound plan) and marking as uploaded; the fixer cannot name a ledger track and the preflight needs none (spec Z5); a revoked voice reference is refused by the voice preflight and the voice step, and revoking the narrator\'s reference resets the narrator to the stock voice in the same transaction (audited); an existing final stays playable', { timeout: 60_000 }, async () => {
     const v = await seedReadyVideo(t.pool, dataDir, FFMPEG);
     const revoke = (id: string, reason: string) => app.inject({ method: 'POST', url: `/api/assets/${id}/revoke`, headers: H, payload: { reason } });
     const allowedMusic = async () => listAssets(t.pool, { kind: 'music', allowedOnly: true });
     const ctx = (await getRunContext(t.pool, v.runId))!;
     const preflight = runPreflight({ pool: t.pool, audio: new FakeAudioDriver(), dataDir });
-    const silent = { ...ctx, audioMode: 'silent' as const, run: { ...ctx.run, plan: producePlan('silent').filter((s) => s.key !== 'music') } }; // the ledger rule applies to plans without the composer (agent music design A4)
-    const before = (await allowedMusic()).length;
-    expect(before).toBeGreaterThan(0);
+    const silent = { ...ctx, audioMode: 'silent' as const, run: { ...ctx.run, plan: producePlan('silent').filter((s) => s.key !== 'music') } }; // spec Z5: no ledger rule, even without the music step
+    expect((await allowedMusic()).length).toBeGreaterThan(0);
     expect(await preflight(silent)).toBeNull();
     expect((await app.inject({ url: `/api/videos/${v.videoId}/platforms`, headers: H })).json().attributions.length).toBeGreaterThan(0);
 
@@ -172,24 +171,20 @@ describe('asset ledger endpoints (plan M7 T5)', () => {
     const bed = (await getAsset(t.pool, v.musicAssetId))!;
     const klik = (await getAsset(t.pool, v.sfxAssetId))!;
 
-    // Compose: a stored plan naming the track no longer resolves; handing the asset in directly is refused; the imported SFX drops out of the library.
+    // Compose (spec Z5): the music is the fixed stem only — a stored plan naming a ledger track is a license error; a revoked sound is refused at use.
     const stored: AudioPlan = { version: 1, mode: 'silent', music: { asset_id: bed.id, gain_db: -18 }, vo_gain_db: 0, duck_db: 12, sfx: { gain_offset_db: 0, exclude: [] }, mastering: { target_lufs: -14, tp: -1 } };
-    expect(() => effectiveAudioPlan({ stored, mode: 'silent', music: [bed], seed: v.videoId })).toThrow(LicenseError);
-    const tracks = await allowedMusic();
-    expect(() => effectiveAudioPlan({ stored, mode: 'silent', music: tracks, seed: v.videoId })).toThrow(LicenseError);
-    const lib = Object.fromEntries(['whoosh', 'swoosh', 'click', 'snap', 'tick', 'thud'].map((n) => [n, { ...klik, allowed: true, revokedAt: null, id: `lib-${n}` }])) as Parameters<typeof soundPlan>[1];
-    expect(() => soundPlan([], lib, bed)).toThrow(/izinsiz müzik: Yatak/);
-    expect(() => soundPlan([{ name: 'click', atMs: 0, source: 'hook' }], { ...lib, click: klik }, null)).toThrow(/izinsiz ses: click/);
-    expect(withImportedSfx(lib, [{ ...klik, title: 'click' }]).click.id).toBe('lib-click');
+    const gen = { sha: 'a'.repeat(64), file: '/x/music.wav' };
+    expect(() => effectiveAudioPlan({ stored, mode: 'silent', generated: gen })).toThrow(LicenseError);
+    const lib = Object.fromEntries(['y_snap', 'y_tap', 'y_land'].map((n) => [n, { ...klik, allowed: true, revokedAt: null, id: `lib-${n}` }])) as Parameters<typeof soundPlan>[1];
+    expect(() => soundPlan([{ name: 'y_snap', atMs: 0, source: 'event:x' }], { ...lib, y_snap: klik }, gen)).toThrow(/izinsiz ses: y_snap/);
 
-    // The fixer may not point the plan at it.
-    const allowedMap = new Map((await allowedMusic()).map((a) => [a.id, a.title]));
-    expect(audioRefErrors({ next: stored, prev: { ...stored, music: { asset_id: null, gain_db: -18 } }, mode: 'silent', allowedMusic: allowedMap })[0]).toMatch(`ses planı: müzik ${bed.id} izinli müzik listesinde yok`);
+    // The fixer may not point the plan at a ledger track.
+    expect(audioRefErrors(stored)[0]).toMatch(/müzik sabit YAKLASIM müziğidir/);
 
-    // The preflight count drops by one; with every track revoked a silent video is refused.
-    expect((await allowedMusic()).length).toBe(before - 1);
+    // Review Focus 4: with every ledger track revoked a silent video still starts (the licensed-music rule is gone).
     for (const a of await allowedMusic()) expect((await revoke(a.id, 'hepsi')).statusCode).toBe(200);
-    expect(await preflight(silent)).toMatch(/^Seslendirmesiz video için izinli bir müzik parçası gerekli/);
+    expect(await allowedMusic()).toEqual([]);
+    expect(await preflight(silent)).toBeNull();
 
     // Marking it as uploaded is refused (the licence gate kept from the publish path); the existing final is still served.
     const mark = await app.inject({ method: 'POST', url: `/api/videos/${v.videoId}/platforms`, headers: H, payload: { platform: 'youtube', action: 'uploaded' } });

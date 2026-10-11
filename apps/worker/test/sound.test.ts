@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { AssetRecord } from '@videogen/db';
 import { AudioPlanSchema } from '@videogen/shared';
-import { defaultAudioPlan, duckingEnvelope, effectiveAudioPlan, LicenseError, matchSfx, pickMusic, planSfx, soundPlan, withImportedSfx, type SfxCue } from '../src/pipeline/sound.ts';
+import { defaultAudioPlan, duckingEnvelope, effectiveAudioPlan, LicenseError, soundPlan, type SfxCue } from '../src/pipeline/sound.ts';
 import { masterAudio, masterVariant, measureLoudnorm, mixTrack, parseLoudnormJson } from '../src/render/audio.ts';
 import { encodeDelivery, fakeFinal, muxVariant } from '../src/render/ffmpeg.ts';
 
@@ -16,91 +16,38 @@ const tmp = () => mkdtempSync(join(tmpdir(), 'vg-sound-'));
 const asset = (o: Partial<AssetRecord>): AssetRecord => ({
   id: 'a', kind: 'sfx', title: 't', blobSha: 'x', licenseSpdx: 'CC0-1.0', sourceUrl: null, author: 'a', attribution: null, licenseSnapshotSha: null, allowed: true, tags: [], durationMs: 100, createdAt: '', revokedAt: null, revokeReason: null, updatedAt: null, ...o,
 });
-const lib = Object.fromEntries(['whoosh', 'swoosh', 'click', 'snap', 'tick', 'thud'].map((n) => [n, asset({ id: `sfx-${n}`, title: n })])) as Record<SfxCue['name'], AssetRecord>;
+const lib = Object.fromEntries(['y_snap', 'y_tap', 'y_land'].map((n) => [n, asset({ id: `sfx-${n}`, title: n })])) as Record<SfxCue['name'], AssetRecord>;
 
 // Real ffmpeg under parallel files (plan M7 Y2): at least 60 s per test.
 describe('sound plan, mix, mastering and the two variants', { timeout: 60_000 }, () => {
-  it('plans SFX from scene events and storyboard cues: the hook whoosh at 0 ms, one cue per 2 frames, ≤ 3 of one sound per 10 s', () => {
-    const events = (JSON.parse(readFileSync(join(FX, 'scene/kalem-legacy/events.json'), 'utf8')) as { events: { id: string; type: 'explode_start' | 'part_lock' | 'label_in' | 'zoom'; frame: number }[] }).events;
-    const beats = (JSON.parse(readFileSync(join(FX, 'artifacts/storyboard-kalem-legacy.json'), 'utf8')) as { beats: { id: string; t_start: number; sfx_cues: string[] }[] }).beats;
-    const cues = planSfx({ events, beats, fps: 30, durationS: 45 });
-    expect(cues[0]).toEqual({ atMs: 0, name: 'whoosh', source: 'hook' });
-    for (let i = 1; i < cues.length; i++) expect(cues[i]!.atMs - cues[i - 1]!.atMs).toBeGreaterThanOrEqual(66);
-    for (const c of cues) expect(cues.filter((k) => k.name === c.name && k.atMs <= c.atMs && c.atMs - k.atMs < 10_000).length).toBeLessThanOrEqual(3);
-    expect(cues.some((c) => c.source.startsWith('event:explode_start') && c.name === 'whoosh')).toBe(true);
-    const locks = planSfx({ events: [1, 2, 3, 4, 5].map((s) => ({ id: `l${s}`, type: 'part_lock' as const, frame: s * 30 })), beats: [], fps: 30, durationS: 40 });
-    expect(locks.filter((c) => c.name === 'click').map((c) => c.atMs)).toEqual([1000, 2000, 3000]);
-    expect([matchSfx('Whoosh'), matchSfx('kapak çıt sesi'), matchSfx('tık'), matchSfx('müzik')]).toEqual(['whoosh', 'snap', 'click', null]);
-  });
-
-  it('an imported allowed SFX whose title or tag names a library sound replaces the procedural one; a disallowed one never does', () => {
-    const imported = [
-      asset({ id: 'z-whoosh', title: 'Büyük whoosh efekti' }), asset({ id: 'b-whoosh', title: 'Hızlı vuş' }), asset({ id: 'a-click', title: 'Düğme', tags: ['Click'] }),
-      asset({ id: 'c-thud', title: 'thud', allowed: false }), asset({ id: 'd-nc', title: 'snap', licenseSpdx: 'CC-BY-NC-4.0' }), asset({ id: 'm-song', kind: 'music', title: 'tick' }), asset({ id: 'n-plain', title: 'Ambiyans' }),
-    ];
-    const out = withImportedSfx(lib, imported);
-    expect([out.whoosh.id, out.click.id]).toEqual(['b-whoosh', 'a-click']);
-    expect([out.thud.id, out.snap.id, out.tick.id, out.swoosh.id]).toEqual(['sfx-thud', 'sfx-snap', 'sfx-tick', 'sfx-swoosh']);
-    // an asset whose first named sound is already claimed takes its next candidate
-    const spill = withImportedSfx(lib, [asset({ id: 'a-1', title: 'tık' }), asset({ id: 'a-2', title: 'tık', tags: ['snap'] })]);
-    expect([spill.click.id, spill.snap.id]).toEqual(['a-1', 'a-2']);
-    expect(withImportedSfx(lib, Object.values(lib))).toEqual(lib);
-    expect(withImportedSfx(lib, [])).toEqual(lib);
-    // the plan then uses the imported asset for that sound
-    expect(soundPlan([{ atMs: 0, name: 'whoosh', source: 'hook' }], out, null).cues[0]).toMatchObject({ assetId: 'b-whoosh' });
-  });
-
-  it('picks music deterministically among allowed tracks only, and refuses any disallowed asset in the plan (spec §9 license gate)', () => {
-    const tracks = [asset({ id: 'm1', kind: 'music', title: 'A' }), asset({ id: 'm2', kind: 'music', title: 'B' }), asset({ id: 'm3', kind: 'music', allowed: false, licenseSpdx: 'CC-BY-NC-4.0' }), asset({ id: 's', kind: 'sfx' })];
-    const a = pickMusic(tracks, 'video-1');
-    expect(['m1', 'm2']).toContain(a!.id);
-    expect(pickMusic(tracks, 'video-1')!.id).toBe(a!.id);
-    expect(pickMusic([tracks[2]!, tracks[3]!], 'video-1')).toBeNull();
-    const cues: SfxCue[] = [{ atMs: 0, name: 'whoosh', source: 'hook' }];
-    expect(soundPlan(cues, lib, tracks[0]!)).toEqual({ cues: [{ atMs: 0, name: 'whoosh', source: 'hook', assetId: 'sfx-whoosh', gainDb: -6 }], music: { assetId: 'm1', title: 'A', license: 'CC0-1.0', attribution: null, gainDb: -18 } });
-    expect(() => soundPlan(cues, lib, tracks[2]!)).toThrow(LicenseError);
-    expect(() => soundPlan(cues, { ...lib, whoosh: asset({ allowed: false }) }, null)).toThrow('izinsiz ses: whoosh');
-    // Today's policy, not only the stored flag: a CC-BY row whose attribution was cleared is refused at use.
-    expect(() => soundPlan(cues, lib, asset({ id: 'm9', kind: 'music', licenseSpdx: 'CC-BY-4.0', attribution: null }))).toThrow(LicenseError);
-  });
-
-  it('defaultAudioPlan and effectiveAudioPlan: the music pick by video id, no music gives a null track without an error (a dev plan; the rule lives in the preflight and the fixer), a stored plan wins, a stored plan with a disallowed music track is a license error, sfx exclude and the gain offset reach the cues', () => {
-    const U1 = '11111111-1111-4111-8111-111111111111';
-    const U2 = '22222222-2222-4222-8222-222222222222';
-    const m1 = asset({ id: U1, kind: 'music', title: 'A' });
-    const m2 = asset({ id: U2, kind: 'music', title: 'B' });
-    const picked = pickMusic([m1, m2], 'video-1')!;
-    const d = effectiveAudioPlan({ stored: null, mode: 'silent', music: [m1, m2], seed: 'video-1' });
-    expect(d).toMatchObject({ persist: true, music: picked, plan: { version: 1, mode: 'silent', music: { asset_id: picked.id, gain_db: -18 }, vo_gain_db: 0, duck_db: 12, sfx: { gain_offset_db: 0, exclude: [] }, mastering: { target_lufs: -14, tp: -1 } } });
-    expect(AudioPlanSchema.safeParse(d.plan).success).toBe(true);
-    expect(defaultAudioPlan({ mode: 'vo', music: m1 })).toEqual({ ...d.plan, mode: 'vo', music: { asset_id: U1, gain_db: -18 } });
-    // today's silent mix: the default plan changes no gain
-    const cues: SfxCue[] = [{ atMs: 0, name: 'whoosh', source: 'hook' }, { atMs: 500, name: 'click', source: 'event:x' }];
-    expect(soundPlan(cues, lib, picked, d.plan)).toEqual(soundPlan(cues, lib, picked));
-    // no music: a valid plan with a null track
-    const none = effectiveAudioPlan({ stored: null, mode: 'vo', music: [], seed: 'video-1' });
-    expect(none).toMatchObject({ persist: true, music: null, plan: { music: { asset_id: null } } });
-    expect(AudioPlanSchema.safeParse(none.plan).success).toBe(true);
-    // a stored plan wins over the pick, and is not persisted again
-    const stored = { ...defaultAudioPlan({ mode: 'vo', music: m2 }), vo_gain_db: 2 };
-    expect(effectiveAudioPlan({ stored, mode: 'vo', music: [m1, m2], seed: 'x' })).toEqual({ plan: stored, persist: false, music: m2, generated: null });
-    expect(effectiveAudioPlan({ stored: { ...stored, music: { ...stored.music, asset_id: null } }, mode: 'vo', music: [m1], seed: 'x' })).toMatchObject({ persist: false, music: null });
-    // a stored track that is gone, disallowed or no longer permitted by today's policy is a license error
-    expect(() => effectiveAudioPlan({ stored, mode: 'vo', music: [m1], seed: 'x' })).toThrow(`müzik bulunamadı: ${U2}`);
-    expect(() => effectiveAudioPlan({ stored, mode: 'vo', music: [{ ...m2, allowed: false }], seed: 'x' })).toThrow(/^izinsiz müzik: B/);
-    expect(() => effectiveAudioPlan({ stored, mode: 'vo', music: [{ ...m2, licenseSpdx: 'CC-BY-4.0', attribution: null }], seed: 'x' })).toThrow(LicenseError);
-    // Agent music design A4: the composer's stem is the default; a stored generated plan needs it; it has no asset and no attribution.
+  it('soundPlan: the cues with their gains and the fixed music; a sound that is not allowed today is refused (spec §9 license gate, Z5)', () => {
     const gen = { sha: 'a'.repeat(64), file: '/x/music.wav' };
-    const g = effectiveAudioPlan({ stored: null, mode: 'silent', music: [m1, m2], seed: 'video-1', generated: gen });
-    expect(g).toMatchObject({ persist: true, music: null, generated: gen, plan: { music: { source: 'generated', asset_id: null, gain_db: -18 } } });
-    expect(effectiveAudioPlan({ stored: g.plan, mode: 'silent', music: [], seed: 'x', generated: gen })).toMatchObject({ persist: false, generated: gen });
-    expect(() => effectiveAudioPlan({ stored: g.plan, mode: 'silent', music: [], seed: 'x', generated: null })).toThrow(/üretilen müzik bulunamadı/);
-    // exclude, the SFX offset and the music gain reach the cues
-    const plan = { ...stored, music: { asset_id: U2, gain_db: -22 }, sfx: { gain_offset_db: -3, exclude: ['click' as const] } };
-    expect(soundPlan(cues, lib, m2, plan)).toEqual({
-      cues: [{ atMs: 0, name: 'whoosh', source: 'hook', assetId: 'sfx-whoosh', gainDb: -9 }],
-      music: { assetId: U2, title: 'B', license: 'CC0-1.0', attribution: null, gainDb: -22 },
+    const cues: SfxCue[] = [{ atMs: 5200, name: 'y_snap', source: 'event:l1' }, { atMs: 9000, name: 'y_land', source: 'event:l2' }];
+    expect(soundPlan(cues, lib, gen)).toEqual({
+      cues: [{ atMs: 5200, name: 'y_snap', source: 'event:l1', assetId: 'sfx-y_snap', gainDb: -9 }, { atMs: 9000, name: 'y_land', source: 'event:l2', assetId: 'sfx-y_land', gainDb: -7 }],
+      music: { generatedSha: gen.sha, title: 'YAKLASIM müziği', license: 'LicenseRef-VideoGen-Generated', gainDb: -18 },
     });
+    expect(() => soundPlan(cues, { ...lib, y_snap: asset({ allowed: false }) }, gen)).toThrow('izinsiz ses: y_snap');
+    // Today's policy, not only the stored flag: a CC-BY row whose attribution was cleared is refused at use.
+    expect(() => soundPlan(cues, { ...lib, y_land: asset({ licenseSpdx: 'CC-BY-4.0', attribution: null }) }, gen)).toThrow(LicenseError);
+  });
+
+  it('defaultAudioPlan and effectiveAudioPlan (spec Z5): the fixed stem is the music; none rendered or a stored plan naming a ledger track is a license error; a stored plan wins; exclude and the offsets reach the cues', () => {
+    const gen = { sha: 'a'.repeat(64), file: '/x/music.wav' };
+    const d = effectiveAudioPlan({ stored: null, mode: 'silent', generated: gen });
+    expect(d).toEqual({ persist: true, generated: gen, plan: { version: 1, mode: 'silent', music: { source: 'generated', asset_id: null, gain_db: -18 }, vo_gain_db: 0, duck_db: 12, sfx: { gain_offset_db: 0, exclude: [] }, mastering: { target_lufs: -14, tp: -1 } } });
+    expect(AudioPlanSchema.safeParse(d.plan).success).toBe(true);
+    expect(defaultAudioPlan({ mode: 'silent' })).toEqual(d.plan);
+    const cues: SfxCue[] = [{ atMs: 5200, name: 'y_snap', source: 'event:l1' }, { atMs: 6000, name: 'y_tap', source: 'beat:b3' }];
+    expect(soundPlan(cues, lib, gen, d.plan)).toEqual(soundPlan(cues, lib, gen)); // the default plan changes no gain
+    const stored = { ...d.plan, music: { ...d.plan.music, gain_db: -22 }, sfx: { gain_offset_db: -3, exclude: ['y_tap' as const] } };
+    expect(effectiveAudioPlan({ stored, mode: 'silent', generated: gen })).toEqual({ plan: stored, persist: false, generated: gen });
+    expect(soundPlan(cues, lib, gen, stored)).toEqual({
+      cues: [{ atMs: 5200, name: 'y_snap', source: 'event:l1', assetId: 'sfx-y_snap', gainDb: -12 }],
+      music: { generatedSha: gen.sha, title: 'YAKLASIM müziği', license: 'LicenseRef-VideoGen-Generated', gainDb: -22 },
+    });
+    expect(() => effectiveAudioPlan({ stored: null, mode: 'silent', generated: null })).toThrow(/üretilen müzik bulunamadı/);
+    expect(() => effectiveAudioPlan({ stored: { ...stored, music: { asset_id: '11111111-1111-4111-8111-111111111111', gain_db: -18 } }, mode: 'silent', generated: gen })).toThrow(/defterden bir müzik/);
   });
 
   it("duckingEnvelope: −duck_db under each VO line with 150 ms ramps and the 150/300 ms margins, 0 dB in the gaps, '1' without lines", () => {

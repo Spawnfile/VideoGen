@@ -19,6 +19,7 @@ import { ARTIFACT_VALIDATOR } from '../src/pipeline/validator.ts';
 import { FakeRenderDriver } from '../src/render/driver.ts';
 import { ResourceLocks } from '../src/render/locks.ts';
 import { FakeMusicDriver } from '../src/audio/music.ts';
+import { musicExecutor } from '../src/pipeline/music-step.ts';
 
 const FFMPEG = process.env.VG_FFMPEG ?? 'ffmpeg';
 const fx = (n: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${n}.json`), 'utf8'));
@@ -52,14 +53,15 @@ export function finalHarness(t: { pool: pg.Pool }) {
       runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt: 1, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode: mode,
       versionId: r.versionId, brief: null, ...(mode === 'vo' ? { duration: { minS: 35, maxS: 55 }, approach: null } : { duration: { minS: 12, maxS: 15 }, approach: 'yaklasim' as const }), durationSource: 'default' as const, runDir, signal: new AbortController().signal, progress: () => {}, status: () => {}, session: () => {},
     });
-    const ex = { build: buildExecutor(deps), final_render: finalRenderExecutor(deps), compose: composeExecutor(deps) } as const;
+    const ex = { music: musicExecutor(deps), build: buildExecutor(deps), final_render: finalRenderExecutor(deps), compose: composeExecutor(deps) } as const;
     for (const k of through) { const e = ex[k as keyof typeof ex]; expect(await e.run(ctx(k), await e.inputHash(ctx(k)))).toMatchObject({ status: 'done' }); }
     return { r, ctx, runDir };
   }
   return {
     dataDir, deps,
-    framed: (name: string, o: { vo?: boolean } = {}) => run(name, ['build', 'final_render'], o),
-    composed: (name: string) => run(name, ['build', 'final_render', 'compose']),
+    /** Spec Z5: the fixed music stem is part of every final (`noMusic`: leave it out to test the gate). */
+    framed: (name: string, o: { vo?: boolean; noMusic?: boolean } = {}) => run(name, [...(o.noMusic || o.vo ? [] : ['music' as const]), 'build', 'final_render'], o),
+    composed: (name: string) => run(name, ['music', 'build', 'final_render', 'compose']),
     specs,
     stop: () => manager.stop(),
   };

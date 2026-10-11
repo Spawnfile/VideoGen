@@ -6,7 +6,7 @@ import {
   canonical, FINAL_CHECKS, FINAL_MAX_ROUNDS, fixReportRefErrors, fixScope, formatScore, rendersChanged, sceneRefErrors, yaklasimSceneErrors, yaklasimStoryboardErrors, STOP_NOTE, storyboardRefErrors, storyboardVoErrors, validateArtifact, windowErrors,
   type AudioMode, type AudioPlan, type FinalCheckId, type MusicScore, type FixReport, type ModelAlias, type ProductResearch, type SceneSpec, type ScopeInput, type Storyboard,
 } from '@videogen/shared';
-import { appendAudit, findArtifact, insertVersion, listAssets } from '@videogen/db';
+import { appendAudit, findArtifact, insertVersion } from '@videogen/db';
 import { SpecStore } from '@videogen/claude';
 import { RESUME_PROMPT } from '../agents/manager.ts';
 import { runStructured } from './agent-step.ts';
@@ -31,7 +31,7 @@ export function fixerPrompt(o: { name: string; round: number; reviewedRound: num
     `Kanıt kareleri: ${rel}/sheet.png (12 kare), ${rel}/hook.png (kanca sayfası) ve ${rel}/frames/ (tek kareler); Read ile bakabilirsin. Final 1080×1920, 30 fps; kare numarası/30 = saniye. qc bulgularında kanıt ölçülen değer ve sınırdır.`,
     'Yalnızca bu bulguları düzelt. Ekran yazısı, kanca ve etiket adları → write_spec(storyboard/scene) (yeniden birleştirme, dakikalar). Kamera, zamanlama, geometri, malzeme → write_spec(scene) ve/veya scene/product.py, sonra build_scene ve render_preview_stills ile kontrol (final yeniden render, ~35 dk). Araştırmayı değiştirme; desteksiz bir iddiayı ekrandan çıkar ya da yumuşat. cta ve loop_strategy hiçbir şey çizmez. Düzeltemediğini not_addressed\'e gerekçesiyle yaz.',
     ...(o.audioMode === 'vo' ? ["Seslendirme metni ya da telaffuz → write_spec(storyboard) içinde vo_text (yeniden seslendirme; bir vuruş 0,3 sn'den fazla uzarsa sahne yeniden kurulur, ~35 dk). Vuruş zamanlarını değiştirme: zamanları seslendirme belirler."] : []),
-    `Müzik seviyesi, ducking, efektler → write_spec(audio) (yeniden birleştirme, dakikalar).${o.audioMode === 'silent' ? ' Seslendirmesiz videoda müzik kaldırılamaz.' : ''}`,
+    'Müzik seviyesi, ducking, efektler → write_spec(audio) (yeniden birleştirme, dakikalar); müziğin kendisi sabittir (music.source "generated").',
     // YAKLASIM spec Y14/Y16 (final review I1), spec Z3: the score is fixed for every video; the fixer is not offered it.
     'YAKLASIM müziği sabittir (120 BPM Am–F–C–G): write_spec(music) yapma; ses bulgusunu sahne zamanlamasıyla (kenetlenme anları, vuruş sınırları) ya da write_spec(audio) ile seviyelerle çöz.',
     ...(o.audio ? ['', fenced('Mevcut ses planı (AudioPlan)', o.audio)] : []),
@@ -84,27 +84,10 @@ async function readNext(ctx: StepContext, prev: Prev): Promise<{ next: ScopeInpu
   return { next: { storyboard: storyboard.value, scene: scene.value, research: research?.ok ? research.value : prev.research, productSha, audio: audio?.ok ? audio.value : prev.audio, audioMode: ctx.audioMode, music: music?.ok ? music.value : prev.music } };
 }
 
-/**
- * H12/H10: what the fixer may do to the audio plan. The music track must be an allowed one of the ledger (checked only when the plan changed:
- * a stored plan is replayed as is); a silent video's music cannot be taken away (it would ship mute); the plan's mode is the run's.
- * `prev === null` (a legacy run without a stored plan) counts as "no music before", so silent removal is not refused there.
- */
-export function audioRefErrors(o: { next: AudioPlan | null; prev: AudioPlan | null; mode: AudioMode; allowedMusic: ReadonlyMap<string, string> }): string[] {
-  const { next, prev, mode } = o;
-  if (!next || (prev && canonical(next) === canonical(prev))) return [];
-  const out: string[] = [];
-  if (next.mode !== mode) out.push(`ses planı: mode ${mode} olmalı`);
-  const id = next.music.asset_id;
-  if (id !== null && !o.allowedMusic.has(id)) {
-    const list = [...o.allowedMusic].map(([i, title]) => `${i} (${title})`).join(', ') || 'yok';
-    out.push(`ses planı: müzik ${id} izinli müzik listesinde yok; izinli parçalar: ${list}`);
-  }
-  if (next.music.source === 'generated' && id !== null) out.push('ses planı: üretilen müzikte asset_id null olmalı');
-  // Agent music design A4: the composer's music counts as music; switching between it and a ledger track is allowed.
-  const hadMusic = !!prev && (prev.music.asset_id !== null || prev.music.source === 'generated');
-  const hasMusic = id !== null || next.music.source === 'generated';
-  if (!hasMusic && mode === 'silent' && hadMusic) out.push('ses planı: seslendirmesiz videoda müzik kaldırılamaz');
-  return out;
+/** H12/H10, spec Z5: what the fixer may do to the audio plan — levels and sounds, never the music itself (the fixed YAKLASIM stem). */
+export function audioRefErrors(next: AudioPlan | null): string[] {
+  if (!next) return [];
+  return next.music.source === 'generated' && next.music.asset_id === null ? [] : ['ses planı: müzik sabit YAKLASIM müziğidir (music.source "generated", asset_id null)'];
 }
 
 /** The outcome of a recorded fix round (also the replay): compose/voice/build rewind, a claimed rewrite without change is a rework, nothing changed stops the loop. */
@@ -149,7 +132,7 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
       ...(canonical(n.next.music ?? null) !== canonical(prev.music ?? null) ? ['YAKLASIM müziği sabittir: partisyonu (write_spec music) değiştirme; ses bulgusunu sahne zamanlamasıyla ya da ses planıyla (write_spec audio) çöz.'] : []), ...(n.next.storyboard.audio_mode === ctx.audioMode ? [] : [`audio_mode ${ctx.audioMode} olmalı`]),
       // H6: the VO text rules and the VO ceiling of the window (the floor is the storyboarder's, not a fix's); brief design Y9: the video window holds.
       ...storyboardVoErrors(n.next.storyboard, { minS: false, window: ctx.duration }), ...windowErrors(n.next.storyboard.duration_s, ctx.duration),
-      ...audioRefErrors({ next: n.next.audio, prev: prev.audio, mode: ctx.audioMode, allowedMusic: new Map((await listAssets(deps.pool, { kind: 'music', allowedOnly: true })).map((a) => [a.id, a.title])) }),
+      ...audioRefErrors(n.next.audio),
     ];
     const s = fixScope({ prev: prevInput, next: n.next });
     // H12: in a VO video the voice step owns the beat times.

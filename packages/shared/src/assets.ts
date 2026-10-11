@@ -8,9 +8,8 @@ export const ALLOWED_LICENSES = ['CC0-1.0', 'CC-BY-4.0', 'LicenseRef-Pixabay'] a
 /** The license of a user's own voice reference (M5c H7): allowed for kind voice_ref and for no other kind. */
 export const OWN_VOICE_LICENSE = 'LicenseRef-Own-Voice';
 
-/** The procedural SFX library (apps/worker/src/assets.ts makes the sounds; the names are the single source here). */
-/** The procedural library; y_* are YAKLASIM's low sine sounds (spec Y15: snap, tap, land; 50–700 Hz, soft attack). */
-export const SFX_NAMES = ['whoosh', 'swoosh', 'click', 'snap', 'tick', 'thud', 'y_snap', 'y_tap', 'y_land'] as const;
+/** The procedural SFX library (apps/worker/src/assets.ts makes them): YAKLASIM's low sines (spec Y15: snap, tap, land; 50–700 Hz, soft attack). Spec Z5: no classic library sounds. */
+export const SFX_NAMES = ['y_snap', 'y_tap', 'y_land'] as const;
 export type SfxName = (typeof SFX_NAMES)[number];
 
 export function licenseVerdict(a: { spdx: string; attribution?: string | null; kind?: AssetKind }): { allowed: boolean; reason_tr: string | null } {

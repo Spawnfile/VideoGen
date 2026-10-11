@@ -1,4 +1,4 @@
-import { readFileSync, truncateSync } from 'node:fs';
+import { readFileSync, truncateSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getBlob, insertArtifact, latestArtifact, putBlob } from '@videogen/db';
@@ -8,6 +8,7 @@ import { framePath } from '../src/render/frames.ts';
 import { fakeMusicBed } from '../src/render/ffmpeg.ts';
 import { musicRenderS } from '../src/pipeline/music-step.ts';
 import { finalHarness } from './final-helpers.ts';
+import { importAsset } from '../src/assets.ts';
 
 let t: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => { t = await createTestDb(); });
@@ -18,17 +19,20 @@ const setup = () => { const h = finalHarness(t); harnesses.push(h); return h; };
 afterAll(async () => { for (const h of harnesses) await h.stop(); });
 
 describe('compose step', () => {
-  it('without an allowed music track the music variant is SFX only and the plan says so', async () => {
+  it('spec Z5: the music is the fixed stem only — a ledger music track is never used, and without the stem compose stops at the license gate', async () => {
     const h = setup();
-    const { r, ctx } = await h.framed('Tükenmez kalem');
-    const deps = h.deps;
-    const ex = composeExecutor(deps);
-    const out = await ex.run(ctx('compose'), await ex.inputHash(ctx('compose')));
-    expect(out).toMatchObject({ status: 'done', note: expect.stringMatching(/^1080×1920 · 0:13 · \d+ efekt · müzik: yok$/) });
-    expect((await latestArtifact(t.pool, r.runId, 'audio_plan'))!.content).toMatchObject({ music: null });
+    const { r, ctx } = await h.framed('Tükenmez kalem defter', { noMusic: true });
+    const bed = join(h.deps.dataDir, 'bed.wav');
+    await fakeMusicBed(process.env.VG_FFMPEG ?? 'ffmpeg', bed, 20);
+    writeFileSync(join(h.deps.dataDir, 'bed.txt'), 'CC0 1.0 (test)');
+    await importAsset(t.pool, h.deps.dataDir, process.env.VG_FFMPEG ?? 'ffmpeg', { kind: 'music', file: bed, title: 'Defter yatağı', spdx: 'CC0-1.0', author: 'VideoGen test', licenseTextFile: join(h.deps.dataDir, 'bed.txt') });
+    const ex = composeExecutor(h.deps);
+    expect(await ex.run(ctx('compose'), await ex.inputHash(ctx('compose')))).toMatchObject({ status: 'failed', error: expect.stringMatching(/üretilen müzik bulunamadı/) });
+    expect(await latestArtifact(t.pool, r.runId, 'final_video_music')).toBeNull();
+    await t.pool.query("UPDATE assets SET allowed = false WHERE title = 'Defter yatağı'");
   }, 180_000);
 
-  it('agent music design A4/A5: the composer\'s stem is the music of the music variant (no ledger asset, no attribution); music and SFX stems are recorded as FLAC', async () => {
+  it('agent music design A4/A5: the music step\'s newest stem is the music (no ledger asset, no attribution); music and SFX stems are recorded as FLAC', async () => {
     const h = setup();
     const { r, ctx } = await h.framed('Tükenmez kalem müzikli');
     const file = join(h.deps.dataDir, 'stem-src.wav');
@@ -37,8 +41,8 @@ describe('compose step', () => {
     await insertArtifact(t.pool, { runId: r.runId, kind: 'music_stem', blobSha: blob.sha256, inputHash: 'm1' });
     const ex = composeExecutor(h.deps);
     const out = await ex.run(ctx('compose'), await ex.inputHash(ctx('compose')));
-    expect(out).toMatchObject({ status: 'done', note: expect.stringMatching(/müzik: Özgün müzik \(besteci ajan\)$/) });
-    expect((await latestArtifact(t.pool, r.runId, 'audio_plan'))!.content).toMatchObject({ music: { assetId: null, generatedSha: blob.sha256, attribution: null, gainDb: -18 } });
+    expect(out).toMatchObject({ status: 'done', note: expect.stringMatching(/müzik: YAKLASIM müziği$/) });
+    expect((await latestArtifact(t.pool, r.runId, 'audio_plan'))!.content).toMatchObject({ music: { generatedSha: blob.sha256, title: 'YAKLASIM müziği', gainDb: -18 } });
     expect((await latestArtifact(t.pool, r.runId, 'audio'))!.content).toMatchObject({ music: { source: 'generated', asset_id: null } });
     for (const kind of ['stem_music', 'stem_sfx']) {
       const a = (await latestArtifact(t.pool, r.runId, kind))!;

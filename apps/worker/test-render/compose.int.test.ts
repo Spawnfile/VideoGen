@@ -30,7 +30,7 @@ describe('compose step', () => {
     const { r, ctx, runDir } = await h.framed('Tükenmez kalem');
     const ex = composeExecutor(deps);
     const hash = await ex.inputHash(ctx('compose'));
-    expect(await ex.run(ctx('compose'), hash)).toMatchObject({ status: 'done', note: expect.stringMatching(/^1080×1920 · 0:13 · \d+ efekt · müzik: Test yatağı$/) });
+    expect(await ex.run(ctx('compose'), hash)).toMatchObject({ status: 'done', note: expect.stringMatching(/^1080×1920 · 0:13 · \d+ efekt · müzik: YAKLASIM müziği$/) });
     const kinds = (await t.pool.query('SELECT kind FROM artifacts WHERE run_id = $1 AND input_hash = $2 ORDER BY kind', [r.runId, hash])).rows.map((x) => x.kind);
     expect(kinds).toEqual(['audio', 'audio_plan', 'final_cover', 'final_video_music', 'layout', 'stem_music', 'stem_sfx']);
     const music = (await latestArtifact(t.pool, r.runId, 'final_video_music'))!;
