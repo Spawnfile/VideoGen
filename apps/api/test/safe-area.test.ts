@@ -30,7 +30,7 @@ describe('safe area setting (plan M7 Y15, Y16)', () => {
     for (const bad of [{ area: { ...MOVED, top: 1500 } }, { area: { ...MOVED, left: 600, right: 600 } }, { area: { top: 150 } }, {}, { area: MOVED, extra: 1 }, { area: MOVED, note: 'x'.repeat(201) }]) {
       const r = await put(bad);
       expect(r.statusCode, JSON.stringify(bad)).toBe(400);
-      expect(r.json().error).toMatch(/güvenli alan/);
+      expect(r.json().error).toMatch(/safe area/);
     }
     expect((await put({ area: MOVED }, { ...H, origin: 'http://evil.example' })).statusCode).toBe(403);
     expect((await get()).source).toBe('default');

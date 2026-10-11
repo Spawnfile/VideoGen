@@ -19,7 +19,7 @@ export function tiktokFor(deps: { pool: pg.Pool; config: Config }) {
 }
 
 const page = (title: string, body: string) =>
-  `<!doctype html><html lang="tr"><meta charset="utf-8"><title>${title}</title><body style="font-family:sans-serif;padding:2rem"><h1 style="font-weight:500">${title}</h1><p>${body}</p></body></html>`;
+  `<!doctype html><html lang="en"><meta charset="utf-8"><title>${title}</title><body style="font-family:sans-serif;padding:2rem"><h1 style="font-weight:500">${title}</h1><p>${body}</p></body></html>`;
 
 const sameState = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
@@ -35,12 +35,12 @@ class ConnectFlow {
   async start(): Promise<{ authorizeUrl: string; expiresAt: string }> {
     if (this.active) return { authorizeUrl: this.active.url, expiresAt: this.active.expiresAt.toISOString() };
     const client = await this.t.store.client();
-    if (!client) throw Object.assign(new Error('İstemci bilgisi yok: önce `node bin/tiktok.mjs import` çalıştırın.'), { status: 409 });
+    if (!client) throw Object.assign(new Error('No client credentials: run `node bin/tiktok.mjs import` first.'), { status: 409 });
     const p = pkce();
     const server = createServer((req, res) => { void this.callback(req.url ?? '/', res); });
     await new Promise<void>((resolve, reject) => {
       server.once('error', (e: NodeJS.ErrnoException) => reject(e.code === 'EADDRINUSE'
-        ? Object.assign(new Error(`${this.deps.config.tiktok.callbackPort} portu kullanımda (eski auth.py açık olabilir).`), { status: 409 }) : e));
+        ? Object.assign(new Error(`port ${this.deps.config.tiktok.callbackPort} is in use (an old auth.py may be running).`), { status: 409 }) : e));
       server.listen(this.deps.config.tiktok.callbackPort, '127.0.0.1', () => resolve());
     });
     const port = (server.address() as AddressInfo).port;
@@ -68,13 +68,13 @@ class ConnectFlow {
     const send = (status: number, title: string, body: string) => { res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); res.end(page(title, body)); };
     const a = this.active;
     const u = new URL(raw, 'http://localhost');
-    if (!a || (u.pathname !== '/callback/' && u.pathname !== '/callback')) return send(404, 'Bulunamadı', '');
+    if (!a || (u.pathname !== '/callback/' && u.pathname !== '/callback')) return send(404, 'Not found', '');
     if (u.searchParams.get('error')) {
       this.close(res);
-      return send(200, 'Bağlantı iptal edildi', 'TikTok izni verilmedi. VideoGen Ayarlar sayfasından yeniden deneyebilirsiniz.');
+      return send(200, 'Connection cancelled', 'TikTok access was not granted. You can try again from VideoGen Settings.');
     }
     const code = u.searchParams.get('code') ?? '';
-    if (!code || !sameState(u.searchParams.get('state') ?? '', a.state)) return send(400, 'Geçersiz istek', 'Bağlantı isteği doğrulanamadı.');
+    if (!code || !sameState(u.searchParams.get('state') ?? '', a.state)) return send(400, 'Invalid request', 'The connection request could not be verified.');
     this.close(res);
     try {
       const tokens = await this.t.store.exchangeCode(code, a.verifier, a.redirectUri);
@@ -82,9 +82,9 @@ class ConnectFlow {
       await this.t.store.setUsername(username);
       const scopes = tokens.scope.split(/[,\s]+/).filter(Boolean).sort();
       await appendAudit(this.deps.pool, { actorType: 'user', action: 'tiktok.connected', subjectType: 'setting', subjectId: 'tiktok', data: { username, scopes, via: 'pkce' } });
-      send(200, 'Bağlandı, bu sekmeyi kapatabilirsiniz', `TikTok hesabı: @${username.replace(/[^A-Za-z0-9._]/g, '')}`);
+      send(200, 'Connected, you can close this tab', `TikTok account: @${username.replace(/[^A-Za-z0-9._]/g, '')}`);
     } catch (e) {
-      send(502, 'Bağlanamadı', e instanceof TikTokError ? e.message : 'TikTok token isteği başarısız oldu.');
+      send(502, 'Could not connect', e instanceof TikTokError ? e.message : 'The TikTok token request failed.');
     }
   }
 }
@@ -116,7 +116,7 @@ export function registerTikTokRoutes(app: FastifyInstance, deps: TikTokDeps): vo
       return c;
     } catch (e) {
       if (e instanceof TikTokError) return reply.code(409).send({ error: e.message, code: e.code });
-      return reply.code(502).send({ error: 'TikTok bağlantısı sınanamadı.' });
+      return reply.code(502).send({ error: 'Could not test the TikTok connection.' });
     }
   });
 }

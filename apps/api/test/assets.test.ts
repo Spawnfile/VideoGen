@@ -85,7 +85,7 @@ describe('asset ledger endpoints (plan M7 T5)', () => {
 
     // Refusals: not audio, an extension outside the list, too large, a bad or unknown upload id, a foreign Origin.
     const text = await upload(Buffer.from('bu bir ses dosyası değil\n'.repeat(20)));
-    expect([text.statusCode, text.json().error]).toEqual([400, 'dosya ses olarak okunamadı']);
+    expect([text.statusCode, text.json().error]).toEqual([400, 'the file could not be read as audio']);
     for (const ext of ['exe', 'wav/../x', '']) expect((await upload(calm, ext)).statusCode).toBe(400);
     const big = await upload(Buffer.alloc(MAX + 1));
     expect(big.statusCode).toBe(413);
@@ -193,7 +193,7 @@ describe('asset ledger endpoints (plan M7 T5)', () => {
 
     // Publish and the Shorts export refuse; the existing final is still served.
     const shorts = await app.inject({ method: 'POST', url: `/api/videos/${v.videoId}/exports/shorts`, headers: H, payload: {} });
-    expect([shorts.statusCode, shorts.json().error]).toEqual([409, 'Klik artık izinli değil; Yatak artık izinli değil']);
+    expect([shorts.statusCode, shorts.json().error]).toEqual([409, 'Klik is no longer allowed; Yatak is no longer allowed']);
     expect((await app.inject({ url: `/api/blobs/${v.musicSha}`, headers: H })).statusCode).toBe(200);
 
     // Voice: an own-voice reference becomes the narrator; revoking it resets the narrator to the stock voice with an audit row.

@@ -88,7 +88,7 @@ describe('versions', () => {
     expect((await app.inject({ url: `/api/videos/${s.videoId}/reviews?version=${s.v2}`, headers: H })).json()).toEqual([]);
     const foreign = await app.inject({ url: `/api/videos/${s.videoId}/reviews?version=${other.v1}`, headers: H });
     expect(foreign.statusCode).toBe(400);
-    expect(foreign.json().error).toMatch(/sürüm/);
+    expect(foreign.json().error).toMatch(/version/);
     expect((await app.inject({ url: `/api/videos/${s.videoId}/reviews?version=nope`, headers: H })).statusCode).toBe(400);
   });
 });

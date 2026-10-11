@@ -59,7 +59,7 @@ export function registerMaintenanceRoutes(app: FastifyInstance, deps: { pool: pg
         ok: backup ? backup.status === 'done' : null,
         bytes: okBackup ? num(okBackup.detail?.bytes) : null,
         via: okBackup ? str(okBackup.detail?.via) : null,
-        error: backup?.status === 'failed' ? (str(backup.detail?.error) ?? 'yedek alınamadı') : null,
+        error: backup?.status === 'failed' ? (str(backup.detail?.error) ?? 'the backup could not be started') : null,
         lastOkAt: okBackup ? at(okBackup) : null,
         count: dumps.filter((f) => DUMP_RE.test(f)).length,
       },
@@ -89,7 +89,7 @@ export function registerMaintenanceRoutes(app: FastifyInstance, deps: { pool: pg
 
   app.post('/api/maintenance/gc', async (req, reply) => {
     const b = GcBody.safeParse(req.body ?? {});
-    if (!b.success) return reply.code(400).send({ error: 'geçersiz istek' });
+    if (!b.success) return reply.code(400).send({ error: 'invalid request' });
     try {
       return await gcDelete({ pool, dataDir, actor: 'user' }, { reportId: b.data.reportId, confirm: b.data.confirm });
     } catch (e) {

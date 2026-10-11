@@ -78,7 +78,7 @@ function App() {
   const layout = useLayout();
   // The desktop Studio already shows the chat beside the production.
   useEffect(() => { if (path === '/chat' && layout === 'desktop') go('/', { replace: true }); }, [path, layout]);
-  const page = path === '/settings' ? <Settings />
+  const page = path === '/settings' ? <Settings go={go} />
     : path === '/chat' ? <Chat />
     : path === '/library' ? <Library go={go} />
     : path.startsWith('/library/') ? <LibraryDetail key={path} videoId={decodeURIComponent(path.slice('/library/'.length))} go={go} />

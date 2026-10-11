@@ -11,10 +11,10 @@ import { getBlob } from '@videogen/db';
 export function registerMediaRoutes(app: FastifyInstance, deps: { pool: pg.Pool; dataDir: string }): void {
   app.get('/api/blobs/:sha', async (req, reply) => {
     const sha = (req.params as { sha: string }).sha;
-    if (!/^[0-9a-f]{64}$/.test(sha)) return reply.code(400).send({ error: 'geçersiz sha256' });
+    if (!/^[0-9a-f]{64}$/.test(sha)) return reply.code(400).send({ error: 'invalid sha256' });
     // Plan M6 Y21: `?download=<name>` asks the browser to save the file; only a plain safe name (no path, no quote). Agent music design A5: stems too.
     const download = (req.query as { download?: string }).download;
-    if (download !== undefined && !/^[a-z0-9][a-z0-9-]{0,79}\.(mp4|flac|wav)$/.test(download)) return reply.code(400).send({ error: 'geçersiz dosya adı' });
+    if (download !== undefined && !/^[a-z0-9][a-z0-9-]{0,79}\.(mp4|flac|wav)$/.test(download)) return reply.code(400).send({ error: 'invalid file name' });
     const blob = await getBlob(deps.pool, sha);
     if (!blob || !existsSync(join(deps.dataDir, blob.path))) return reply.code(404).send({ error: 'not found' });
     // Content-addressed: the bytes behind a sha never change (send's own cache-control, so it is not overwritten).

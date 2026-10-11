@@ -65,7 +65,7 @@ export function registerAssetRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
 
   app.get('/api/assets', async (req, reply) => {
     const kind = (req.query as { kind?: string }).kind;
-    if (kind !== undefined && !(LEDGER_KINDS as readonly string[]).includes(kind)) return reply.code(400).send({ error: 'geçersiz tür' });
+    if (kind !== undefined && !(LEDGER_KINDS as readonly string[]).includes(kind)) return reply.code(400).send({ error: 'invalid kind' });
     const [rows, used] = await Promise.all([listAssets(pool, kind ? { kind: kind as (typeof LEDGER_KINDS)[number] } : {}), assetUsage(pool)]);
     return rows.filter((a) => (LEDGER_KINDS as readonly string[]).includes(a.kind)).map((a) => listItem(a, used.get(a.id) ?? 0));
   });
@@ -75,11 +75,11 @@ export function registerAssetRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
     scope.addContentTypeParser('application/octet-stream', (_req, payload, done) => done(null, payload));
     scope.post('/api/uploads', async (req, reply) => {
       const ext = (req.query as { ext?: unknown }).ext;
-      if (!isExt(ext)) return reply.code(400).send({ error: `dosya türü şunlardan biri olmalı: ${UPLOAD_EXTS.join(', ')}` });
+      if (!isExt(ext)) return reply.code(400).send({ error: `the file type must be one of: ${UPLOAD_EXTS.join(', ')}` });
       const declared = Number(req.headers['content-length']);
-      if (Number.isFinite(declared) && declared > max) return reply.code(413).send({ error: 'dosya 200 MB sınırını aşıyor' });
+      if (Number.isFinite(declared) && declared > max) return reply.code(413).send({ error: 'the file is over the 200 MB limit' });
       const body = req.body as NodeJS.ReadableStream | undefined;
-      if (!body || typeof body.pipe !== 'function') return reply.code(400).send({ error: 'dosya gövdesi yok' });
+      if (!body || typeof body.pipe !== 'function') return reply.code(400).send({ error: 'no file body' });
       await mkdir(uploadsDir, { recursive: true });
       const uploadId = randomUUID();
       const file = join(uploadsDir, `${uploadId}.${ext}`);
@@ -97,13 +97,13 @@ export function registerAssetRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
         await pipeline(body, meter, createWriteStream(file, { flags: 'wx', mode: 0o600 }));
       } catch (e) {
         await rm(file, { force: true });
-        if (e instanceof TooLarge) return reply.code(413).send({ error: 'dosya 200 MB sınırını aşıyor' });
+        if (e instanceof TooLarge) return reply.code(413).send({ error: 'the file is over the 200 MB limit' });
         throw e;
       }
       const durationMs = bytes > 0 ? await audioDurationMs(ffmpeg, file) : null;
       if (durationMs === null) {
         await rm(file, { force: true });
-        return reply.code(400).send({ error: 'dosya ses olarak okunamadı' });
+        return reply.code(400).send({ error: 'the file could not be read as audio' });
       }
       return reply.code(201).send({ uploadId, sha: hash.digest('hex'), bytes, durationMs });
     });
@@ -111,11 +111,11 @@ export function registerAssetRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
 
   app.post('/api/assets', async (req, reply) => {
     const b = ImportBody.safeParse(req.body ?? {});
-    if (!b.success) return reply.code(400).send({ error: 'geçersiz istek' });
+    if (!b.success) return reply.code(400).send({ error: 'invalid request' });
     const i = b.data;
     // The upload is found by listing the folder (an exact `<uuid>.<ext>` entry); the request never builds a path.
     const name = (await readdir(uploadsDir).catch(() => [] as string[])).find((n) => UPLOAD_EXTS.some((x) => n === `${i.uploadId}.${x}`));
-    if (!name) return reply.code(404).send({ error: 'yükleme bulunamadı (1 saatten eski yüklemeler silinir)' });
+    if (!name) return reply.code(404).send({ error: 'upload not found (uploads older than 1 hour are removed)' });
     const file = join(uploadsDir, name);
     const licenseFile = join(uploadsDir, `${randomUUID()}.license.txt`);
     let r: Awaited<ReturnType<typeof importAssetFile>>;
@@ -135,12 +135,12 @@ export function registerAssetRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
 
   app.post('/api/assets/:id/revoke', async (req, reply) => {
     const id = (req.params as { id: string }).id;
-    if (!isUuid(id)) return reply.code(400).send({ error: 'geçersiz varlık' });
+    if (!isUuid(id)) return reply.code(400).send({ error: 'invalid asset' });
     const b = RevokeBody.safeParse(req.body ?? {});
-    if (!b.success) return reply.code(400).send({ error: 'gerekçe gerekli' });
+    if (!b.success) return reply.code(400).send({ error: 'a reason is required' });
     const r = await revokeAssetAudited(pool, id, b.data.reason);
-    if (r.kind === 'missing') return reply.code(404).send({ error: 'varlık bulunamadı' });
-    if (r.kind === 'already') return reply.code(409).send({ error: 'bu varlığın izni zaten geri alınmış', asset: await item(r.asset) });
+    if (r.kind === 'missing') return reply.code(404).send({ error: 'asset not found' });
+    if (r.kind === 'already') return reply.code(409).send({ error: 'this asset’s permission is already revoked', asset: await item(r.asset) });
     return { asset: await item(r.asset), narratorReset: r.narratorReset };
   });
 }

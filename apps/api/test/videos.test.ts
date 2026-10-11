@@ -49,7 +49,7 @@ describe('produce', () => {
     expect((await app.inject({ url: '/api/videos', headers: H })).json()[0].id).toBe(videoId);
     // `until` (plan end for older smoke scenarios) only with the dev endpoints on.
     const early = { productName: 'Erken kalem', audioMode: 'silent', until: 'draft_review' };
-    expect((await produce(early)).json()).toEqual({ error: 'until yalnızca geliştirici kipinde' });
+    expect((await produce(early)).json()).toEqual({ error: 'until only works in developer mode' });
     const dev = await buildApp({ pool: t.pool, hub, config: { ...loadConfig(), webDist: '/nonexistent', devEndpoints: true } });
     try {
       const d = await dev.inject({ method: 'POST', url: '/api/videos', headers: H, payload: early });
@@ -70,12 +70,12 @@ describe('produce', () => {
     const d = (await app.inject({ url: `/api/videos/${(await produce({ productName: 'Kalem C', audioMode: 'silent' })).json().videoId}`, headers: H })).json();
     expect(d.video).toMatchObject({ brief: null, duration: { minS: 35, maxS: 55 }, durationSource: 'default' });
     for (const [body, msg] of [
-      [{ brief: 'x'.repeat(2001) }, /yönerge en çok 2000/],
-      [{ brief: 'a\u0007' }, /kontrol karakteri/],
+      [{ brief: 'x'.repeat(2001) }, /brief can be at most 2000/],
+      [{ brief: 'a\u0007' }, /control characters/],
       [{ duration: { minS: 8, maxS: 20 } }, /en az 10/],
       [{ duration: { minS: 20, maxS: 70 } }, /en çok 60/],
       [{ duration: { minS: 30, maxS: 20 } }, /üst sınırı/],
-      [{ duration: { minS: 20.5, maxS: 25 } }, /tam saniye/],
+      [{ duration: { minS: 20.5, maxS: 25 } }, /whole seconds/],
     ] as const) {
       const bad = await produce({ productName: 'Kalem D', audioMode: 'silent', ...body });
       expect(bad.statusCode).toBe(400);
@@ -86,10 +86,10 @@ describe('produce', () => {
   it('audio edits (agent music design A6): only a finished video, a non-empty instruction ≤ 1000 chars; unknown ids 404', async () => {
     const r = (await produce({ productName: 'Kalem ses', audioMode: 'silent' })).json();
     const post = (vid: string, body: unknown) => app.inject({ method: 'POST', url: `/api/videos/${vid}/audio-edits`, headers: H, payload: body as object });
-    expect((await post(r.videoId, { instruction: '' })).json().error).toBe('talimat boş olamaz');
+    expect((await post(r.videoId, { instruction: '' })).json().error).toBe('the instruction cannot be empty');
     expect((await post(r.videoId, { instruction: 'x'.repeat(1001) })).json().error).toMatch(/1000/);
     const busy = await post(r.videoId, { instruction: 'Müziği sakinleştir.' });
-    expect([busy.statusCode, busy.json().error]).toEqual([409, 'yalnızca yayına hazır ya da yayınlanmış bir videonun sesi düzenlenebilir']);
+    expect([busy.statusCode, busy.json().error]).toEqual([409, 'Only a video that is ready to publish or published can have its audio edited.']);
     expect((await post('00000000-0000-4000-8000-000000000000', { instruction: 'x' })).statusCode).toBe(404);
     expect((await post('nope', { instruction: 'x' })).statusCode).toBe(404);
   });
@@ -98,7 +98,7 @@ describe('produce', () => {
     for (const body of [{ productName: 'x', audioMode: 'silent' }, { productName: 'a'.repeat(81), audioMode: 'silent' }, { productName: 'kalem\u0007', audioMode: 'silent' }, { productName: 'kalem', audioMode: 'loud' }]) {
       const r = await produce(body);
       expect(r.statusCode).toBe(400);
-      expect(r.json().error).toMatch(/ürün adı|ses modu/);
+      expect(r.json().error).toMatch(/product name|audio mode/);
     }
     expect((await app.inject({ url: '/api/videos/00000000-0000-4000-8000-000000000000', headers: H })).statusCode).toBe(404);
     expect((await app.inject({ url: '/api/videos/nope', headers: H })).statusCode).toBe(404);

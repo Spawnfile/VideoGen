@@ -24,7 +24,7 @@ export function registerChannelRoutes(app: FastifyInstance, deps: { pool: pg.Poo
 
   app.put('/api/channel-style', async (req, reply) => {
     const b = Body.safeParse(req.body ?? {});
-    if (!b.success) return reply.code(400).send({ error: 'geçersiz kanal kimliği' });
+    if (!b.success) return reply.code(400).send({ error: 'invalid channel identity' });
     const before = await getChannelStyle(deps.pool);
     await setChannelStyle(deps.pool, b.data.id);
     await appendAudit(deps.pool, { actorType: 'user', action: 'settings.channel_style', subjectType: 'setting', subjectId: 'channel.style', data: { from: before.chosen ? before.id : null, to: b.data.id } });

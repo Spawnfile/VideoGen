@@ -8,18 +8,26 @@ import {
 import { sendCommand } from './notify.ts';
 
 const Produce = z.object({
-  productName: z.string().trim().min(2, 'ürün adı en az 2 karakter olmalı').max(80, 'ürün adı en çok 80 karakter olabilir')
-    .refine((s) => !/[\u0000-\u001f\u007f]/.test(s), 'ürün adında kontrol karakteri olamaz'),
-  audioMode: z.enum(AUDIO_MODES, { error: 'ses modu vo ya da silent olmalı' }),
+  productName: z.string().trim().min(2, 'the product name needs at least 2 characters').max(80, 'the product name can be at most 80 characters')
+    .refine((s) => !/[\u0000-\u001f\u007f]/.test(s), 'the product name cannot contain control characters'),
+  audioMode: z.enum(AUDIO_MODES, { error: 'the audio mode must be vo or silent' }),
   /** Brief design Y4: the user's production brief (tabs and line breaks, CRLF included, allowed; no other control characters). */
-  brief: z.string().max(BRIEF_MAX, `yönerge en çok ${BRIEF_MAX} karakter olabilir`)
-    .refine((s) => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(s), 'yönergede kontrol karakteri olamaz').optional(),
+  brief: z.string().max(BRIEF_MAX, `the brief can be at most ${BRIEF_MAX} characters`)
+    .refine((s) => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(s), 'the brief cannot contain control characters').optional(),
   /** Brief design Y1–Y3: the user's duration window in whole seconds; absent = the agent recommends, else the default 35–55 s. */
-  duration: z.object({ minS: z.number().int('süre tam saniye olmalı'), maxS: z.number().int('süre tam saniye olmalı') })
+  duration: z.object({ minS: z.number().int('the length must be whole seconds'), maxS: z.number().int('the length must be whole seconds') })
     .superRefine((w, ctx) => { for (const message of durationWindowErrors(w)) ctx.addIssue({ code: 'custom', message }); }).nullable().optional(),
   /** Dev only (VG_DEV_ENDPOINTS=1): end the plan at this step (smoke scenarios of earlier milestones). */
   until: z.enum(STEP_KEYS).optional(),
 });
+
+/** createAudioEditRun (packages/db) answers in Turkish; the interface is English. Unknown messages pass through. */
+const AUDIO_EDIT_ERRORS: Record<string, string> = {
+  'video bulunamadı': 'video not found',
+  'yalnızca yayına hazır ya da yayınlanmış bir videonun sesi düzenlenebilir': 'Only a video that is ready to publish or published can have its audio edited.',
+  'bu videoda devam eden bir üretim var': 'This video already has a production running.',
+  'düzenlenecek bir final yok': 'There is no final to edit.',
+};
 
 export function registerVideoRoutes(app: FastifyInstance, deps: { pool: pg.Pool; devEndpoints?: boolean }): void {
   const { pool } = deps;
@@ -27,8 +35,8 @@ export function registerVideoRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
 
   app.post('/api/videos', async (req, reply) => {
     const b = Produce.safeParse(req.body ?? {});
-    if (!b.success) return reply.code(400).send({ error: b.error.issues[0]?.message ?? 'geçersiz istek' });
-    if (b.data.until && !deps.devEndpoints) return reply.code(400).send({ error: 'until yalnızca geliştirici kipinde' });
+    if (!b.success) return reply.code(400).send({ error: b.error.issues[0]?.message ?? 'invalid request' });
+    if (b.data.until && !deps.devEndpoints) return reply.code(400).send({ error: 'until only works in developer mode' });
     const upTo = b.data.until && IMPLEMENTED_STEPS.includes(b.data.until) ? IMPLEMENTED_STEPS.slice(0, IMPLEMENTED_STEPS.indexOf(b.data.until) + 1) : IMPLEMENTED_STEPS;
     const created = await createProduceRun(pool, {
       productName: b.data.productName, audioMode: b.data.audioMode, plan: producePlan(b.data.audioMode, upTo), brief: b.data.brief ?? null, duration: b.data.duration ?? null,
@@ -41,10 +49,10 @@ export function registerVideoRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
   // Agent music design A6: the user's audio instruction on a finished video → an audio_edit run (music → remix) under a new version.
   app.post('/api/videos/:id/audio-edits', async (req, reply) => {
     if (!isUuid(id(req))) return reply.code(404).send({ error: 'not found' });
-    const b = z.object({ instruction: z.string().trim().min(1, 'talimat boş olamaz').max(AUDIO_EDIT_MAX, `talimat en çok ${AUDIO_EDIT_MAX} karakter olabilir`) }).safeParse(req.body ?? {});
-    if (!b.success) return reply.code(400).send({ error: b.error.issues[0]?.message ?? 'geçersiz istek' });
+    const b = z.object({ instruction: z.string().trim().min(1, 'the instruction cannot be empty').max(AUDIO_EDIT_MAX, `the instruction can be at most ${AUDIO_EDIT_MAX} characters`) }).safeParse(req.body ?? {});
+    if (!b.success) return reply.code(400).send({ error: b.error.issues[0]?.message ?? 'invalid request' });
     const created = await createAudioEditRun(pool, { videoId: id(req), instruction: b.data.instruction, plan: audioEditPlan() });
-    if ('error' in created) return reply.code(created.error === 'video bulunamadı' ? 404 : 409).send({ error: created.error });
+    if ('error' in created) return reply.code(created.error === 'video bulunamadı' ? 404 : 409).send({ error: AUDIO_EDIT_ERRORS[created.error] ?? created.error });
     await publishRunAndVideo(pool, created.runId);
     await sendCommand(pool, { type: 'run.start', runId: created.runId });
     return reply.code(202).send({ runId: created.runId, versionId: created.versionId });
@@ -64,7 +72,7 @@ export function registerVideoRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
     const version = (req.query as { version?: string }).version;
     if (version === undefined) return listVideoReviews(pool, v.id);
     // Plan M7 Y7: one version's rounds; a version of another video is a bad request, not an empty list.
-    if (!isUuid(version) || (await versionVideoId(pool, version)) !== v.id) return reply.code(400).send({ error: 'sürüm bu videoya ait değil' });
+    if (!isUuid(version) || (await versionVideoId(pool, version)) !== v.id) return reply.code(400).send({ error: 'this version belongs to another video' });
     return listVersionReviews(pool, version);
   });
 
@@ -82,7 +90,7 @@ export function registerVideoRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
   app.post('/api/runs/:id/cancel', async (req, reply) => {
     const r = isUuid(id(req)) ? await getRun(pool, id(req)) : null;
     if (!r) return reply.code(404).send({ error: 'not found' });
-    if (r.status !== 'queued' && r.status !== 'running') return reply.code(409).send({ error: 'run aktif değil' });
+    if (r.status !== 'queued' && r.status !== 'running') return reply.code(409).send({ error: 'the run is not active' });
     await appendAudit(pool, { actorType: 'user', action: 'run.cancel_requested', runId: r.id, subjectType: 'video', subjectId: r.videoId });
     await sendCommand(pool, { type: 'run.cancel', runId: r.id });
     return reply.code(202).send({ accepted: true });

@@ -34,7 +34,7 @@ const secretsOf = () => [mock.tokens().accessToken, mock.tokens().refreshToken, 
 describe('TikTok connection (plan M6 T5)', () => {
   it('connect: the authorize URL carries the client key, scopes, a fresh state and the hex S256 challenge; the callback with that state stores tokens (0600) and audits tiktok.connected with the username only; a wrong state is refused and stores nothing; the listener closes after one callback or 5 min', async () => {
     const { dataDir, store } = await boot();
-    expect((await app!.inject({ method: 'POST', url: '/api/tiktok/connect', headers: H })).json()).toEqual({ error: 'İstemci bilgisi yok: önce `node bin/tiktok.mjs import` çalıştırın.' });
+    expect((await app!.inject({ method: 'POST', url: '/api/tiktok/connect', headers: H })).json()).toEqual({ error: 'No client credentials: run `node bin/tiktok.mjs import` first.' });
     await store.writeClient(CLIENT);
     const r = await app!.inject({ method: 'POST', url: '/api/tiktok/connect', headers: H });
     expect(r.statusCode).toBe(200);
@@ -55,7 +55,7 @@ describe('TikTok connection (plan M6 T5)', () => {
     expect(existsSync(join(dataDir, 'secrets', 'tiktok-tokens.json'))).toBe(false);
     const ok = await callback(`code=mock-code&state=${q.state}`);
     expect(ok.status).toBe(200);
-    expect(await ok.text()).toContain('Bağlandı, bu sekmeyi kapatabilirsiniz');
+    expect(await ok.text()).toContain('Connected, you can close this tab');
     expect(statSync(join(dataDir, 'secrets', 'tiktok-tokens.json')).mode & 0o777).toBe(0o600);
     expect(await store.status()).toMatchObject({ connected: true, username: 'whats.inside59' });
     const audit = (await t.pool.query("SELECT data FROM audit_log WHERE action = 'tiktok.connected' ORDER BY id DESC LIMIT 1")).rows[0].data;

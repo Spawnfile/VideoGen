@@ -6,6 +6,9 @@ import { AuditTable } from '../components/audit/AuditTable.tsx';
 import { ChainStatus } from '../components/audit/ChainStatus.tsx';
 import { api } from '../lib/api.ts';
 import { auditListPath, auditView, queryFromFilter, type AuditQueryFilter } from '../lib/audit-view.ts';
+import { Sheet } from '../components/shell/Sheet.tsx';
+import { useLayout } from '../lib/viewport.ts';
+import { useShellBar } from '../components/shell/ShellContext.tsx';
 
 /**
  * Plan M7 Y6 audit explorer. `initial` seeds the filter (the page passes the URL's, the library detail a fixed video);
@@ -38,14 +41,27 @@ export function Audit({ initial = {}, onFilter, fixed = [], embedded = false }: 
     staleTime: 0,
   });
   const rows = useMemo(() => auditView(q.data?.pages.flatMap((p) => p.rows) ?? []).rows, [q.data]);
+  const phone = useLayout() === 'phone';
+  useShellBar(embedded ? {} : { title: 'Audit log', back: { label: 'Settings', onBack: () => { history.pushState(null, '', '/settings'); dispatchEvent(new PopStateEvent('popstate')); } } }, [embedded]);
+  const [filtering, setFiltering] = useState(false);
+  const active = Object.keys(filter).filter((k) => !fixed.includes(k as keyof AuditQueryFilter)).length;
 
   return (
-    <div data-testid="audit-page" className={`mx-auto flex max-w-[900px] flex-col gap-4 ${embedded ? '' : 'p-8'}`}>
-      {!embedded && <h1 className="text-[16px] font-medium">Audit</h1>}
+    <div data-testid="audit-page" className={`mx-auto flex max-w-[900px] flex-col gap-4 ${embedded ? '' : 'px-4 pt-2 pb-8 md:p-8'}`}>
+      {!embedded && <h1 className="hidden text-[16px] font-medium md:block">Audit log</h1>}
       <ChainStatus />
-      <AuditFilters filter={filter} onChange={change} fixed={fixed} />
-      {q.isError && <p className="text-[13px] text-red">Audit satırları alınamadı: {q.error instanceof Error ? q.error.message : String(q.error)}</p>}
-      {q.isSuccess && rows.length === 0 && <p className="text-[13px] text-ink-2">Bu süzgeçlerle eşleşen satır yok.</p>}
+      {phone ? (
+        <>
+          <button type="button" data-testid="audit-filter-open" onClick={() => setFiltering(true)} className="min-h-10 self-start rounded-full border border-line px-4 text-[13px] text-ink-2">
+            {active ? `Filter (${active})` : 'Filter'}
+          </button>
+          <Sheet open={filtering} onClose={() => setFiltering(false)} title="Filter the audit log">
+            <AuditFilters filter={filter} onChange={change} fixed={fixed} />
+          </Sheet>
+        </>
+      ) : <AuditFilters filter={filter} onChange={change} fixed={fixed} />}
+      {q.isError && <p className="text-[13px] text-red">Could not load audit rows: {q.error instanceof Error ? q.error.message : String(q.error)}</p>}
+      {q.isSuccess && rows.length === 0 && <p className="text-[13px] text-ink-2">No rows match these filters.</p>}
       {rows.length > 0 && (
         <AuditTable rows={rows} open={open} onToggle={(seq) => setOpen((o) => (o === seq ? null : seq))} onFilter={(patch) => change({ ...filter, ...patch })} />
       )}
@@ -54,9 +70,9 @@ export function Audit({ initial = {}, onFilter, fixed = [], embedded = false }: 
           type="button"
           onClick={() => void q.fetchNextPage()}
           disabled={q.isFetchingNextPage}
-          className="w-fit self-center rounded-control border border-line px-3 py-2 text-[13px] text-ink-2 transition-colors duration-100 hover:bg-hover-2 hover:text-ink disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
+          className="min-h-10 w-fit self-center rounded-control border border-line px-3 py-2 text-[13px] text-ink-2 transition-colors duration-100 hover:bg-hover-2 hover:text-ink disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
         >
-          {q.isFetchingNextPage ? 'Yükleniyor…' : 'Daha eski'}
+          {q.isFetchingNextPage ? 'Loading…' : 'Older rows'}
         </button>
       )}
     </div>

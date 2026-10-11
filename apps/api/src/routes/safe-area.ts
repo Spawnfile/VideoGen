@@ -22,7 +22,7 @@ export function registerSafeAreaRoutes(app: FastifyInstance, deps: { pool: pg.Po
       // The rule an impossible area breaks (top below bottom, too narrow…), when that is the reason.
       const area = SafeAreaSchema.safeParse((req.body as { area?: unknown } | null)?.area);
       const why = area.success ? null : area.error.issues.find((i) => i.code === 'custom')?.message;
-      return reply.code(400).send({ error: `geçersiz güvenli alan${why ? `: ${why}` : ''}` });
+      return reply.code(400).send({ error: `invalid safe area${why ? `: ${why}` : ''}` });
     }
     const to: SafeAreaSetting = 'reset' in b.data
       ? defaultSafeAreaSetting()

@@ -26,19 +26,19 @@ export function ChainStatus() {
     }
   };
   return (
-    <section className="flex items-center gap-3 rounded-card border border-line/60 bg-paper px-4 py-3 shadow-subtle">
+    <section className="flex flex-wrap items-center gap-3 rounded-card bg-paper px-4 py-3">
       <span aria-hidden className={`size-2 shrink-0 rounded-full ${DOT[v.tone]}`} />
       <div className="min-w-0 flex-1">
-        <p data-testid="chain-status" data-tone={v.tone} className={`text-[14px] font-medium tabular-nums ${TEXT[v.tone]}`}>{busy ? 'Zincir doğrulanıyor…' : v.text}</p>
+        <p data-testid="chain-status" data-tone={v.tone} className={`text-[14px] font-medium tabular-nums ${TEXT[v.tone]}`}>{busy ? 'Verifying the chain…' : v.text}</p>
         {v.detail && !busy && <p className="truncate text-[12px] tabular-nums text-ink-3">{v.detail}</p>}
       </div>
       <button
         type="button"
         onClick={() => void recheck()}
         disabled={busy}
-        className="rounded-control border border-line px-3 py-1.5 text-[13px] text-ink-2 transition-colors duration-100 hover:bg-hover-2 hover:text-ink disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
+        className="min-h-10 rounded-control border border-line px-3 py-1.5 text-[13px] text-ink-2 md:min-h-0 transition-colors duration-100 hover:bg-hover-2 hover:text-ink disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
       >
-        Yeniden doğrula
+        Verify again
       </button>
     </section>
   );

@@ -45,7 +45,7 @@ const settle = () => new Promise((r) => setTimeout(r, 50));
 describe('publish endpoints (plan M6 T6)', () => {
   it('publish queues a TikTok draft for a ready video and notifies the worker; a double click returns the same publication; the sixth send in 24 h is 409 with the next slot; a needs_human video or a missing TikTok connection is refused with a Turkish reason', async () => {
     const v = await seedReadyVideo(t.pool, dataDir, FFMPEG);
-    expect((await post(`/api/videos/${v.videoId}/publish`, { variant: 'tiktok' })).json()).toEqual({ error: 'TikTok bağlı değil: Ayarlar → TikTok bağlantısı.' });
+    expect((await post(`/api/videos/${v.videoId}/publish`, { variant: 'tiktok' })).json()).toEqual({ error: 'TikTok is not connected: Settings → TikTok connection.' });
     await connect();
     const first = await post(`/api/videos/${v.videoId}/publish`, { variant: 'tiktok' });
     expect(first.statusCode).toBe(202);
@@ -57,13 +57,13 @@ describe('publish endpoints (plan M6 T6)', () => {
 
     const nh = await seedReadyVideo(t.pool, dataDir, FFMPEG, { productName: 'Kalem insan' });
     await t.pool.query("UPDATE videos SET status = 'needs_human' WHERE id = $1", [nh.videoId]);
-    expect((await post(`/api/videos/${nh.videoId}/publish`, { variant: 'tiktok' })).json()).toEqual({ error: "Yayın yalnızca 'Yayına hazır' videolar için." });
+    expect((await post(`/api/videos/${nh.videoId}/publish`, { variant: 'tiktok' })).json()).toEqual({ error: 'Only videos that are ready to publish can be published.' });
 
     const more = await Promise.all(['B', 'C', 'D', 'E', 'F'].map((x) => seedReadyVideo(t.pool, dataDir, FFMPEG, { productName: `Kalem ${x}` })));
     for (const m of more.slice(0, 4)) expect((await post(`/api/videos/${m.videoId}/publish`, { variant: 'tiktok' })).statusCode).toBe(202);
     const sixth = await post(`/api/videos/${more[4]!.videoId}/publish`, { variant: 'tiktok' });
     expect(sixth.statusCode).toBe(409);
-    expect(sixth.json().error).toMatch(/^Son 24 saatte 5 taslak gönderildi; bir sonraki gönderim \d{2}:\d{2}'(de|da|te|ta) açılır\.$/);
+    expect(sixth.json().error).toMatch(/^5 drafts sent in the last 24 hours; the next send opens at \d{2}:\d{2}\.$/);
     expect(new Date(sixth.json().nextSlot).getTime()).toBeGreaterThan(Date.now() + 23 * 3_600_000);
     await t.pool.query("UPDATE publications SET status = 'failed', created_at = now() - interval '2 days'");
   });
@@ -85,7 +85,7 @@ describe('publish endpoints (plan M6 T6)', () => {
     expect(g.publications).toEqual([]);
     await t.pool.query('UPDATE assets SET allowed = false WHERE id = $1', [v.musicAssetId]);
     const blocked = (await app.inject({ url: `/api/videos/${v.videoId}/publish`, headers: H })).json();
-    expect(blocked.variantBlockers.music).toEqual(['Yatak artık izinli değil']);
+    expect(blocked.variantBlockers.music).toEqual(['Yatak is no longer allowed']);
     expect(blocked.variantBlockers.tiktok).toEqual([]);
     await t.pool.query('UPDATE assets SET allowed = true WHERE id = $1', [v.musicAssetId]);
   });
@@ -96,7 +96,7 @@ describe('publish endpoints (plan M6 T6)', () => {
     const q = await post(`/api/videos/${v.videoId}/publish`, { variant: 'music', caption: 'Kendi açıklamam' });
     const pub = q.json().publication;
     expect(pub.caption).toBe('Kendi açıklamam\n\nSes efekti: Ada Yazar (CC BY 4.0)\nMüzik: Bora Besteci (CC BY 4.0)');
-    expect((await post(`/api/publications/${pub.id}/mark`, { url: URL_OK, checklist: { visibility: true, commercial: true } })).json()).toEqual({ error: 'Yalnızca gelen kutusuna ulaşmış bir taslak yayınlandı olarak işaretlenebilir.' });
+    expect((await post(`/api/publications/${pub.id}/mark`, { url: URL_OK, checklist: { visibility: true, commercial: true } })).json()).toEqual({ error: 'Only a draft that reached the inbox can be marked as published.' });
     expect((await post(`/api/publications/${pub.id}/cancel`)).json()).toMatchObject({ publication: { status: 'failed', errorCode: 'cancelled' } });
     expect((await post(`/api/publications/${pub.id}/cancel`)).statusCode).toBe(409);
 
@@ -110,7 +110,7 @@ describe('publish endpoints (plan M6 T6)', () => {
     expect((await t.pool.query("SELECT data FROM audit_log WHERE action = 'publish.marked' ORDER BY id DESC LIMIT 1")).rows[0].data).toMatchObject({ url: URL_OK, publicationId: s.id });
     const again = await post(`/api/videos/${v.videoId}/publish`, { variant: 'tiktok' });
     expect(again.statusCode).toBe(409);
-    expect(again.json()).toEqual({ error: 'Bu sürüm zaten taslak olarak gönderildi.', confirmResend: true });
+    expect(again.json()).toEqual({ error: 'This version was already sent as a draft.', confirmResend: true });
     expect((await post(`/api/videos/${v.videoId}/publish`, { variant: 'tiktok', confirmResend: true })).statusCode).toBe(202);
   });
 

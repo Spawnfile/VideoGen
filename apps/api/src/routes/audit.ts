@@ -5,21 +5,21 @@ import { AUDIT_LIMIT_MAX, type AuditVerifyResult } from '@videogen/shared';
 import { auditActions, auditDetail, isUuid, listAudit, verifyAuditTimed } from '@videogen/db';
 
 const ISO = /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
-const isoDate = (name: string) => z.string().refine((s) => ISO.test(s) && !Number.isNaN(Date.parse(s)), `${name} geçerli bir ISO tarih olmalı`);
+const isoDate = (name: string) => z.string().refine((s) => ISO.test(s) && !Number.isNaN(Date.parse(s)), `${name} must be a valid ISO date`);
 const uuid = (msg: string) => z.string().refine(isUuid, msg);
 const posInt = (msg: string, max = Number.MAX_SAFE_INTEGER) =>
   z.string().regex(/^\d{1,16}$/, msg).transform(Number).refine((n) => n >= 1 && n <= max, msg);
 
 const AuditQuery = z.object({
-  run: uuid('run bir uuid olmalı').optional(),
-  video: uuid('video bir uuid olmalı').optional(),
-  session: uuid('oturum (session) bir uuid olmalı').optional(),
-  role: z.string().regex(/^[a-z][a-z0-9_]{0,39}$/, 'rol (role) geçersiz').optional(),
-  action: z.string().regex(/^[a-z0-9_.]{1,80}\*?$/, 'eylem (action) geçersiz: tam ad ya da publish.* gibi önek').optional(),
+  run: uuid('run must be a uuid').optional(),
+  video: uuid('video must be a uuid').optional(),
+  session: uuid('session must be a uuid').optional(),
+  role: z.string().regex(/^[a-z][a-z0-9_]{0,39}$/, 'invalid role').optional(),
+  action: z.string().regex(/^[a-z0-9_.]{1,80}\*?$/, 'invalid action: a full name or a prefix such as publish.*').optional(),
   from: isoDate('from').optional(),
   to: isoDate('to').optional(),
-  before: posInt('before pozitif bir tam sayı olmalı').optional(),
-  limit: posInt(`limit 1 ile ${AUDIT_LIMIT_MAX} arasında bir tam sayı olmalı`, AUDIT_LIMIT_MAX).optional(),
+  before: posInt('before must be a positive integer').optional(),
+  limit: posInt(`limit must be an integer from 1 to ${AUDIT_LIMIT_MAX}`, AUDIT_LIMIT_MAX).optional(),
 });
 
 /** Plan M7 Y5: `audit_verify()` scans the whole chain, so its last result is kept in process memory for this long. */
@@ -32,7 +32,7 @@ export function registerAuditRoutes(app: FastifyInstance, deps: { pool: pg.Pool 
 
   app.get('/api/audit', async (req, reply) => {
     const q = AuditQuery.safeParse(req.query ?? {});
-    if (!q.success) return reply.code(400).send({ error: q.error.issues[0]?.message ?? 'geçersiz sorgu' });
+    if (!q.success) return reply.code(400).send({ error: q.error.issues[0]?.message ?? 'invalid query' });
     const { run, video, session, ...rest } = q.data;
     return listAudit(pool, { ...rest, ...(run ? { runId: run } : {}), ...(video ? { videoId: video } : {}), ...(session ? { sessionId: session } : {}) });
   });

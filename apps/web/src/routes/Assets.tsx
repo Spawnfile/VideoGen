@@ -5,9 +5,10 @@ import { AssetAddForm } from '../components/assets/AssetAddForm.tsx';
 import { AssetTable } from '../components/assets/AssetTable.tsx';
 import { api } from '../lib/api.ts';
 import { assetsView, KIND_LABEL } from '../lib/assets-view.ts';
+import { useShellBar } from '../components/shell/ShellContext.tsx';
 
 const chip = (on: boolean) =>
-  `rounded-full px-3 py-1 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
+  `min-h-9 shrink-0 rounded-full px-3.5 py-1 text-[12px] whitespace-nowrap transition-colors md:min-h-0 md:px-3 duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
 
 /** Plan M7 Y8 asset ledger (spec §13.1 Varlıklar): license fields, preview, usage, Add (upload + license gate) and revoke. */
 export function Assets() {
@@ -17,21 +18,22 @@ export function Assets() {
   const q = useQuery({ queryKey: ['assets'], queryFn: api.assets, staleTime: 0 });
   const view = useMemo(() => assetsView(q.data ?? [], kind), [q.data, kind]);
   const refresh = () => qc.invalidateQueries({ queryKey: ['assets'] });
+  useShellBar({ title: 'Assets', back: { label: 'Settings', onBack: () => { history.pushState(null, '', '/settings'); dispatchEvent(new PopStateEvent('popstate')); } } }, []);
 
   return (
-    <div data-testid="assets-page" className="mx-auto flex max-w-[900px] flex-col gap-4 p-8">
+    <div data-testid="assets-page" className="mx-auto flex max-w-[900px] flex-col gap-4 px-4 pt-2 pb-8 md:p-8">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-[16px] font-medium">Varlıklar</h1>
+        <h1 className="hidden text-[16px] font-medium md:block">Assets</h1>
         <button
           type="button"
           aria-expanded={adding}
           onClick={() => setAdding((a) => !a)}
-          className="rounded-control bg-accent px-3 py-1.5 text-[13px] font-medium text-white transition-opacity duration-100 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
+          className="min-h-10 rounded-control bg-accent px-4 py-1.5 text-[13px] font-medium text-white md:min-h-0 md:px-3 transition-opacity duration-100 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
         >
-          {adding ? 'Kapat' : 'Ekle'}
+          {adding ? 'Close' : 'Add'}
         </button>
       </div>
-      <div role="group" aria-label="Tür" className="flex gap-1">
+      <div role="group" aria-label="Kind" className="no-scrollbar -mx-4 flex gap-1 overflow-x-auto px-4 md:mx-0 md:px-0">
         {LEDGER_KINDS.map((k) => (
           <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)} className={chip(kind === k)}>
             {KIND_LABEL[k]} <span className="tabular-nums opacity-70">{view.counts[k]}</span>
@@ -39,8 +41,8 @@ export function Assets() {
         ))}
       </div>
       {adding && <AssetAddForm kind={kind} onDone={() => { setAdding(false); void refresh(); }} />}
-      {q.isError && <p className="text-[13px] text-red">Varlıklar alınamadı: {q.error instanceof Error ? q.error.message : String(q.error)}</p>}
-      {q.isSuccess && view.rows.length === 0 && <p className="text-[13px] text-ink-2">Bu türde kayıtlı varlık yok.</p>}
+      {q.isError && <p className="text-[13px] text-red">Could not load the assets: {q.error instanceof Error ? q.error.message : String(q.error)}</p>}
+      {q.isSuccess && view.rows.length === 0 && <p className="text-[13px] text-ink-2">No assets of this kind yet.</p>}
       {view.rows.length > 0 && <AssetTable rows={view.rows} onRevoked={() => void refresh()} />}
     </div>
   );

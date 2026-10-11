@@ -34,7 +34,7 @@ export function registerRoleRoutes(app: FastifyInstance, deps: { pool: pg.Pool; 
     const role = (req.params as { role: string }).role;
     if (!(ROLE_NAMES as readonly string[]).includes(role)) return reply.code(404).send({ error: 'not found' });
     const b = Patch.safeParse(req.body ?? {});
-    if (!b.success) return reply.code(400).send({ error: 'geçersiz model veya effort' });
+    if (!b.success) return reply.code(400).send({ error: 'invalid model or effort' });
     const before = await readOverrides(pool);
     const r = role as RoleName;
     const next: RoleOverrides = { ...before, [r]: { ...before[r], ...b.data } };
@@ -51,7 +51,7 @@ export function registerRoleRoutes(app: FastifyInstance, deps: { pool: pg.Pool; 
   if (deps.devEndpoints) {
     app.post('/api/dev/sessions', async (req, reply) => {
       const b = DevSession.safeParse(req.body ?? {});
-      if (!b.success) return reply.code(400).send({ error: 'geçersiz rol veya senaryo' });
+      if (!b.success) return reply.code(400).send({ error: 'invalid role or scenario' });
       await sendCommand(pool, { type: 'dev.session.start', ...b.data });
       return reply.code(202).send({ accepted: true });
     });

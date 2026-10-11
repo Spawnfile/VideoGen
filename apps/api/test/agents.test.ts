@@ -83,7 +83,7 @@ describe('session retry ownership', () => {
     const chat = randomUUID();
     await insertSession(t.pool, { id: chat, kind: 'chat', role: 'chat', model: 'opus', effort: 'high', claudeSessionId: chat, runDir: '/tmp', status: 'idle' });
     const r1 = await app.inject({ method: 'POST', url: `/api/sessions/${step}/retry`, headers: H });
-    expect([r1.statusCode, r1.json().error]).toEqual([409, 'adım oturumunu adım yeniden dener']);
+    expect([r1.statusCode, r1.json().error]).toEqual([409, 'a step session is retried by its step']);
     expect((await app.inject({ method: 'POST', url: `/api/sessions/${chat}/retry`, headers: H })).statusCode).toBe(409);
     expect((await app.inject({ method: 'POST', url: `/api/sessions/${step}/cancel`, headers: H })).statusCode).toBe(202);
     expect((await app.inject({ url: '/api/sessions?scope=recent', headers: H })).json().find((s: { id: string }) => s.id === step).stepId).toBeTruthy();
@@ -93,7 +93,7 @@ describe('session retry ownership', () => {
 describe('chat endpoints', () => {
   it('creates a thread, accepts a message without putting its text into NOTIFY, and renames the thread', async () => {
     const th = (await app.inject({ method: 'POST', url: '/api/chat/threads', headers: H, payload: {} })).json();
-    expect(th.title).toBe('Yeni sohbet');
+    expect(th.title).toBe('New chat');
     commands.length = 0;
     const r = await app.inject({ method: 'POST', url: `/api/chat/threads/${th.id}/messages`, headers: H, payload: { text: '  Tükenmez kalemin içinde ne var?  ' } });
     expect(r.statusCode).toBe(202);

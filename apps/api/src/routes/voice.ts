@@ -38,11 +38,11 @@ export function registerVoiceRoutes(app: FastifyInstance, deps: { pool: pg.Pool 
 
   app.put('/api/narrator-voice', async (req, reply) => {
     const b = NarratorVoiceSchema.safeParse(req.body ?? {});
-    if (!b.success) return reply.code(400).send({ error: 'geçersiz anlatıcı sesi' });
+    if (!b.success) return reply.code(400).send({ error: 'invalid narrator voice' });
     if (b.data.voice.kind === 'clone') {
       const a = await getAsset(deps.pool, b.data.voice.asset_id);
       if (!a || a.kind !== 'voice_ref' || !a.allowed || !licenseVerdict({ spdx: a.licenseSpdx, attribution: a.attribution, kind: 'voice_ref' }).allowed) {
-        return reply.code(400).send({ error: 'klon ses için defterde izinli bir ses referansı gerekli' });
+        return reply.code(400).send({ error: 'a cloned voice needs an allowed voice sample in the ledger' });
       }
     }
     const before = await getNarratorVoice(deps.pool);

@@ -41,7 +41,7 @@ describe('audit endpoints', () => {
     expect((await get(`/api/audit?run=${v.runId}`)).json().rows.map((r: { seq: number }) => r.seq)).toEqual([s1.seq, s0]);
     expect((await get(`/api/audit?from=${encodeURIComponent(new Date(Date.now() + 60_000).toISOString())}`)).json().rows).toEqual([]);
 
-    for (const [q, word] of [['from=dün', 'tarih'], ['to=2026-13-45', 'tarih'], ['limit=201', 'limit'], ['limit=0', 'limit'], ['run=abc', 'run'], ['session=x', 'oturum'], ['before=-1', 'before']] as const) {
+    for (const [q, word] of [['from=dün', 'date'], ['to=2026-13-45', 'date'], ['limit=201', 'limit'], ['limit=0', 'limit'], ['run=abc', 'run'], ['session=x', 'session'], ['before=-1', 'before']] as const) {
       const r = await get(`/api/audit?${q}`);
       expect(r.statusCode, q).toBe(400);
       expect(r.json().error, q).toContain(word);
