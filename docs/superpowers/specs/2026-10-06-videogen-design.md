@@ -241,7 +241,6 @@ Lockfile commit edilir. Yeni bir skill veya plugin eklenmeden önce skillspector
 - Boşta kalan chat süreçleri 10 dk sonra kapatılır. Bir sonraki mesajda oturum `resume` ile kaldığı yerden açılır.
 - **Ön kontrol:** Spawn'dan önce boş RAM (`MemAvailable`) ≥ 1 GB olmalı. GPU işinden önce şu koşullar aranır:
   - boş RAM ≥ 2,5 GB
-  - swap < %90
   - boş disk ≥ 3 GB + kare tahmini
   - `nvidia-smi` boş VRAM ≥ 4 GB
   - `ollama ps` boş

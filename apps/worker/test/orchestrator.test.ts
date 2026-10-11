@@ -148,13 +148,13 @@ describe('Orchestrator', () => {
   });
 
   it('holds a GPU step in waiting_gpu with the reason until the pre-check passes', async () => {
-    let snap: ResourceSnapshot = { memAvailableMb: 8000, swapUsedPct: 100, diskFreeMb: 50_000, vramFreeMb: 5000, ollamaModels: [] };
+    let snap: ResourceSnapshot = { memAvailableMb: 1000, diskFreeMb: 50_000, vramFreeMb: 5000, ollamaModels: [] };
     const probe: Probe = { snapshot: async () => snap };
     const o = orch({ research: exec('research'), storyboard: exec('storyboard', { resource: 'gpu' }) }, { probe });
     const r = await produce('Kalem G');
     await o.startRun(r.runId);
-    await vi.waitFor(async () => expect((await getRunView(t.pool, r.runId))!.steps[1]).toMatchObject({ status: 'waiting_gpu', note: 'swap %100 ≥ %90' }));
-    snap = { ...snap, swapUsedPct: 10 };
+    await vi.waitFor(async () => expect((await getRunView(t.pool, r.runId))!.steps[1]).toMatchObject({ status: 'waiting_gpu', note: 'boş RAM 1 GB < 2,5 GB' }));
+    snap = { ...snap, memAvailableMb: 8000 };
     await vi.waitFor(async () => expect(await runStatus(r.runId)).toBe('done'));
     expect(await actions(r.runId)).toContain('step.waiting');
   });
@@ -162,7 +162,7 @@ describe('Orchestrator', () => {
   it('a cancel that lands while a step is being launched (pre-check pending) never starts the step', async () => {
     let release: () => void = () => {};
     const gate = new Promise<void>((r) => { release = r; });
-    const snapshot: ResourceSnapshot = { memAvailableMb: 8000, swapUsedPct: 10, diskFreeMb: 50_000, vramFreeMb: 5000, ollamaModels: [] };
+    const snapshot: ResourceSnapshot = { memAvailableMb: 8000, diskFreeMb: 50_000, vramFreeMb: 5000, ollamaModels: [] };
     let asked = 0;
     const probe: Probe = { snapshot: async () => { asked++; await gate; return snapshot; } };
     const gpu = exec('research', { resource: 'gpu' });

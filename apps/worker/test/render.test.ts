@@ -16,7 +16,7 @@ import type { Probe, ResourceSnapshot } from '../src/pipeline/resources.ts';
 
 const FFMPEG = process.env.VG_FFMPEG ?? 'ffmpeg';
 const tmp = (p: string) => mkdtempSync(join(tmpdir(), p));
-const OK: ResourceSnapshot = { memAvailableMb: 8000, swapUsedPct: 0, diskFreeMb: 50_000, vramFreeMb: 5800, ollamaModels: [] };
+const OK: ResourceSnapshot = { memAvailableMb: 8000, diskFreeMb: 50_000, vramFreeMb: 5800, ollamaModels: [] };
 
 describe('resource locks and the GPU gate', () => {
   it('grants in FIFO order and tells waiters their place in the queue', async () => {
@@ -51,13 +51,13 @@ describe('resource locks and the GPU gate', () => {
 
   it('waits on the spec §6.4 pre-check with its reason, then runs; an abort while waiting releases the lock', async () => {
     const locks = new ResourceLocks();
-    let swap = 95;
-    const probe: Probe = { snapshot: async () => ({ ...OK, swapUsedPct: swap }) };
+    let ram = 1000;
+    const probe: Probe = { snapshot: async () => ({ ...OK, memAvailableMb: ram }) };
     const waits: unknown[] = [];
-    const r = withResource(locks, 'gpu', { owner: 'x', probe, waitMs: 20, onWait: (w) => { waits.push(w); swap = 10; } }, async () => 'ran');
+    const r = withResource(locks, 'gpu', { owner: 'x', probe, waitMs: 20, onWait: (w) => { waits.push(w); ram = 8000; } }, async () => 'ran');
     expect(await r).toBe('ran');
-    expect(waits).toEqual([{ reason: 'swap %95 ≥ %90', status: 'waiting_gpu' }]);
-    swap = 95;
+    expect(waits).toEqual([{ reason: 'boş RAM 1 GB < 2,5 GB', status: 'waiting_gpu' }]);
+    ram = 1000;
     const ac = new AbortController();
     const stuck = withResource(locks, 'gpu', { owner: 'y', probe, waitMs: 20, signal: ac.signal, onWait: () => ac.abort() }, async () => 'never');
     await expect(stuck).rejects.toMatchObject({ name: 'AbortError' });

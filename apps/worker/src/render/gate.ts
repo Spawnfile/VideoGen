@@ -21,7 +21,7 @@ const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, 
   signal?.addEventListener('abort', off, { once: true });
 });
 
-/** Holds the resource lock, waits for the spec §6.4 pre-check (GPU: RAM, swap, disk, VRAM, ollama; heavy CPU: disk), then runs `fn`. */
+/** Holds the resource lock, waits for the spec §6.4 pre-check (GPU: RAM, disk, VRAM, ollama; heavy CPU: disk), then runs `fn`. */
 export async function withResource<T>(locks: ResourceLocks, r: LockedResource, o: GateOptions, fn: () => Promise<T>): Promise<T> {
   const release = await locks.acquire(r, o.owner, { signal: o.signal, onQueue: (position) => o.onWait?.({ position }) });
   try {

@@ -18,7 +18,7 @@ import { FakeMusicDriver } from '../src/audio/music.ts';
 
 export const fx = (n: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${n}.json`), 'utf8'));
 
-const PROBE: Probe = { snapshot: async () => ({ memAvailableMb: 8000, swapUsedPct: 0, diskFreeMb: 100_000, vramFreeMb: 24_000, ollamaModels: null }) };
+const PROBE: Probe = { snapshot: async () => ({ memAvailableMb: 8000, diskFreeMb: 100_000, vramFreeMb: 24_000, ollamaModels: null }) };
 
 /** One call of the audio driver as the voice step made it, and who held the GPU lock at that moment. */
 export interface VoiceCall { input: VoiceInput; holder: string | null }
