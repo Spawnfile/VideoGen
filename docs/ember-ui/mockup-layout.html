@@ -1,0 +1,192 @@
+<h2>A × B: "Prism Timecode"</h2>
+<p class="subtitle">A'nın montaj masası yapısı (timeline, timecode, keskin köşeler, mono etiketler) + B'nin prizma geçişi. Geçiş yalnızca üç yerde: canlı iş (playhead, aktif klip, ilerleme), birincil aksiyon, ve sağ üstten sızan ışık alanı. Üç ekran: Studio · Library · New video.</p>
+
+<style>
+.phones{display:flex;flex-wrap:wrap;gap:30px;justify-content:center;margin:18px 0 8px}
+.ph{width:340px;height:736px;border-radius:38px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111,0 20px 50px rgba(0,0,0,.45);font-family:-apple-system,"SF Pro Text",Roboto,Inter,sans-serif;flex:none;background:#07080D;color:#ECEFF7}
+.ph *{box-sizing:border-box}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+.cap{font-weight:800;line-height:1.1;text-align:center;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+.G{background:linear-gradient(100deg,#FF2E93,#7B5CFF 55%,#19E3FF)}
+.Gt{background:linear-gradient(100deg,#FF2E93,#7B5CFF 55%,#19E3FF);-webkit-background-clip:text;color:transparent}
+.field{position:absolute;top:-170px;right:-150px;width:420px;height:380px;background:radial-gradient(closest-side at 40% 50%,rgba(255,46,147,.42),transparent 70%),radial-gradient(closest-side at 65% 60%,rgba(123,92,255,.42),transparent 70%),radial-gradient(closest-side at 45% 80%,rgba(25,227,255,.22),transparent 70%);filter:blur(24px);pointer-events:none}
+.grain{position:absolute;inset:0;opacity:.06;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E")}
+.in{position:relative;height:100%}
+.top{display:flex;align-items:center;gap:8px;padding:18px 18px 10px}
+.logo{width:24px;height:24px;border-radius:6px;position:relative}
+.logo:after{content:"";position:absolute;inset:7px 6px 7px 9px;background:#07080D;clip-path:polygon(0 0,100% 50%,0 100%)}
+.wm{font-weight:700;letter-spacing:-.02em;font-size:15px}
+.tc{margin-left:auto;font-size:10px;color:#8A91A6;letter-spacing:.08em;display:flex;gap:8px;align-items:center}
+.live{display:inline-flex;align-items:center;gap:5px}
+.live i{width:6px;height:6px;border-radius:50%;box-shadow:0 0 10px #FF2E93}
+.bin{display:flex;gap:8px;padding:6px 18px 14px;overflow:hidden}
+.clip{width:58px;flex:none}
+.clip .f{height:98px;border-radius:5px;position:relative;overflow:hidden;border:1px solid #1E2230}
+.clip.on{position:relative}
+.clip.on .ring{padding:2px;border-radius:7px}
+.clip.on .f{border:0;height:94px}
+.clip .f .cap{position:absolute;left:4px;right:4px;bottom:12px;font-size:8px}
+.clip .l{font-size:9px;color:#8A91A6;margin-top:5px;letter-spacing:.06em}
+.clip.wait .l{color:#FFB547}
+.hd{padding:0 18px}
+h1.t{font-size:28px;letter-spacing:-.035em;margin:0;line-height:1;font-weight:750}
+.meta{font-size:10px;color:#8A91A6;letter-spacing:.1em;margin-top:7px}
+.tl{margin:16px 0 0;padding:12px 0 10px;background:rgba(14,16,23,.85);border-top:1px solid #1E2230;border-bottom:1px solid #1E2230;position:relative}
+.ruler{display:flex;justify-content:space-between;padding:0 18px 6px 40px;font-size:8px;color:#4E5569}
+.track{display:flex;gap:2px;padding:0 18px;margin-bottom:4px;align-items:center}
+.track .n{width:22px;font-size:8px;color:#4E5569;flex:none}
+.blk{height:22px;border-radius:4px;font-size:8.5px;display:flex;align-items:center;padding:0 5px;overflow:hidden;white-space:nowrap;font-weight:600}
+.d{background:#262B3A;color:#B9C0D2}
+.lv{color:#fff}
+.todo{border:1px dashed #262B3A;color:#4E5569}
+.play{position:absolute;top:6px;bottom:6px;left:186px;width:2px;background:linear-gradient(#FF2E93,#19E3FF)}
+.play:before{content:"";position:absolute;top:-3px;left:-4px;width:10px;height:7px;background:#FF2E93;clip-path:polygon(0 0,100% 0,50% 100%)}
+.now{padding:14px 18px 0}
+.now .k{font-size:9px;letter-spacing:.16em}
+.now p{margin:5px 0 0;font-size:13.5px;color:#B9C0D2;line-height:1.4}
+.need{margin:14px 18px 0;border:1px solid rgba(255,181,71,.35);background:rgba(255,181,71,.07);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px}
+.need .k{font-size:9px;letter-spacing:.14em;color:#FFB547}
+.need .t{font-size:13px;font-weight:600;margin-top:2px}
+.need b{margin-left:auto;font-size:11px;border:1px solid rgba(255,181,71,.5);color:#FFB547;padding:7px 10px;border-radius:7px}
+.dock{position:absolute;left:0;right:0;bottom:62px;padding:0 14px}
+.ask{display:flex;gap:8px;background:rgba(14,16,23,.92);border:1px solid #1E2230;border-radius:12px;padding:6px 6px 6px 14px;align-items:center}
+.ask span{flex:1;color:#5A6177;font-size:13px}
+.key{color:#fff;border-radius:9px;padding:10px 13px;font-size:12px;font-weight:700;box-shadow:0 6px 20px rgba(255,46,147,.3)}
+.tabs{position:absolute;left:0;right:0;bottom:0;height:56px;border-top:1px solid #1E2230;display:flex;justify-content:space-around;align-items:center;font-size:9px;letter-spacing:.12em;color:#5A6177;background:rgba(7,8,13,.94)}
+.tabs div{position:relative;padding-top:8px}
+.tabs .s{color:#ECEFF7}.tabs .s:before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);width:18px;height:2px;border-radius:2px;background:linear-gradient(90deg,#FF2E93,#7B5CFF,#19E3FF)}
+.tabs .dot:after{content:"";position:absolute;top:2px;right:-8px;width:6px;height:6px;border-radius:50%;background:#FFB547}
+
+/* library */
+.lhd{padding:4px 18px 0;display:flex;align-items:flex-end;justify-content:space-between}
+.lhd h1{font-size:30px;letter-spacing:-.04em;margin:0;font-weight:750}
+.lhd span{font-size:10px;color:#8A91A6;letter-spacing:.12em}
+.search{margin:14px 18px 0;height:40px;border-radius:10px;background:#0E1017;border:1px solid #1E2230;display:flex;align-items:center;padding:0 12px;color:#5A6177;font-size:13px;gap:8px}
+.chips{display:flex;gap:6px;padding:12px 18px 0}
+.chip{font-size:11px;padding:6px 10px;border-radius:7px;border:1px solid #1E2230;color:#B9C0D2;white-space:nowrap}
+.chip.s{background:#ECEFF7;color:#07080D;border-color:#ECEFF7;font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px 18px 0}
+.th .f{aspect-ratio:9/16;border-radius:6px;position:relative;overflow:hidden;border:1px solid #1E2230}
+.th .f .cap{position:absolute;left:5px;right:5px;bottom:22px;font-size:9px}
+.th .dur{position:absolute;right:5px;bottom:5px;font-size:8.5px;background:rgba(0,0,0,.55);padding:2px 4px;border-radius:3px;color:#fff}
+.th .st{position:absolute;left:5px;top:5px;font-size:8px;padding:2px 5px;border-radius:3px;letter-spacing:.08em;color:#fff;background:rgba(0,0,0,.5)}
+.th .n{font-size:12px;font-weight:600;margin-top:6px}
+.th .m{font-size:9px;color:#8A91A6;letter-spacing:.06em;margin-top:2px}
+.th.wait .f{border-color:rgba(255,181,71,.6)}.th.wait .st{color:#FFB547}
+.th.fail .st{color:#FF5C7A}
+.th.run .ringw{padding:2px;border-radius:8px}.th.run .f{border:0}
+
+/* sheet */
+.dim{position:absolute;inset:0;background:rgba(3,4,8,.62)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#0E1017;border-top:1px solid #262B3A;border-radius:16px 16px 0 0;padding:10px 18px 26px;overflow:hidden}
+.sheet .field{top:-200px;right:-180px;opacity:.7}
+.grab{width:36px;height:4px;border-radius:2px;background:#323849;margin:0 auto 14px}
+.sh{display:flex;justify-content:space-between;align-items:center}
+.sh h3{font-size:20px;letter-spacing:-.03em;margin:0;font-weight:750}
+.sh span{font-size:18px;color:#8A91A6}
+.lab{font-size:9px;letter-spacing:.16em;color:#8A91A6;margin:16px 0 7px}
+.inp{height:46px;border-radius:10px;background:#07080D;border:1px solid #262B3A;display:flex;align-items:center;padding:0 14px;font-size:15px}
+.inp.f{border-color:transparent;background:linear-gradient(#07080D,#07080D) padding-box,linear-gradient(100deg,#FF2E93,#7B5CFF,#19E3FF) border-box;border:1.5px solid transparent}
+.caret{width:1.5px;height:18px;background:#FF2E93;margin-left:1px}
+.seg{display:flex;background:#07080D;border:1px solid #262B3A;border-radius:10px;padding:3px}
+.seg div{flex:1;text-align:center;font-size:12.5px;padding:9px 0;border-radius:7px;color:#8A91A6}
+.seg .s{background:#1C2030;color:#ECEFF7;font-weight:600;box-shadow:inset 0 0 0 1px #323849}
+.len{display:flex;gap:6px}
+.len div{flex:1;text-align:center;border:1px solid #262B3A;border-radius:8px;padding:8px 0;font-size:11px;color:#B9C0D2}
+.len .s{border-color:#7B5CFF;color:#fff;background:rgba(123,92,255,.12)}
+.ta{height:74px;border-radius:10px;background:#07080D;border:1px solid #262B3A;padding:11px 14px;font-size:13px;color:#5A6177;line-height:1.4}
+.hint{font-size:11px;color:#6A7188;margin-top:8px;display:flex;justify-content:space-between}
+.big{margin-top:16px;height:50px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-weight:750;font-size:15px;color:#fff;box-shadow:0 10px 30px rgba(123,92,255,.35)}
+.big small{font-weight:500;opacity:.8;margin-left:8px;font-size:11px}
+.lbl{text-align:center;margin-top:14px}
+.lbl b{font-size:15px}.lbl p{margin:4px auto 0;max-width:330px;font-size:13px;opacity:.8}
+.pal{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:26px auto 0;max-width:1100px}
+.sw{width:118px;font-size:11px}
+.sw div{height:44px;border-radius:8px;border:1px solid rgba(255,255,255,.08);margin-bottom:6px}
+.sw b{display:block;font-size:12px}
+</style>
+
+<div class="phones">
+
+  <!-- STUDIO -->
+  <div>
+  <div class="ph"><div class="field"></div><div class="grain"></div><div class="in">
+    <div class="top"><div class="logo G"></div><div class="wm">VideoGen</div><div class="tc mono"><span class="live"><i class="G"></i><span class="Gt">LIVE 1</span></span><span>27% · 5H</span></div></div>
+    <div class="bin">
+      <div class="clip on"><div class="ring G"><div class="f" style="background:linear-gradient(160deg,#5B1730,#B3264E 50%,#2A0B18)"><div class="cap">Neden döner?</div></div></div><div class="l mono"><span class="Gt">RUJ · 62%</span></div></div>
+      <div class="clip wait"><div class="f" style="background:linear-gradient(160deg,#16324A,#2F6E9E 50%,#0B1A27)"><div class="cap">Yay ne işe yarar?</div></div><div class="l mono">KALEM · YOU</div></div>
+      <div class="clip"><div class="f" style="background:linear-gradient(160deg,#2C3A1C,#6E8E3A 50%,#141B0C)"><div class="cap">3 saniyede</div></div><div class="l mono">ÇAKMAK ✓</div></div>
+      <div class="clip"><div class="f" style="background:linear-gradient(160deg,#3B2A12,#A06A1E 50%,#1C1408)"></div><div class="l mono">TERMOS ✓</div></div>
+      <div class="clip"><div class="f" style="background:#0E1017;display:grid;place-items:center;color:#5A6177;font-size:20px">+</div><div class="l mono">NEW</div></div>
+    </div>
+    <div class="hd"><h1 class="t">Ruj</h1><div class="meta mono">VO · 15–17 S · 7 BEATS · 1.2M TOK</div></div>
+    <div class="tl">
+      <div class="ruler mono"><span>00:00</span><span>02:00</span><span>04:00</span><span>06:00</span><span>08:00</span></div>
+      <div class="track"><span class="n mono">V1</span><div class="blk d" style="width:48px">Research</div><div class="blk d" style="width:30px">Board</div><div class="blk lv G" style="width:76px">Scene build</div><div class="blk todo" style="width:44px">Draft</div><div class="blk todo" style="width:54px">Final</div></div>
+      <div class="track"><span class="n mono">A1</span><div class="blk d" style="width:78px;margin-left:80px;opacity:.75">Voiceover ✓</div><div class="blk todo" style="width:60px">Music</div></div>
+      <div class="track"><span class="n mono">QC</span><div class="blk todo" style="width:44px;margin-left:160px">Checks</div><div class="blk todo" style="width:46px">Review</div></div>
+      <div class="play"></div>
+    </div>
+    <div class="now"><div class="k mono"><span class="Gt">● NOW · 00:04:12</span></div><p>Building scene 4 of 7: the bullet twists out of the tube.</p></div>
+    <div class="need"><div><div class="k mono">KALEM · NEEDS YOU</div><div class="t">Approve the voiceover take</div></div><b>Listen</b></div>
+    <div class="dock"><div class="ask"><span>Product name, e.g. ballpoint pen</span><div class="key G">New video</div></div></div>
+    <div class="tabs mono"><div class="s">STUDIO</div><div>CHAT</div><div class="dot">LIBRARY</div><div>SETTINGS</div></div>
+  </div></div>
+  <div class="lbl"><b>Studio</b><p>Üstte video bin'i (9:16 kareler), ortada A'nın timeline'ı. Canlı blok, playhead ve aktif klibin çerçevesi prizma geçişi. "Seni bekliyor" amber, hata değil.</p></div>
+  </div>
+
+  <!-- LIBRARY -->
+  <div>
+  <div class="ph"><div class="field"></div><div class="grain"></div><div class="in">
+    <div class="top"><div class="logo G"></div><div class="wm">VideoGen</div><div class="tc mono"><span class="live"><i class="G"></i><span class="Gt">LIVE 1</span></span><span>27% · 5H</span></div></div>
+    <div class="lhd"><h1>Library</h1><span class="mono">14 VIDEOS · 3:41 TOTAL</span></div>
+    <div class="search">⌕ <span>Search products</span></div>
+    <div class="chips"><div class="chip s">All</div><div class="chip">Needs you · 2</div><div class="chip">Published</div><div class="chip">Drafts</div></div>
+    <div class="grid">
+      <div class="th run"><div class="ringw G"><div class="f" style="background:linear-gradient(160deg,#5B1730,#B3264E 50%,#2A0B18)"><span class="st mono">62%</span><div class="cap">Neden döner?</div><span class="dur mono">0:16</span></div></div><div class="n">Ruj</div><div class="m mono">BUILDING</div></div>
+      <div class="th wait"><div class="f" style="background:linear-gradient(160deg,#16324A,#2F6E9E 50%,#0B1A27)"><span class="st mono">NEEDS YOU</span><div class="cap">Yay ne işe yarar?</div><span class="dur mono">0:22</span></div><div class="n">Kalem</div><div class="m mono">TODAY 01:08</div></div>
+      <div class="th"><div class="f" style="background:linear-gradient(160deg,#2C3A1C,#6E8E3A 50%,#141B0C)"><span class="st mono">↑ TIKTOK</span><div class="cap">3 saniyede</div><span class="dur mono">0:19</span></div><div class="n">Çakmak</div><div class="m mono">YESTERDAY</div></div>
+      <div class="th"><div class="f" style="background:linear-gradient(160deg,#3B2A12,#A06A1E 50%,#1C1408)"><span class="st mono">FINAL</span><div class="cap">Neden sıcak kalır?</div><span class="dur mono">0:31</span></div><div class="n">Termos</div><div class="m mono">OCT 09</div></div>
+      <div class="th fail"><div class="f" style="background:linear-gradient(160deg,#2B1638,#6A3B8E 50%,#120A18)"><span class="st mono">FAILED</span><span class="dur mono">—</span></div><div class="n">Fermuar</div><div class="m mono">OCT 08</div></div>
+      <div class="th"><div class="f" style="background:linear-gradient(160deg,#123A38,#2E8C84 50%,#081A19)"><span class="st mono">↑ TIKTOK</span><div class="cap">Kim icat etti?</div><span class="dur mono">0:27</span></div><div class="n">Ataş</div><div class="m mono">OCT 07</div></div>
+    </div>
+    <div class="tabs mono"><div>STUDIO</div><div>CHAT</div><div class="s">LIBRARY</div><div>SETTINGS</div></div>
+  </div></div>
+  <div class="lbl"><b>Library</b><p>Boş gri satırlar yerine kontak baskı: her video kendi poster karesi, süresi ve durumuyla. Üretimdeki video yine prizma çerçeveli.</p></div>
+  </div>
+
+  <!-- NEW VIDEO SHEET -->
+  <div>
+  <div class="ph"><div class="field"></div><div class="in" style="filter:blur(1.5px);opacity:.55">
+    <div class="top"><div class="logo G"></div><div class="wm">VideoGen</div></div>
+    <div class="bin"><div class="clip"><div class="f" style="background:linear-gradient(160deg,#5B1730,#B3264E 50%,#2A0B18)"></div></div><div class="clip"><div class="f" style="background:linear-gradient(160deg,#16324A,#2F6E9E 50%,#0B1A27)"></div></div><div class="clip"><div class="f" style="background:linear-gradient(160deg,#2C3A1C,#6E8E3A 50%,#141B0C)"></div></div></div>
+  </div>
+    <div class="dim"></div>
+    <div class="sheet"><div class="field"></div><div style="position:relative">
+      <div class="grab"></div>
+      <div class="sh"><h3>New video</h3><span>✕</span></div>
+      <div class="lab mono">PRODUCT</div>
+      <div class="inp f">Ataç<span class="caret"></span></div>
+      <div class="lab mono">VOICEOVER</div>
+      <div class="seg"><div>None</div><div class="s">Narrated</div></div>
+      <div class="lab mono">LENGTH</div>
+      <div class="len"><div class="s">Auto</div><div>15 s</div><div>30 s</div><div>45 s</div><div class="mono">Custom</div></div>
+      <div class="lab mono">BRIEF · OPTIONAL</div>
+      <div class="ta">e.g. open with a question; focus on the moment the clip springs back.</div>
+      <div class="hint"><span>Agent picks the hook and pace.</span><span class="mono">0/2000</span></div>
+      <div class="big G">Create video <small class="mono">~9 MIN</small></div>
+    </div></div>
+  </div>
+  <div class="lbl"><b>New video</b><p>Başparmak bölgesinde sheet. Odaktaki alanın çerçevesi geçiş; birincil düğme ekrandaki tek dolu geçiş bloğu.</p></div>
+  </div>
+</div>
+
+<div class="pal">
+  <div class="sw"><div style="background:#07080D"></div><b>Ground</b><span class="mono">#07080D</span></div>
+  <div class="sw"><div style="background:#0E1017"></div><b>Panel</b><span class="mono">#0E1017</span></div>
+  <div class="sw"><div style="background:#262B3A"></div><b>Line / done</b><span class="mono">#262B3A</span></div>
+  <div class="sw"><div style="background:#ECEFF7"></div><b>Ink</b><span class="mono">#ECEFF7</span></div>
+  <div class="sw"><div class="G"></div><b>Prism</b><span class="mono">FF2E93→7B5CFF→19E3FF</span></div>
+  <div class="sw"><div style="background:#FFB547"></div><b>Needs you</b><span class="mono">#FFB547</span></div>
+  <div class="sw"><div style="background:#FF5C7A"></div><b>Failed</b><span class="mono">#FF5C7A</span></div>
+</div>
