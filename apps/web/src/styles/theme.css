@@ -24,6 +24,7 @@
   --radius-input: 12px;
   --radius-card: 16px;
   --radius-sheet: 20px;
+  --breakpoint-desk: 75rem;
   /* Dark surfaces carry no shadow: layering is canvas → paper → inset. The token stays so existing classes keep resolving. */
   --shadow-subtle: 0 0 #0000;
   --shadow-glow: 0 0 24px rgb(47 163 170 / 0.16);
@@ -56,3 +57,16 @@ audio { color-scheme: dark; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* Bottom sheet: a <dialog> that slides up on a phone and sits centered from the tablet width up. */
+dialog.sheet { margin: 0; padding: 0; border: 0; max-width: none; max-height: none; background: transparent; color: inherit; }
+dialog.sheet::backdrop { background: var(--color-scrim); }
+dialog.sheet[open] > .sheet-panel { animation: sheet-up 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+@media (min-width: 768px) { dialog.sheet[open] > .sheet-panel { animation: fade-in 160ms ease-out both; } }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+/* On-screen keyboard open (lib/viewport.ts): the app shrinks above it and the tab bar steps aside. */
+html[data-kb="open"] .app-root { padding-bottom: var(--kb-inset); }
+html[data-kb="open"] .tabbar { display: none; }

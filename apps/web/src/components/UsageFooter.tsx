@@ -1,75 +1,48 @@
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
 import { usageLevel, type UsageWindow } from '@videogen/shared/browser';
-import { api, useClaudeStatus, type ClaudePhase } from '../lib/api.ts';
-import { ago, guardText, pct, resetTime } from '../lib/format.ts';
-import { diskLabel, type DiskTone } from '../lib/maintenance-view.ts';
-import { useLive } from '../lib/live.ts';
+import { pct, resetTime } from '../lib/format.ts';
+import { DISK_TONE, useStatus } from './shell/useStatus.ts';
 
-const CLAUDE_LABEL: Record<ClaudePhase, [dot: string, text: string]> = {
-  loading: ['bg-line-strong', 'Claude durumu alınıyor'],
-  error: ['bg-line-strong', 'Claude durumu alınamadı'],
-  in: ['bg-green', 'Claude bağlı'],
-  out: ['bg-red', 'Claude bağlı değil'],
-};
-
-const DISK: Record<DiskTone, [dot: string, text: string]> = { ok: ['bg-line-strong', 'text-ink-2'], warn: ['bg-line-strong', 'font-medium text-ink'], low: ['bg-red', 'font-medium text-red'] };
-
-function Bar({ label, testId, w }: { label: string; testId: string; w: UsageWindow | null | undefined }) {
+export function UsageBar({ label, testId, w, wide = false }: { label: string; testId: string; w: UsageWindow | null | undefined; wide?: boolean }) {
   const level = usageLevel(w?.utilization ?? null);
-  const fill = level === 'high' ? 'bg-red' : level === 'warn' ? 'bg-ink-2' : 'bg-accent';
+  const fill = level === 'high' ? 'bg-red' : level === 'warn' ? 'bg-ink-2' : 'bg-accent-glow';
   return (
-    <div data-testid={testId} className="flex items-center gap-2" title={resetTime(w?.resetsAt)}>
-      <span className="text-ink-2">{label}</span>
-      <span className="relative h-1.5 w-24 overflow-hidden rounded-full bg-inset">
+    <div data-testid={testId} className={wide ? 'flex flex-col gap-1.5' : 'flex items-center gap-2'} title={resetTime(w?.resetsAt)}>
+      <div className={wide ? 'flex items-baseline justify-between gap-2' : 'contents'}>
+        <span className="text-ink-2">{label}</span>
+        {wide && <span className="tabular-nums font-medium">{pct(w?.utilization)}</span>}
+      </div>
+      <span className={`relative h-1.5 overflow-hidden rounded-full bg-inset ${wide ? 'w-full' : 'w-24'}`}>
         <span className={`absolute inset-y-0 left-0 ${fill} transition-[width] duration-500`} style={{ width: `${Math.round((w?.utilization ?? 0) * 100)}%` }} />
       </span>
-      <span className="tabular-nums font-medium">{pct(w?.utilization)}</span>
+      {!wide && <span className="tabular-nums font-medium">{pct(w?.utilization)}</span>}
       {w?.resetsAt && <span className="text-ink-3">{resetTime(w.resetsAt)}</span>}
     </div>
   );
 }
 
+/** Tablet and desktop: one line along the bottom (spec §13.1 footer). Phones show the same facts in the status sheet. */
 export function UsageFooter() {
-  const live = useLive();
-  const { c, phase } = useClaudeStatus();
-  const usage = useQuery({ queryKey: ['usage'], queryFn: api.usage });
-  const guard = useQuery({ queryKey: ['usage', 'guard'], queryFn: api.guard });
-  // Plan M7 Y11: free disk on the data dir (spec §13.1 footer); Settings → "Veri ve yedek" shares the query.
-  const maintenance = useQuery({ queryKey: ['maintenance'], queryFn: api.maintenance, refetchInterval: 60_000 });
-  const disk = diskLabel(maintenance.data?.diskFreeMb);
-  const [now, setNow] = useState(Date.now());
-  const [mountedAt] = useState(now);
-  useEffect(() => { const h = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(h); }, []);
-  const workerAlive = live.heartbeatAt !== null && now - live.heartbeatAt < 6000;
-  // Heartbeats arrive every 2 s; until the first one (grace 6 s after load) the worker is "checking", not "down".
-  const workerPending = live.heartbeatAt === null && now - mountedAt < 6000;
-  const [claudeDot, claudeText] = CLAUDE_LABEL[phase];
-
+  const s = useStatus();
   return (
-    <footer role="contentinfo" className="flex h-9 items-center gap-5 border-t border-line bg-paper px-4 text-[12px]">
+    <footer role="contentinfo" className="flex h-9 items-center gap-5 overflow-hidden border-t border-line bg-paper px-4 text-[12px] whitespace-nowrap">
       <span className="flex items-center gap-1.5">
-        <span className={`size-2 rounded-full ${claudeDot}`} />
-        {claudeText}
+        <span className={`size-2 rounded-full ${s.claude[0]}`} />
+        {s.claude[1]}
       </span>
-      {c?.subscriptionType && (
-        <span className="rounded-full border border-line px-2 py-0.5 text-[11px] font-medium capitalize">{c.subscriptionType}</span>
-      )}
-      <Bar label="5 sa" testId="usage-5h" w={usage.data?.fiveHour} />
-      <Bar label="7 gün" testId="usage-7d" w={usage.data?.sevenDay} />
-      {guard.data?.blocked && (
-        <span data-testid="usage-guard" className="rounded-full bg-inset px-2.5 py-0.5 text-[11.5px] text-ink">{guardText(guard.data)}</span>
-      )}
-      {usage.data && <span className="text-ink-3">{ago(usage.data.at, now)}</span>}
-      {disk && (
-        <span data-testid="disk-free" className={`ml-auto flex items-center gap-1.5 ${DISK[disk.tone][1]}`} title={disk.tone === 'ok' ? undefined : 'Boş disk azalıyor: Ayarlar → Veri ve yedek'}>
-          <span className={`size-2 rounded-full ${DISK[disk.tone][0]}`} />
-          {disk.text}
+      {s.plan && <span className="rounded-full border border-line px-2 py-0.5 text-[11px] font-medium capitalize">{s.plan}</span>}
+      <UsageBar label="5 h" testId="usage-5h" w={s.fiveHour} />
+      <UsageBar label="7 d" testId="usage-7d" w={s.sevenDay} />
+      {s.guard && <span data-testid="usage-guard" className="rounded-full bg-inset px-2.5 py-0.5 text-[11.5px] text-ink">{s.guard}</span>}
+      {s.updated && <span className="text-ink-3">{s.updated}</span>}
+      {s.disk && (
+        <span data-testid="disk-free" className={`ml-auto flex items-center gap-1.5 ${DISK_TONE[s.disk.tone][1]}`} title={s.disk.tone === 'ok' ? undefined : 'Free disk is running low: Settings → Data and backups'}>
+          <span className={`size-2 rounded-full ${DISK_TONE[s.disk.tone][0]}`} />
+          {s.disk.text}
         </span>
       )}
-      <span className={`${disk ? '' : 'ml-auto '}flex items-center gap-1.5 text-ink-2`}>
-        <span className={`size-2 rounded-full ${workerAlive ? 'bg-green' : workerPending ? 'bg-line-strong' : 'bg-red'}`} />
-        {workerAlive ? 'Worker canlı' : workerPending ? 'Worker kontrol ediliyor' : 'Worker yanıt vermiyor'}
+      <span className={`${s.disk ? '' : 'ml-auto '}flex items-center gap-1.5 text-ink-2`}>
+        <span className={`size-2 rounded-full ${s.worker[0]}`} />
+        {s.worker[1]}
       </span>
     </footer>
   );

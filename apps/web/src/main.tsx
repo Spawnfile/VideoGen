@@ -11,6 +11,8 @@ import { filterFromQuery, queryFromFilter } from './lib/audit-view.ts';
 import { useRoute } from './lib/router.ts';
 import { Assets } from './routes/Assets.tsx';
 import { Audit } from './routes/Audit.tsx';
+import { Chat } from './routes/Chat.tsx';
+import { useLayout } from './lib/viewport.ts';
 import { Library } from './routes/Library.tsx';
 import { LibraryDetail } from './routes/LibraryDetail.tsx';
 import { Settings } from './routes/Settings.tsx';
@@ -73,7 +75,11 @@ function App() {
     addEventListener('keydown', on);
     return () => removeEventListener('keydown', on);
   }, []);
+  const layout = useLayout();
+  // The desktop Studio already shows the chat beside the production.
+  useEffect(() => { if (path === '/chat' && layout === 'desktop') go('/', { replace: true }); }, [path, layout]);
   const page = path === '/settings' ? <Settings />
+    : path === '/chat' ? <Chat />
     : path === '/library' ? <Library go={go} />
     : path.startsWith('/library/') ? <LibraryDetail key={path} videoId={decodeURIComponent(path.slice('/library/'.length))} go={go} />
     : path === '/assets' ? <Assets />
