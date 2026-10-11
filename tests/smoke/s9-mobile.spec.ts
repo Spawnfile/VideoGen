@@ -21,7 +21,9 @@ test('S9: the phone layout covers produce, chat, library and settings without si
   await page.getByRole('button', { name: 'New chat' }).click();
   await page.getByRole('textbox', { name: 'Message' }).fill('Tükenmez kalemin içinde ne var?');
   await page.getByRole('button', { name: 'Send' }).click();
-  await expect(page.locator('[data-testid="chat-message"][data-role="assistant"]').first()).toBeVisible({ timeout: 30_000 });
+  // The message is in and its turn has started (S5 covers the streamed answer; here the worker may still be busy with earlier tests' runs).
+  await expect(page.locator('[data-testid="chat-message"][data-role="user"]').first()).toContainText('Tükenmez kalemin içinde ne var?');
+  await expect(page.locator('[data-testid="chat-message"][data-role="assistant"]').first().or(page.getByRole('button', { name: 'Stop' }))).toBeVisible({ timeout: 15_000 });
   await noSideScroll(page, 'Chat');
 
   await tabs.getByRole('link', { name: 'Studio' }).click();
