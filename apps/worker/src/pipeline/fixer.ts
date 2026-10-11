@@ -3,10 +3,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type pg from 'pg';
 import {
-  canonical, FINAL_CHECKS, FINAL_MAX_ROUNDS, fixReportRefErrors, musicScoreErrors, fixScope, formatScore, rendersChanged, sceneRefErrors, STOP_NOTE, storyboardRefErrors, storyboardVoErrors, validateArtifact, windowErrors,
+  canonical, FINAL_CHECKS, FINAL_MAX_ROUNDS, fixReportRefErrors, musicScoreErrors, fixScope, formatScore, rendersChanged, sceneRefErrors, yaklasimSceneErrors, yaklasimStoryboardErrors, STOP_NOTE, storyboardRefErrors, storyboardVoErrors, validateArtifact, windowErrors,
   type AudioMode, type AudioPlan, type FinalCheckId, type MusicScore, type FixReport, type ModelAlias, type ProductResearch, type SceneSpec, type ScopeInput, type Storyboard,
 } from '@videogen/shared';
-import { appendAudit, findArtifact, getChannelStyle, insertVersion, listAssets } from '@videogen/db';
+import { appendAudit, findArtifact, styleFor, insertVersion, listAssets } from '@videogen/db';
 import { SpecStore } from '@videogen/claude';
 import { RESUME_PROMPT } from '../agents/manager.ts';
 import { runStructured } from './agent-step.ts';
@@ -136,7 +136,7 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
   await insertVersion(deps.pool, { id: versionId, videoId: ctx.videoId, parentVersionId: ctx.versionId, round, reason: 'fix:pending' });
   const prev = await loadPrev(deps.pool, ctx.runId, versionId);
   if (!prev) return { status: 'failed', error: 'düzeltilecek storyboard, sahne ya da araştırma çıktısı yok', retry: false };
-  const style = await getChannelStyle(deps.pool);
+  const style = await styleFor(deps.pool, ctx.approach);
   const prevInput: ScopeInput = { storyboard: prev.storyboard, scene: prev.scene, research: prev.research, productSha: prev.productSha ?? '', audio: prev.audio, audioMode: ctx.audioMode, music: prev.music };
 
   let computed: { next: ScopeInput; scope: 'none' | 'compose' | 'voice' | 'build'; changed: string[] } | null = null;
@@ -145,7 +145,9 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
     const n = await readNext(ctx, prev);
     if ('errors' in n) return { errors: n.errors };
     const refs: string[] = [
-      ...storyboardRefErrors(n.next.storyboard, prev.research), ...sceneRefErrors(n.next.scene, n.next.storyboard, style.id), ...(n.next.storyboard.audio_mode === ctx.audioMode ? [] : [`audio_mode ${ctx.audioMode} olmalı`]),
+      ...storyboardRefErrors(n.next.storyboard, prev.research), ...sceneRefErrors(n.next.scene, n.next.storyboard, style.id),
+      // YAKLASIM spec Y6/Y13: a fix may not break the approach (window, chain, words, loop, identity, mid-burst frame 0, snaps).
+      ...(ctx.approach === 'yaklasim' ? [...yaklasimStoryboardErrors(n.next.storyboard), ...yaklasimSceneErrors(n.next.scene, n.next.storyboard)] : []), ...(n.next.storyboard.audio_mode === ctx.audioMode ? [] : [`audio_mode ${ctx.audioMode} olmalı`]),
       // H6: the VO text rules and the VO ceiling of the window (the floor is the storyboarder's, not a fix's); brief design Y9: the video window holds.
       ...storyboardVoErrors(n.next.storyboard, { minS: false, window: ctx.duration }), ...windowErrors(n.next.storyboard.duration_s, ctx.duration),
       // Agent music design A13: a changed score must still fit the (possibly changed) storyboard.

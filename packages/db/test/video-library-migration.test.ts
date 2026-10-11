@@ -19,7 +19,7 @@ describe('migration 0013 (video library L13, L25)', () => {
     expect(await unwiredShaColumns(t.pool)).toEqual([]);
     const r = await createProduceRun(t.pool, { productName: 'Göç kalemi', audioMode: 'silent', plan });
     const v = (await getVideoView(t.pool, r.videoId))!;
-    expect(v).toMatchObject({ origin: 'pipeline', approach: null, caption: null, youtubeTitle: null });
+    expect(v).toMatchObject({ origin: 'pipeline', approach: 'yaklasim', caption: null, youtubeTitle: null }); // a new silent production is a YAKLASIM video
     expect(Object.values(v.platforms).map((p) => p.status)).toEqual(['none', 'none', 'none']);
   });
 

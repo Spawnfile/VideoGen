@@ -11,7 +11,7 @@ const fx = <T>(name: string) => JSON.parse(readFileSync(resolve(import.meta.dirn
 const track = () => fx<VoiceTrack>('voice-track-kalem');
 /** The kalem storyboard as a voice-over video: each beat's vo_text comes from the voice-track fixture. */
 const voBoard = (): Storyboard => {
-  const s = fx<Storyboard>('storyboard-kalem');
+  const s = fx<Storyboard>('storyboard-kalem-legacy');
   const lines = track().lines;
   return { ...s, audio_mode: 'vo', beats: s.beats.map((b, i) => ({ ...b, vo_text: { tr: lines[i]!.text_tr } })) };
 };
@@ -103,7 +103,7 @@ describe('voice contracts', () => {
     const bad = withChars(602);
     bad.beats[2]!.vo_text = { tr: 'x2 😀' };
     expect(storyboardVoErrors(bad).filter((e) => e.startsWith('beats.2.vo_text:'))).toHaveLength(2);
-    expect(storyboardVoErrors(fx<Storyboard>('storyboard-kalem'))).toEqual([]); // silent: nothing to check
+    expect(storyboardVoErrors(fx<Storyboard>('storyboard-kalem-legacy'))).toEqual([]); // silent: nothing to check
   });
 
   it('a short window (brief design Y9): the VO bounds, the padding and the ceiling follow the video window', () => {

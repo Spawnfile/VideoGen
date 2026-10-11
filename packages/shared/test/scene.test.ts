@@ -7,8 +7,8 @@ import {
 } from '../src/index.ts';
 
 const fx = (n: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${n}.json`), 'utf8'));
-const scene = (): SceneSpec => fx('scene-kalem');
-const board = (): Storyboard => fx('storyboard-kalem');
+const scene = (): SceneSpec => fx('scene-kalem-legacy');
+const board = (): Storyboard => fx('storyboard-kalem-legacy');
 
 describe('SceneSpec', () => {
   it('accepts the pen fixture and agrees with its storyboard and style', () => {

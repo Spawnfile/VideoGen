@@ -115,7 +115,8 @@ def events_manifest(spec, storyboard, fps):
     for p in spec["parts"]:
         e = p["explode"]
         if any(abs(v) > 1e-6 for v in e["vector"]):
-            ev.append({"id": f"explode_start:{p['id']}", "type": "explode_start", "frame": round(e["t_start"] * fps), "part_id": p["id"]})
+            # A burst already under way at frame 0 (YAKLASIM spec Y12) starts on frame 0: events.json frames are never negative.
+            ev.append({"id": f"explode_start:{p['id']}", "type": "explode_start", "frame": max(0, round(e["t_start"] * fps)), "part_id": p["id"]})
             lock = e["back"]["t_end"] if e.get("back") else e["t_end"]  # with `back` the part locks when it snaps home
             ev.append({"id": f"part_lock:{p['id']}", "type": "part_lock", "frame": round(lock * fps), "part_id": p["id"]})
     for b in storyboard["beats"]:

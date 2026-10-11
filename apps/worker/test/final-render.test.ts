@@ -52,7 +52,7 @@ async function built(deps: StepDeps, name = 'Tükenmez kalem') {
   const progress: number[] = [];
   const ctx = (key: 'build' | 'final_render', attempt = 1): StepContext => ({
     runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode: 'silent',
-    versionId: r.versionId, brief: null, duration: { minS: 35, maxS: 55 }, durationSource: 'default' as const, runDir, signal: new AbortController().signal, progress: (p) => { if (key === 'final_render') progress.push(p); }, status: () => {}, session: () => {},
+    versionId: r.versionId, brief: null, duration: { minS: 12, maxS: 15 }, durationSource: 'default' as const, approach: 'yaklasim' as const, runDir, signal: new AbortController().signal, progress: (p) => { if (key === 'final_render') progress.push(p); }, status: () => {}, session: () => {},
   });
   const b = buildExecutor(deps);
   expect(await b.run(ctx('build'), await b.inputHash(ctx('build')))).toMatchObject({ status: 'done' });
@@ -85,16 +85,16 @@ describe('final render: driver, step and frame cleanup', () => {
     const { r, ctx, runDir, progress } = await built(deps);
     const ex = finalRenderExecutor(deps);
     const hash = await ex.inputHash(ctx('final_render'));
-    expect(await ex.run(ctx('final_render'), hash)).toEqual({ status: 'done', note: '1351 kare · EEVEE 64 örnek · 0 dk' });
+    expect(await ex.run(ctx('final_render'), hash)).toEqual({ status: 'done', note: '391 kare · EEVEE 64 örnek · 0 dk' });
     const a = (await findArtifact(t.pool, { runId: r.runId, kind: 'final_frames', inputHash: hash }))!;
     const meta = a.meta as FinalFramesMeta;
     expect(a.blobSha).toBeNull();
-    expect(meta).toMatchObject({ dir: `final/${hash.slice(0, 16)}/frames`, frames: 1351, skipped: 0 });
+    expect(meta).toMatchObject({ dir: `final/${hash.slice(0, 16)}/frames`, frames: 391, skipped: 0 });
     expect(progress.at(-1)).toBeGreaterThan(90);
     expect(await ex.reuse!(ctx('final_render'), hash)).toBe(true);
-    truncateSync(framePath(join(runDir, meta.dir), 700), 20);
+    truncateSync(framePath(join(runDir, meta.dir), 200), 20);
     expect(await ex.reuse!(ctx('final_render'), hash)).toBe(false);
-    expect(await ex.run(ctx('final_render', 2), hash)).toEqual({ status: 'done', note: '1351 kare · EEVEE 64 örnek · 0 dk · 1350 kare önceden hazırdı' });
+    expect(await ex.run(ctx('final_render', 2), hash)).toEqual({ status: 'done', note: '391 kare · EEVEE 64 örnek · 0 dk · 390 kare önceden hazırdı' });
   });
 
   it('a new render removes this run\'s stale frame dirs (plan F12); a 32-sample retry after kept 64-sample frames is recorded (M9)', async () => {
@@ -118,11 +118,11 @@ describe('final render: driver, step and frame cleanup', () => {
     const audit = async (action: string) => (await t.pool.query('SELECT data FROM audit_log WHERE run_id = $1 AND action = $2', [r.runId, action])).rows.map((x) => x.data);
     expect(await audit('frames.deleted')).toEqual([{ dirs: [`runs/${r.runId}/final/deadbeefdeadbeef/frames`], reason: 'stale' }]);
     const real = render.final.bind(render);
-    vi.spyOn(render, 'final').mockImplementation(async (o) => ({ ...(await real(o)), samples: 32, skipped: 700 }));
-    expect(await ex.run(ctx('final_render'), hash)).toEqual({ status: 'done', note: '1351 kare · EEVEE 32 örnek · 0 dk · 700 kare önceden hazırdı · ilk 700 kare 64 örnek' });
+    vi.spyOn(render, 'final').mockImplementation(async (o) => ({ ...(await real(o)), samples: 32, skipped: 200 }));
+    expect(await ex.run(ctx('final_render'), hash)).toEqual({ status: 'done', note: '391 kare · EEVEE 32 örnek · 0 dk · 200 kare önceden hazırdı · ilk 200 kare 64 örnek' });
     const meta = (await findArtifact(t.pool, { runId: r.runId, kind: 'final_frames', inputHash: hash }))!.meta as FinalFramesMeta;
-    expect(meta).toMatchObject({ samples: 32, skipped: 700, mixed64: 700 });
-    expect(await audit('render.final_mixed_samples')).toEqual([{ frames: 700, samples: 32 }]);
+    expect(meta).toMatchObject({ samples: 32, skipped: 200, mixed64: 200 });
+    expect(await audit('render.final_mixed_samples')).toEqual([{ frames: 200, samples: 32 }]);
     // an ordinary 64-sample resume is not mixed
     vi.spyOn(render, 'final').mockImplementation(async (o) => ({ ...(await real(o)), samples: 64, skipped: 10 }));
     await ex.run(ctx('final_render', 2), hash);

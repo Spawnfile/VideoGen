@@ -10,7 +10,7 @@ from vg_blender import build
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(os.path.dirname(ROOT))
 FX = os.path.join(REPO, "tests", "fixtures", "artifacts")
-STYLE = {"id": "gece_mavisi", "background": {"top": "#16203a", "bottom": "#070a14"}, "lighting": "key_rim_cool"}
+STYLE = {"id": "yaklasim", "background": {"top": "#1a2546", "bottom": "#070a14"}, "lighting": "yaklasim"}
 
 
 def load(name):
@@ -46,13 +46,16 @@ class BuildTest(unittest.TestCase):
             self.assertGreater(os.path.getsize(os.path.join(out, f)), 0, f)
         with open(os.path.join(out, "anchors.json")) as f:
             anchors = json.load(f)
-        self.assertEqual(set(anchors["frames"]["1350"]), {p["id"] for p in self.spec["parts"]})
-        for q in ("0", "337", "675", "1012", "1350"):
+        last = str(self.spec["frames"])  # the 13 s YAKLASIM pen: 390
+        self.assertEqual(set(anchors["frames"][last]), {p["id"] for p in self.spec["parts"]})
+        for q in ("0", "97", "195", "292", last):
             self.assertIn(q, anchors["frames"])
         with open(os.path.join(out, "camera_track.json")) as f:
-            self.assertEqual(len(json.load(f)["yfov"]), 1351)
+            self.assertEqual(len(json.load(f)["yfov"]), self.spec["frames"] + 1)
         with open(os.path.join(out, "events.json")) as f:
-            types = {e["type"] for e in json.load(f)["events"]}
+            events = json.load(f)["events"]
+            types = {e["type"] for e in events}
+        self.assertTrue(all(e["frame"] >= 0 for e in events))
         self.assertTrue({"explode_start", "part_lock", "label_in", "zoom"} <= types)
         self.assertGreaterEqual(r["hero_ratio"], 0.35)
         self.assertGreater(r["triangles"], 0)
@@ -77,6 +80,8 @@ class BuildTest(unittest.TestCase):
         self.assertAlmostEqual(root.location.x, 0, places=4)
         ev = build.events_manifest({"parts": spec["parts"], "camera_keys": []}, {"beats": []}, 30)["events"]
         self.assertIn({"id": "part_lock:p", "type": "part_lock", "frame": 240, "part_id": "p"}, ev)
+        # A burst already under way at frame 0 (YAKLASIM) starts on frame 0, never before it (events.json frames are ≥ 0).
+        self.assertIn({"id": "explode_start:p", "type": "explode_start", "frame": 0, "part_id": "p"}, ev)
 
     def test_missing_and_extra_parts_fail_the_build(self):
         src = product().replace('vg.part("yay", vg.spring(0.18, 0.02, 12, 1.8).move(z=1.2))', 'vg.part("kapak", vg.box((1, 1, 1)))')

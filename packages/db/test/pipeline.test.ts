@@ -22,7 +22,7 @@ describe('createProduceRun', () => {
     expect((await getRunContext(t.pool, u.runId))!.duration).toEqual({ minS: 20, maxS: 25 });
 
     const d = await createProduceRun(t.pool, { productName: 'Kalem Z', audioMode: 'silent', plan, brief: '   ' });
-    expect(await getRunContext(t.pool, d.runId)).toMatchObject({ brief: null, duration: { minS: 35, maxS: 55 }, durationSource: 'default' });
+    expect(await getRunContext(t.pool, d.runId)).toMatchObject({ brief: null, duration: { minS: 12, maxS: 15 }, durationSource: 'default' });
     expect(await applyAgentDuration(t.pool, { videoId: d.videoId, runId: d.runId, window: { minS: 25, maxS: 32 } })).toBe(true);
     expect(await getRunContext(t.pool, d.runId)).toMatchObject({ duration: { minS: 25, maxS: 32 }, durationSource: 'agent' });
 

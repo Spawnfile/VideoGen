@@ -60,7 +60,7 @@ async function drafted(deps: StepDeps, name = 'Tükenmez kalem', round = 0) {
   }
   const steps = await listRunSteps(t.pool, r.runId);
   const ctx = (key: 'build' | 'draft_render' | 'draft_review', rnd = round, attempt = 1): StepContext => ({
-    runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt, round: rnd, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode: 'silent', versionId: r.versionId, brief: null, duration: { minS: 35, maxS: 55 }, durationSource: 'default' as const, runDir,
+    runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt, round: rnd, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode: 'silent', versionId: r.versionId, brief: null, duration: { minS: 12, maxS: 15 }, durationSource: 'default' as const, approach: 'yaklasim' as const, runDir,
     signal: new AbortController().signal, progress: () => {}, status: () => {}, session: () => {},
   });
   for (const ex of [buildExecutor(deps), draftRenderExecutor(deps)]) expect(await ex.run(ctx(ex.key as 'build'), await ex.inputHash(ctx(ex.key as 'build')))).toMatchObject({ status: 'done' });

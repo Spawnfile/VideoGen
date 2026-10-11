@@ -2,7 +2,7 @@ import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { DRAFT_RUBRIC_VERSION, factsHint, STOP_NOTE, type AudioPlan, type MusicScore, type FinalReview, type FixReport, type SceneSpec, type Storyboard, type VoiceTrack } from '@videogen/shared';
-import { findArtifact, getChannelStyle, insertArtifact, insertVersion, latestArtifact, listRunReviews } from '@videogen/db';
+import { findArtifact, insertArtifact, insertVersion, latestArtifact, listRunReviews } from '@videogen/db';
 import { SpecStore, type FakeScript } from '@videogen/claude';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
 import { FakeAudioDriver, type FakeAudioOptions, type VoiceOutput } from '../src/audio/driver.ts';
@@ -39,7 +39,7 @@ async function setup(name: string, o: { qc?: string[]; vo?: boolean } = {}) {
   const p = await h.prepare(name, o);
   const store = new SpecStore(join(p.runDir, 'spec'), ARTIFACT_VALIDATOR);
   expect(ARTIFACT_VALIDATOR('audio', fx('audio-plan-vo'))).toEqual({ ok: true }); // M5c: write_spec(audio) is validated
-  for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', o.vo ? 'storyboard-kalem-vo' : 'storyboard-kalem'], ['scene', 'scene-kalem']] as const) await store.write(kind, fx(f));
+  for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', o.vo ? 'storyboard-kalem-vo' : 'storyboard-kalem'], ['scene', o.vo ? 'scene-kalem-legacy' : 'scene-kalem']] as const) await store.write(kind, fx(f));
   mkdirSync(join(p.runDir, 'scene'), { recursive: true });
   copyFileSync(PRODUCT, join(p.runDir, 'scene', 'product.py'));
   const py = await putBlob(t.pool, h.dataDir, join(p.runDir, 'scene', 'product.py'));
@@ -83,7 +83,8 @@ async function setup(name: string, o: { qc?: string[]; vo?: boolean } = {}) {
 
 const withBeat = (s: Storyboard, i: number, f: (b: Storyboard['beats'][number]) => Storyboard['beats'][number]): Storyboard => ({ ...s, beats: s.beats.map((b, k) => (k === i ? f(b) : b)) });
 /** The boundary between the first two beats moves by 0,2 s: a timing change that keeps the storyboard valid. */
-const shiftBoundary = (s: Storyboard): Storyboard => withBeat(withBeat(s, 0, (b) => ({ ...b, t_end: b.t_end + 0.2 })), 1, (b) => ({ ...b, t_start: b.t_start + 0.2 }));
+// One 120 BPM beat (0.5 s): a YAKLASIM storyboard keeps its cuts on that grid.
+const shiftBoundary = (s: Storyboard): Storyboard => withBeat(withBeat(s, 0, (b) => ({ ...b, t_end: b.t_end + 0.5 })), 1, (b) => ({ ...b, t_start: b.t_start + 0.5 }));
 
 describe('fixer (final review loop)', () => {
   it('compose scope: the fixer shortens the beat text, the step records the fix report and the new storyboard under the new version, and rewinds to compose', async () => {
@@ -100,7 +101,7 @@ describe('fixer (final review loop)', () => {
     expect((report.content as FixReport).round).toBe(1);
     const board = await s.latest('storyboard');
     expect(board.versionId).toBe(vid);
-    expect((board.content as Storyboard).beats[1]!.onscreen_text.tr).toBe('Kısa yazı 1');
+    expect((board.content as Storyboard).beats[1]!.onscreen_text.tr).toBe('Short text 1');
     expect((await t.pool.query('SELECT parent_version_id, round, reason FROM versions WHERE id = $1', [vid])).rows).toEqual([{ parent_version_id: s.p.r.versionId, round: 1, reason: 'fix:pending' }]);
     // Review focus 2: nothing the final render reads changed, so the frames are not stale and no build artifact was written.
     expect((await finalSource(s.h.deps, s.p.r.runId))!.hash).toBe(finalBefore);
@@ -112,7 +113,7 @@ describe('fixer (final review loop)', () => {
   it('agent music design A13: the audio reviewer fails music_mood; the fixer (sonnet) rewrites the score, the step re-renders the music under the new version and rewinds to compose only', async () => {
     const s = await setup('Tükenmez kalem ahenksiz');
     // What the music step left: the composer's score in the SpecStore and the DB (the reviewed version).
-    const score = fakeScore(45);
+    const score = fakeScore(13);
     await s.store.write('music', score);
     await insertArtifact(t.pool, { runId: s.p.r.runId, kind: 'music', content: score, inputHash: 'music-0', versionId: s.p.r.versionId });
     expect(fixerModel(['music_mood'])).toBe('sonnet');
@@ -299,7 +300,7 @@ describe('fixer (final review loop)', () => {
     // First pass (fixRound 0): the hashes are exactly the pre-M5b formulas, so existing outputs keep being reused.
     const idOf = async (kind: string) => (await latestArtifact(t.pool, s.p.r.runId, kind))?.id ?? null;
     expect(sb0).toBe(sha({ step: 'storyboard', research: await idOf('research'), audioMode: 'silent', schema: 'Storyboard@1' }));
-    const style = await getChannelStyle(t.pool);
+    const style = { id: 'yaklasim' }; // YAKLASIM spec Y8: a yaklasim run always builds in the approach identity
     const build0 = await bex.inputHash(s.p.ctx('build'));
     expect(build0).toBe(sha({ step: 'build', storyboard: await idOf('storyboard'), style: style.id, schema: 'SceneSpec@1', round: 0, review: null }));
     const dex0 = draftReviewExecutor(s.h.deps);
@@ -353,7 +354,7 @@ describe('fixer (final review loop)', () => {
     s.fixerScript((sc) => (broken ? { ...sc, structured: { round: 9 } } : { ...sc, files: {} }));
     expect((await s.review()).out).toMatchObject({ status: 'failed' });
     expect((await t.pool.query("SELECT 1 FROM artifacts WHERE run_id = $1 AND kind IN ('fix_report', 'storyboard') AND version_id = $2", [s.p.r.runId, vid])).rowCount).toBe(0);
-    expect(((await s.store.read('storyboard'))!.value as Storyboard).beats[1]!.onscreen_text.tr).toBe('Kısa yazı 1'); // the spec file is there
+    expect(((await s.store.read('storyboard'))!.value as Storyboard).beats[1]!.onscreen_text.tr).toBe('Short text 1'); // the spec file is there
     // Restart: the fixer session continues (the spec exists already, the new script writes nothing) and the diff still sees the change.
     broken = false;
     const again = await s.review({ attempt: 2 });
@@ -386,7 +387,7 @@ describe('fixer (final review loop)', () => {
     const c = await setup('Tükenmez kalem rötuş');
     const cv = fixVersionId(c.p.r.runId, 1);
     await insertVersion(t.pool, { id: cv, videoId: c.p.r.videoId, parentVersionId: c.p.r.versionId, round: 1, reason: 'fix:pending' });
-    const edited = { ...(fx('storyboard-kalem') as Storyboard), beats: (fx('storyboard-kalem') as Storyboard).beats.map((b, i) => (i === 1 ? { ...b, onscreen_text: { tr: 'Kısa yazı 1' } } : b)) };
+    const edited = { ...(fx('storyboard-kalem') as Storyboard), beats: (fx('storyboard-kalem') as Storyboard).beats.map((b, i) => (i === 1 ? { ...b, onscreen_text: { tr: 'Short text 1' } } : b)) };
     await c.store.write('storyboard', edited);
     await insertArtifact(t.pool, { runId: c.p.r.runId, kind: 'storyboard', content: edited, versionId: cv });
     const one = await c.review();

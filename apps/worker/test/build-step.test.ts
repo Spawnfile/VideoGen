@@ -58,7 +58,7 @@ async function buildContext(deps: StepDeps, name = 'Tükenmez kalem', attempt = 
   const step = (await listRunSteps(t.pool, r.runId)).find((s) => s.key === 'build')!;
   const calls = { status: [] as string[], sessions: [] as string[] };
   const ctx: StepContext = {
-    runId: r.runId, stepId: step.id, key: 'build', attempt, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode, versionId: r.versionId, brief: null, duration: { minS: 35, maxS: 55 }, durationSource: 'default' as const, runDir,
+    runId: r.runId, stepId: step.id, key: 'build', attempt, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode, versionId: r.versionId, brief: null, duration: { minS: 12, maxS: 15 }, durationSource: 'default' as const, approach: audioMode === 'vo' ? null : 'yaklasim', runDir,
     signal: new AbortController().signal, progress: () => {}, status: (s) => { calls.status.push(s); }, session: (id) => { calls.sessions.push(id); },
   };
   return { r, ctx, calls };
@@ -71,7 +71,7 @@ describe('build step', () => {
     const ex = buildExecutor(deps);
     const hash = await ex.inputHash(ctx);
     const out = await ex.run(ctx, hash);
-    expect(out).toEqual({ status: 'done', note: '5 parça · 7.526 üçgen · 2 uyarı · kanal kimliği geçici' });
+    expect(out).toEqual({ status: 'done', note: '5 parça · 7.526 üçgen · 1 uyarı' });
     const kinds = (await listArtifacts(t.pool, r.videoId)).map((a) => a.kind).sort();
     expect(kinds).toEqual(['build_report', 'camera_track', 'preview_sheet', 'product_py', 'research', 'scene', 'scene_anchors', 'scene_blend', 'scene_events', 'scene_glb', 'storyboard'].sort());
     const sheet = (await listArtifacts(t.pool, r.videoId)).find((a) => a.kind === 'preview_sheet')!;
@@ -81,17 +81,16 @@ describe('build step', () => {
     expect(await ex.reuse!(ctx, hash)).toBe(true);
   });
 
-  it('the channel style is part of the input hash: a style change after the start keeps the build under its own hash (Review Focus 5)', async () => {
+  it('YAKLASIM spec Y8: a stored K19 style choice no longer moves the build — same input hash, the yaklasim identity', async () => {
     const { deps } = setup();
     const { ctx } = await buildContext(deps);
     const ex = buildExecutor(deps);
     const before = await ex.inputHash(ctx);
     expect(await ex.run(ctx, before)).toMatchObject({ status: 'done' });
     await setChannelStyle(t.pool, 'atolye');
-    const after = await ex.inputHash(ctx);
-    expect(after).not.toBe(before);
-    expect(await ex.reuse!(ctx, before)).toBe(true); // the finished build is recorded under the hash it started with
-    expect(await ex.reuse!(ctx, after)).toBe(false); // the next build uses the new style
+    expect(await ex.inputHash(ctx)).toBe(before);
+    expect(await ex.reuse!(ctx, before)).toBe(true);
+    await t.pool.query("DELETE FROM settings WHERE key = 'channel.style'");
   });
 
   it('a failing trusted build goes back to the same Claude session as a fix request, then the build passes', async () => {
@@ -105,16 +104,15 @@ describe('build step', () => {
     expect(specs[1]!.prompt).toContain("build_scene: product.py satır 7: NameError: name 'gövde' is not defined");
   });
 
-  it('a style that is not the channel style is a fix request; a missing sandbox fails without asking the agent', async () => {
-    await setChannelStyle(t.pool, 'atolye');
+  it('a scene that is not in the YAKLASIM identity is a fix request; a missing sandbox fails without asking the agent', async () => {
     const wrong: Script = (role, ctx, attempt) => ({ ...fakePipelineScript(role, ctx, attempt, { styleId: 'gece_mavisi' }) });
     const a = setup({ script: wrong });
     const { ctx } = await buildContext(a.deps);
     const out = await buildExecutor(a.deps).run(ctx, 'h');
     expect(out).toMatchObject({ status: 'failed', retry: false });
-    expect((out as { error: string }).error).toContain('style_id kanal kimliği "atolye" olmalı');
+    expect((out as { error: string }).error).toContain('style_id kanal kimliği "yaklasim" olmalı');
+    expect((out as { error: string }).error).toContain('style_id must be the yaklasim style');
     expect(a.specs).toHaveLength(3); // 1 + 2 fixes (spec §14)
-    await t.pool.query("DELETE FROM settings WHERE key = 'channel.style'");
     const b = setup({ capability: { ok: false, reason: 'bubblewrap çalışmıyor (EPERM)' } });
     const c = await buildContext(b.deps);
     expect(await buildExecutor(b.deps).run(c.ctx, 'h')).toEqual({ status: 'failed', error: 'render kullanılamıyor: bubblewrap çalışmıyor (EPERM)', retry: false });
@@ -132,12 +130,13 @@ describe('build step', () => {
   });
 
   it('fences the storyboard and research JSON as data before the rules (spec §6.6, M4a minor 6)', () => {
-    const p = buildPrompt('Kalem', 'gece_mavisi', fx('storyboard-kalem'), fx('research-kalem'));
+    const p = buildPrompt('Kalem', 'yaklasim', fx('storyboard-kalem'), fx('research-kalem'));
     expect(p.indexOf('<<<VERI')).toBeGreaterThan(0);
     expect(p.lastIndexOf('VERI>>>')).toBeLessThan(p.indexOf('Kurallar:'));
-    expect(p).toContain('style_id "gece_mavisi"');
+    expect(p).toContain('style_id "yaklasim"');
+    expect(p).toContain('YAKLASIM sahne kuralları');
     const s = storyboardPrompt('Kalem', 'silent', fx('research-kalem'));
-    expect(s.lastIndexOf('VERI>>>')).toBeLessThan(s.indexOf('Kurallar:'));
+    expect(s.lastIndexOf('VERI>>>')).toBeLessThan(s.indexOf('YAKLASIM kuralları'));
   });
 });
 
@@ -161,7 +160,7 @@ describe('pipeline end to end with build (fake Claude and fake render)', () => {
     await vi.waitFor(async () => expect((await getRunView(t.pool, r.runId))!.status).toBe('done'), { timeout: 15_000 });
     const run = (await getRunView(t.pool, r.runId))!;
     expect(run.steps.map((s) => s.key)).toEqual(['research', 'storyboard', 'build', 'draft_render', 'draft_review']);
-    expect(run.steps[2]!.note).toBe('5 parça · 7.526 üçgen · 2 uyarı · kanal kimliği geçici');
+    expect(run.steps[2]!.note).toBe('5 parça · 7.526 üçgen · 1 uyarı');
     expect(await getVideoView(t.pool, r.videoId)).toMatchObject({ status: 'needs_human', statusNote: 'Taslak hazır ve incelendi. Final render bu sürümde henüz yok.' });
     expect(run.progress).toBe(99);
   });

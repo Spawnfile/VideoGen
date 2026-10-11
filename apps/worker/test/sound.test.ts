@@ -21,8 +21,8 @@ const lib = Object.fromEntries(['whoosh', 'swoosh', 'click', 'snap', 'tick', 'th
 // Real ffmpeg under parallel files (plan M7 Y2): at least 60 s per test.
 describe('sound plan, mix, mastering and the two variants', { timeout: 60_000 }, () => {
   it('plans SFX from scene events and storyboard cues: the hook whoosh at 0 ms, one cue per 2 frames, ≤ 3 of one sound per 10 s', () => {
-    const events = (JSON.parse(readFileSync(join(FX, 'scene/kalem/events.json'), 'utf8')) as { events: { id: string; type: 'explode_start' | 'part_lock' | 'label_in' | 'zoom'; frame: number }[] }).events;
-    const beats = (JSON.parse(readFileSync(join(FX, 'artifacts/storyboard-kalem.json'), 'utf8')) as { beats: { id: string; t_start: number; sfx_cues: string[] }[] }).beats;
+    const events = (JSON.parse(readFileSync(join(FX, 'scene/kalem-legacy/events.json'), 'utf8')) as { events: { id: string; type: 'explode_start' | 'part_lock' | 'label_in' | 'zoom'; frame: number }[] }).events;
+    const beats = (JSON.parse(readFileSync(join(FX, 'artifacts/storyboard-kalem-legacy.json'), 'utf8')) as { beats: { id: string; t_start: number; sfx_cues: string[] }[] }).beats;
     const cues = planSfx({ events, beats, fps: 30, durationS: 45 });
     expect(cues[0]).toEqual({ atMs: 0, name: 'whoosh', source: 'hook' });
     for (let i = 1; i < cues.length; i++) expect(cues[i]!.atMs - cues[i - 1]!.atMs).toBeGreaterThanOrEqual(66);

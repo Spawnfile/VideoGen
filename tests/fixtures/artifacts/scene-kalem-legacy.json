@@ -1,0 +1,25 @@
+{
+  "units": "cm", "fps": 30, "duration_s": 45, "frames": 1350, "style_id": "gece_mavisi", "lighting_preset": "key_rim_cool", "hero_part": "govde",
+  "parts": [
+    { "id": "govde", "name_tr": "Gövde", "recipe": { "primitive": "lathe", "note": "altıgen hissi veren ince gövde, şeffaf değil" }, "material_preset": "abs_gloss",
+      "explode": { "vector": [0, 0, 0], "t_start": 3, "t_end": 6, "ease": "ease_in_out" }, "anchor_local": [0.4, 0, 7] },
+    { "id": "murekkep-haznesi", "name_tr": "Mürekkep haznesi", "recipe": { "primitive": "tube", "note": "ince boru, içinde mavi mürekkep sütunu" }, "material_preset": "pc_clear",
+      "explode": { "vector": [3, 0, 0], "t_start": 3.5, "t_end": 7, "ease": "ease_in_out" }, "anchor_local": [0.15, 0, 6] },
+    { "id": "uc-yuvasi", "name_tr": "Uç yuvası", "recipe": { "primitive": "lathe", "note": "konik pirinç uç" }, "material_preset": "brass",
+      "explode": { "vector": [-2.5, 0, -2], "t_start": 4, "t_end": 7.5, "ease": "back_out" }, "anchor_local": [0.11, 0, 0.4] },
+    { "id": "bilye", "name_tr": "Bilye", "recipe": { "primitive": "sphere", "note": "0,7 mm küre" }, "material_preset": "chrome",
+      "explode": { "vector": [-2.5, 0, -2.6], "t_start": 4, "t_end": 7.5, "ease": "back_out" }, "anchor_local": [0.035, 0, 0] },
+    { "id": "yay", "name_tr": "Yay", "recipe": { "primitive": "spring", "note": "12 sarım paslanmaz çelik yay" }, "material_preset": "steel",
+      "explode": { "vector": [-3, 0, 4], "t_start": 4.5, "t_end": 8, "ease": "ease_out" }, "anchor_local": [0.18, 0, 0.9] }
+  ],
+  "camera_keys": [
+    { "t": 0, "position": [10, -38, 8], "target": [0, 0, 7], "lens_mm": 85, "ease": "ease_in_out" },
+    { "t": 3, "position": [6, -30, 7], "target": [0, 0, 7], "lens_mm": 85, "ease": "ease_in_out" },
+    { "t": 9, "position": [20, -45, 10], "target": [0, 0, 6], "lens_mm": 50, "ease": "ease_in_out" },
+    { "t": 16, "position": [8, -26, 7], "target": [3, 0, 6], "lens_mm": 70, "ease": "ease_in_out" },
+    { "t": 24, "position": [-1, -9, 0], "target": [-2.5, 0, -1.6], "lens_mm": 100, "ease": "ease_in_out" },
+    { "t": 32, "position": [-2.4, -2.2, -2.5], "target": [-2.5, 0, -2.6], "lens_mm": 135, "ease": "ease_in_out" },
+    { "t": 40, "position": [-1, -10, -1], "target": [-2.5, 0, -2], "lens_mm": 85, "ease": "ease_in_out" },
+    { "t": 45, "position": [10, -38, 8], "target": [0, 0, 7], "lens_mm": 85, "ease": "linear" }
+  ]
+}

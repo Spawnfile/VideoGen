@@ -6,7 +6,7 @@ OUT="$ROOT/tests/fixtures/scene/kalem"
 FX="$ROOT/tests/fixtures/artifacts"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-(cd "$ROOT" && node --input-type=module -e "import { CHANNEL_STYLES } from './packages/shared/src/styles.ts'; process.stdout.write(JSON.stringify(CHANNEL_STYLES.gece_mavisi))") > "$TMP/style.json"
+(cd "$ROOT" && node --input-type=module -e "import { CHANNEL_STYLES } from './packages/shared/src/styles.ts'; process.stdout.write(JSON.stringify(CHANNEL_STYLES.yaklasim))") > "$TMP/style.json"
 B=("$ROOT/bin/blender-gpu" -b --factory-startup --python-exit-code 1)
 "${B[@]}" -P "$ROOT/python/vg_blender/build_cli.py" -- product --spec "$FX/scene-kalem.json" \
   --product "$ROOT/python/vg_blender/examples/kalem/product.py" --out-blend "$TMP/product.blend" --report "$TMP/product.json"

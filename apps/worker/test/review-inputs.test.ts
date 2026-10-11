@@ -18,7 +18,7 @@ import type { StepContext } from '../src/pipeline/types.ts';
 const DIR = resolve(import.meta.dirname, '../../../tests/fixtures/artifacts');
 const fx = <T>(name: string) => JSON.parse(readFileSync(resolve(DIR, `${name}.json`), 'utf8')) as T;
 const research = () => fx<ProductResearch>('research-kalem');
-const board = () => fx<Storyboard>('storyboard-kalem');
+const board = () => fx<Storyboard>('storyboard-kalem-legacy');
 const BIC = 'https://www.bicworld.com/en/our-products';
 
 const qcReport = () => {
@@ -110,7 +110,7 @@ describe('review inputs, prompts and fake reviewers', () => {
         const { points, gate } = FINAL_CHECKS[id];
         expect(line[0]).toContain(gate ? `kapı ${gate}` : `${points} puan`);
       }
-      expect(p).toContain('final@2');
+      expect(p).toContain('final@3');
       expect(p).toContain(role);
     }
     for (const t of targets) expect(prompts.reviewer_facts).toContain(t.url);
@@ -188,7 +188,7 @@ describe('review inputs, prompts and fake reviewers', () => {
     // The fixer: the new spec version goes to the spec dir; "değişmez" writes nothing.
     const fix = fakePipelineScript('fixer', ctx('Rötuş kalem'), 0, { failed: ['text_readable', 'd7_bitrate'] });
     expect(Object.keys(fix.files ?? {})).toEqual(['spec/storyboard/v0001.json']);
-    expect(JSON.parse(Object.values(fix.files!)[0]!).beats[1].onscreen_text.tr).toBe('Kısa yazı 1');
+    expect(JSON.parse(Object.values(fix.files!)[0]!).beats[1].onscreen_text.tr).toBe('Short text 1');
     expect((fix.structured as { rerender_scope: string; addressed: { check_id: string }[]; not_addressed: { check_id: string }[]; round: number })).toMatchObject({ rerender_scope: 'compose', round: 1, addressed: [{ check_id: 'text_readable' }], not_addressed: [{ check_id: 'd7_bitrate' }] });
     expect(Object.keys(fakePipelineScript('fixer', ctx('Geometri kalem'), 0, { failed: ['mechanism_shot'] }).files ?? {})).toEqual(['spec/scene/v0001.json']);
     for (const [name, failed, kind] of [['Rötuş kalem', ['text_readable', 'd7_bitrate'], 'Storyboard'], ['Geometri kalem', ['mechanism_shot', 'parts_visible'], 'SceneSpec']] as const) {
@@ -265,7 +265,7 @@ describe('review inputs, prompts and fake reviewers', () => {
     // only a seslendirmeli run has a spoken text to mispronounce: a silent 'telaffuz' reviews clean and its fixer edits the on-screen text (compose)
     expect(panel(name).score.failed).toEqual(['d7_bitrate']);
     const silentFix = fakePipelineScript('fixer', ctx(name), 0, { failed: ['text_readable'] });
-    expect(JSON.parse(Object.values(silentFix.files!)[0]!).beats[1].onscreen_text.tr).toBe('Kısa yazı 1');
+    expect(JSON.parse(Object.values(silentFix.files!)[0]!).beats[1].onscreen_text.tr).toBe('Short text 1');
     expect(silentFix.structured).toMatchObject({ rerender_scope: 'compose' });
 
     const fix = fakePipelineScript('fixer', ctx(name, { audioMode: 'vo' }), 0, { failed: ['claims_supported', 'claims_verified'] });

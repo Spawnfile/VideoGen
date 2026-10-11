@@ -68,10 +68,10 @@ describe('qc_probe', () => {
     for (const id of ['g1_color', 'g6_edges', 'd6_loudness', 'd6_lra', 'd6_first_audio', 'd6_silence', 'd3_freeze']) expect(f).toContain(id);
   }, 120_000);
 
-  it('passes a clean, mastered 36 s final on every check it can judge here (D7 bitrate and the loop are content dependent)', async () => {
+  it('passes a clean, mastered 13 s YAKLASIM final on every check it can judge here (D7 bitrate and the loop are content dependent)', async () => {
     const master = join(D, 'm.mp4');
     const video = join(D, 'v.mp4');
-    await fakeFinal(FFMPEG, master, { frames: 1081 });
+    await fakeFinal(FFMPEG, master, { frames: 391 });
     await encodeDelivery(FFMPEG, master, video, { preset: 'ultrafast' });
     const raw = join(D, 'raw.wav');
     ff('-f', 'lavfi', '-i', 'anoisesrc=d=36.1:c=pink:r=48000:a=0.2:seed=4', '-ac', '2', raw);

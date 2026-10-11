@@ -28,7 +28,7 @@ describe('audio edit (agent music design A6/A7)', () => {
         await vi.waitFor(async () => expect((await getRunView(t.pool, edit.runId))!.status).toBe('done'), { timeout: 120_000, interval: 300 });
         const view = (await getRunView(t.pool, edit.runId))!;
         expect(view.steps.map((s) => [s.key, s.status])).toEqual([['music', 'done'], ['remix', 'done']]);
-        expect(view.steps[1]!.note).toMatch(/^ses yeniden karıştırıldı · 0:45 · \d+ efekt · ölçülen ses \d+\/8$/);
+        expect(view.steps[1]!.note).toMatch(/^ses yeniden karıştırıldı · 0:13 · \d+ efekt · ölçülen ses \d+\/8$/);
         // the instruction is the composer's (a user decision with its markers), next to the previous score
         const composer = h.specs.filter((s) => s.role === 'audio_director').at(-1)!;
         expect(composer.prompt).toContain('Müziği daha sakin yap, davulu kaldır.');
@@ -42,7 +42,7 @@ describe('audio edit (agent music design A6/A7)', () => {
         for (const kind of ['stem_music', 'stem_sfx', 'qc_report', 'audio_plan', 'final_video_tiktok', 'final_cover', 'music', 'music_stem']) {
           expect(await latestArtifact(t.pool, edit.runId, kind), kind).not.toBeNull();
         }
-        expect(((await latestArtifact(t.pool, edit.runId, 'music'))!.content as MusicScore).duration_s).toBe(45);
+        expect(((await latestArtifact(t.pool, edit.runId, 'music'))!.content as MusicScore).duration_s).toBe(13);
         const v = (await getVideoView(t.pool, run.videoId))!;
         expect(v.status).toBe('ready');
         expect((await t.pool.query('SELECT best_version_id, current_version_id FROM videos WHERE id = $1', [run.videoId])).rows[0]).toEqual({ best_version_id: edit.versionId, current_version_id: edit.versionId });

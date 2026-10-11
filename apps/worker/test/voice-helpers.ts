@@ -74,7 +74,7 @@ export function voiceHarness(t: { pool: pg.Pool }) {
     const sourceId = await addSource(source);
     const ctx = (key: StepKey, over: Partial<StepContext> = {}): StepContext => ({
       runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt: 1, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode: 'vo',
-      versionId: r.versionId, brief: null, duration: { minS: 35, maxS: 55 }, durationSource: 'default' as const, runDir, signal: new AbortController().signal, progress: () => {}, status: () => {}, session: () => {}, ...over,
+      versionId: r.versionId, brief: null, duration: { minS: 35, maxS: 55 }, approach: null, durationSource: 'default' as const, runDir, signal: new AbortController().signal, progress: () => {}, status: () => {}, session: () => {}, ...over,
     });
     return { r, runDir, ctx, addSource, sourceId };
   }

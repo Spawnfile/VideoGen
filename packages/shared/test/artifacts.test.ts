@@ -8,7 +8,7 @@ import {
 
 const fx = (name: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${name}.json`), 'utf8')) as Record<string, unknown>;
 const research = () => fx('research-kalem') as unknown as ProductResearch;
-const board = () => fx('storyboard-kalem') as unknown as Storyboard;
+const board = () => fx('storyboard-kalem-legacy') as unknown as Storyboard;
 const errs = (name: 'ProductResearch' | 'Storyboard', v: unknown) => { const r = validateArtifact(name, v); return r.ok ? [] : r.errors; };
 
 describe('ProductResearch', () => {

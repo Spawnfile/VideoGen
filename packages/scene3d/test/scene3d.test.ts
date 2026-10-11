@@ -5,7 +5,7 @@ import { checkEquivalence, parseGlb, SceneClock } from '../src/index.ts';
 
 const DIR = resolve(import.meta.dirname, '../../../tests/fixtures/scene/kalem');
 const json = (f: string) => JSON.parse(readFileSync(resolve(DIR, f), 'utf8'));
-const FRAMES = [0, 337, 675, 1012, 1350];
+const FRAMES = [0, 97, 195, 292, 390]; // the 13 s YAKLASIM pen (EQUIVALENCE_FRAMES of 390)
 const load = () => parseGlb(readFileSync(resolve(DIR, 'scene.glb')));
 
 describe('scene3d', () => {
@@ -19,10 +19,10 @@ describe('scene3d', () => {
 
   it('a 20 px drift on one anchor fails the check and names the part and frame', async () => {
     const anchors = json('anchors.json');
-    anchors.frames['675'].yay[0] += 20;
+    anchors.frames['195'].yay[0] += 20;
     const r = checkEquivalence(await load(), anchors, json('camera_track.json'), FRAMES);
     expect(r.pass).toBe(false);
-    expect(r.rows.filter((x) => x.px > 8)).toEqual([{ frame: 675, partId: 'yay', px: 20 }]);
+    expect(r.rows.filter((x) => x.px > 8)).toEqual([{ frame: 195, partId: 'yay', px: 20 }]);
   });
 
   it('reports an anchor that has no node in the GLB and a frame without reference positions', async () => {
@@ -33,16 +33,17 @@ describe('scene3d', () => {
     expect(r.pass).toBe(false);
   });
 
-  it('seek is history-free: a finished clip keeps its last pose after seeking back and forth (probe P6)', async () => {
+  it('seek is history-free: the burst, the snap back home and the burst again play the same whichever way we seek (probe P6, YAKLASIM back)', async () => {
     const gltf = await load();
     const clock = new SceneClock(gltf);
     const yay = gltf.scene.getObjectByName('yay')!;
-    clock.seek(45);
-    const end = yay.position.toArray();
-    clock.seek(7);
-    clock.seek(45);
-    // Blender explode vector [-3, 0, 4] (Z-up) → glTF (x, z, −y)
-    for (const [i, v] of [-3, 4, 0].entries()) expect(yay.position.toArray()[i]).toBeCloseTo(v, 4);
-    expect(yay.position.toArray()).toEqual(end);
+    clock.seek(5);
+    const out = yay.position.toArray();
+    // Blender explode vector [-3, 0, 4] (Z-up) → glTF (x, z, −y): fully out between the burst and the snap at 12–12.5 s
+    for (const [i, v] of [-3, 4, 0].entries()) expect(out[i]).toBeCloseTo(v, 4);
+    clock.seek(13);
+    for (const v of yay.position.toArray()) expect(v).toBeCloseTo(0, 4); // home again at the loop point
+    clock.seek(5);
+    expect(yay.position.toArray()).toEqual(out);
   });
 });

@@ -121,3 +121,14 @@ describe('fixed window and safe area (spec Y1, Y10)', () => {
     expect(yaklasimSafeArea({ top: 300, bottom: 1400, right: 100, left: 140 })).toEqual({ top: 300, bottom: 1400, right: 120, left: 140 });
   });
 });
+
+describe('the YAKLASIM kalem fixtures follow the approach (spec Y20)', () => {
+  it('storyboard and scene pass the schema and both validators', async () => {
+    const { readFileSync } = await import('node:fs');
+    const fx = (n: string) => JSON.parse(readFileSync(new URL(`../../../tests/fixtures/artifacts/${n}.json`, import.meta.url), 'utf8')) as unknown;
+    const sb = StoryboardSchema.parse(fx('storyboard-kalem'));
+    const sc = SceneSpecSchema.parse(fx('scene-kalem'));
+    expect(yaklasimStoryboardErrors(sb)).toEqual([]);
+    expect(yaklasimSceneErrors(sc, sb)).toEqual([]);
+  });
+});

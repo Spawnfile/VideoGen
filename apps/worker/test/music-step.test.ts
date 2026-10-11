@@ -41,7 +41,7 @@ async function produced(deps: StepDeps, o: { brief?: string } = {}) {
   const steps = await listRunSteps(t.pool, r.runId);
   const ctx = (i: number): StepContext => ({
     runId: r.runId, stepId: steps[i]!.id, key: steps[i]!.key, attempt: 1, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: 'Tükenmez kalem',
-    audioMode: 'silent', versionId: r.versionId, brief: o.brief ?? null, duration: { minS: 35, maxS: 55 }, durationSource: 'default', runDir: join(deps.dataDir, 'runs', r.runId),
+    audioMode: 'silent', versionId: r.versionId, brief: o.brief ?? null, duration: { minS: 12, maxS: 15 }, durationSource: 'default', approach: 'yaklasim', runDir: join(deps.dataDir, 'runs', r.runId),
     signal: new AbortController().signal, progress: () => {}, status: () => {}, session: () => {},
   });
   for (const [i, ex] of [researchExecutor(deps), storyboardExecutor(deps)].entries()) expect((await ex.run(ctx(i), await ex.inputHash(ctx(i)))).status).toBe('done');

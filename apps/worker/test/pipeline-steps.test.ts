@@ -45,7 +45,7 @@ async function context(deps: StepDeps, name = 'Tükenmez kalem', audioMode: 'vo'
   const abort = new AbortController();
   const ctx = (i: 0 | 1): StepContext => ({
     runId: r.runId, stepId: steps[i]!.id, key: steps[i]!.key, attempt: 1, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name.trim(), audioMode,
-    versionId: r.versionId, brief: o.brief ?? null, duration: o.duration ?? { minS: 35, maxS: 55 }, durationSource: o.duration ? 'user' as const : 'default' as const, runDir: join(deps.dataDir, 'runs', r.runId), signal: abort.signal,
+    versionId: r.versionId, brief: o.brief ?? null, duration: o.duration ?? { minS: 12, maxS: 15 }, durationSource: o.duration ? 'user' as const : 'default' as const, runDir: join(deps.dataDir, 'runs', r.runId), signal: abort.signal,
     progress: (p) => { calls.progress.push(p); }, status: (s) => { calls.status.push(s); }, session: (id) => { calls.sessions.push(id); },
   });
   return { r, ctx, calls, abort };
@@ -143,10 +143,10 @@ describe('storyboard step', () => {
     const c = ctx(1);
     expect(await storyboardExecutor(deps).run(c, 'h')).toMatchObject({ status: 'failed', retry: false, error: 'araştırma çıktısı yok' });
     await insertArtifact(t.pool, { runId: r.runId, kind: 'research', content: fx('research-kalem') });
-    expect(await storyboardExecutor(deps).run(c, 'h')).toEqual({ status: 'done', note: '7 vuruş · 45 sn · kanca: Şaşırtıcı sayı' });
+    expect(await storyboardExecutor(deps).run(c, 'h')).toEqual({ status: 'done', note: '6 vuruş · 13 sn · kanca: Merak sorusu' });
     expect(specs[1]!.prompt).toContain('beats.1.parts: araştırmada olmayan parça: kapak');
     expect(specs[0]!.prompt).toContain('"id":"bilye-capi"');
-    expect((await latestArtifact(t.pool, r.runId, 'storyboard'))!.content).toMatchObject({ duration_s: 45 });
+    expect((await latestArtifact(t.pool, r.runId, 'storyboard'))!.content).toMatchObject({ duration_s: 13 });
 
     const vo = setup({ script: () => ({ fixture: 'basic', structured: fx('storyboard-kalem') }) });
     const v = await context(vo.deps, 'Kalem vo', 'vo');
@@ -162,17 +162,16 @@ describe('pipeline end to end (fake driver)', () => {
     const o = new Orchestrator({ pool: t.pool, dataDir: deps.dataDir, executors: pipelineExecutors(deps), tickMs: 20, timeTickMs: 50 });
     o.start();
     cleanups.push(() => o.stop());
-    const r = await createProduceRun(t.pool, { productName: 'Tükenmez kalem', audioMode: 'vo', plan });
+    const r = await createProduceRun(t.pool, { productName: 'Tükenmez kalem', audioMode: 'silent', plan });
     await o.startRun(r.runId);
     await vi.waitFor(async () => expect((await getRunView(t.pool, r.runId))!.status).toBe('done'), { timeout: 10_000 });
     const run = (await getRunView(t.pool, r.runId))!;
     expect(run.steps.map((s) => [s.status, !!s.sessionId])).toEqual([['done', true], ['done', true]]);
-    expect(run.steps[1]!.note).toBe('7 vuruş · 45 sn · kanca: Şaşırtıcı sayı');
+    expect(run.steps[1]!.note).toBe('6 vuruş · 13 sn · kanca: Merak sorusu');
     expect(await getVideoView(t.pool, r.videoId)).toMatchObject({ status: 'needs_human', statusNote: 'Storyboard hazır. Sahne kurulumu ve taslak render bu sürümde henüz yok.', difficulty: 'procedural' });
-    // The fake VO storyboard carries realistic Turkish vo_text (storyboard-kalem-vo.json), not the on-screen text.
-    const board = (await latestArtifact(t.pool, r.runId, 'storyboard'))!.content as { audio_mode: string; beats: { vo_text: { tr: string } }[] };
-    expect(board.audio_mode).toBe('vo');
-    expect(board.beats[0]!.vo_text.tr).toBe('Bu küçücük bilye, elindeki kalemin bütün yazma işini tek başına yapıyor.');
+    // YAKLASIM: no voiceover; the on-screen hook is English and the board carries its caption.
+    const board = (await latestArtifact(t.pool, r.runId, 'storyboard'))!.content as { audio_mode: string; hook: { text_tr: string }; publish: { youtube_title: string } };
+    expect(board).toMatchObject({ audio_mode: 'silent', hook: { text_tr: "Why doesn't a pen *LEAK*?" }, publish: { youtube_title: "What's inside a ballpoint pen" } });
   });
 });
 
@@ -188,51 +187,30 @@ describe('production brief (brief design Y5–Y10)', () => {
     expect(b).toContain('kusur sayma');
   });
 
-  it('prompts: the researcher gets the brief and asks for a recommendation; the storyboarder gets the window, the brief and the agent suggestions apart from the research data', () => {
+  it('prompts: the researcher works for a fixed 12–15 s YAKLASIM video and fixes the recommendation window; the storyboarder gets the YAKLASIM rules, the brief and the agent suggestions apart from the research data', () => {
     const plain = researchPrompt('Kalem');
     expect(plain).not.toContain('YONERGE');
-    expect(plain).toContain('recommendation alanını doldur');
-    expect(plain).toContain('önerdiğin aralık bu videonun süresi olur');
-    const user = researchPrompt('Kalem', { brief: 'Yaya odaklan.', duration: { minS: 20, maxS: 25 }, durationSource: 'user' });
-    expect(user).toContain('20–25 sn (kullanıcının kararı)');
-    expect(user).toContain('Yaya odaklan.');
-    expect(user).toContain('uygulanmaz');
+    expect(plain).toContain('12–15 snlik bir YAKLASIM videosu');
+    expect(plain).toContain('duration_min_s 12, duration_max_s 15');
+    expect(researchPrompt('Kalem', { brief: 'Yaya odaklan.' })).toContain('Yaya odaklan.');
     const research = { ...fx('research-kalem'), recommendation: { duration_min_s: 40, duration_max_s: 50, brief_tr: ['Bilyeye odaklan.'], reason_tr: 'basit' } } as ProductResearch;
-    const sb = storyboardPrompt('Kalem', 'silent', research, { brief: 'Kısa ve hızlı.', duration: { minS: 20, maxS: 25 }, durationSource: 'user' });
-    expect(sb).toContain('Süre penceresi: 20–25 sn (senin kararın)');
+    const sb = storyboardPrompt('Kalem', 'silent', research, { brief: 'Kısa ve hızlı.' });
+    expect(sb).toContain('12–15 sn');
+    expect(sb).toContain('0,5 sn ızgarasında');
+    expect(sb).toContain('en çok 5 kelime');
     expect(sb).toContain('Kısa ve hızlı.');
     expect(sb).toContain('Bilyeye odaklan.');
     expect(sb.indexOf('YONERGE')).toBeGreaterThan(sb.indexOf('Araştırmacının anlatım önerileri'));
     expect(sb.split('VERI>>>')[0]).not.toContain('recommendation'); // the research data block carries facts only
-    expect(storyboardPrompt('Kalem', 'vo', research)).toContain('toplam anlatım 36–52 sn');
   });
 
-  it('research applies the agent window only when the user decided none, and says so in the note; the storyboard check holds the window', async () => {
+  it('YAKLASIM spec Y1: research never moves the window (the agent suggestion is kept on record only); the storyboard check returns YAKLASIM errors', async () => {
     const { deps } = setup();
-    const a = await context(deps, 'Öneri kalemi');
-    const ca = a.ctx(0);
-    expect(await researchExecutor(deps).run(ca, await researchExecutor(deps).inputHash(ca))).toEqual({ status: 'done', note: 'Basmalı, tek kullanımlık plastik gövdeli tükenmez kalem · süre önerisi 40–50 sn' });
-    expect(await getVideoView(t.pool, a.r.videoId)).toMatchObject({ duration: { minS: 40, maxS: 50 }, durationSource: 'agent' });
-    // A crash right after the research was stored: the retry reuses it and still applies the agent's window.
-    const b = await context(deps, 'Öneri kalemi');
-    const cb = b.ctx(0);
-    const hb = await researchExecutor(deps).inputHash(cb);
-    await researchExecutor(deps).run(cb, hb);
-    await t.pool.query("UPDATE videos SET duration_min_s = 35, duration_max_s = 55, duration_source = 'default' WHERE id = $1", [b.r.videoId]);
-    expect(await researchExecutor(deps).reuse!(cb, hb)).toBe(true);
-    expect(await getVideoView(t.pool, b.r.videoId)).toMatchObject({ duration: { minS: 40, maxS: 50 }, durationSource: 'agent' });
-
-    const u = await context(deps, 'Öneri kalemi', 'silent', { brief: 'Kısa olsun.', duration: { minS: 20, maxS: 25 } });
-    const cu = u.ctx(0);
-    const hu = await researchExecutor(deps).inputHash(cu);
-    expect(hu).not.toBe(await researchExecutor(deps).inputHash(ca)); // the brief and the user window are inputs
-    expect((await researchExecutor(deps).run(cu, hu) as { note: string }).note).toContain('uygulanmadı: senin kararın 20–25 sn');
-    expect(await getVideoView(t.pool, u.r.videoId)).toMatchObject({ duration: { minS: 20, maxS: 25 }, durationSource: 'user' });
-
-    // The fake storyboard is 45 s: outside 20–25 s, the same-session contract fix loop sees the window error and the step fails.
-    const s = u.ctx(1);
-    const out = await storyboardExecutor(deps).run(s, await storyboardExecutor(deps).inputHash(s));
-    expect(out).toMatchObject({ status: 'failed' });
-    expect((out as { error: string }).error).toContain('süre penceresi 20–25 sn');
+    const a = await context(deps, 'Öneri kalemi', 'silent', { duration: { minS: 12, maxS: 15 } });
+    const ca = { ...a.ctx(0), durationSource: 'default' as const };
+    const out = await researchExecutor(deps).run(ca, await researchExecutor(deps).inputHash(ca));
+    expect(out).toEqual({ status: 'done', note: 'Basmalı, tek kullanımlık plastik gövdeli tükenmez kalem' });
+    expect(await getVideoView(t.pool, a.r.videoId)).toMatchObject({ duration: { minS: 12, maxS: 15 } });
+    expect((await t.pool.query("SELECT count(*)::int AS n FROM audit_log WHERE action = 'video.duration_set' AND subject_id = $1", [a.r.videoId])).rows[0].n).toBe(0);
   });
 });
