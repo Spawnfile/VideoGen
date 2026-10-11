@@ -25,7 +25,6 @@ export function Sheet({ open, onClose, title, children, wide = false }: { open: 
       {open && (
         <div
           className={`sheet-panel absolute inset-x-0 bottom-0 flex max-h-[88dvh] flex-col rounded-t-sheet border-t border-line bg-paper pb-safe md:inset-auto md:top-1/2 md:left-1/2 md:max-h-[80dvh] ${wide ? 'md:w-[min(92vw,720px)]' : 'md:w-[min(92vw,480px)]'} md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-card md:border md:pb-0`}
-          style={{ marginBottom: 'var(--kb-inset, 0px)' }}
         >
           <div className="flex items-center gap-3 px-4 pt-2 pb-3 md:px-5 md:pt-4">
             <span aria-hidden className="absolute top-2 left-1/2 h-1 w-9 -translate-x-1/2 rounded-full bg-line-strong md:hidden" />

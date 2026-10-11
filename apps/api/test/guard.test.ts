@@ -85,4 +85,22 @@ describe('tailnet access (mobile PWA through Tailscale Serve)', () => {
     expect(r.statusCode).toBe(403);
     expect(r.json()).toEqual({ error: 'forbidden: non-localhost Host' });
   });
+
+  it('a request that came through Tailscale Serve is never loopback, whatever Host it claims (Serve always sets X-Forwarded-Host)', () => {
+    expect(requestScope({ host: 'localhost:5181', 'x-forwarded-host': 'localhost:5181' }, cfg)).toBeNull();
+    expect(requestScope({ host: '127.0.0.1:5181', 'x-forwarded-host': '127.0.0.1:5181', [login]: 'me@example.com' }, cfg)).toBeNull();
+    expect(requestScope({ host: cfg.host, 'x-forwarded-host': cfg.host, [login]: 'me@example.com' }, cfg)).toBe('tailnet');
+    expect(requestScope({ host: 'localhost:5181', 'x-forwarded-host': 'localhost:5181' }, { host: null, users: [] })).toBeNull();
+  });
+
+  it('refuses Funnel (public internet) requests even with an allowed login', () => {
+    expect(requestScope({ host: cfg.host, 'x-forwarded-host': cfg.host, [login]: 'me@example.com', 'tailscale-funnel-request': '?1' }, cfg)).toBeNull();
+  });
+
+  it('a forged loopback Host through the proxy cannot write or read', async () => {
+    const a = await app();
+    const h = { host: 'localhost:5181', 'x-forwarded-host': 'localhost:5181', 'x-forwarded-for': '100.64.0.9' };
+    expect((await a.inject({ method: 'GET', url: '/api/x', headers: h })).statusCode).toBe(403);
+    expect((await a.inject({ method: 'POST', url: '/api/x', headers: h })).statusCode).toBe(403);
+  });
 });

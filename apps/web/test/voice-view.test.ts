@@ -38,11 +38,11 @@ describe('voice card helpers', () => {
       ],
     });
     const a = narratorOptions(state(false, false));
-    expect(a.items.map((o) => [o.label, o.selected, o.provisional])).toEqual([['Chatterbox · Hazır ses', true, true], ['Freya · Leyla', false, false]]);
+    expect(a.items.map((o) => [o.label, o.selected, o.provisional])).toEqual([['Chatterbox · Stock voice', true, true], ['Freya · Leyla', false, false]]);
     expect(a.hasClone).toBe(false);
     expect(a.note).toBe('Not chosen yet: provisional default');
     const b = narratorOptions(state(true, true));
-    expect(b.items.map((o) => o.label)).toEqual(['Chatterbox · Hazır ses', 'Chatterbox · clone: Sesim', 'Freya · Leyla']);
+    expect(b.items.map((o) => o.label)).toEqual(['Chatterbox · Stock voice', 'Chatterbox · clone: Sesim', 'Freya · Leyla']);
     expect(b.items[0]).toMatchObject({ selected: true, provisional: false });
     expect(b.hasClone).toBe(true);
     expect(b.note).toBe('');

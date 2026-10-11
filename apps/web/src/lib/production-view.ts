@@ -227,6 +227,8 @@ export function pickVoice(list: ArtifactMeta[], runId: string | null): { voiceTr
 export const PRODUCE_VO_HINT = 'Narration uses local TTS; pick the voice in Settings';
 
 const ENGINE_NAME: Record<string, string> = { chatterbox: 'Chatterbox', freya: 'Freya' };
+/** Preset voices by id (the API's labels are Turkish); a clone keeps the asset's own title. */
+const PRESET_EN: Record<string, string> = { hazir: 'Stock voice', leyla: 'Leyla' };
 const dec = (n: number) => (Number.isFinite(n) ? n.toFixed(1) : '–');
 /** Spec §8.1: a line whose ASR round trip misses more than 3 % of the characters is flagged. */
 const CER_WARN = 0.03;
@@ -262,7 +264,7 @@ export function narratorOptions(s: NarratorVoiceState): { items: NarratorItem[];
     const selected = s.voice.engine === g.engine && s.voice.voice.kind === v.kind && (v.kind === 'clone' ? (s.voice.voice as { asset_id: string }).asset_id === v.asset_id : (s.voice.voice as { id: string }).id === v.id);
     return {
       key: `${g.engine}:${v.kind}:${v.asset_id ?? v.id}`, value, selected, provisional: selected && !s.chosen,
-      label: `${ENGINE_NAME[g.engine] ?? g.engine} · ${v.kind === 'clone' ? `clone: ${v.label_tr}` : v.label_tr}`,
+      label: `${ENGINE_NAME[g.engine] ?? g.engine} · ${v.kind === 'clone' ? `clone: ${v.label_tr}` : (PRESET_EN[v.id ?? ''] ?? v.label_tr)}`,
     };
   }));
   return { items, hasClone: items.some((i) => i.value.voice.kind === 'clone'), note: s.chosen ? '' : 'Not chosen yet: provisional default' };

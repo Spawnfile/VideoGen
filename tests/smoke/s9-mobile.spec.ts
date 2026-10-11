@@ -48,6 +48,10 @@ test('S9: the phone layout covers produce, chat, library and settings without si
   await expect(page.getByTestId('library-detail')).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Versions' })).toHaveAttribute('aria-selected', 'true');
   await noSideScroll(page, 'Library detail');
+  // The embedded audit log must not take over the page's top bar.
+  await page.getByRole('tab', { name: 'Audit log' }).click();
+  await page.getByRole('tab', { name: 'Versions' }).click();
+  await expect(page.getByRole('button', { name: 'Open in Studio' })).toBeVisible();
   await page.getByRole('button', { name: 'Back to Library' }).click();
   await expect(page).toHaveURL(/\/library$/);
 
@@ -61,11 +65,32 @@ test('S9: the phone layout covers produce, chat, library and settings without si
   await page.getByRole('button', { name: 'Audit log' }).click();
   await expect(page).toHaveURL(/\/audit$/);
   await expect(tabs.getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
+  // The top-bar back returns to the settings list, and the system back from there does not loop into the audit log again.
+  await page.getByRole('button', { name: 'Back to Settings' }).click();
+  await expect(page.getByTestId('settings-list')).toBeVisible();
+  await page.goBack();
+  await expect(page).not.toHaveURL(/\/audit$/);
+  await page.goForward();
+  await expect(page.getByTestId('settings-list')).toBeVisible();
+  await page.getByRole('button', { name: 'Audit log' }).click();
   await page.getByTestId('audit-row').first().click();
   await expect(page.getByTestId('audit-detail')).toBeVisible();
   await noSideScroll(page, 'Audit log');
   await page.getByTestId('audit-filter-open').click();
   await expect(page.getByRole('dialog', { name: 'Filter the audit log' })).toBeVisible();
+});
+
+test('S9: with the keyboard open the New video sheet stays inside the visible area', async ({ page, request }) => {
+  await request.post('/api/dev/videos/ready', { data: { productName: 'Klavye kalem' } }); // the dock shows once a video exists
+  await page.goto('/');
+  await page.getByTestId('produce-dock').click();
+  // What lib/viewport.ts sets when a 340 px keyboard opens (headless Chrome has no soft keyboard).
+  await page.evaluate(() => { document.documentElement.style.setProperty('--kb-inset', '340px'); document.documentElement.dataset.kb = 'open'; });
+  const panel = page.locator('dialog.sheet .sheet-panel');
+  // Measured once the slide-up animation is over.
+  await expect.poll(async () => { const b = (await panel.boundingBox())!; return Math.round(b.y + b.height); }, { message: 'the sheet runs under the keyboard' }).toBeLessThanOrEqual(844 - 340);
+  expect((await panel.boundingBox())!.y, 'the sheet top is above the screen').toBeGreaterThanOrEqual(0);
+  await expect(page.getByRole('dialog', { name: 'New video' }).getByRole('button', { name: 'Close' })).toBeInViewport();
 });
 
 test('S9: installable — manifest, icons and an active service worker that leaves the API alone', async ({ page, request }) => {

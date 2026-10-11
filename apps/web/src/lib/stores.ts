@@ -152,3 +152,7 @@ export function latestRunOf(s: PipelineState, videoId: string): RunView | null {
 export const studioPick = createStore<string | null>(typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('video'));
 export const pickStudioVideo = (id: string): void => studioPick.set(() => id);
 export const clearStudioVideo = (): void => studioPick.set(() => 'none');
+
+/** A chat turn is still being answered in some thread (the phone Chat tab shows a dot meanwhile). */
+export const chatRunning = (all: Record<string, Record<string, Versioned<ChatMessage>>>): boolean =>
+  Object.values(all).some((t) => Object.values(t).some((v) => v.value.role === 'user' && v.value.status === 'running'));

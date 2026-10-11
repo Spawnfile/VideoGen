@@ -98,3 +98,15 @@ describe('studio pick (the Studio video survives tab switches; New chat clears i
     expect(studioPick.get()).toBe('none');
   });
 });
+
+describe('chat reply in progress (the phone Chat tab shows a dot)', () => {
+  it('is true while any user message is running, in any thread', async () => {
+    const s = await import('../src/lib/stores.ts');
+    const m = (id: string, threadId: string, status: string) => ({ id, threadId, role: 'user', status, text: 'x', mode: 'ask', sessionId: null, turn: null, createdAt: '2026-10-11T00:00:00Z' }) as never;
+    expect(s.chatRunning(s.chats.get())).toBe(false);
+    s.applyMessage(m('a', 't1', 'done'), 1);
+    expect(s.chatRunning(s.chats.get())).toBe(false);
+    s.applyMessage(m('b', 't2', 'running'), 2);
+    expect(s.chatRunning(s.chats.get())).toBe(true);
+  });
+});

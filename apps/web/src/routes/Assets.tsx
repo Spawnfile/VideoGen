@@ -6,6 +6,7 @@ import { AssetTable } from '../components/assets/AssetTable.tsx';
 import { api } from '../lib/api.ts';
 import { assetsView, KIND_LABEL } from '../lib/assets-view.ts';
 import { useShellBar } from '../components/shell/ShellContext.tsx';
+import { backTo } from '../lib/router.ts';
 
 const chip = (on: boolean) =>
   `min-h-9 shrink-0 rounded-full px-3.5 py-1 text-[12px] whitespace-nowrap transition-colors md:min-h-0 md:px-3 duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
@@ -18,7 +19,7 @@ export function Assets() {
   const q = useQuery({ queryKey: ['assets'], queryFn: api.assets, staleTime: 0 });
   const view = useMemo(() => assetsView(q.data ?? [], kind), [q.data, kind]);
   const refresh = () => qc.invalidateQueries({ queryKey: ['assets'] });
-  useShellBar({ title: 'Assets', back: { label: 'Settings', onBack: () => { history.pushState(null, '', '/settings'); dispatchEvent(new PopStateEvent('popstate')); } } }, []);
+  useShellBar({ title: 'Assets', back: { label: 'Settings', onBack: () => backTo('/settings') } }, []);
 
   return (
     <div data-testid="assets-page" className="mx-auto flex max-w-[900px] flex-col gap-4 px-4 pt-2 pb-8 md:p-8">

@@ -9,10 +9,14 @@ export function ShellProvider({ children }: { children: (bar: ShellBar | null) =
   return <Ctx.Provider value={setBar}>{children(bar)}</Ctx.Provider>;
 }
 
-/** Call from a page; the bar resets when the page unmounts. `key` lists what the bar depends on. */
-export function useShellBar(bar: ShellBar, key: unknown[]): void {
+/**
+ * Call from a page; the bar resets when the page unmounts. `key` lists what the bar depends on. `null`: leave the bar alone (a page
+ * embedded in another page, such as the audit log inside a library detail tab, must not take over its host's bar).
+ */
+export function useShellBar(bar: ShellBar | null, key: unknown[]): void {
   const set = useContext(Ctx);
   useEffect(() => {
+    if (!bar) return;
     set(bar);
     return () => set(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { ChannelStyleSection } from '../components/settings/ChannelStyleSection.tsx';
 import { DataSection } from '../components/settings/DataSection.tsx';
 import { DeviceSection } from '../components/settings/DeviceSection.tsx';
@@ -11,6 +11,7 @@ import { StatusBody } from '../components/shell/StatusSheet.tsx';
 import { useStatus } from '../components/shell/useStatus.ts';
 import { api, useClaudeStatus, type ClaudePhase } from '../lib/api.ts';
 import { ago } from '../lib/format.ts';
+import { backTo, type GoOptions } from '../lib/router.ts';
 import { useLayout } from '../lib/viewport.ts';
 
 const POLL_MS = 15_000;
@@ -85,12 +86,12 @@ const GROUPS: { title: string; rows: Row[] }[] = [
 const ROWS = GROUPS.flatMap((g) => g.rows);
 
 /** Phone: grouped rows, each opening its section on its own page (the back arrow returns). Tablet and desktop: one long page. */
-export function Settings({ go }: { go: (url: string) => void }) {
+export function Settings({ go }: { go: (url: string, opts?: GoOptions) => void }) {
   const layout = useLayout();
-  const [open, setOpen] = useState<SectionId | null>(() => (location.hash.slice(1) as SectionId) || null);
-  const row = ROWS.find((r) => r.id === open);
-  useShellBar(row ? { title: row.label, back: { label: 'Settings', onBack: () => setOpen(null) } } : {}, [row?.id]);
-  useEffect(() => { history.replaceState(history.state, '', open ? `/settings#${open}` : '/settings'); }, [open]);
+  // The open section is the URL hash (a history entry each), so the system back gesture returns to the list.
+  const open = (location.hash.slice(1) as SectionId) || null;
+  const row = ROWS.find((r) => r.id === open && r.render);
+  useShellBar(row ? { title: row.label, back: { label: 'Settings', onBack: () => backTo('/settings') } } : {}, [row?.id]);
 
   if (layout !== 'phone') {
     return (
@@ -118,7 +119,7 @@ export function Settings({ go }: { go: (url: string) => void }) {
               <li key={r.id}>
                 <button
                   type="button"
-                  onClick={() => (r.id === 'audit' || r.id === 'assets' ? go(`/${r.id}`) : setOpen(r.id))}
+                  onClick={() => go(r.id === 'audit' || r.id === 'assets' ? `/${r.id}` : `/settings#${r.id}`, { from: '/settings' })}
                   className="flex min-h-12 w-full items-center gap-3 px-4 text-left text-[15px] first:rounded-t-card last:rounded-b-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-glow"
                 >
                   <span className="flex-1">{r.label}</span>

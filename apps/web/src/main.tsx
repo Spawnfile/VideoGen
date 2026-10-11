@@ -6,7 +6,7 @@ import { AppShell } from './components/AppShell.tsx';
 import { connectLive, onLiveEvent, onUiEvent } from './lib/live.ts';
 import { activePlayer, shortcutFor } from './lib/player.ts';
 import { liveInvalidation } from './lib/publish-view.ts';
-import { applyDelta, applyGpuWait, applyMessage, applyRow, applyRun, applySample, applySession, applyVideo } from './lib/stores.ts';
+import { chatRunning, chats, useStore, applyDelta, applyGpuWait, applyMessage, applyRow, applyRun, applySample, applySession, applyVideo } from './lib/stores.ts';
 import { filterFromQuery, queryFromFilter } from './lib/audit-view.ts';
 import { useRoute } from './lib/router.ts';
 import { Assets } from './routes/Assets.tsx';
@@ -88,7 +88,8 @@ function App() {
     : path === '/assets' ? <Assets />
     : path === '/audit' ? <Audit initial={filterFromQuery(search)} onFilter={(f) => go(`/audit${queryFromFilter(f)}`)} />
     : <Studio />;
-  return <AppShell path={path} go={go}>{page}</AppShell>;
+  const chatLive = chatRunning(useStore(chats));
+  return <AppShell path={path} go={go} chatLive={chatLive}>{page}</AppShell>;
 }
 
 registerServiceWorker();

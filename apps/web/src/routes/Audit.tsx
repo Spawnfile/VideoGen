@@ -9,6 +9,7 @@ import { auditListPath, auditView, queryFromFilter, type AuditQueryFilter } from
 import { Sheet } from '../components/shell/Sheet.tsx';
 import { useLayout } from '../lib/viewport.ts';
 import { useShellBar } from '../components/shell/ShellContext.tsx';
+import { backTo } from '../lib/router.ts';
 
 /**
  * Plan M7 Y6 audit explorer. `initial` seeds the filter (the page passes the URL's, the library detail a fixed video);
@@ -42,7 +43,7 @@ export function Audit({ initial = {}, onFilter, fixed = [], embedded = false }: 
   });
   const rows = useMemo(() => auditView(q.data?.pages.flatMap((p) => p.rows) ?? []).rows, [q.data]);
   const phone = useLayout() === 'phone';
-  useShellBar(embedded ? {} : { title: 'Audit log', back: { label: 'Settings', onBack: () => { history.pushState(null, '', '/settings'); dispatchEvent(new PopStateEvent('popstate')); } } }, [embedded]);
+  useShellBar(embedded ? null : { title: 'Audit log', back: { label: 'Settings', onBack: () => backTo('/settings') } }, [embedded]);
   const [filtering, setFiltering] = useState(false);
   const active = Object.keys(filter).filter((k) => !fixed.includes(k as keyof AuditQueryFilter)).length;
 

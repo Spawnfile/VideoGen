@@ -32,9 +32,15 @@ export function originIsLocal(origin?: string): boolean {
  */
 export function requestScope(headers: Record<string, string | string[] | undefined>, cfg: TailnetConfig): RequestScope | null {
   const host = typeof headers.host === 'string' ? headers.host : undefined;
-  if (hostIsLocal(host)) return 'local';
+  // Serve routes by TLS SNI and passes any Host through, so Host alone cannot tell a local browser from a tailnet peer. Serve always
+  // sets X-Forwarded-Host (and X-Forwarded-For) on what it proxies (serve.go addProxyForwardedHeaders): such a request is never local.
+  const proxied = headers['x-forwarded-host'] !== undefined || headers['x-forwarded-for'] !== undefined;
+  // Funnel (the public internet) is never allowed in, whatever the identity headers say.
+  if (headers['tailscale-funnel-request'] !== undefined) return null;
+  if (!proxied && hostIsLocal(host)) return 'local';
   const login = headers['tailscale-user-login'];
-  if (cfg.host && host === cfg.host && typeof login === 'string' && cfg.users.includes(login)) return 'tailnet';
+  const forwarded = headers['x-forwarded-host'];
+  if (cfg.host && host === cfg.host && (forwarded === undefined || forwarded === cfg.host) && typeof login === 'string' && cfg.users.includes(login)) return 'tailnet';
   return null;
 }
 

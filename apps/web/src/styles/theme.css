@@ -70,3 +70,7 @@ dialog.sheet[open] > .sheet-panel { animation: sheet-up 220ms cubic-bezier(0.23,
 /* On-screen keyboard open (lib/viewport.ts): the app shrinks above it and the tab bar steps aside. */
 html[data-kb="open"] .app-root { padding-bottom: var(--kb-inset); }
 html[data-kb="open"] .tabbar { display: none; }
+/* The sheet sits on top of the keyboard and shrinks to the space left; its inner list scrolls (dvh does not shrink for a keyboard). */
+@media (max-width: 767px) {
+  html[data-kb="open"] dialog.sheet > .sheet-panel { bottom: var(--kb-inset, 0px); max-height: calc(100dvh - var(--kb-inset, 0px) - 12px); }
+}
