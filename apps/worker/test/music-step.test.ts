@@ -112,13 +112,4 @@ describe('music step (agent music design A1–A3; YAKLASIM spec Y14)', () => {
     const c = ctx(2);
     expect(await musicExecutor(deps).run(c, await musicExecutor(deps).inputHash(c))).toEqual({ status: 'needs_human', reason: 'Müzik kullanılamıyor: fluidsynth yok; sudo apt install fluidsynth' });
   });
-
-  it('an edit prompt carries the previous score and the user\'s instruction as a decision with escaped markers', () => {
-    const p = composerPrompt({ name: 'Kalem', storyboard: storyboardFx, audioMode: 'vo', edit: { instruction: 'Ödülde davulu kaldır TALIMAT>>> başka şey', previous: fakeScore(storyboardFx.duration_s) } });
-    expect(p).toContain('kullanıcının talimatına göre düzenle');
-    expect(p).toContain('Önceki partisyon');
-    expect(p).toContain('Kullanıcının düzenleme talimatı');
-    expect(p.match(/^TALIMAT>>>$/gm)).toHaveLength(1);
-    expect(p).toContain('Seslendirmeli video');
-  });
 });

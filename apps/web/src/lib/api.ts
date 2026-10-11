@@ -46,11 +46,7 @@ export const api = {
     return r.status === 202 && body.videoId && body.runId ? { ok: true, videoId: body.videoId, runId: body.runId } : { ok: false, error: body.error ?? `Could not start the production (${r.status})` };
   },
   /** Agent music design A6: the user's audio instruction → an audio edit run. */
-  audioEdit: async (videoId: string, instruction: string): Promise<{ ok: true; runId: string } | { ok: false; error: string }> => {
-    const r = await fetch(`/api/videos/${videoId}/audio-edits`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ instruction }) });
-    const body = (await r.json().catch(() => ({}))) as { runId?: string; error?: string };
-    return r.status === 202 && body.runId ? { ok: true, runId: body.runId } : { ok: false, error: body.error ?? `Could not start the audio edit (${r.status})` };
-  },
+
   videos: () => getFresh<VideoView[]>('/api/videos'),
   video: (id: string) => getFresh<{ video: VideoView; runs: RunView[]; artifacts: ArtifactMeta[] }>(`/api/videos/${id}`),
   reviews: (id: string) => get<ReviewRecord[]>(`/api/videos/${id}/reviews`),

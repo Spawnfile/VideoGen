@@ -10,7 +10,7 @@ import {
 
 export const STEP_EN: Record<StepKey, string> = {
   research: 'Research', storyboard: 'Storyboard', voice: 'Voiceover', music: 'Music', build: 'Scene build', draft_render: 'Draft render',
-  draft_review: 'Draft review', final_render: 'Final render', compose: 'Compose', qc: 'Automatic checks', review: 'Review', finalize: 'Finalize', remix: 'Audio mix',
+  draft_review: 'Draft review', final_render: 'Final render', compose: 'Compose', qc: 'Automatic checks', review: 'Review', finalize: 'Finalize',
 };
 export const STEP_STATUS_EN: Record<StepStatus, string> = {
   pending: 'waiting', queued: 'queued', running: 'running', waiting_gpu: 'waiting for GPU', waiting_limit: 'waiting for usage limit', waiting_disk: 'waiting for disk space',

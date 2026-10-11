@@ -23,8 +23,6 @@ export interface StepContext {
   durationSource: DurationSource;
   /** YAKLASIM spec Y4: 'yaklasim' turns the approach's rules on (storyboard, scene, fixer); absent/null = a pre-YAKLASIM video. */
   approach?: 'yaklasim' | null;
-  /** Agent music design A6: an audio edit run's instruction (a user decision) and the run whose artifacts it edits. */
-  edit?: { instruction: string; parentRunId: string };
   /** ~/videogen-data/runs/<runId> */
   runDir: string;
   /** Aborted when the run is cancelled. */

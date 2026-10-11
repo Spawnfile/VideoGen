@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createAudioEditRun, getVideoView, importEpisode, listRunViews, listVersions } from '../src/index.ts';
+import { getVideoView, importEpisode, listRunViews, listVersions } from '../src/index.ts';
 import { createTestDb } from './helpers.ts';
 
 let t: Awaited<ReturnType<typeof createTestDb>>;
@@ -60,12 +60,5 @@ describe('importEpisode (video library L9–L11)', () => {
     const vx = (await getVideoView(t.pool, x.videoId))!;
     expect(vx.productId).toBe((await getVideoView(t.pool, y.videoId))!.productId);
     expect([vx.caption, vx.youtubeTitle]).toEqual([null, null]);
-  });
-
-  it('an imported video cannot be audio-edited', async () => {
-    const m = media('edit', 'edit-bytes');
-    const out = await importEpisode(t.pool, dir, entry('edit', m.sha, 'Düzenleme'), facts(m));
-    if (out.kind !== 'imported') throw new Error(out.kind);
-    expect(await createAudioEditRun(t.pool, { videoId: out.videoId, instruction: 'daha sakin', plan: [] })).toEqual({ error: 'içe aktarılmış bir video düzenlenemez' });
   });
 });

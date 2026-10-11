@@ -80,18 +80,10 @@ describe('produce', () => {
     }
   });
 
-  it('audio edits (agent music design A6): only a finished video, a non-empty instruction ≤ 1000 chars; unknown ids 404', async () => {
+  it('spec Z3: audio edits are gone — POST /api/videos/:id/audio-edits is 404 for any video', async () => {
     const r = (await produce({ productName: 'Kalem ses', audioMode: 'silent' })).json();
-    const post = (vid: string, body: unknown) => app.inject({ method: 'POST', url: `/api/videos/${vid}/audio-edits`, headers: H, payload: body as object });
-    expect((await post(r.videoId, { instruction: '' })).json().error).toBe('the instruction cannot be empty');
-    expect((await post(r.videoId, { instruction: 'x'.repeat(1001) })).json().error).toMatch(/1000/);
-    const fixed = await post(r.videoId, { instruction: 'Müziği sakinleştir.' });
-    expect([fixed.statusCode, fixed.json().error]).toEqual([409, 'YAKLASIM music is fixed; there is nothing to edit.']); // YAKLASIM spec Y16
-    await t.pool.query('UPDATE videos SET approach = NULL WHERE id = $1', [r.videoId]); // a pre-YAKLASIM video keeps audio edits
-    const busy = await post(r.videoId, { instruction: 'Müziği sakinleştir.' });
-    expect([busy.statusCode, busy.json().error]).toEqual([409, 'Only a video that is ready to publish can have its audio edited.']);
-    expect((await post('00000000-0000-4000-8000-000000000000', { instruction: 'x' })).statusCode).toBe(404);
-    expect((await post('nope', { instruction: 'x' })).statusCode).toBe(404);
+    await t.pool.query('UPDATE videos SET approach = NULL, status = $2 WHERE id = $1', [r.videoId, 'ready']); // even a pre-YAKLASIM finished video
+    expect((await app.inject({ method: 'POST', url: `/api/videos/${r.videoId}/audio-edits`, headers: H, payload: { instruction: 'Müziği sakinleştir.' } })).statusCode).toBe(404);
   });
 
   it('rejects bad input with a Turkish message and unknown ids with 404', async () => {

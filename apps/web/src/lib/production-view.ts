@@ -270,13 +270,10 @@ export function narratorOptions(s: NarratorVoiceState): { items: NarratorItem[];
   return { items, hasClone: items.some((i) => i.value.voice.kind === 'clone'), note: s.chosen ? '' : 'Not chosen yet: provisional default' };
 }
 
-/** Agent music design A5: the run's newest stems (a compose or remix records all of them together) and the composer's score. */
+/** Agent music design A5: the run's newest stems (a compose records all of them together) and the composer's score. */
 export interface StemPick { music: string | null; voice: string | null; sfx: string | null; scoreId: string | null }
-export function pickStems(list: ArtifactMeta[], runId: string | null, o: { fallback?: boolean } = {}): StemPick {
-  // `fallback` (an audio edit still running): the video's newest stems until the edit records its own.
-  const inRun = (kind: string) => list.find((a) => a.kind === kind && (!runId || a.runId === runId)) ?? null;
-  const own = !runId || list.some((a) => a.runId === runId && (a.kind === 'stem_music' || a.kind === 'stem_sfx'));
-  const newest = (kind: string) => (o.fallback && !own ? list.find((a) => a.kind === kind) ?? null : inRun(kind));
+export function pickStems(list: ArtifactMeta[], runId: string | null): StemPick {
+  const newest = (kind: string) => list.find((a) => a.kind === kind && (!runId || a.runId === runId)) ?? null;
   return { music: newest('stem_music')?.blobSha ?? null, voice: newest('stem_voice')?.blobSha ?? null, sfx: newest('stem_sfx')?.blobSha ?? null, scoreId: newest('music')?.id ?? null };
 }
 
