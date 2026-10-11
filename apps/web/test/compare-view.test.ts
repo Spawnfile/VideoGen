@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FindingRecord, ReviewRecord, VersionView } from '@videogen/shared/browser';
 import { compareView, syncPlan } from '../src/lib/compare-view.ts';
+import { defaultCompareMode } from '../src/lib/compare-view.ts';
 import { panelView } from '../src/lib/production-view.ts';
 
 const ver = (round: number, o: Partial<VersionView> = {}): VersionView => ({
@@ -84,5 +85,11 @@ describe('compare view', () => {
     expect(panelView(all, 'r0')).toMatchObject({ round: 0, rounds: [0], total: 50 });
     // A round the run does not have shows nothing.
     expect(panelView(all, 'r1', 5)).toBeNull();
+  });
+});
+
+describe('compare mode by width', () => {
+  it('narrow screens default to A/B; side by side needs room for two 9:16 players', () => {
+    expect([390, 599, 600, 1024].map(defaultCompareMode)).toEqual(['ab', 'ab', 'side', 'side']);
   });
 });

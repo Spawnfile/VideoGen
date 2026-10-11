@@ -11,12 +11,13 @@ import { PublishPanel } from '../components/publish/PublishPanel.tsx';
 import { api } from '../lib/api.ts';
 import { finished, versionLabel } from '../lib/compare-view.ts';
 import { panelView, pickDraft, pickFinal, pickReviewSheet, type FinalPick } from '../lib/production-view.ts';
-import { latestRunOf, pipeline, seedRuns, seedVideos, useStore } from '../lib/stores.ts';
+import { latestRunOf, pickStudioVideo, pipeline, seedRuns, seedVideos, useStore } from '../lib/stores.ts';
+import { useShellBar } from '../components/shell/ShellContext.tsx';
 import { Audit } from './Audit.tsx';
 
-const card = 'rounded-card border border-line/60 bg-paper px-4 py-3 shadow-subtle';
+const card = 'rounded-card bg-paper px-4 py-3';
 const chip = (on: boolean) =>
-  `rounded-full px-2.5 py-0.5 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
+  `min-h-8 rounded-full px-3 py-0.5 text-[12px] transition-colors md:min-h-0 md:px-2.5 duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
 const newest = (list: ArtifactMeta[], kind: string, runId: string | null) => (list.find((a) => a.kind === kind && (!runId || a.runId === runId)) ?? list.find((a) => a.kind === kind))?.id ?? null;
 
 /** "Review'lar": a version picker (all rounds of the latest run, or one version's rounds) over the review panel and its round chips. */
@@ -35,15 +36,15 @@ function ReviewsTab({ videoId, versions, run, status, artifacts }: { videoId: st
   return (
     <>
       {versions.length > 1 && (
-        <div role="group" aria-label="Sürüm" className="flex flex-wrap items-center gap-1">
-          <span className="mr-1 text-[12px] text-ink-3">Sürüm</span>
-          <button type="button" aria-pressed={versionId === null} onClick={() => choose(null)} className={chip(versionId === null)}>tümü</button>
+        <div role="group" aria-label="Version" className="flex flex-wrap items-center gap-1">
+          <span className="mr-1 text-[12px] text-ink-3">Version</span>
+          <button type="button" aria-pressed={versionId === null} onClick={() => choose(null)} className={chip(versionId === null)}>all</button>
           {versions.map((v) => (
             <button key={v.id} type="button" aria-pressed={versionId === v.id} onClick={() => choose(v.id)} className={chip(versionId === v.id)}>{versionLabel(v)}</button>
           ))}
         </div>
       )}
-      {q.isSuccess && !panel && <p className="text-[13px] text-ink-2">{version ? `${versionLabel(version)} için inceleme turu yok.` : 'Henüz final incelemesi yok.'}</p>}
+      {q.isSuccess && !panel && <p className="text-[13px] text-ink-2">{version ? `${versionLabel(version)} has no review round.` : 'No final review yet.'}</p>}
       <ReviewPanel reviews={q.data ?? []} runId={runId} status={status} sheetSha={sheet} canSeek={false} failed={q.isError} round={round} onRound={setRound} />
     </>
   );
@@ -52,13 +53,13 @@ function ReviewsTab({ videoId, versions, run, status, artifacts }: { videoId: st
 /** "Araştırma ve kaynaklar": the research card, then every claim with its sources (quote, link, access date). */
 function ResearchTab({ artifactId }: { artifactId: string | null }) {
   const { data: r } = useContent<ProductResearch>(artifactId);
-  if (!artifactId) return <p className="text-[13px] text-ink-2">Araştırma yok.</p>;
+  if (!artifactId) return <p className="text-[13px] text-ink-2">No research.</p>;
   return (
     <>
       <ResearchCard artifactId={artifactId} />
       {r && r.claims.length > 0 && (
-        <section aria-label="İddialar ve kaynaklar" data-testid="claims" className={card}>
-          <h3 className="text-[14px] font-medium">İddialar ve kaynaklar</h3>
+        <section aria-label="Claims and sources" data-testid="claims" className={card}>
+          <h3 className="text-[14px] font-medium">Claims and sources</h3>
           <ol className="mt-2 flex flex-col gap-3">
             {r.claims.map((c) => (
               <li key={c.id} className="flex flex-col gap-1">
@@ -67,7 +68,7 @@ function ResearchTab({ artifactId }: { artifactId: string | null }) {
                   {c.sources.map((s, i) => (
                     <li key={`${c.id}-${i}`} className="text-[12.5px] leading-relaxed text-ink-2">
                       <a href={s.url} target="_blank" rel="noreferrer" className="break-all text-accent-glow underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-accent-glow">{s.url}</a>
-                      <span className="text-ink-3"> · {s.type === 'primary' ? 'birincil' : 'bağımsız'} · {s.accessed_at.slice(0, 10)}</span>
+                      <span className="text-ink-3"> · {s.type === 'primary' ? 'primary' : 'independent'} · {s.accessed_at.slice(0, 10)}</span>
                       <span className="block">“{s.quote}”</span>
                     </li>
                   ))}
@@ -93,6 +94,12 @@ export function LibraryDetail({ videoId, go }: { videoId: string; go: (url: stri
   });
   const versions = useQuery({ queryKey: ['versions', videoId, doneSteps, video?.status], queryFn: () => api.versions(videoId) });
   const [tab, setTab] = useState<DetailTab>('versions');
+  const openInStudio = () => { pickStudioVideo(videoId); go(`/?video=${videoId}`); };
+  useShellBar({
+    title: video?.productName ?? 'Library',
+    back: { label: 'Library', onBack: () => go('/library') },
+    action: <button type="button" onClick={openInStudio} className="min-h-9 shrink-0 rounded-full border border-line-strong px-3 text-[12px] text-ink-2">Open in Studio</button>,
+  }, [video?.productName, videoId]);
   const [selected, setSelected] = useState<string | null>(null);
   const list = detail.data ?? [];
   const vs = versions.data ?? [];
@@ -105,23 +112,23 @@ export function LibraryDetail({ videoId, go }: { videoId: string; go: (url: stri
 
   if (detail.isError && !video) {
     return (
-      <div className="mx-auto flex max-w-[900px] flex-col gap-3 p-8">
-        <p className="text-[13px] text-ink-2">Video bulunamadı.</p>
-        <button type="button" onClick={() => go('/library')} className="w-fit text-[13px] text-accent-glow hover:underline">Kütüphaneye dön</button>
+      <div className="mx-auto flex max-w-[900px] flex-col gap-3 px-4 py-6 md:p-8">
+        <p className="text-[13px] text-ink-2">This video was not found.</p>
+        <button type="button" onClick={() => go('/library')} className="min-h-10 w-fit text-[13px] text-accent-glow hover:underline">Back to the Library</button>
       </div>
     );
   }
   return (
-    <div data-testid="library-detail" className="mx-auto flex max-w-[900px] flex-col gap-5 p-8">
-      <div className="flex items-center gap-3">
-        <a href="/library" onClick={(e) => { e.preventDefault(); go('/library'); }} className="text-[12.5px] text-ink-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-glow">← Kütüphane</a>
+    <div data-testid="library-detail" className="mx-auto flex max-w-[900px] flex-col gap-5 px-4 pt-2 pb-8 md:p-8">
+      <div className="hidden items-center gap-3 md:flex">
+        <a href="/library" onClick={(e) => { e.preventDefault(); go('/library'); }} className="text-[12.5px] text-ink-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-glow">← Library</a>
         <button
           type="button"
           data-testid="open-in-studio"
-          onClick={() => go(`/?video=${videoId}`)}
+          onClick={openInStudio}
           className="ml-auto rounded-control border border-line-strong px-3 py-1 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-accent-glow"
         >
-          Stüdyo'da aç
+          Open in Studio
         </button>
       </div>
       {video && <VideoHeader video={video} run={run} />}
@@ -129,20 +136,20 @@ export function LibraryDetail({ videoId, go }: { videoId: string; go: (url: stri
         {tab === 'versions' && (
           <>
             <DraftTabs key={`${final.musicSha ?? ''}${draft.videoSha ?? 'none'}`} pick={draft} final={final} versions={vs} />
-            {chosen && <p className="text-[12px] text-ink-3">Oynatıcıda: {versionLabel(chosen)}</p>}
+            {chosen && <p className="text-[12px] text-ink-3">In the player: {versionLabel(chosen)}</p>}
             <VersionList versions={vs} selected={chosen?.id ?? null} onSelect={setSelected} />
-            {versions.isSuccess && vs.length === 0 && <p className="text-[13px] text-ink-2">Sürüm yok.</p>}
+            {versions.isSuccess && vs.length === 0 && <p className="text-[13px] text-ink-2">No versions.</p>}
           </>
         )}
         {tab === 'reviews' && video && <ReviewsTab videoId={videoId} versions={vs} run={run} status={video.status} artifacts={list} />}
         {tab === 'storyboard' && (newest(list, 'storyboard', run?.id ?? null)
           ? <StoryboardCard artifactId={newest(list, 'storyboard', run?.id ?? null)} />
-          : <p className="text-[13px] text-ink-2">Storyboard yok.</p>)}
+          : <p className="text-[13px] text-ink-2">No storyboard.</p>)}
         {tab === 'research' && <ResearchTab artifactId={newest(list, 'research', run?.id ?? null)} />}
         {tab === 'audit' && <Audit embedded initial={{ videoId }} fixed={['videoId']} />}
         {tab === 'publish' && video && (video.status === 'ready' || video.status === 'published'
           ? <PublishPanel key={videoId} videoId={videoId} />
-          : <p className="text-[13px] text-ink-2">Yayın için video hazır olmalı.</p>)}
+          : <p className="text-[13px] text-ink-2">The video must be ready to publish first.</p>)}
       </DetailTabs>
     </div>
   );

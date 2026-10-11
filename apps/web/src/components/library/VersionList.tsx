@@ -1,12 +1,14 @@
-import { formatClock, formatScore, type VersionView } from '@videogen/shared/browser';
+import { formatClock, type VersionView } from '@videogen/shared/browser';
+import { score as formatScore } from '../../lib/i18n.ts';
 import { versionLabel } from '../../lib/compare-view.ts';
 import { formatDay } from '../../lib/production-view.ts';
 
 export function reasonLabel(reason: string): string {
-  if (reason === 'produce') return 'İlk üretim';
-  if (reason === 'fix:rework') return "Storyboard'dan yeniden";
-  if (reason === 'fix:pending') return 'Düzeltme';
-  return reason.startsWith('fix:') ? `Düzeltme (${reason.slice(4)})` : reason;
+  if (reason === 'produce') return 'First production';
+  if (reason === 'fix:rework') return 'Redone from the storyboard';
+  if (reason === 'fix:pending') return 'Fix';
+  if (reason === 'audio_edit') return 'Audio edit';
+  return reason.startsWith('fix:') ? `Fix (${reason.slice(4)})` : reason;
 }
 
 const badge = 'rounded-full bg-inset px-2 py-0.5 text-[11.5px] text-ink';
@@ -18,22 +20,22 @@ const badge = 'rounded-full bg-inset px-2 py-0.5 text-[11.5px] text-ink';
 export function VersionList({ versions, selected, onSelect }: { versions: VersionView[]; selected: string | null; onSelect: (id: string) => void }) {
   if (!versions.length) return null;
   return (
-    <ul data-testid="versions-list" aria-label="Sürümler" className="flex flex-col divide-y divide-line rounded-card border border-line/60 bg-paper shadow-subtle">
+    <ul data-testid="versions-list" aria-label="Versions" className="flex flex-col divide-y divide-line rounded-card bg-paper">
       {versions.map((v) => {
         const body = (
           <>
-            <span className="w-20 shrink-0 text-[13.5px] font-medium">{versionLabel(v)}</span>
+            <span className="w-[4.5rem] shrink-0 text-[13.5px] font-medium md:w-20">{versionLabel(v)}</span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[12.5px] text-ink-2">{reasonLabel(v.reason)} · {formatDay(v.createdAt)}</span>
               <span className="mt-0.5 flex flex-wrap gap-1">
-                {v.best && <span className={badge}>en iyi</span>}
-                {v.current && <span className={badge}>güncel</span>}
-                {v.published && <span className="rounded-full bg-green/10 px-2 py-0.5 text-[11.5px] text-green">yayında</span>}
-                {!v.finals && <span data-testid="version-unfinished" className={`${badge} text-ink-3`}>tamamlanmadı</span>}
+                {v.best && <span className={badge}>best</span>}
+                {v.current && <span className={badge}>current</span>}
+                {v.published && <span className="rounded-full bg-green/10 px-2 py-0.5 text-[11.5px] text-green">published</span>}
+                {!v.finals && <span data-testid="version-unfinished" className={`${badge} text-ink-3`}>unfinished</span>}
               </span>
             </span>
             <span className="shrink-0 text-right text-[12px] tabular-nums text-ink-3">
-              {v.total !== null ? <span className="block text-[13px] text-ink">{formatScore(v.total)} puan</span> : null}
+              {v.total !== null ? <span className="block text-[13px] text-ink">{formatScore(v.total)} points</span> : null}
               {v.finals ? <span className="block">{formatClock(v.finals.durationS)}</span> : null}
             </span>
           </>

@@ -57,3 +57,7 @@ export function compareView(versions: VersionView[], aId: string | null | undefi
 export function syncPlan(aTime: number, bTime: number): { seekB?: number } {
   return Math.abs(aTime - bTime) > SYNC_DRIFT_S + 1e-9 ? { seekB: aTime } : {};
 }
+
+/** Side by side needs two 9:16 players of a useful size (each at least ~290 px wide): A/B below 600 px. */
+export const SIDE_BY_SIDE_MIN = 600;
+export const defaultCompareMode = (width: number): 'side' | 'ab' => (width < SIDE_BY_SIDE_MIN ? 'ab' : 'side');
