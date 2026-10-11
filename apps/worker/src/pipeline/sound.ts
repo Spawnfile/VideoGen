@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
-import { GENERATED_MUSIC_TITLE, licenseVerdict, type AudioMode, type AudioPlan, type SfxName } from '@videogen/shared';
+import { GENERATED_MUSIC_TITLE, licenseVerdict, YAKLASIM, type AudioMode, type AudioPlan, type SfxName } from '@videogen/shared';
 import type { AssetRecord } from '@videogen/db';
 
 /** Plan E10: scene events → sounds (spec §7.6: explode_start → whoosh, part_lock → click/snap). */
 export const SFX_FOR_EVENT = { explode_start: 'whoosh', part_lock: 'click', label_in: 'tick', zoom: 'swoosh' } as const satisfies Record<string, SfxName>;
-export const SFX_GAIN_DB: Record<SfxName, number> = { whoosh: -6, swoosh: -8, click: -10, snap: -8, tick: -16, thud: -6 };
+export const SFX_GAIN_DB: Record<SfxName, number> = { whoosh: -6, swoosh: -8, click: -10, snap: -8, tick: -16, thud: -6, y_snap: -9, y_tap: -12, y_land: -7 };
 export const MUSIC_GAIN_DB = -18;
 /** Storyboard sfx_cues are free text (≤ 40 chars): Turkish and English words that name a library sound. */
 const SYNONYMS: [string, SfxName][] = [
@@ -34,6 +34,26 @@ export function planSfx(o: { events: { id: string; type: EventType; frame: numbe
     if (kept.filter((k) => k.name === c.name && c.atMs - k.atMs < 10_000).length >= 3) continue;
     kept.push(c);
   }
+  return kept;
+}
+
+/**
+ * YAKLASIM spec Y15: quiet for the first 5 s (only the music), then low sine sounds only — a snap when a part locks home, a tap on a flash
+ * cut, a land on the last lock. No hook whoosh, ticks, label sounds or zoom swooshes; cues at least 0.25 s apart.
+ */
+export function planSfxYaklasim(o: { events: { id: string; type: EventType; frame: number }[]; beats: { id: string; t_start: number; transition?: string }[]; fps: number; durationS: number }): SfxCue[] {
+  const from = YAKLASIM.sfxFromS * 1000;
+  const end = Math.max(0, Math.round(o.durationS * 1000) - 50);
+  const locks = o.events.filter((e) => e.type === 'part_lock').map((e) => ({ atMs: Math.round((e.frame / o.fps) * 1000), source: `event:${e.id}` })).sort((a, b) => a.atMs - b.atMs);
+  const last = locks.at(-1);
+  const raw: SfxCue[] = [
+    ...locks.map((l) => ({ atMs: l.atMs, name: (l === last ? 'y_land' : 'y_snap') as SfxName, source: l.source })),
+    ...o.beats.filter((b) => b.transition === 'flash').map((b) => ({ atMs: Math.round(b.t_start * 1000), name: 'y_tap' as SfxName, source: `beat:${b.id}` })),
+  ].filter((c) => c.atMs >= from).map((c) => ({ ...c, atMs: Math.min(c.atMs, end) }));
+  // The land wins its moment, then the snaps (the lock itself), then the taps.
+  const rank = (c: SfxCue) => (c.name === 'y_land' ? 0 : c.name === 'y_snap' ? 1 : 2);
+  const kept: SfxCue[] = [];
+  for (const c of raw.sort((a, b) => a.atMs - b.atMs || rank(a) - rank(b))) if (!kept.some((k) => Math.abs(k.atMs - c.atMs) < 250)) kept.push(c);
   return kept;
 }
 

@@ -47,7 +47,7 @@ describe('compose step', () => {
     expect(await latestArtifact(t.pool, r.runId, 'stem_voice')).toBeNull(); // silent video
   }, 180_000);
 
-  it('renaming a part label (name_tr) keeps the final frames current; a lens change makes them stale', async () => {
+  it('renaming a part label (name_tr) keeps the final frames current; a storyboard edit recomposes; a lens change makes the frames stale; YAKLASIM sounds only', async () => {
     const h = setup();
     const { r } = await h.framed('Kalem etiket');
     const scene = fx('scene-kalem');
@@ -61,8 +61,11 @@ describe('compose step', () => {
     expect([half(0.15), half(0.05), half(0.25), half(0.1)]).toEqual([4, 2, 8, 3]);
     const before = await src();
     expect(before.framesHash).toBe(before.currentFramesHash);
-    expect(tickAt(before)).toContainEqual(['event:label_in:b2:bilye', 3500]);
-    expect(tickAt(before)).toContainEqual(['event:label_in:b1:murekkep-haznesi', 1500]);
+    // YAKLASIM spec Y15: no label ticks; quiet for 5 s, then the snaps of the parts locking home, a tap on each flash cut and the final land.
+    expect(tickAt(before)).toEqual([]);
+    expect(before.sound.cues.every((c) => c.atMs >= 5000 && ['y_snap', 'y_tap', 'y_land'].includes(c.name))).toBe(true);
+    expect(before.sound.cues.find((c) => c.name === 'y_land')).toMatchObject({ source: 'event:part_lock:yay', atMs: 12500 });
+    expect(before.sound.cues.find((c) => c.source === 'beat:b3')).toMatchObject({ name: 'y_tap', atMs: 5500 });
 
     await insertArtifact(t.pool, { runId: r.runId, kind: 'scene', content: { ...scene, parts: scene.parts.map((p: { id: string; name_tr: string }) => (p.id === 'bilye' ? { ...p, name_tr: 'Yuvarlak bilye' } : p)) } });
     const renamed = await src();
@@ -76,11 +79,7 @@ describe('compose step', () => {
     const after = await src();
     expect(after.framesHash).toBe(after.currentFramesHash);
     expect(after.hash).not.toBe(renamed.hash);
-    const ticks = tickAt(after);
-    expect(ticks).toContainEqual(['event:label_in:b2:bilye', 4000]);
-    expect(ticks).toContainEqual(['event:label_in:b1:yay', 1500]);
-    expect(ticks.map((x) => x[0])).not.toContain('event:label_in:b1:murekkep-haznesi');
-    expect(ticks).not.toContainEqual(['event:label_in:b2:bilye', 3500]);
+    expect(tickAt(after)).toEqual([]);
 
     await insertArtifact(t.pool, { runId: r.runId, kind: 'scene', content: { ...scene, camera_keys: scene.camera_keys.map((k: { lens_mm: number }, i: number) => (i === 0 ? { ...k, lens_mm: k.lens_mm + 5 } : k)) } });
     const stale = await src();

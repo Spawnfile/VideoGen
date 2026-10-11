@@ -1,4 +1,5 @@
 import type { Storyboard } from './artifacts.ts';
+import type { MusicScore } from './music.ts';
 import type { SafeArea } from './safe-area.ts';
 import type { SceneSpec } from './scene.ts';
 
@@ -138,3 +139,33 @@ export function yaklasimSafeArea(a: SafeArea): SafeArea {
   const M = YAKLASIM.margins;
   return { top: Math.max(a.top, M.top), bottom: Math.min(a.bottom, 1920 - M.bottom), right: Math.max(a.right, M.right), left: Math.max(a.left, M.left) };
 }
+
+/**
+ * Spec Y14: the music is fixed — 120 BPM, A minor, Am–F–C–G from frame 0, the drums thin out on every macro beat. Written as a MusicScore so
+ * the fixer, the audio reviewer and compose read it like any score; the YAKLASIM generator (audio_service.yaklasim_audio) renders it.
+ */
+export function yaklasimScore(sb: Pick<Storyboard, 'duration_s' | 'beats'>): MusicScore {
+  const chords = ['Am', 'F', 'C', 'G'];
+  const full = (i: number, t0: number, t1: number) => ({ id: `full_${i}`, t_start: t0, t_end: t1, chords, energy: 0.9, layers: [
+    { instrument: 'pad' as const, pattern: 'sustain', level: 0.6 }, { instrument: 'bass' as const, pattern: 'pulse', level: 0.7 }, { instrument: 'drums' as const, pattern: 'four', level: 0.8 }] });
+  const sparse = (i: number, t0: number, t1: number) => ({ id: `macro_${i}`, t_start: t0, t_end: t1, chords, energy: 0.55, layers: [
+    { instrument: 'pad' as const, pattern: 'sustain', level: 0.6 }, { instrument: 'bass' as const, pattern: 'pulse', level: 0.7 }, { instrument: 'drums' as const, pattern: 'half', level: 0.5 }] });
+  const sections: MusicScore['sections'] = [];
+  let t = 0;
+  let nf = 0;
+  let nm = 0;
+  for (const b of sb.beats.filter((x) => x.role === 'macro')) {
+    if (b.t_start > t) sections.push(full(++nf, t, b.t_start));
+    sections.push(sparse(++nm, b.t_start, b.t_end));
+    t = b.t_end;
+  }
+  if (t < sb.duration_s) sections.push(full(++nf, t, sb.duration_s));
+  return {
+    version: 1, bpm: YAKLASIM.bpm, key: { root: 'A', mode: 'minor' }, duration_s: sb.duration_s,
+    intent_tr: 'YAKLASIM: 120 BPM Am–F–C–G, 0. karede tam enerji, makroda yalnızca davul seyrelir; giriş ve çıkış yok (döngü).',
+    sections, accents: [],
+  };
+}
+
+/** The sparse-drum windows of a YAKLASIM score (its macro sections), for the generator. */
+export const sparseWindows = (s: MusicScore): [number, number][] => s.sections.filter((x) => x.id.startsWith('macro_')).map((x) => [x.t_start, x.t_end]);

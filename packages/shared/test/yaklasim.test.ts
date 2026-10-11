@@ -132,3 +132,18 @@ describe('the YAKLASIM kalem fixtures follow the approach (spec Y20)', () => {
     expect(yaklasimSceneErrors(sc, sb)).toEqual([]);
   });
 });
+
+describe('YAKLASIM music score (spec Y14)', () => {
+  it('a deterministic, valid 120 BPM A-minor score covering the video, with a sparse section on every macro beat and no riser', async () => {
+    const { musicScoreErrors, MusicScoreSchema, yaklasimScore, sparseWindows } = await import('../src/index.ts');
+    const sb = good();
+    const s = yaklasimScore(sb);
+    expect(MusicScoreSchema.parse(s)).toEqual(s);
+    expect(musicScoreErrors(s, { durationS: sb.duration_s })).toEqual([]);
+    expect(s).toMatchObject({ bpm: 120, key: { root: 'A', mode: 'minor' }, duration_s: 13, accents: [] });
+    expect(s.sections.map((x) => [x.id, x.t_start, x.t_end])).toEqual([['full_1', 0, 3.5], ['macro_1', 3.5, 5.5], ['full_2', 5.5, 13]]);
+    for (const x of s.sections) expect(x.chords).toEqual(['Am', 'F', 'C', 'G']);
+    expect(sparseWindows(s)).toEqual([[3.5, 5.5]]);
+    expect(yaklasimScore(sb)).toEqual(s);
+  });
+});

@@ -32,6 +32,10 @@ const SFX_RECIPES: Record<SfxName, string> = {
   snap: "aevalsrc='0.9*(sin(2*PI*1200*t)+0.5*sin(2*PI*3100*t))*exp(-t*60)':d=0.12:s=48000",
   tick: "aevalsrc='0.5*sin(2*PI*3600*t)*exp(-t*140)':d=0.04:s=48000",
   thud: "aevalsrc='0.9*sin(2*PI*90*t)*exp(-t*18)':d=0.35:s=48000",
+  // YAKLASIM spec Y15 (episodes/rubik/audio/sfx.py): fixed-pitch sines, 6–8 ms attack, exponential decay, 20 ms release.
+  y_snap: "aevalsrc='0.55*(sin(2*PI*330*t)+0.6*sin(2*PI*165*t)+0.12*sin(2*PI*660*t))*min(1,t/0.006)*exp(-t*22)*min(1,(0.14-t)/0.02)':d=0.14:s=48000",
+  y_tap: "aevalsrc='0.7*(sin(2*PI*294*t)+0.4*sin(2*PI*147*t))*min(1,t/0.008)*exp(-t*20)*min(1,(0.12-t)/0.02)':d=0.12:s=48000",
+  y_land: "aevalsrc='0.6*((sin(2*PI*70*t)+0.3*sin(2*PI*140*t))*exp(-t*8)+(0.45*sin(2*PI*440*t)+0.6*sin(2*PI*220*t))*exp(-t*18)*lt(t,0.16))*min(1,t/0.006)*min(1,(0.5-t)/0.02)':d=0.5:s=48000",
 };
 const SFX_LICENSE = 'CC0 1.0 Universal. VideoGen bu sesi ffmpeg ile kendisi üretir (prosedürel; üçüncü taraf kaynak yok).\n';
 

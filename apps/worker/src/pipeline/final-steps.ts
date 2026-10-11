@@ -15,7 +15,7 @@ import { RenderError } from '../render/driver.ts';
 import { draftProbeErrors, encodeDelivery, extractFrame, FINAL_ENCODE, probeVideo } from '../render/ffmpeg.ts';
 import { missingFrames, removeStaleFrames } from '../render/frames.ts';
 import { probeQc } from '../render/qc.ts';
-import { DUCK, duckingEnvelope, effectiveAudioPlan, LicenseError, planSfx, soundPlan, withImportedSfx, type GeneratedMusic, type SoundPlan } from './sound.ts';
+import { DUCK, duckingEnvelope, effectiveAudioPlan, LicenseError, planSfx, planSfxYaklasim, soundPlan, withImportedSfx, type GeneratedMusic, type SoundPlan } from './sound.ts';
 import { persist, record, sha, type StepDeps } from './steps.ts';
 import { voKey } from './voice-step.ts';
 import type { StepExecutor, StepOutcome } from './types.ts';
@@ -184,7 +184,10 @@ export async function composeSource(deps: StepDeps, runId: string, videoId: stri
   let eff: ReturnType<typeof effectiveAudioPlan>;
   try {
     eff = effectiveAudioPlan({ stored: storedPlan?.ok ? storedPlan.value : null, mode: audioMode, music: tracks, seed: videoId, generated });
-    sound = soundPlan(planSfx({ events: currentEvents(ev.data.events, b.value.beats, 30), beats: b.value.beats, fps: 30, durationS }), library, eff.music, eff.plan, eff.generated);
+    const events = currentEvents(ev.data.events, b.value.beats, 30);
+    // YAKLASIM spec Y15: the approach's quiet-then-snap sound plan for a yaklasim scene; older videos keep theirs.
+    const cues = s.value.style_id === 'yaklasim' ? planSfxYaklasim({ events, beats: b.value.beats, fps: 30, durationS }) : planSfx({ events, beats: b.value.beats, fps: 30, durationS });
+    sound = soundPlan(cues, library, eff.music, eff.plan, eff.generated);
   } catch (e) {
     if (e instanceof LicenseError) return { error: `lisans kapısı: ${e.message}` };
     throw e;
