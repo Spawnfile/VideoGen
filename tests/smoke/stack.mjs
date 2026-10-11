@@ -5,11 +5,11 @@ import pg from 'pg';
 import { cleanChildEnv } from '../../packages/shared/src/paid-key-guard.ts';
 
 const ROOT = resolve(import.meta.dirname, '../..');
-const DB = 'videogen_smoke';
+const DB = process.env.VG_SMOKE_DB ?? 'videogen_smoke';
 const ADMIN = 'postgres://videogen:videogen@127.0.0.1:5433/videogen';
 const ADMIN_SMOKE = `postgres://videogen:videogen@127.0.0.1:5433/${DB}`;
 const APP_SMOKE = `postgres://videogen_app:videogen_app@127.0.0.1:5433/${DB}`;
-const SMOKE_DIR = '/tmp/videogen-smoke'; // keep in sync with helpers.ts
+const SMOKE_DIR = process.env.VG_SMOKE_DIR ?? '/tmp/videogen-smoke'; // keep in sync with helpers.ts
 
 // Any failing setup step exits non-zero with one clear line, so Playwright reports "exited early".
 function run(cmd, args, opts = {}) {
@@ -41,7 +41,7 @@ await dropDb();
 
 const env = {
   ...cleanChildEnv(process.env),
-  VG_PORT: '5190',
+  VG_PORT: process.env.VG_SMOKE_PORT ?? '5190',
   VG_DATABASE_URL: APP_SMOKE,
   VG_ADMIN_DATABASE_URL: ADMIN_SMOKE,
   VG_DATA_DIR: join(SMOKE_DIR, 'data'),

@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
 import pg from 'pg';
-import { produceVia, startDevSession, STUCK_SCRIPT } from './helpers.ts';
+import { APP_SMOKE, produceVia, startDevSession, STUCK_SCRIPT } from './helpers.ts';
 
 test.skip(!process.env.VG_SCREENSHOTS, 'yalnızca elle: VG_SCREENSHOTS=1 npm run test:smoke -- screens');
 test.use({ viewport: { width: 1440, height: 900 } });
@@ -201,7 +201,7 @@ test('M7 screens: audit explorer, library compare, asset ledger, Settings data',
   await startDevSession(request, { role: 'researcher', script: { fixture: 'websearch' } });
   const r = await request.post('/api/dev/videos/ready', { data: { productName: 'Tükenmez kalem' } });
   const { videoId } = (await r.json()) as { videoId: string };
-  const db = new pg.Client({ connectionString: 'postgres://videogen_app:videogen_app@127.0.0.1:5433/videogen_smoke' });
+  const db = new pg.Client({ connectionString: APP_SMOKE });
   await db.connect();
   try {
     const dims = (d: number) => JSON.stringify({ D1: 12 + d, D2: 13, D3: 10, D4: 14, D5: 8 + d, D6: 10, D7: 4, D8: 6 + d, D9: 7 });

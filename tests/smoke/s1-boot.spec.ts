@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { expect, test } from '@playwright/test';
+import { SMOKE_PORT } from './helpers.ts';
 
 test('S1: shell boots under 2 s and shows Claude connection, usage and worker liveness', async ({ page }) => {
   const errors: string[] = [];
@@ -31,7 +32,7 @@ test('S1: shell boots under 2 s and shows Claude connection, usage and worker li
 test('S1: non-localhost Host is rejected on reads and on the event stream', async () => {
   for (const path of ['/api/health', '/events']) {
     const status = await new Promise<number>((ok, ko) => {
-      const req = http.get({ host: '127.0.0.1', port: 5190, path, headers: { host: 'evil.example' } }, (r) => { ok(r.statusCode ?? 0); r.destroy(); });
+      const req = http.get({ host: '127.0.0.1', port: SMOKE_PORT, path, headers: { host: 'evil.example' } }, (r) => { ok(r.statusCode ?? 0); r.destroy(); });
       req.on('error', ko);
     });
     expect(status, path).toBe(403);

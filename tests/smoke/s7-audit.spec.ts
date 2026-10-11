@@ -1,8 +1,7 @@
 import { expect, test } from '@playwright/test';
 import pg from 'pg';
-import { produceVia } from './helpers.ts';
+import { APP_SMOKE, produceVia } from './helpers.ts';
 
-const APP_SMOKE = 'postgres://videogen_app:videogen_app@127.0.0.1:5433/videogen_smoke';
 async function sql<T = Record<string, unknown>>(q: string, args: unknown[] = []): Promise<T[]> {
   const c = new pg.Client({ connectionString: APP_SMOKE });
   await c.connect();
