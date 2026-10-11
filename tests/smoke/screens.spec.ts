@@ -92,14 +92,6 @@ test('M4b screen: studio build card', async ({ page }) => {
   await page.screenshot({ path: shot('studio-build.png', 'm4') });
 });
 
-test('M4b screen: channel identity (K19)', async ({ page }) => {
-  await page.goto('/settings');
-  const group = page.getByRole('radiogroup', { name: 'Kanal kimliği' });
-  await expect(group.getByRole('radio')).toHaveCount(3);
-  await expect.poll(() => group.getByRole('img').first().evaluate((i) => (i as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
-  await page.waitForTimeout(400);
-  await page.screenshot({ path: shot('settings-k19.png', 'm4'), fullPage: true });
-});
 
 test('M4c screen: studio draft round, review card and the two player tabs', async ({ page, request }) => {
   test.setTimeout(120_000);

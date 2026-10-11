@@ -51,15 +51,12 @@ test('S2b: "Üretimi durdur" during the build stops the builder; research, story
   await expect(page.getByTestId('build-card')).toHaveCount(0);
 });
 
-test('S2b: the channel identity chosen in Settings is the style of the next build (K19)', async ({ page, request }) => {
+test('S2b: YAKLASIM spec Y8 — Settings offers no channel identity; every build is in the YAKLASIM look', async ({ page, request }) => {
   test.setTimeout(90_000);
   await page.goto('/settings');
-  const group = page.getByRole('radiogroup', { name: 'Channel identity' });
-  await expect(page.getByRole('region', { name: 'Channel identity' }).getByText('Not chosen yet:')).toBeVisible(); // the channel note sits above the options (the narrator voice section has its own)
-  await group.getByRole('radio', { name: /White lab/ }).click();
-  await expect(group.getByRole('radio', { name: /White lab/ })).toHaveAttribute('aria-checked', 'true');
-  const { videoId } = await produceVia(request, 'Beyaz kalem', 'silent', 'draft_review');
+  await expect(page.getByRole('radiogroup', { name: 'Channel identity' })).toHaveCount(0);
+  const { videoId } = await produceVia(request, 'Lacivert kalem', 'silent', 'draft_review');
   await page.goto(`/?video=${videoId}`);
-  await expect(page.getByTestId('build-card')).toContainText('White lab', { timeout: 60_000 });
+  await expect(page.getByTestId('build-card')).toContainText('YAKLASIM', { timeout: 60_000 });
   await expect(page.locator('[data-testid="step"][data-key="build"]')).not.toContainText('kanal kimliği geçici');
 });

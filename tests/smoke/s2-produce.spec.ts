@@ -2,13 +2,14 @@ import { expect, test } from '@playwright/test';
 import { STEP_KEYS } from '@videogen/shared';
 import { produceVia } from './helpers.ts';
 
-test('S2a: Seslendirmeli — product name → research → … → voice → … → final, the voice card plays, one run for a double click, monotone progress, listed in the library', async ({ page, request }) => {
+test('S2a: YAKLASIM — product name → research → storyboard → music → … → final, no voice step, the fixed music, the caption on the video, one run for a double click, monotone progress, listed in the library', async ({ page, request }) => {
   test.setTimeout(300_000);
   await page.goto('/');
   const bar = page.getByRole('region', { name: 'New production' });
   await bar.getByRole('textbox', { name: 'Product name' }).fill('Tükenmez kalem');
-  await bar.getByRole('radio', { name: 'With voiceover' }).click();
-  const listed = async () => { const r = await request.get('/api/videos'); expect(r.ok()).toBe(true); return (await r.json()) as { id: string; status: string; statusNote: string | null }[]; };
+  await expect(bar.getByTestId('yaklasim-line')).toHaveText('YAKLASIM · 12–15 s · no voiceover · English on-screen text');
+  await expect(bar.getByRole('radio', { name: 'With voiceover' })).toHaveCount(0);
+  const listed = async () => { const r = await request.get('/api/videos'); expect(r.ok()).toBe(true); return (await r.json()) as { id: string; status: string; statusNote: string | null; approach: string | null; youtubeTitle: string | null }[]; };
   const beforeIds = new Set((await listed()).map((v) => v.id));
   const before = beforeIds.size;
   // Two clicks in one task: only the send lock can stop the second (separate clicks would see the cleared box).
@@ -23,13 +24,10 @@ test('S2a: Seslendirmeli — product name → research → … → voice → …
     await expect(page.getByTestId('research-card')).toContainText('Basmalı, tek kullanımlık', { timeout: 30_000 });
     await expect(page.locator('[data-testid="step"][data-key="storyboard"]')).toHaveAttribute('data-status', 'done', { timeout: 30_000 });
     await expect(page.locator('[data-testid="step"][data-key="build"]')).toHaveAttribute('data-status', 'done', { timeout: 30_000 });
-    // The voice step sits before review; its note carries the K17 marker, which relies on no smoke test choosing a narrator voice (chosen stays false).
-    const voice = page.locator('[data-testid="step"][data-key="voice"]');
-    await expect(voice).toHaveAttribute('data-status', 'done', { timeout: 120_000 });
-    await expect(voice).toContainText(/\d+ satır · \d+:\d\d · en kötü CER %[\d,.]+ · Chatterbox · hazır ses · GEÇİCİ ses \(K17\)/);
-    // The whole plan, in order (retrying: the list may still be rendering).
-    // `remix` belongs to audio edits only (agent music design A6)
-    const produced = STEP_KEYS.filter((k) => k !== 'remix');
+    // YAKLASIM spec Y14: the fixed music, no composer.
+    await expect(page.locator('[data-testid="step"][data-key="music"]')).toContainText('YAKLASIM · 120 BPM · A minör', { timeout: 60_000 });
+    // The whole plan, in order (retrying: the list may still be rendering): no voice step (spec Y2); `remix` belongs to audio edits only.
+    const produced = STEP_KEYS.filter((k) => k !== 'remix' && k !== 'voice');
     await expect(page.locator('[data-testid="step"]')).toHaveCount(produced.length);
     expect(await page.locator('[data-testid="step"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-key')))).toEqual(produced);
     await expect(header).toHaveAttribute('data-status', 'ready', { timeout: 200_000 });
@@ -39,23 +37,17 @@ test('S2a: Seslendirmeli — product name → research → … → voice → …
   const last = await bar2.getAttribute('aria-valuenow');
   const seen = [...samples, ...(last !== null ? [Number(last)] : [])];
   await expect(header).toContainText('Ready to publish');
-  await expect(page.getByTestId('storyboard-card').locator('li')).toHaveCount(7);
+  await expect(page.getByTestId('storyboard-card').locator('li')).toHaveCount(6);
   await expect(bar2).toHaveAttribute('aria-valuenow', '100');
-  const card = page.getByTestId('voice-card');
-  await expect(card).toBeVisible({ timeout: 10_000 });
-  await expect(card).toHaveAccessibleName('Voiceover');
-  const audio = page.getByTestId('voice-audio');
-  await expect(audio).toBeVisible({ timeout: 10_000 });
-  // Headless Chrome only autoplays muted media.
-  await audio.evaluate(async (a) => { const el = a as HTMLAudioElement; el.muted = true; await el.play(); });
-  await expect.poll(() => audio.evaluate((a) => (a as HTMLAudioElement).currentTime), { timeout: 10_000 }).toBeGreaterThan(0.3);
-  await audio.evaluate((a) => { (a as HTMLAudioElement).pause(); });
+  await expect(page.getByTestId('voice-card')).toHaveCount(0);
   expect(seen.length).toBeGreaterThan(5);
   for (let i = 1; i < seen.length; i++) expect(seen[i], `progress went back at sample ${i}`).toBeGreaterThanOrEqual(seen[i - 1]!);
   const all = await listed();
   const created = all.filter((v) => !beforeIds.has(v.id));
   expect(created).toHaveLength(1);
   expect([created[0]!.status, created[0]!.statusNote]).toEqual(['ready', null]);
+  // YAKLASIM spec Y17: finalize put the storyboard's caption and YouTube title on the video.
+  expect(created[0]).toMatchObject({ approach: 'yaklasim', youtubeTitle: "What's inside a ballpoint pen" });
   expect(all.length - before).toBe(1);
 
   await page.getByRole('link', { name: 'Library' }).click();
