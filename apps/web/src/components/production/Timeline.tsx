@@ -30,6 +30,8 @@ export function Timeline({ run }: { run: RunView }) {
     return () => removeEventListener('resize', measure);
   }, []);
   const [nowLabel, nowClass] = NOW[v.now.kind];
+  // A run whose every step was skipped has no time to show.
+  if (v.totalS === 0) return null;
   return (
     <section aria-label="Timeline" data-testid="timeline" className="-mx-4 border-y border-line bg-paper/70 px-4 pt-2.5 pb-3 md:mx-0 md:rounded-card md:border">
       <div className="flex gap-2">

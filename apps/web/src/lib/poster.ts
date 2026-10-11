@@ -39,3 +39,11 @@ export const LABEL_CLASS: Record<LabelTone, string> = {
 
 /** The top bar's LIVE count: productions that are running or waiting their turn. */
 export const liveCount = (videos: Pick<VideoView, 'status'>[]): number => videos.filter((v) => v.status === 'running' || v.status === 'queued').length;
+
+/** Spec E15: other videos waiting for the user, newest first, at most two (the Studio strip under the bin). */
+export function pickNeedsYou<V extends Pick<VideoView, 'id' | 'status' | 'createdAt'>>(videos: V[], selected: string | null): V[] {
+  return videos
+    .filter((v) => v.status === 'needs_human' && v.id !== selected)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .slice(0, 2);
+}

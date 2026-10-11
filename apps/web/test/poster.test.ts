@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VideoStatus } from '@videogen/shared/browser';
-import { coverOf, lengthOf, posterTint, videoLabel } from '../src/lib/poster.ts';
+import { coverOf, lengthOf, pickNeedsYou, posterTint, videoLabel } from '../src/lib/poster.ts';
 
 describe('posterTint', () => {
   it('is stable for the same name and ignores case and outer spaces', () => {
@@ -62,5 +62,18 @@ describe('videoLabel', () => {
 
   it('says RUNNING without a run', () => {
     expect(videoLabel({ status: 'running' }, null)).toEqual({ text: 'RUNNING', tone: 'live' });
+  });
+});
+
+describe('pickNeedsYou', () => {
+  const v = (id: string, status: VideoStatus, createdAt: string) => ({ id, status, createdAt }) as Parameters<typeof pickNeedsYou>[0][number];
+
+  it('skips the selected video and keeps at most two, newest first', () => {
+    const list = [v('a', 'needs_human', '2026-10-11T01:00:00Z'), v('b', 'needs_human', '2026-10-11T03:00:00Z'), v('c', 'ready', '2026-10-11T04:00:00Z'), v('d', 'needs_human', '2026-10-11T02:00:00Z'), v('e', 'needs_human', '2026-10-11T05:00:00Z')];
+    expect(pickNeedsYou(list, 'e').map((x) => x.id)).toEqual(['b', 'd']);
+  });
+
+  it('is empty when nothing needs the user', () => {
+    expect(pickNeedsYou([v('a', 'ready', '2026-10-11T01:00:00Z'), v('b', 'running', '2026-10-11T02:00:00Z')], null)).toEqual([]);
   });
 });

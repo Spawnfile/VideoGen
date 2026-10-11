@@ -6,13 +6,14 @@ import { ChatPanel } from '../components/chat/ChatPanel.tsx';
 import { ProduceDock, ProduceForm } from '../components/production/ProduceBar.tsx';
 import { ProductionPanel } from '../components/production/ProductionPanel.tsx';
 import { Sheet } from '../components/shell/Sheet.tsx';
+import { NeedsYou } from '../components/studio/NeedsYou.tsx';
+import { VideoBin } from '../components/studio/VideoBin.tsx';
 import { api } from '../lib/api.ts';
-import { VIDEO_STATUS_EN } from '../lib/i18n.ts';
-import { NO_VIDEO, pickVideoId, videoTone } from '../lib/production-view.ts';
+import { NO_VIDEO, pickVideoId } from '../lib/production-view.ts';
+import { pickNeedsYou } from '../lib/poster.ts';
 import { pickStudioVideo, pipeline, seedVideos, studioPick, useStore, videoList } from '../lib/stores.ts';
 import { useLayout } from '../lib/viewport.ts';
 
-const DOT = { active: 'bg-accent-glow', ok: 'bg-green', error: 'bg-red', waiting: 'border border-ink-2', muted: 'bg-line-strong' } as const;
 /** "New video" from the keyboard (N), the app shortcut (/?new=1) or the dock opens the form. */
 export const NEW_VIDEO_EVENT = 'vg:new-video';
 
@@ -41,33 +42,18 @@ export function Studio() {
       <div className="flex h-full min-h-0 flex-col">
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {empty ? (
-            <div className="flex flex-col gap-5 px-4 pt-10 pb-8">
-              <div className="flex flex-col gap-2">
-                <h2 className="text-[22px] leading-tight font-medium tracking-tight text-balance">Make your first video</h2>
+            <div className="flex flex-col gap-6 px-4 pt-10 pb-8">
+              <div className="flex flex-col gap-2.5">
+                <p className="label-mono text-ink-3">VideoGen Studio</p>
+                <h2 className="text-[28px] leading-[1.05] font-bold tracking-[-0.035em] text-balance">Make your first video</h2>
                 <p className="text-[14px] leading-relaxed text-ink-2">Type a product. VideoGen researches it, writes the storyboard, renders a draft, reviews it and gets it ready for TikTok.</p>
               </div>
               <ProduceForm variant="hero" onCreated={created} />
             </div>
           ) : (
             <div className="flex flex-col gap-5 px-4 pt-1 pb-6">
-              {videos.length > 0 && (
-                <div role="tablist" aria-label="Videos" className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
-                  {videos.slice(0, 20).map((v) => (
-                    <button
-                      key={v.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={v.id === selected}
-                      title={VIDEO_STATUS_EN[v.status]}
-                      onClick={() => select(v.id)}
-                      className={`flex min-h-9 shrink-0 items-center gap-2 rounded-full border px-3.5 text-[13px] whitespace-nowrap focus-visible:outline-2 focus-visible:outline-accent-glow ${v.id === selected ? 'border-accent bg-accent text-white' : 'border-line text-ink-2'}`}
-                    >
-                      <span aria-hidden className={`size-1.5 rounded-full ${v.id === selected ? 'bg-white' : DOT[videoTone(v.status)]}`} />
-                      {v.productName}
-                    </button>
-                  ))}
-                </div>
-              )}
+              {videos.length > 0 && <VideoBin videos={videos.slice(0, 20)} selected={selected} onSelect={select} onNew={() => setSheet(true)} />}
+              <NeedsYou videos={pickNeedsYou(videos, selected)} onOpen={select} />
               <ProductionPanel videoId={selected} />
               <AgentPanel />
             </div>

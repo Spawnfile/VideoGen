@@ -9,9 +9,12 @@ const MODES: { id: AudioMode; label: string; hint: string }[] = [
   { id: 'vo', label: 'With voiceover', hint: PRODUCE_VO_HINT },
 ];
 const DURATION_MODES = [{ id: 'auto', label: 'Auto' }, { id: 'manual', label: 'Manual' }] as const;
+// Segmented control (spec E16): selection is neutral — ember is kept for Create video.
+const segment = 'flex rounded-input border border-line bg-inset p-[3px]';
 const pill = (on: boolean) =>
-  `min-h-9 rounded-full px-3.5 text-[13px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow md:min-h-0 md:px-3 md:py-1 ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
+  `min-h-10 flex-1 rounded-[7px] px-3 text-[13px] whitespace-nowrap transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow md:min-h-8 md:flex-none ${on ? 'bg-paper font-medium text-ink ring-1 ring-line-strong' : 'text-ink-2 hover:text-ink'}`;
 const field = 'rounded-input border border-line bg-inset outline-none transition-shadow duration-150 placeholder:text-ink-3 focus:border-accent-glow/60 focus:shadow-glow';
+const section = 'label-mono text-ink-3';
 
 /**
  * The production form. `bar`: the tablet/desktop strip above the Studio. `sheet`: inside the phone's "New video" sheet.
@@ -71,13 +74,13 @@ export function ProduceForm({ variant, onCreated }: { variant: 'bar' | 'sheet' |
     <button
       type="submit"
       disabled={busy || name.trim().length < 2}
-      className={`rounded-input bg-accent font-medium text-white transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow disabled:opacity-40 ${stacked ? 'min-h-12 w-full text-[15px]' : 'px-5 py-2.5 text-[14px]'}`}
+      className={`rounded-input bg-ember font-bold text-white shadow-ember transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow disabled:opacity-40 disabled:shadow-none ${stacked ? 'min-h-[50px] w-full text-[15px]' : 'px-5 py-2.5 text-[14px]'}`}
     >
       {busy ? 'Creating…' : 'Create video'}
     </button>
   );
   const modes = (
-    <div role="radiogroup" aria-label="Voiceover" className="flex flex-wrap gap-1">
+    <div role="radiogroup" aria-label="Voiceover" className={`${segment} ${stacked ? 'w-full' : ''}`}>
       {MODES.map((m) => (
         <button key={m.id} type="button" role="radio" aria-checked={mode === m.id} title={m.hint} onClick={() => setMode(m.id)} className={pill(mode === m.id)}>
           {m.label}
@@ -91,6 +94,7 @@ export function ProduceForm({ variant, onCreated }: { variant: 'bar' | 'sheet' |
       <form onSubmit={(e) => { e.preventDefault(); void submit(); }} className="flex flex-col gap-3">
         <div className={stacked ? 'flex flex-col gap-3' : 'flex flex-wrap items-center gap-3'}>
           <label htmlFor="product-name" className="sr-only">Product name</label>
+          {stacked && <span aria-hidden className={`${section} -mb-1.5`}>Product</span>}
           <input
             id="product-name"
             value={name}
@@ -99,15 +103,16 @@ export function ProduceForm({ variant, onCreated }: { variant: 'bar' | 'sheet' |
             placeholder="Product name, e.g. ballpoint pen"
             autoComplete="off"
             enterKeyHint="go"
-            className={`${field} min-w-0 flex-1 px-4 text-[15px] ${stacked ? 'min-h-12' : 'min-w-64 py-2.5'} ${variant === 'hero' ? 'border-accent-glow/35 shadow-glow' : ''}`}
+            className={`${field} min-w-0 flex-1 px-4 text-[15px] focus:ring-ember focus:[--ring-fill:var(--color-inset)] ${stacked ? 'min-h-12' : 'min-w-64 py-2.5'}`}
           />
+          {stacked && <span aria-hidden className={`${section} -mb-1.5 mt-1`}>Voiceover</span>}
           {modes}
           {!stacked && create}
         </div>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="text-[13px] text-ink-2">Length</span>
-          <div role="radiogroup" aria-label="Length" className="flex gap-1">
+          <span className={stacked ? `${section} w-full` : 'text-[13px] text-ink-2'}>Length</span>
+          <div role="radiogroup" aria-label="Length" className={segment}>
             {DURATION_MODES.map((m) => (
               <button key={m.id} type="button" role="radio" aria-checked={duration.mode === m.id} onClick={() => setDuration((d) => onDurationMode(d, m.id))} className={pill(duration.mode === m.id)}>
                 {m.label}
@@ -115,11 +120,11 @@ export function ProduceForm({ variant, onCreated }: { variant: 'bar' | 'sheet' |
             ))}
           </div>
           {duration.mode === 'manual' && <span className="flex items-center gap-2">{bound('minS', 'min')}{bound('maxS', 'max')}<span className="text-[13px] text-ink-3">s</span></span>}
-          <span data-testid="duration-badge" className="rounded-full border border-line px-2.5 py-0.5 text-[12px] text-ink-2">{durationBadge(duration)}</span>
+          <span data-testid="duration-badge" className="rounded-control border border-line px-2 py-1 font-mono text-[11.5px] text-ink-2">{durationBadge(duration)}</span>
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="produce-brief" className="text-[13px] text-ink-2">Brief <span className="text-ink-3">(optional)</span></label>
+          <label htmlFor="produce-brief" className={stacked ? section : 'text-[13px] text-ink-2'}>Brief <span className="text-ink-3">(optional)</span></label>
           <textarea
             id="produce-brief"
             value={brief}
@@ -131,7 +136,7 @@ export function ProduceForm({ variant, onCreated }: { variant: 'bar' | 'sheet' |
           />
           <div className="flex items-start justify-between gap-4 text-[11.5px] text-ink-3">
             <p className="max-w-[90ch]">{BRIEF_DEFAULTS}</p>
-            <span className="shrink-0 tabular-nums">{brief.length}/{BRIEF_MAX}</span>
+            <span className="shrink-0 font-mono tabular-nums">{brief.length}/{BRIEF_MAX}</span>
           </div>
         </div>
         {stacked && create}
@@ -141,21 +146,18 @@ export function ProduceForm({ variant, onCreated }: { variant: 'bar' | 'sheet' |
   );
 }
 
-/** Phone: the docked "New video" box above the tab bar; the one glowing element in the app. */
+/** Phone: the docked "New video" box above the tab bar; its key is the screen's one filled ember block (spec E16). */
 export function ProduceDock({ onOpen }: { onOpen: () => void }) {
   return (
-    <div className="border-t border-line/60 bg-canvas px-4 pt-2 pb-2.5">
+    <div className="border-t border-line/60 bg-canvas/90 px-4 pt-2 pb-2.5 backdrop-blur">
       <button
         type="button"
         data-testid="produce-dock"
         onClick={onOpen}
-        className="flex min-h-12 w-full items-center gap-3 rounded-input border border-accent-glow/35 bg-inset pr-1.5 pl-4 text-left text-[16px] text-ink-3 shadow-glow focus-visible:outline-2 focus-visible:outline-accent-glow"
+        className="flex min-h-12 w-full items-center gap-3 rounded-input border border-line bg-paper pr-1.5 pl-4 text-left text-[16px] text-ink-3 focus-visible:outline-2 focus-visible:outline-accent-glow"
       >
         <span className="flex-1 truncate">Product name, e.g. ballpoint pen</span>
-        <span aria-hidden className="flex size-9 items-center justify-center rounded-[10px] bg-accent text-white">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-        </span>
-        <span className="sr-only">New video</span>
+        <span className="flex min-h-10 shrink-0 items-center rounded-control bg-ember px-3.5 text-[13px] font-bold text-white shadow-ember">New video</span>
       </button>
     </div>
   );
