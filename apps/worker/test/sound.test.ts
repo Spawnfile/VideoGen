@@ -80,6 +80,20 @@ describe('sound plan, mix, mastering and the two variants', { timeout: 60_000 },
     expect(Math.abs(delivered.i + 14)).toBeLessThanOrEqual(1);
   });
 
+  it('YAKLASIM loops: the music plays at full level to the last frame (no 2 s outro fade), only a click-free tail of a few ms', async () => {
+    const d = tmp();
+    const bed = join(d, 'bed.wav');
+    execFileSync(FFMPEG, ['-v', 'error', '-f', 'lavfi', '-i', "aevalsrc='0.3*sin(2*PI*220*t)':d=6:s=48000", '-ac', '2', bed]);
+    const mix = join(d, 'mix.wav');
+    await mixTrack(FFMPEG, { cues: [], music: { file: bed, gainDb: 0, fadeInS: 0.02, fadeOutS: 0.04 }, durationS: 6, out: mix });
+    const pcm = execFileSync(FFMPEG, ['-v', 'error', '-i', mix, '-ac', '1', '-f', 's16le', '-']);
+    const s16 = new Int16Array(pcm.buffer, pcm.byteOffset, pcm.length / 2);
+    const rms = (a: number, b: number) => { let sum = 0; const i0 = Math.round(a * 48000), i1 = Math.round(b * 48000); for (let i = i0; i < i1; i++) sum += s16[i]! ** 2; return Math.sqrt(sum / (i1 - i0)); };
+    const body = rms(2, 3);
+    expect(rms(5.5, 5.9) / body).toBeGreaterThan(0.95); // the last half second is not faded
+    expect(rms(5.96, 6) / body).toBeLessThan(0.7); // the very end ramps down (no click at the loop seam)
+  });
+
   it('mixes cues into a 48 kHz track and muxes it next to a stream-copied delivery video (AAC 48 kHz, High profile, faststart)', async () => {
     const d = tmp();
     const master = join(d, 'master.mp4');

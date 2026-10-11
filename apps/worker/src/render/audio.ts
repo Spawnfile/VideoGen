@@ -8,8 +8,9 @@ const run = (ffmpeg: string, args: string[], signal?: AbortSignal) => new Promis
 
 /**
  * Spec §7.6: SFX cues (adelay) and the music bed (looped, faded) over a silent stereo base of the video's length; no normalisation in amix.
+ * `fadeOutS` (default 2 s): the music's tail fade; a looping YAKLASIM video passes a few ms (no outro, only no click at the seam).
  */
-export function mixTrack(ffmpeg: string, o: { cues: { atMs: number; file: string; gainDb: number }[]; music?: { file: string; gainDb: number; fadeInS?: number } | null; durationS: number; out: string; signal?: AbortSignal }): Promise<void> {
+export function mixTrack(ffmpeg: string, o: { cues: { atMs: number; file: string; gainDb: number }[]; music?: { file: string; gainDb: number; fadeInS?: number; fadeOutS?: number } | null; durationS: number; out: string; signal?: AbortSignal }): Promise<void> {
   const d = o.durationS;
   const args = ['-f', 'lavfi', '-t', String(d), '-i', 'anullsrc=r=48000:cl=stereo'];
   for (const c of o.cues) args.push('-i', c.file);
@@ -21,7 +22,7 @@ export function mixTrack(ffmpeg: string, o: { cues: { atMs: number; file: string
     labels.push(`[c${i}]`);
   });
   if (o.music) {
-    parts.push(`[${o.cues.length + 1}:a]aformat=sample_rates=48000:channel_layouts=stereo,atrim=0:${d},afade=t=in:d=${o.music.fadeInS ?? 1},afade=t=out:st=${Math.max(0, d - 2)}:d=2,volume=${o.music.gainDb}dB[m]`);
+    parts.push(`[${o.cues.length + 1}:a]aformat=sample_rates=48000:channel_layouts=stereo,atrim=0:${d},afade=t=in:d=${o.music.fadeInS ?? 1},afade=t=out:st=${Math.max(0, d - (o.music.fadeOutS ?? 2))}:d=${o.music.fadeOutS ?? 2},volume=${o.music.gainDb}dB[m]`);
     labels.push('[m]');
   }
   parts.push(`${labels.join('')}amix=inputs=${labels.length}:normalize=0:duration=first,atrim=0:${d}[out]`);

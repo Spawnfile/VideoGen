@@ -125,6 +125,9 @@ export function currentEvents(stored: SceneEvents['events'], beats: Storyboard['
   return [...stored.filter((e) => e.type !== 'label_in'), ...labels].sort((a, b) => a.frame - b.frame || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
+/** The mix recipe: a change re-composes (loop@1: the music runs to the last frame with a 40 ms tail, no 2 s outro). */
+const MIX = 'loop@1';
+
 /**
  * Plan E16: compose's input hash — frames, GLB, overlay props, template, master/encode settings, sound plan and (M7 Y15) the safe area the
  * text is laid out in, so a final composed under another area is not reused.
@@ -132,7 +135,7 @@ export function currentEvents(stored: SceneEvents['events'], beats: Storyboard['
 export function composeInputHash(o: { framesHash: string; glbSha: string; props: unknown; preset: string; sound: unknown; safeArea: SafeArea }): string {
   const { top, bottom, right, left } = o.safeArea;
   return sha({
-    step: 'compose', frames: o.framesHash, glb: o.glbSha, props: sha(o.props), bundle: bundleHash(), master: FINAL_MASTER, encode: FINAL_ENCODE, preset: o.preset, sound: sha(o.sound),
+    step: 'compose', frames: o.framesHash, glb: o.glbSha, props: sha(o.props), bundle: bundleHash(), master: FINAL_MASTER, encode: FINAL_ENCODE, preset: o.preset, sound: sha(o.sound), mix: MIX,
     safeArea: [top, bottom, right, left],
   });
 }
@@ -235,7 +238,8 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
         const cues = src.sound.cues.map((c) => ({ atMs: c.atMs, gainDb: c.gainDb, file: src.files.get(c.assetId)! }));
         // The fixed music opens at full energy on frame 0 with a short fade (YAKLASIM: no intro).
         const sm = src.sound.music;
-        const music = { file: src.generated.file, gainDb: sm.gainDb, fadeInS: 0.02 };
+        // YAKLASIM loops: full energy to the last frame (no outro), only a 40 ms click-free tail at the seam.
+        const music = { file: src.generated.file, gainDb: sm.gainDb, fadeInS: 0.02, fadeOutS: 0.04 };
         const out = { music: join(dir, 'final_music.mp4') };
         await mixTrack(scene.ffmpeg, { cues, music, durationS: src.durationS, out: join(dir, 'mix-music.wav'), signal: ctx.signal });
         await masterVariant(scene.ffmpeg, join(dir, 'mix-music.wav'), video, out.music, ctx.signal);
