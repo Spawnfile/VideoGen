@@ -70,7 +70,8 @@ the tab bar steps aside for the keyboard and the sheet sits above it.
   `STOPPED`, `QUEUED`); a live frame wears `ring-ember`, the selected frame that is not live a 2px ink border; `+ New` at the
   end. `role="tab"` per frame.
 - `studio/NeedsYou.tsx` — up to two other videos waiting for the user, amber, with `Open`.
-- `production/Timeline.tsx` + `lib/timeline-view.ts` — the run on one time axis in lanes `V` / `A` / `QC`; widths from real step timings
+- `production/Timeline.tsx` + `lib/timeline-view.ts` — the run on one time axis (the NOW line reads `Needs you · clock` in amber for a run that
+  stopped for the user, with the playhead where the work stopped) in lanes `V` / `A` / `QC`; widths from real step timings
   (`STEP_DEFAULT_S` where there are none), at least 4 % per block, skipped steps as a 4px mark; the playhead; `● Now · 4:12` with the
   running step's note. Tapping a block scrolls to its row in the step list (`#step-<StepView.id>`).
 - `production/VideoHeader.tsx` — title, one mono meta line (state in its tone, voiceover, length window and source), a 3px progress bar.

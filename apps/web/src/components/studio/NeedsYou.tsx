@@ -11,7 +11,7 @@ export function NeedsYou({ videos, onOpen }: { videos: VideoView[]; onOpen: (id:
             <p className="label-mono truncate text-amber">{v.productName} · Needs you</p>
             {v.statusNote && <p className="mt-0.5 truncate text-[13px] text-ink-2">{v.statusNote}</p>}
           </div>
-          <button type="button" onClick={() => onOpen(v.id)} aria-label={`Open ${v.productName}`} className="min-h-10 shrink-0 rounded-control border border-amber/50 px-3 text-[13px] font-medium text-amber focus-visible:outline-2 focus-visible:outline-accent-glow">
+          <button type="button" onClick={() => onOpen(v.id)} aria-label={`Open ${v.productName}`} className="min-h-11 shrink-0 rounded-control border border-amber/50 px-3 text-[13px] font-medium text-amber focus-visible:outline-2 focus-visible:outline-accent-glow">
             Open
           </button>
         </div>

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { produceVia } from './helpers.ts';
 
 /** S9: VideoGen as a phone app — tab bar, the New video sheet, chat, library detail, settings → audit, no sideways scroll, installable. */
 
@@ -48,7 +49,7 @@ test('S9: the phone layout covers produce, chat, library and settings without si
   await expect(page.getByTestId('video-bin').getByRole('tab', { name: /Mobil kalem/ })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('timeline')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-testid="timeline-block"][data-tone="live"], [data-testid="timeline-block"][data-tone="done"], [data-testid="timeline-block"][data-tone="pending"]').first()).toBeVisible();
-  await expect(page.getByTestId('live-indicator').or(page.getByTestId('timeline').getByText(/^Done ·/))).toBeVisible();
+  await expect(page.getByTestId('live-indicator').or(page.getByTestId('timeline').getByText(/^(Done|Needs you) ·/))).toBeVisible();
 
   // Status pill → usage sheet.
   await page.getByTestId('status-pill').click();
@@ -63,6 +64,10 @@ test('S9: the phone layout covers produce, chat, library and settings without si
   const cards = page.getByTestId('library-item');
   await expect(cards.nth(1)).toBeVisible();
   expect(Math.round((await cards.nth(0).boundingBox())!.y)).toBe(Math.round((await cards.nth(1).boundingBox())!.y));
+  // State labels keep their dark chip on any cover (the live label's gradient text must not clip the chip away).
+  const live = cards.filter({ hasText: 'Mobil kalem' }).first().getByTestId('library-label');
+  await expect(live).toBeVisible();
+  expect(await live.evaluate((el) => getComputedStyle(el).backgroundClip)).not.toBe('text');
   await expect(cards.filter({ hasText: 'Mobil kalem' }).first().locator('[data-poster]')).toHaveAttribute('data-poster', /tint|cover/);
   await page.getByTestId('library-item').filter({ hasText: 'Mobil kalem' }).first().click();
   await expect(page.getByTestId('library-detail')).toBeVisible();
@@ -154,4 +159,17 @@ test('S9: a video without a cover shows the derived poster', async ({ page }) =>
   await form.getByRole('textbox', { name: 'Product name' }).fill('Kapaksız ataş');
   await form.getByRole('button', { name: 'Create video' }).click();
   await expect(page.getByTestId('video-bin').getByRole('tab', { name: /Kapaksız ataş/ }).locator('[data-poster="tint"]')).toBeVisible({ timeout: 15_000 });
+});
+
+test('S9: a video that needs you shows in the amber strip with a 44 px Open', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  const { videoId } = await produceVia(request, 'İmkansız telefon işlemcisi', 'silent');
+  const other = await request.post('/api/dev/videos/ready', { data: { productName: 'Seçili kalem' } });
+  const { videoId: selected } = (await other.json()) as { videoId: string };
+  await expect.poll(async () => ((await (await request.get(`/api/videos/${videoId}`)).json()) as { video: { status: string } }).video.status, { timeout: 30_000 }).toBe('needs_human');
+  await page.goto(`/?video=${selected}`);
+  await page.getByTestId('video-bin').getByRole('tab', { name: /Seçili kalem/ }).click();
+  const open = page.getByTestId('needs-you').getByRole('button', { name: 'Open İmkansız telefon işlemcisi' });
+  await expect(open).toBeVisible();
+  expect((await open.boundingBox())!.height, 'Open is a phone tap target').toBeGreaterThanOrEqual(44);
 });

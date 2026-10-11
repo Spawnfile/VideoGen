@@ -14,7 +14,7 @@ const TONE: Record<BlockTone, string> = {
   skipped: 'border-l border-dashed border-line-strong',
 };
 const NOW: Record<TimelineView['now']['kind'], [string, string]> = {
-  live: ['● Now', 'text-ember'], queued: ['● Queued', 'text-ember'], done: ['Done', 'text-ink-2'], stopped: ['Stopped', 'text-dim'], failed: ['Failed', 'text-red'],
+  live: ['● Now', 'text-ember'], queued: ['● Queued', 'text-ember'], done: ['Done', 'text-ink-2'], stopped: ['Stopped', 'text-dim'], failed: ['Failed', 'text-red'], needs: ['Needs you', 'text-amber'],
 };
 const LABEL_MIN_PX = 44;
 

@@ -130,9 +130,12 @@ describe('timelineView', () => {
     expect(v.now.clock).toBe('1:02:05');
   });
 
-  it('needs_human run reports the last step note', () => {
+  it('needs_human run reads "needs you", keeps the last step note and stops the playhead where the work stopped', () => {
     const v = timelineView(run([step('review', { status: 'done', startedAt: at(0), endedAt: at(60), note: 'onay bekliyor' }), step('finalize')], { status: 'needs_human', endedAt: at(60) }), T0 + 120_000);
-    expect(v.now).toEqual({ kind: 'done', clock: '1:00', note: 'onay bekliyor' });
+    expect(v.now).toEqual({ kind: 'needs', clock: '1:00', note: 'onay bekliyor' });
+    const review = blocks(v).find((b) => b.key === 'review')!;
+    expect(v.playheadPct).toBeCloseTo(review.startPct + review.widthPct, 6);
+    expect(v.playheadPct).toBeLessThan(100);
   });
 
   it('marks waiting and failed steps with their tones and puts five ruler ticks', () => {

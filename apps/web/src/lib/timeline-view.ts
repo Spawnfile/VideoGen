@@ -6,9 +6,9 @@ import { STEP_EN, STEP_STATUS_EN } from './i18n.ts';
  * real timings where they exist and STEP_DEFAULT_S where they do not; every block but a skipped one gets at least 4 % so it stays
  * tappable. Blocks are keyed by StepView.id because a review loop runs the same step key again.
  *
- * The playhead: 100 for a run that reached its end (done, needs_human), the end of the last started step for a stopped or failed one.
- * now.kind: running → live, queued → queued, done → done, cancelled → stopped, failed → failed, needs_human → done (the amber cue comes
- * from the header and the needs-you strip; the timeline only shows time).
+ * The playhead: 100 for a run that reached its end (done), the end of the last started step for a run that stopped, failed or now needs the
+ * user (a needs_human run leaves its later steps pending).
+ * now.kind: running → live, queued → queued, done → done, cancelled → stopped, failed → failed, needs_human → needs (amber, as everywhere).
  */
 
 export type LaneId = 'V' | 'A' | 'QC';
@@ -27,7 +27,7 @@ export interface TimelineView {
   playheadPct: number;
   ticks: { pct: number; label: string }[];
   lanes: { id: LaneId; blocks: TimelineBlock[] }[];
-  now: { kind: 'live' | 'done' | 'stopped' | 'failed' | 'queued'; clock: string; note: string | null };
+  now: { kind: 'live' | 'done' | 'stopped' | 'failed' | 'queued' | 'needs'; clock: string; note: string | null };
 }
 
 const secs = (from: string, toMs: number) => Math.max(0, (toMs - Date.parse(from)) / 1000);
@@ -58,7 +58,7 @@ function clock(s: number): string {
 }
 
 const NOW_KIND: Record<RunView['status'], TimelineView['now']['kind']> = {
-  running: 'live', queued: 'queued', done: 'done', cancelled: 'stopped', failed: 'failed', needs_human: 'done',
+  running: 'live', queued: 'queued', done: 'done', cancelled: 'stopped', failed: 'failed', needs_human: 'needs',
 };
 
 export function timelineView(run: RunView, nowMs: number): TimelineView {
@@ -88,7 +88,7 @@ export function timelineView(run: RunView, nowMs: number): TimelineView {
   };
   let playheadPct = 0;
   // A run that went to the end sits at 100; a stopped or failed one stays where the work stopped.
-  if (run.status === 'done' || run.status === 'needs_human') playheadPct = 100;
+  if (run.status === 'done') playheadPct = 100;
   else if (finished) playheadPct = endOfStarted();
   else {
     const li = steps.findIndex((s) => s.status === 'running' || s.status.startsWith('waiting'));
