@@ -36,7 +36,7 @@ export function ChainStatus() {
         type="button"
         onClick={() => void recheck()}
         disabled={busy}
-        className="rounded-control border border-line px-3 py-1.5 text-[13px] text-ink-2 transition-colors duration-100 hover:bg-hover-2 hover:text-ink disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+        className="rounded-control border border-line px-3 py-1.5 text-[13px] text-ink-2 transition-colors duration-100 hover:bg-hover-2 hover:text-ink disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
       >
         Yeniden doğrula
       </button>

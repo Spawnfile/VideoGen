@@ -25,7 +25,7 @@ function Finding({ f, canSeek }: { f: PanelFinding; canSeek: boolean }) {
             data-testid="finding-time"
             aria-label={`${f.label}: finali ${formatClock(f.timecode)} anına sar`}
             onClick={seek}
-            className="ml-1.5 rounded-control px-1.5 text-[12px] tabular-nums text-accent hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-ink"
+            className="ml-1.5 rounded-control px-1.5 text-[12px] tabular-nums text-accent-glow hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-accent-glow"
           >
             {formatClock(f.timecode)}
           </button>
@@ -68,7 +68,7 @@ export function ReviewPanel({ reviews, runId, status, sheetSha, canSeek, failed,
                 aria-pressed={v.round === r}
                 aria-label={`tur ${r + 1}${r === v.rounds.at(-1) ? ' (en yeni)' : ''}`}
                 onClick={() => pick(r === v.rounds.at(-1) ? null : r)}
-                className={`rounded-full px-2.5 py-0.5 text-[12px] tabular-nums transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink ${v.round === r ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
+                className={`rounded-full px-2.5 py-0.5 text-[12px] tabular-nums transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${v.round === r ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
               >
                 tur {r + 1}
               </button>
@@ -108,7 +108,7 @@ export function ReviewPanel({ reviews, runId, status, sheetSha, canSeek, failed,
       </ul>
 
       {sheetSha && (
-        <a href={blobUrl(sheetSha)} target="_blank" rel="noreferrer" aria-label="İncelenen kareler: kontakt sayfasını aç" className="self-start focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
+        <a href={blobUrl(sheetSha)} target="_blank" rel="noreferrer" aria-label="İncelenen kareler: kontakt sayfasını aç" className="self-start focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow">
           <img data-testid="review-sheet" src={blobUrl(sheetSha)} alt="İncelenen karelerin kontakt sayfası" loading="lazy" className="h-24 w-auto rounded-control border border-line/60" />
         </a>
       )}

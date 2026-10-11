@@ -10,8 +10,8 @@ const MODES: { id: AudioMode; label: string; hint: string }[] = [
 ];
 const DURATION_MODES = [{ id: 'auto', label: 'Otomatik' }, { id: 'manual', label: 'Elle' }] as const;
 const pill = (on: boolean) =>
-  `rounded-full px-3 py-1 text-[13px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
-const field = 'rounded-input border border-line bg-canvas outline-none transition-shadow duration-150 placeholder:text-ink-3 focus:border-accent/50 focus:shadow-[0_0_0_4px_rgb(1_106_113_/_0.12)]';
+  `rounded-full px-3 py-1 text-[13px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
+const field = 'rounded-input border border-line bg-canvas outline-none transition-shadow duration-150 placeholder:text-ink-3 focus:border-accent-glow/60 focus:shadow-glow';
 
 export function ProduceBar({ onCreated }: { onCreated: (videoId: string) => void }) {
   const [name, setName] = useState('');
@@ -87,7 +87,7 @@ export function ProduceBar({ onCreated }: { onCreated: (videoId: string) => void
           <button
             type="submit"
             disabled={busy || name.trim().length < 2}
-            className="rounded-control bg-accent px-5 py-2.5 text-[14px] font-medium text-white transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:opacity-40"
+            className="rounded-control bg-accent px-5 py-2.5 text-[14px] font-medium text-white transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow disabled:opacity-40"
           >
             Üret
           </button>

@@ -20,7 +20,7 @@ const TONES = ['bg-ink-2', 'bg-ink-3', 'bg-line-strong'];
 
 function Dot({ tone }: { tone: string }) {
   return (
-    <span className={`flex size-3.5 shrink-0 items-center justify-center rounded-full text-white ${tone}`}>
+    <span className={`flex size-3.5 shrink-0 items-center justify-center rounded-full text-canvas ${tone}`}>
       <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
         <circle cx="12" cy="12" r="9" />
         <path d="M3.5 12h17M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
@@ -122,7 +122,7 @@ export default function ThinkingState({ variant, status, rows, active, done, ico
         // The label sits in a role=status live region, which does not give the button a name from content.
         aria-labelledby={labelId}
         onClick={() => setManualExpanded((current) => !(current ?? autoExpanded))}
-        className="-mx-1.5 flex w-fit items-center gap-2 rounded-control px-1.5 py-1 transition-colors duration-100 hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+        className="-mx-1.5 flex w-fit items-center gap-2 rounded-control px-1.5 py-1 transition-colors duration-100 hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
       >
         {icon ? (
           <span className="flex shrink-0 transition-colors duration-200" style={{ color: working ? 'var(--color-ink-2)' : 'var(--color-ink-3)' }}>{icon}</span>

@@ -37,7 +37,7 @@ function AssetRow({ row: r, onRevoked }: { row: AssetRowView; onRevoked: () => v
         <span className={`font-medium ${r.revoked ? 'text-ink-2 line-through decoration-ink-3/60' : ''}`}>{r.title}</span>
         <span className={`rounded-full px-2 py-0.5 text-[11.5px] ${BADGE[r.tone]}`}>{r.licenseLabel}</span>
         <span className="text-ink-2">{r.author}</span>
-        {r.source && <a href={r.source.href} target="_blank" rel="noreferrer noopener" className="text-accent underline-offset-2 hover:underline">{r.source.label}</a>}
+        {r.source && <a href={r.source.href} target="_blank" rel="noreferrer noopener" className="text-accent-glow underline-offset-2 hover:underline">{r.source.label}</a>}
         <span className="ml-auto flex gap-3 tabular-nums text-ink-2">
           <span title="Süre">{r.duration}</span>
           <span title="Kullanım">{r.used}</span>
@@ -52,7 +52,7 @@ function AssetRow({ row: r, onRevoked }: { row: AssetRowView; onRevoked: () => v
             type="button"
             data-testid="asset-revoke"
             onClick={() => setConfirming(true)}
-            className="rounded-control border border-line px-2.5 py-1 text-[12.5px] text-ink-2 transition-colors duration-100 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink"
+            className="rounded-control border border-line px-2.5 py-1 text-[12.5px] text-ink-2 transition-colors duration-100 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow"
           >
             İzni geri al
           </button>
@@ -67,7 +67,7 @@ function AssetRow({ row: r, onRevoked }: { row: AssetRowView; onRevoked: () => v
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               maxLength={500}
-              className="h-8 rounded-control border border-line bg-paper px-2 text-[13px] text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink"
+              className="h-8 rounded-control border border-line bg-paper px-2 text-[13px] text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow"
             />
           </label>
           <div className="flex gap-2">
@@ -76,7 +76,7 @@ function AssetRow({ row: r, onRevoked }: { row: AssetRowView; onRevoked: () => v
               data-testid="asset-revoke-confirm"
               disabled={busy || !reason.trim()}
               onClick={() => void revoke()}
-              className="rounded-control bg-red px-3 py-1 text-[12.5px] font-medium text-white transition-opacity duration-100 hover:opacity-90 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink"
+              className="rounded-control bg-red px-3 py-1 text-[12.5px] font-medium text-canvas transition-opacity duration-100 hover:opacity-90 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow"
             >
               İzni geri al
             </button>

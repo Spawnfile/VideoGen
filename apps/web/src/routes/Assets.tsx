@@ -7,7 +7,7 @@ import { api } from '../lib/api.ts';
 import { assetsView, KIND_LABEL } from '../lib/assets-view.ts';
 
 const chip = (on: boolean) =>
-  `rounded-full px-3 py-1 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
+  `rounded-full px-3 py-1 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
 
 /** Plan M7 Y8 asset ledger (spec §13.1 Varlıklar): license fields, preview, usage, Add (upload + license gate) and revoke. */
 export function Assets() {
@@ -26,7 +26,7 @@ export function Assets() {
           type="button"
           aria-expanded={adding}
           onClick={() => setAdding((a) => !a)}
-          className="rounded-control bg-accent px-3 py-1.5 text-[13px] font-medium text-white transition-opacity duration-100 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          className="rounded-control bg-accent px-3 py-1.5 text-[13px] font-medium text-white transition-opacity duration-100 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
         >
           {adding ? 'Kapat' : 'Ekle'}
         </button>

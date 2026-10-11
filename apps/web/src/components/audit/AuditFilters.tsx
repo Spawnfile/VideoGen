@@ -4,7 +4,7 @@ import { api } from '../../lib/api.ts';
 import { actionGroups, filterFromQuery, type AuditQueryFilter } from '../../lib/audit-view.ts';
 import { pipeline, seedVideos, useStore, videoList } from '../../lib/stores.ts';
 
-const field = 'h-8 rounded-control border border-line bg-paper px-2 text-[13px] text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink';
+const field = 'h-8 rounded-control border border-line bg-paper px-2 text-[13px] text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow';
 const label = 'flex flex-col gap-1 text-[12px] text-ink-2';
 
 /** Plan M7 Y6 filters: run, video (from the library), agent role, action (grouped by prefix), date range. `fixed` keys are set by the host and not shown. */
@@ -108,7 +108,7 @@ export function AuditFilters({ filter, onChange, fixed = [] }: { filter: AuditQu
         <button
           type="button"
           onClick={() => onChange(Object.fromEntries(Object.entries(filter).filter(([k]) => !show(k as keyof AuditQueryFilter))))}
-          className="h-8 rounded-control px-2 text-[13px] text-ink-2 transition-colors duration-100 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          className="h-8 rounded-control px-2 text-[13px] text-ink-2 transition-colors duration-100 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
         >
           Temizle
         </button>

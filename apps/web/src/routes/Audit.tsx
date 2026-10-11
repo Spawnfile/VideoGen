@@ -54,7 +54,7 @@ export function Audit({ initial = {}, onFilter, fixed = [], embedded = false }: 
           type="button"
           onClick={() => void q.fetchNextPage()}
           disabled={q.isFetchingNextPage}
-          className="w-fit self-center rounded-control border border-line px-3 py-2 text-[13px] text-ink-2 transition-colors duration-100 hover:bg-hover-2 hover:text-ink disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          className="w-fit self-center rounded-control border border-line px-3 py-2 text-[13px] text-ink-2 transition-colors duration-100 hover:bg-hover-2 hover:text-ink disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
         >
           {q.isFetchingNextPage ? 'Yükleniyor…' : 'Daha eski'}
         </button>

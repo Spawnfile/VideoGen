@@ -6,7 +6,7 @@ import { setActivePlayer } from '../../lib/player.ts';
 
 type Mode = 'side' | 'ab';
 const chip = (on: boolean) =>
-  `rounded-full px-3 py-1 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink disabled:opacity-40 ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
+  `rounded-full px-3 py-1 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40 ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
 const signed = (n: number | null) => (n === null ? '–' : `${n > 0 ? '+' : ''}${formatScore(n)}`);
 const typing = (t: EventTarget | null) => {
   const el = t as HTMLElement | null;
@@ -124,7 +124,7 @@ function Players({ a, b, mode }: { a: CompareSide; b: CompareSide; mode: Mode })
           data-testid="compare-play"
           aria-label={playing ? 'Duraklat' : 'Oynat'}
           onClick={() => (playing ? ctl.current.pause() : ctl.current.play())}
-          className="rounded-control border border-line-strong px-3 py-1 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-ink"
+          className="rounded-control border border-line-strong px-3 py-1 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-accent-glow"
         >
           {playing ? 'Duraklat' : 'Oynat'}
         </button>
@@ -136,11 +136,11 @@ function Players({ a, b, mode }: { a: CompareSide; b: CompareSide; mode: Mode })
           step={0.05}
           value={Math.min(t, dur || t)}
           onChange={(e) => ctl.current.seekTo(Number(e.currentTarget.value))}
-          className="flex-1 accent-[#016a71]"
+          className="flex-1 accent-accent-glow"
         />
         <span className="w-20 text-right text-[12px] tabular-nums text-ink-3">{formatClock(t)} / {formatClock(dur)}</span>
         {mode === 'ab' && (
-          <button type="button" data-testid="ab-toggle" onClick={flip} aria-keyshortcuts="B" className="rounded-control border border-line-strong px-3 py-1 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-ink">
+          <button type="button" data-testid="ab-toggle" onClick={flip} aria-keyshortcuts="B" className="rounded-control border border-line-strong px-3 py-1 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-accent-glow">
             {shown === 'a' ? "B'ye geç" : "A'ya geç"} <span className="text-ink-3">(B)</span>
           </button>
         )}
@@ -157,7 +157,7 @@ function Picker({ label, value, versions, onChange }: { label: string; value: st
         aria-label={`${label} sürümü`}
         value={value ?? ''}
         onChange={(e) => onChange(e.currentTarget.value)}
-        className="rounded-input border border-line-strong bg-paper px-2 py-1 text-[13px] text-ink focus-visible:outline-2 focus-visible:outline-ink"
+        className="rounded-input border border-line-strong bg-paper px-2 py-1 text-[13px] text-ink focus-visible:outline-2 focus-visible:outline-accent-glow"
       >
         {!value && <option value="">seçin</option>}
         {versions.map((v) => (

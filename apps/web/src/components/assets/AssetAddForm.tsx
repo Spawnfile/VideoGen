@@ -3,7 +3,7 @@ import { LEDGER_KINDS, type LedgerKind } from '@videogen/shared/browser';
 import { api } from '../../lib/api.ts';
 import { addFormErrors, KIND_LABEL, LICENSE_OPTIONS, type AddForm } from '../../lib/assets-view.ts';
 
-const field = 'h-8 rounded-control border border-line bg-paper px-2 text-[13px] text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink';
+const field = 'h-8 rounded-control border border-line bg-paper px-2 text-[13px] text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow';
 const label = 'flex flex-col gap-1 text-[12px] text-ink-2';
 
 /** Y8 "Ekle": upload the file (streamed), then import it through the license gate; a rejected file is recorded and its reason shown. */
@@ -72,13 +72,13 @@ export function AssetAddForm({ kind: initialKind, onDone }: { kind: LedgerKind; 
       </label>
       <label className={`${label} col-span-2`}>
         Lisans metni
-        <textarea value={f.licenseText} onChange={set('licenseText')} rows={3} className="rounded-control border border-line bg-paper px-2 py-1.5 text-[13px] text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink" />
+        <textarea value={f.licenseText} onChange={set('licenseText')} rows={3} className="rounded-control border border-line bg-paper px-2 py-1.5 text-[13px] text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow" />
       </label>
       <div className="col-span-2 flex flex-wrap items-center gap-3">
         <button
           type="submit"
           disabled={busy}
-          className="rounded-control bg-accent px-3 py-1.5 text-[13px] font-medium text-white transition-opacity duration-100 hover:opacity-90 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          className="rounded-control bg-accent px-3 py-1.5 text-[13px] font-medium text-white transition-opacity duration-100 hover:opacity-90 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
         >
           {busy ? 'Yükleniyor…' : 'Yükle ve ekle'}
         </button>

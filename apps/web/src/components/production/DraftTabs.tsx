@@ -53,7 +53,7 @@ function FinalPanel({ final }: { final: FinalPick }) {
             aria-pressed={variant === id}
             disabled={id === 'tiktok' && !final.tiktokSha}
             onClick={() => setVariant(id)}
-            className={`rounded-full px-3 py-1 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink disabled:opacity-40 ${variant === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
+            className={`rounded-full px-3 py-1 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40 ${variant === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
           >
             {label}
           </button>
@@ -90,7 +90,7 @@ export function DraftTabs({ pick, final, versions = [] }: { pick: DraftPick; fin
             aria-selected={tab === id}
             aria-controls="draft-panel"
             onClick={() => setTab(id)}
-            className={`rounded-full px-3 py-1 text-[13px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink ${tab === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
+            className={`rounded-full px-3 py-1 text-[13px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${tab === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
           >
             {label}
           </button>

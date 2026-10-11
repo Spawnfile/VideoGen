@@ -5,7 +5,7 @@ import { api } from '../../lib/api.ts';
 const MODELS: [ModelAlias, string][] = [['opus', 'Opus'], ['sonnet', 'Sonnet'], ['haiku', 'Haiku']];
 const EFFORTS: [Effort, string][] = [['low', 'düşük'], ['medium', 'orta'], ['high', 'yüksek'], ['xhigh', 'çok yüksek'], ['max', 'en yüksek']];
 const label = <T extends string>(list: [T, string][], v: T) => list.find(([k]) => k === v)?.[1] ?? v;
-const selectClass = 'rounded-control border border-line bg-paper px-2 py-1 text-[13px] focus-visible:outline-2 focus-visible:outline-ink';
+const selectClass = 'rounded-control border border-line bg-paper px-2 py-1 text-[13px] focus-visible:outline-2 focus-visible:outline-accent-glow';
 
 export function RolesSection() {
   const qc = useQueryClient();

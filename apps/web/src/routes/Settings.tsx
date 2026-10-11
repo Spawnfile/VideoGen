@@ -60,7 +60,7 @@ export function Settings() {
         <button
           type="button"
           onClick={refresh}
-          className="mt-4 rounded-control border border-line px-3 py-2 text-ink-2 transition-colors duration-100 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          className="mt-4 rounded-control border border-line px-3 py-2 text-ink-2 transition-colors duration-100 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
         >
           Durumu yenile
         </button>

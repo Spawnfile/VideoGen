@@ -2,32 +2,40 @@
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/500.css";
 
+/* "Gece kâğıdı": the Perplexity parchment-and-teal system at night. Warm graphite from the Ink family, parchment text, one teal. */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --color-canvas: #faf8f5;
-  --color-paper: #fdfbfa;
-  --color-ink: #27251e;
-  --color-ink-2: #72706b;
-  --color-ink-3: #92918b;
-  --color-line: #d1d1cd;
-  --color-line-strong: #b8b6af;
-  --color-hover: rgb(39 37 30 / 0.04);
-  --color-hover-2: rgb(39 37 30 / 0.07);
-  --color-inset: #f3f0eb;
+  --color-canvas: #191815;
+  --color-paper: #211f1b;
+  --color-inset: #2a2823;
+  --color-ink: #ece7de;
+  --color-ink-2: #a8a49a;
+  --color-ink-3: #8c887e;
+  --color-line: #38362f;
+  --color-line-strong: #4d4a42;
+  --color-hover: rgb(236 231 222 / 0.05);
+  --color-hover-2: rgb(236 231 222 / 0.08);
+  --color-scrim: rgb(14 13 11 / 0.6);
   --color-accent: #016a71;
-  --color-green: #3d7a5a;
-  --color-red: #a3412f;
+  --color-accent-glow: #2fa3aa;
+  --color-green: #6fae8a;
+  --color-red: #e08a76;
   --radius-control: 6px;
   --radius-input: 12px;
   --radius-card: 16px;
-  --shadow-subtle: 0 1px 2px 0 rgb(0 0 0 / 0.08);
+  --radius-sheet: 20px;
+  /* Dark surfaces carry no shadow: layering is canvas → paper → inset. The token stays so existing classes keep resolving. */
+  --shadow-subtle: 0 0 #0000;
+  --shadow-glow: 0 0 24px rgb(47 163 170 / 0.16);
 }
 
 @keyframes shimmer-text { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fade-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
 
+html { color-scheme: dark; -webkit-tap-highlight-color: transparent; }
 html, body, #root { height: 100%; }
 body {
   margin: 0;
@@ -37,6 +45,13 @@ body {
   font-size: 14px;
   line-height: 1.43;
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+::selection { background: rgb(47 163 170 / 0.35); }
+audio { color-scheme: dark; }
+/* iOS zooms into a focused field under 16 px: phones get 16 px fields. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea { font-size: 16px !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }

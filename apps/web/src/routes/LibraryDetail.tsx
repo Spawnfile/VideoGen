@@ -16,7 +16,7 @@ import { Audit } from './Audit.tsx';
 
 const card = 'rounded-card border border-line/60 bg-paper px-4 py-3 shadow-subtle';
 const chip = (on: boolean) =>
-  `rounded-full px-2.5 py-0.5 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
+  `rounded-full px-2.5 py-0.5 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
 const newest = (list: ArtifactMeta[], kind: string, runId: string | null) => (list.find((a) => a.kind === kind && (!runId || a.runId === runId)) ?? list.find((a) => a.kind === kind))?.id ?? null;
 
 /** "Review'lar": a version picker (all rounds of the latest run, or one version's rounds) over the review panel and its round chips. */
@@ -66,7 +66,7 @@ function ResearchTab({ artifactId }: { artifactId: string | null }) {
                 <ul className="flex flex-col gap-1 pl-3">
                   {c.sources.map((s, i) => (
                     <li key={`${c.id}-${i}`} className="text-[12.5px] leading-relaxed text-ink-2">
-                      <a href={s.url} target="_blank" rel="noreferrer" className="break-all text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ink">{s.url}</a>
+                      <a href={s.url} target="_blank" rel="noreferrer" className="break-all text-accent-glow underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-accent-glow">{s.url}</a>
                       <span className="text-ink-3"> · {s.type === 'primary' ? 'birincil' : 'bağımsız'} · {s.accessed_at.slice(0, 10)}</span>
                       <span className="block">“{s.quote}”</span>
                     </li>
@@ -107,19 +107,19 @@ export function LibraryDetail({ videoId, go }: { videoId: string; go: (url: stri
     return (
       <div className="mx-auto flex max-w-[900px] flex-col gap-3 p-8">
         <p className="text-[13px] text-ink-2">Video bulunamadı.</p>
-        <button type="button" onClick={() => go('/library')} className="w-fit text-[13px] text-accent hover:underline">Kütüphaneye dön</button>
+        <button type="button" onClick={() => go('/library')} className="w-fit text-[13px] text-accent-glow hover:underline">Kütüphaneye dön</button>
       </div>
     );
   }
   return (
     <div data-testid="library-detail" className="mx-auto flex max-w-[900px] flex-col gap-5 p-8">
       <div className="flex items-center gap-3">
-        <a href="/library" onClick={(e) => { e.preventDefault(); go('/library'); }} className="text-[12.5px] text-ink-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-ink">← Kütüphane</a>
+        <a href="/library" onClick={(e) => { e.preventDefault(); go('/library'); }} className="text-[12.5px] text-ink-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-glow">← Kütüphane</a>
         <button
           type="button"
           data-testid="open-in-studio"
           onClick={() => go(`/?video=${videoId}`)}
-          className="ml-auto rounded-control border border-line-strong px-3 py-1 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-ink"
+          className="ml-auto rounded-control border border-line-strong px-3 py-1 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-accent-glow"
         >
           Stüdyo'da aç
         </button>

@@ -5,7 +5,7 @@ import { bytesLabel, dataView, type BackupTone } from '../../lib/maintenance-vie
 
 const BACKUP_TONE: Record<BackupTone, string> = { ok: 'text-green', old: 'text-ink', failed: 'text-red', never: 'text-ink-2' };
 const BACKUP_DOT: Record<BackupTone, string> = { ok: 'bg-green', old: 'bg-line-strong', failed: 'bg-red', never: 'bg-line-strong' };
-const BUTTON = 'rounded-control border border-line-strong px-3 py-1 text-[13px] transition-colors duration-100 hover:bg-hover-2 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink';
+const BUTTON = 'rounded-control border border-line-strong px-3 py-1 text-[13px] transition-colors duration-100 hover:bg-hover-2 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow';
 
 /**
  * Plan M7 Y11: Ayarlar → "Veri ve yedek". Disk, database and media sizes, the last backup with "Şimdi yedekle", the latest GC report with a
@@ -103,7 +103,7 @@ export function DataSection() {
                   inputMode="numeric"
                   aria-label="Aday sayısı"
                   data-testid="gc-confirm-count"
-                  className="h-8 w-32 rounded-control border border-line bg-paper px-2 text-[13px] tabular-nums text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink"
+                  className="h-8 w-32 rounded-control border border-line bg-paper px-2 text-[13px] tabular-nums text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow"
                 />
                 <div className="flex gap-2">
                   <button
@@ -111,7 +111,7 @@ export function DataSection() {
                     data-testid="gc-confirm"
                     disabled={busy || typed.trim() !== String(q.data.gc.candidates)}
                     onClick={() => void remove()}
-                    className="rounded-control bg-red px-3 py-1 text-[12.5px] font-medium text-white transition-opacity duration-100 hover:opacity-90 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink"
+                    className="rounded-control bg-red px-3 py-1 text-[12.5px] font-medium text-canvas transition-opacity duration-100 hover:opacity-90 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow"
                   >
                     {view.deleteLabel}
                   </button>

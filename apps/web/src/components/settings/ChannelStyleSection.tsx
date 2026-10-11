@@ -34,7 +34,7 @@ export function ChannelStyleSection() {
               aria-checked={selected}
               disabled={saving !== null}
               onClick={() => void choose(o.id)}
-              className={`flex flex-col gap-2 rounded-input border p-2 text-left transition-colors duration-100 hover:bg-hover focus-visible:outline-2 focus-visible:outline-ink disabled:opacity-60 ${selected ? 'border-accent' : 'border-line'}`}
+              className={`flex flex-col gap-2 rounded-input border p-2 text-left transition-colors duration-100 hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent-glow disabled:opacity-60 ${selected ? 'border-accent-glow' : 'border-line'}`}
             >
               <img src={o.image} alt={`${o.name_tr}: örnek kalem, ilk kare ve açık patlatma`} className="aspect-[9/8] w-full rounded-control object-cover" />
               <span className="flex items-center gap-1.5 text-[13px] font-medium">

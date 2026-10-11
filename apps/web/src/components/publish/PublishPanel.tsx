@@ -64,7 +64,7 @@ export function PublishPanel({ videoId }: { videoId: string }) {
         type="button"
         data-testid="publish-open"
         onClick={() => setOpen(true)}
-        className="self-start rounded-control bg-accent px-4 py-1.5 text-[13px] text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink"
+        className="self-start rounded-control bg-accent px-4 py-1.5 text-[13px] text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow"
       >
         Yayınla
       </button>
@@ -94,7 +94,7 @@ export function PublishPanel({ videoId }: { videoId: string }) {
                 data-testid={`publish-variant-${id}`}
                 disabled={!q.data.variants[id]}
                 onClick={() => setVariant(id)}
-                className={`rounded-full px-3 py-1 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-ink disabled:opacity-40 ${variant === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
+                className={`rounded-full px-3 py-1 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-accent-glow disabled:opacity-40 ${variant === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
               >
                 {label}
               </button>
@@ -114,7 +114,7 @@ export function PublishPanel({ videoId }: { videoId: string }) {
                 onChange={(e) => setCaption(e.target.value)}
                 rows={5}
                 maxLength={2200}
-                className="rounded-input border border-line bg-paper px-2.5 py-1.5 text-[13px] leading-relaxed focus-visible:outline-2 focus-visible:outline-ink"
+                className="rounded-input border border-line bg-paper px-2.5 py-1.5 text-[13px] leading-relaxed focus-visible:outline-2 focus-visible:outline-accent-glow"
               />
             </label>
           )}
@@ -125,7 +125,7 @@ export function PublishPanel({ videoId }: { videoId: string }) {
                 data-testid="publish-send"
                 disabled={!view.canSend || busy}
                 onClick={() => void send()}
-                className="rounded-control bg-accent px-3 py-1.5 text-[13px] text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink disabled:opacity-40"
+                className="rounded-control bg-accent px-3 py-1.5 text-[13px] text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40"
               >
                 {view.resend ? 'Yeniden taslak gönder' : "TikTok'a taslak gönder"}
               </button>
@@ -140,7 +140,7 @@ export function PublishPanel({ videoId }: { videoId: string }) {
             )}
           </div>
           {view.resend && view.latest?.status === 'published' && view.latest.url && (
-            <p className="text-[12.5px]">Yayında: <a href={view.latest.url} target="_blank" rel="noreferrer noopener" className="text-accent underline">{view.latest.url}</a></p>
+            <p className="text-[12.5px]">Yayında: <a href={view.latest.url} target="_blank" rel="noreferrer noopener" className="text-accent-glow underline">{view.latest.url}</a></p>
           )}
           {view.showFinish && view.latest && (
             <FinishCard publication={view.latest} checklist={q.data.checklist[view.latest.variant]} aigcNote={view.aigcNote} onMarked={() => void refresh().then(() => qc.invalidateQueries({ queryKey: ['video', videoId] }))} />
@@ -154,7 +154,7 @@ export function PublishPanel({ videoId }: { videoId: string }) {
                   <li key={c.id}>
                     <span>{c.text_tr}</span>
                     {(Array.isArray(c.sources) ? (c.sources as { url?: string }[]) : []).filter((s) => typeof s.url === 'string' && /^https?:\/\//.test(s.url)).map((s) => (
-                      <a key={s.url} href={s.url} target="_blank" rel="noreferrer noopener" className="ml-2 break-all text-accent underline">{new URL(s.url!).hostname}</a>
+                      <a key={s.url} href={s.url} target="_blank" rel="noreferrer noopener" className="ml-2 break-all text-accent-glow underline">{new URL(s.url!).hostname}</a>
                     ))}
                   </li>
                 ))}

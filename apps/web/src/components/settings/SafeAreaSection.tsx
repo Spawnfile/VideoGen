@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react';
 import { DEFAULT_SAFE_AREA, type SafeArea } from '@videogen/shared/browser';
 import { api } from '../../lib/api.ts';
 
-const BUTTON = 'rounded-control border border-line-strong px-3 py-1 text-[13px] transition-colors duration-100 hover:bg-hover-2 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink';
-const INPUT = 'h-8 rounded-control border border-line bg-paper px-2 text-[13px] tabular-nums text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink';
+const BUTTON = 'rounded-control border border-line-strong px-3 py-1 text-[13px] transition-colors duration-100 hover:bg-hover-2 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow';
+const INPUT = 'h-8 rounded-control border border-line bg-paper px-2 text-[13px] tabular-nums text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow';
 const SIDES: { key: keyof SafeArea; label: string; hint: string }[] = [
   { key: 'top', label: 'Üst', hint: 'bu y değerinin üstüne yazı girmez' },
   { key: 'bottom', label: 'Alt', hint: 'bu y değerinin altına yazı girmez' },

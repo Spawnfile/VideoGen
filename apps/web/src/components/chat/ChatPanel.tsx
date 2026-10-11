@@ -129,12 +129,12 @@ export function ChatPanel({ onNewThread }: { onNewThread?: () => void } = {}) {
           value={threadId ?? ''}
           onChange={(e) => select(e.target.value)}
           disabled={!threads.length}
-          className="min-w-0 flex-1 truncate rounded-control border border-line bg-paper px-2 py-1.5 text-[13px] focus-visible:outline-2 focus-visible:outline-ink disabled:text-ink-3"
+          className="min-w-0 flex-1 truncate rounded-control border border-line bg-paper px-2 py-1.5 text-[13px] focus-visible:outline-2 focus-visible:outline-accent-glow disabled:text-ink-3"
         >
           {!threads.length && <option value="">Henüz sohbet yok</option>}
           {threads.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
         </select>
-        <button type="button" onClick={() => void newThread()} className="shrink-0 rounded-control border border-line px-3 py-1.5 text-[13px] text-ink-2 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-ink">
+        <button type="button" onClick={() => void newThread()} className="shrink-0 rounded-control border border-line px-3 py-1.5 text-[13px] text-ink-2 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-glow">
           Yeni sohbet
         </button>
       </div>
@@ -151,7 +151,7 @@ export function ChatPanel({ onNewThread }: { onNewThread?: () => void } = {}) {
               role="radio"
               aria-checked={mode === m.id}
               onClick={() => setMode(m.id)}
-              className={`rounded-full px-2.5 py-0.5 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink ${mode === m.id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
+              className={`rounded-full px-2.5 py-0.5 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${mode === m.id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
             >
               {m.label}
             </button>
@@ -188,7 +188,7 @@ export function ChatPanel({ onNewThread }: { onNewThread?: () => void } = {}) {
         )}
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); void submit(); }} className="mt-2 rounded-input border border-line bg-paper p-2 shadow-subtle transition-colors focus-within:border-accent/60">
+      <form onSubmit={(e) => { e.preventDefault(); void submit(); }} className="mt-2 rounded-input border border-line bg-paper p-2 shadow-subtle transition-colors focus-within:border-accent-glow/60">
         <textarea
           ref={boxRef}
           aria-label="Mesaj"
@@ -202,11 +202,11 @@ export function ChatPanel({ onNewThread }: { onNewThread?: () => void } = {}) {
         <div className="flex items-center gap-2 px-1 pt-1">
           <span className="text-[11.5px] text-ink-3">Enter gönderir, Shift+Enter yeni satır</span>
           {running && threadId && (
-            <button type="button" onClick={() => void api.interrupt(threadId)} className="ml-auto rounded-control border border-line-strong px-3 py-1.5 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-ink">
+            <button type="button" onClick={() => void api.interrupt(threadId)} className="ml-auto rounded-control border border-line-strong px-3 py-1.5 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-accent-glow">
               Durdur
             </button>
           )}
-          <button type="submit" disabled={!text.trim() || sending} className={`${running ? '' : 'ml-auto'} rounded-control bg-accent px-3 py-1.5 text-[13px] font-medium text-white transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:opacity-40`}>
+          <button type="submit" disabled={!text.trim() || sending} className={`${running ? '' : 'ml-auto'} rounded-control bg-accent px-3 py-1.5 text-[13px] font-medium text-white transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow disabled:opacity-40`}>
             Gönder
           </button>
         </div>

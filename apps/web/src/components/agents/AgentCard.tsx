@@ -103,10 +103,10 @@ export function AgentCard({ session, sample, gpu }: { session: AgentSessionView;
         <div role="alert" className="mt-3 flex flex-wrap items-center gap-3 rounded-input bg-inset px-3 py-2 text-[12.5px]">
           <span><span className="font-medium">Takılmış olabilir.</span> <span className="text-ink-2">Uzun süredir olay yok ve süreç boşta.</span></span>
           <span className="ml-auto flex gap-2">
-            <button type="button" disabled={busy} onClick={() => act(() => api.cancelSession(session.id))} className="rounded-control border border-line-strong px-2.5 py-1 hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-ink disabled:opacity-50">Durdur</button>
+            <button type="button" disabled={busy} onClick={() => act(() => api.cancelSession(session.id))} className="rounded-control border border-line-strong px-2.5 py-1 hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-accent-glow disabled:opacity-50">Durdur</button>
             {/* A pipeline step retries its own session (M4a minor 11): only stop is offered there. */}
             {!session.stepId && (
-              <button type="button" disabled={busy} onClick={() => act(() => api.retrySession(session.id))} className="rounded-control px-2.5 py-1 text-ink-2 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-ink disabled:opacity-50">Yeniden dene</button>
+              <button type="button" disabled={busy} onClick={() => act(() => api.retrySession(session.id))} className="rounded-control px-2.5 py-1 text-ink-2 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-glow disabled:opacity-50">Yeniden dene</button>
             )}
           </span>
         </div>
@@ -115,7 +115,7 @@ export function AgentCard({ session, sample, gpu }: { session: AgentSessionView;
       <footer className="mt-2 flex items-center gap-3">
         <p className="min-w-0 truncate text-[12px] tabular-nums text-ink-3">{stats.filter(Boolean).join(' · ')}</p>
         {rows.length > 0 && (
-          <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="ml-auto shrink-0 rounded-control px-1.5 py-0.5 text-[12px] text-ink-2 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-ink">
+          <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="ml-auto shrink-0 rounded-control px-1.5 py-0.5 text-[12px] text-ink-2 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-glow">
             {open ? 'İzi gizle' : 'İzi göster'}
           </button>
         )}

@@ -4,7 +4,7 @@ import { api } from '../../lib/api.ts';
 import { activeStep, formatEta, formatUsage, isRunActive, roundLabel, finalRoundLabel, sourceLabel, videoTone } from '../../lib/production-view.ts';
 
 const BADGE: Record<ReturnType<typeof videoTone>, string> = {
-  active: 'bg-accent/10 text-accent',
+  active: 'bg-accent-glow/10 text-accent-glow',
   ok: 'bg-green/10 text-green',
   error: 'bg-red/10 text-red/90',
   waiting: 'bg-inset text-ink',
@@ -35,7 +35,7 @@ export function VideoHeader({ video, run }: { video: VideoView; run: RunView | n
           {formatWindow(video.duration)} · {DURATION_SOURCE_LABELS[video.durationSource]}
         </span>
         {active && (
-          <button type="button" disabled={busy} onClick={() => void stop()} className="ml-auto rounded-control border border-line-strong px-3 py-1 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-ink disabled:opacity-50">
+          <button type="button" disabled={busy} onClick={() => void stop()} className="ml-auto rounded-control border border-line-strong px-3 py-1 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-accent-glow disabled:opacity-50">
             Üretimi durdur
           </button>
         )}
@@ -53,7 +53,7 @@ export function VideoHeader({ video, run }: { video: VideoView; run: RunView | n
         </span>
         <span className="w-12 text-right text-[13px] font-medium tabular-nums">%{Math.round(progress)}</span>
       </div>
-      {round && <p data-testid={isFinal ? 'final-round' : 'draft-round'} className="text-[12.5px] tabular-nums text-accent">{round}</p>}
+      {round && <p data-testid={isFinal ? 'final-round' : 'draft-round'} className="text-[12.5px] tabular-nums text-accent-glow">{round}</p>}
       {meta.length > 0 && <p className="text-[12px] tabular-nums text-ink-3">{meta.join(' · ')}</p>}
     </header>
   );

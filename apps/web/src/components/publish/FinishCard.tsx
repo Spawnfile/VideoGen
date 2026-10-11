@@ -39,13 +39,13 @@ export function FinishCard({ publication, checklist, aigcNote, onMarked }: { pub
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[12.5px] font-medium">Açıklama</span>
-          <button type="button" data-testid="caption-copy" onClick={() => void copy()} className="rounded-control border border-line-strong px-2.5 py-0.5 text-[12px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-ink">
+          <button type="button" data-testid="caption-copy" onClick={() => void copy()} className="rounded-control border border-line-strong px-2.5 py-0.5 text-[12px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-accent-glow">
             {copied ? 'Kopyalandı' : 'Kopyala'}
           </button>
         </div>
         <pre data-testid="finish-caption" className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-input bg-inset p-2 font-sans text-[12.5px] leading-relaxed">{publication.caption}</pre>
       </div>
-      {aigcNote && <p className="text-[12.5px] font-medium text-accent">{aigcNote}</p>}
+      {aigcNote && <p className="text-[12.5px] font-medium text-accent-glow">{aigcNote}</p>}
       <fieldset className="flex flex-col gap-1.5">
         <legend className="mb-1 text-[12.5px] font-medium">Paylaşmadan önce</legend>
         {checklist.map((i) => (
@@ -69,7 +69,7 @@ export function FinishCard({ publication, checklist, aigcNote, onMarked }: { pub
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://www.tiktok.com/@hesap/video/…"
-          className="rounded-input border border-line bg-paper px-2.5 py-1.5 text-[13px] focus-visible:outline-2 focus-visible:outline-ink"
+          className="rounded-input border border-line bg-paper px-2.5 py-1.5 text-[13px] focus-visible:outline-2 focus-visible:outline-accent-glow"
         />
       </label>
       <div className="flex items-center gap-3">
@@ -78,7 +78,7 @@ export function FinishCard({ publication, checklist, aigcNote, onMarked }: { pub
           data-testid="mark-published"
           disabled={!!why || busy}
           onClick={() => void mark()}
-          className="rounded-control bg-accent px-3 py-1.5 text-[13px] text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink disabled:opacity-40"
+          className="rounded-control bg-accent px-3 py-1.5 text-[13px] text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40"
         >
           Yayınlandı olarak işaretle
         </button>

@@ -41,7 +41,7 @@ export function NarratorVoiceSection() {
             aria-checked={o.selected}
             disabled={saving !== null}
             onClick={() => void choose(o.key)}
-            className={`flex items-center gap-2 rounded-input border px-3 py-2 text-left text-[13px] transition-colors duration-100 hover:bg-hover focus-visible:outline-2 focus-visible:outline-ink disabled:opacity-60 ${o.selected ? 'border-accent' : 'border-line'}`}
+            className={`flex items-center gap-2 rounded-input border px-3 py-2 text-left text-[13px] transition-colors duration-100 hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent-glow disabled:opacity-60 ${o.selected ? 'border-accent-glow' : 'border-line'}`}
           >
             {o.selected && <span aria-hidden className="size-1.5 rounded-full bg-accent" />}
             <span className={o.selected ? 'font-medium' : ''}>{o.label}</span>

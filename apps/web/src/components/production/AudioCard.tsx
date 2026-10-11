@@ -51,7 +51,7 @@ export function AudioCard({ video, stems, canEdit }: { video: Pick<VideoView, 'i
           <li key={p.key} data-testid={`stem-${p.key}`} className="flex flex-wrap items-center gap-3">
             <span className="w-24 text-[13px]">{p.label}</span>
             <audio controls preload="none" src={blobUrl(stems[p.key]!)} className="h-8 min-w-0 flex-1" />
-            <a href={`${blobUrl(stems[p.key]!)}?download=${stemFileName(video.productName, p.file)}`} className="text-[12.5px] text-accent hover:underline">İndir (FLAC)</a>
+            <a href={`${blobUrl(stems[p.key]!)}?download=${stemFileName(video.productName, p.file)}`} className="text-[12.5px] text-accent-glow hover:underline">İndir (FLAC)</a>
           </li>
         ))}
       </ul>
@@ -65,7 +65,7 @@ export function AudioCard({ video, stems, canEdit }: { video: Pick<VideoView, 'i
             maxLength={EDIT_MAX}
             rows={2}
             placeholder="ör. müzik daha sakin olsun, davul olmasın; ödül anında yükselsin; müzik seslendirmenin altında biraz daha kısık kalsın."
-            className="resize-y rounded-input border border-line bg-canvas px-3 py-2 text-[13.5px] leading-relaxed outline-none placeholder:text-ink-3 focus:border-accent/50"
+            className="resize-y rounded-input border border-line bg-canvas px-3 py-2 text-[13.5px] leading-relaxed outline-none placeholder:text-ink-3 focus:border-accent-glow/50"
           />
           <div className="flex items-center gap-3">
             <button type="submit" disabled={busy || !text.trim()} className="rounded-control bg-accent px-3 py-1.5 text-[13px] font-medium text-white disabled:opacity-40">Ajan düzenlesin</button>

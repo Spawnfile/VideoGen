@@ -41,12 +41,12 @@ export function TikTokSection() {
           </div>
           <div className="flex gap-2">
             {view.action !== 'import' && (
-              <button type="button" data-testid="tiktok-connect" onClick={() => void connect()} className="rounded-control border border-line-strong px-3 py-1 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-ink">
+              <button type="button" data-testid="tiktok-connect" onClick={() => void connect()} className="rounded-control border border-line-strong px-3 py-1 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-accent-glow">
                 {view.action === 'connect' ? 'Bağlan' : 'Yeniden bağlan'}
               </button>
             )}
             {q.data?.connected && (
-              <button type="button" data-testid="tiktok-test" onClick={() => void test()} className="rounded-control border border-line-strong px-3 py-1 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-ink">
+              <button type="button" data-testid="tiktok-test" onClick={() => void test()} className="rounded-control border border-line-strong px-3 py-1 text-[13px] hover:bg-hover-2 focus-visible:outline-2 focus-visible:outline-accent-glow">
                 Bağlantıyı sına
               </button>
             )}

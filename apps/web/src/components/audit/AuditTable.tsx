@@ -27,7 +27,7 @@ export function AuditTable({ rows, open, onToggle, onFilter }: { rows: AuditRowV
               data-tone={r.tone}
               aria-expanded={open === r.seq}
               onClick={() => onToggle(r.seq)}
-              className={`${cols} w-full px-4 py-2 text-left text-[13px] transition-colors duration-100 hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink ${open === r.seq ? 'bg-hover' : ''}`}
+              className={`${cols} w-full px-4 py-2 text-left text-[13px] transition-colors duration-100 hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-glow ${open === r.seq ? 'bg-hover' : ''}`}
             >
               <span aria-hidden className={`size-1.5 translate-y-[-1px] self-center rounded-full ${MARK[r.tone]}`} />
               <span className="tabular-nums text-ink-2">{r.time}</span>

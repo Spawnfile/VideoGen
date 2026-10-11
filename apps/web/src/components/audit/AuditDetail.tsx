@@ -5,8 +5,8 @@ import { toolInputView, type AuditQueryFilter } from '../../lib/audit-view.ts';
 import { TraceView } from '../thinking/TraceView.tsx';
 
 const pre = 'max-h-[320px] overflow-auto rounded-input bg-inset p-3 font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-all text-ink';
-const link = 'text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink';
-const quiet = 'rounded-control px-1.5 py-1 text-[12px] text-ink-2 transition-colors duration-100 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink';
+const link = 'text-accent-glow underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow';
+const quiet = 'rounded-control px-1.5 py-1 text-[12px] text-ink-2 transition-colors duration-100 hover:bg-hover-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow';
 
 function Part({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
   return (

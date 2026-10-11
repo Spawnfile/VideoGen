@@ -45,7 +45,7 @@ export function VersionList({ versions, selected, onSelect }: { versions: Versio
                 type="button"
                 aria-pressed={selected === v.id}
                 onClick={() => onSelect(v.id)}
-                className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors duration-100 first:rounded-t-card last:rounded-b-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink ${selected === v.id ? 'bg-accent/10' : 'hover:bg-hover'}`}
+                className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors duration-100 first:rounded-t-card last:rounded-b-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-glow ${selected === v.id ? 'bg-accent-glow/10' : 'hover:bg-hover'}`}
               >
                 {body}
               </button>

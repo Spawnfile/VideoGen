@@ -21,7 +21,7 @@ export function NavRail({ path, go }: { path: string; go: (p: string) => void })
             aria-disabled={!it.enabled || undefined}
             title={it.enabled ? it.label : `${it.label} (yakında)`}
             onClick={(e) => { e.preventDefault(); if (it.enabled) go(it.path); }}
-            className={`flex size-10 items-center justify-center rounded-input transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${
+            className={`flex size-10 items-center justify-center rounded-input transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow ${
               active ? 'bg-accent text-white' : it.enabled ? 'text-ink-2 hover:bg-hover-2 hover:text-ink' : 'cursor-not-allowed text-ink-3/60'
             }`}
           >
