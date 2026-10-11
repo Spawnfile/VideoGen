@@ -20,3 +20,4 @@ export * from './media.ts';
 export * from './maintenance.ts';
 export * from './gc.ts';
 export * from './safe-area.ts';
+export * from './platforms.ts';
