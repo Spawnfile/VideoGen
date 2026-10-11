@@ -1,8 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { ChannelStyleSection } from '../components/settings/ChannelStyleSection.tsx';
 import { DataSection } from '../components/settings/DataSection.tsx';
 import { DeviceSection } from '../components/settings/DeviceSection.tsx';
-import { NarratorVoiceSection } from '../components/settings/NarratorVoiceSection.tsx';
 import { RolesSection } from '../components/settings/RolesSection.tsx';
 import { SafeAreaSection } from '../components/settings/SafeAreaSection.tsx';
 import { useShellBar } from '../components/shell/ShellContext.tsx';
@@ -67,13 +65,12 @@ function UsageSection() {
   return <section className="rounded-card bg-paper p-4"><StatusBody s={s} /></section>;
 }
 
-type SectionId = 'claude' | 'usage' | 'channel' | 'narrator' | 'safe-area' | 'roles' | 'data' | 'device';
+// YAKLASIM spec Y2/Y8: no channel identity or narrator voice to choose (the approach fixes both).
+type SectionId = 'claude' | 'usage' | 'safe-area' | 'roles' | 'data' | 'device';
 interface Row { id: SectionId | 'audit' | 'assets'; label: string; render?: () => ReactNode }
 const GROUPS: { title: string; rows: Row[] }[] = [
   { title: 'Account and usage', rows: [{ id: 'claude', label: 'Claude connection', render: () => <ClaudeSection /> }, { id: 'usage', label: 'Usage and status', render: () => <UsageSection /> }] },
   { title: 'Channel', rows: [
-    { id: 'channel', label: 'Channel identity', render: () => <ChannelStyleSection /> },
-    { id: 'narrator', label: 'Narrator voice', render: () => <NarratorVoiceSection /> },
     { id: 'safe-area', label: 'Safe area', render: () => <SafeAreaSection /> },
   ] },
   { title: 'Agents', rows: [{ id: 'roles', label: 'Agent roles', render: () => <RolesSection /> }] },
@@ -96,8 +93,6 @@ export function Settings({ go }: { go: (url: string, opts?: GoOptions) => void }
       <div className="mx-auto flex max-w-[900px] flex-col gap-4 p-6 desk:p-8">
         <h1 className="text-[16px] font-medium">Settings</h1>
         <ClaudeSection />
-        <ChannelStyleSection />
-        <NarratorVoiceSection />
         <SafeAreaSection />
         <RolesSection />
         <DataSection />

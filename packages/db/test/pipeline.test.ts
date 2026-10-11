@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  applyAgentDuration, createProduceRun, findArtifact, getRunContext, getArtifact, getRunView, getVideoView, insertArtifact, insertSession, latestArtifact, latestUsageMark,
+  applyAgentDuration, createAudioEditRun, createProduceRun, findArtifact, getRunContext, getArtifact, getRunView, getVideoView, insertArtifact, insertSession, latestArtifact, latestUsageMark,
   listArtifacts, listRunSteps, listVideoViews, queueStepIfRunActive, startStepIfRunActive, stepHistorySeconds, updateRun, updateSession, updateStep,
 } from '../src/index.ts';
 import { createTestDb } from './helpers.ts';
@@ -138,5 +138,15 @@ describe('conditional step transitions (cancel races)', () => {
     await updateStep(t.pool, second!.id, { status: 'pending' });
     expect(await queueStepIfRunActive(t.pool, second!.id)).toBe(false);
     expect((await listRunSteps(t.pool, a.runId))[1]!.status).toBe('pending');
+  });
+
+});
+
+describe('YAKLASIM audio (spec Y16)', () => {
+  it('a YAKLASIM video cannot be audio-edited: its music is fixed', async () => {
+    const r = await createProduceRun(t.pool, { productName: 'Sabit müzik', audioMode: 'silent', plan });
+    await t.pool.query("UPDATE videos SET status = 'ready' WHERE id = $1", [r.videoId]);
+    await t.pool.query("UPDATE runs SET status = 'done' WHERE id = $1", [r.runId]);
+    expect(await createAudioEditRun(t.pool, { videoId: r.videoId, instruction: 'daha sakin', plan: [] })).toEqual({ error: 'YAKLASIM videosunun müziği sabittir; düzenlenecek bir şey yok' });
   });
 });

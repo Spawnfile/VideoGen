@@ -10,13 +10,13 @@ import { sendCommand } from './notify.ts';
 const Produce = z.object({
   productName: z.string().trim().min(2, 'the product name needs at least 2 characters').max(80, 'the product name can be at most 80 characters')
     .refine((s) => !/[\u0000-\u001f\u007f]/.test(s), 'the product name cannot contain control characters'),
-  audioMode: z.enum(AUDIO_MODES, { error: 'the audio mode must be vo or silent' }),
+  // YAKLASIM spec Y2: no voiceover; the field may be left out (silent).
+  audioMode: z.enum(AUDIO_MODES, { error: 'the audio mode must be silent' }).refine((m) => m === 'silent', 'Voiceover is not part of the YAKLASIM approach.').default('silent'),
   /** Brief design Y4: the user's production brief (tabs and line breaks, CRLF included, allowed; no other control characters). */
   brief: z.string().max(BRIEF_MAX, `the brief can be at most ${BRIEF_MAX} characters`)
     .refine((s) => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(s), 'the brief cannot contain control characters').optional(),
-  /** Brief design Y1–Y3: the user's duration window in whole seconds; absent = the agent recommends, else the default 35–55 s. */
-  duration: z.object({ minS: z.number().int('the length must be whole seconds'), maxS: z.number().int('the length must be whole seconds') })
-    .superRefine((w, ctx) => { for (const message of durationWindowErrors(w)) ctx.addIssue({ code: 'custom', message }); }).nullable().optional(),
+  /** YAKLASIM spec Y1: the length is fixed at 12–15 s; a window from the client is refused. */
+  duration: z.unknown().refine((d) => d === undefined || d === null, 'The length is fixed at 12–15 s by the YAKLASIM approach.').optional(),
   /** Dev only (VG_DEV_ENDPOINTS=1): end the plan at this step (smoke scenarios of earlier milestones). */
   until: z.enum(STEP_KEYS).optional(),
 });
@@ -26,6 +26,7 @@ const AUDIO_EDIT_ERRORS: Record<string, string> = {
   'video bulunamadı': 'video not found',
   'yalnızca yayına hazır bir videonun sesi düzenlenebilir': 'Only a video that is ready to publish can have its audio edited.',
   'içe aktarılmış bir video düzenlenemez': 'Imported videos cannot be edited.',
+  'YAKLASIM videosunun müziği sabittir; düzenlenecek bir şey yok': 'YAKLASIM music is fixed; there is nothing to edit.',
   'bu videoda devam eden bir üretim var': 'This video already has a production running.',
   'düzenlenecek bir final yok': 'There is no final to edit.',
 };
@@ -40,7 +41,7 @@ export function registerVideoRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
     if (b.data.until && !deps.devEndpoints) return reply.code(400).send({ error: 'until only works in developer mode' });
     const upTo = b.data.until && IMPLEMENTED_STEPS.includes(b.data.until) ? IMPLEMENTED_STEPS.slice(0, IMPLEMENTED_STEPS.indexOf(b.data.until) + 1) : IMPLEMENTED_STEPS;
     const created = await createProduceRun(pool, {
-      productName: b.data.productName, audioMode: b.data.audioMode, plan: producePlan(b.data.audioMode, upTo), brief: b.data.brief ?? null, duration: b.data.duration ?? null,
+      productName: b.data.productName, audioMode: b.data.audioMode, plan: producePlan(b.data.audioMode, upTo), brief: b.data.brief ?? null, duration: null,
     });
     await publishRunAndVideo(pool, created.runId);
     await sendCommand(pool, { type: 'run.start', runId: created.runId });

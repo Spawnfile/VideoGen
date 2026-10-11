@@ -58,7 +58,7 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
       {run && <StepList run={run} />}
       <ResearchCard artifactId={latest.research} video={video} />
       <StoryboardCard artifactId={latest.storyboard} />
-      <AudioCard video={video} stems={latest.stems} canEdit={video.status === 'ready' && video.origin !== 'import' && !isRunActive(run)} />
+      <AudioCard video={video} stems={latest.stems} canEdit={video.status === 'ready' && video.origin !== 'import' && video.approach !== 'yaklasim' && !isRunActive(run)} />
       <VoiceCard trackId={latest.voiceTrack} stemSha={latest.voiceStem} />
       <BuildCard reportId={latest.report} sceneId={latest.scene} sheetSha={latest.sheet} />
       <ReviewCard artifactId={latest.draft.reviewId} />

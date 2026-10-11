@@ -1,30 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
-import { BRIEF_MAX, DURATION_HARD, type AudioMode } from '@videogen/shared/browser';
+import { useRef, useState } from 'react';
+import { BRIEF_MAX } from '@videogen/shared/browser';
 import { api } from '../../lib/api.ts';
-import { BRIEF_DEFAULTS, durationBadge, initialDurationState, onBriefChange, onDurationEdit, onDurationMode, producePayload } from '../../lib/brief-view.ts';
-import { PRODUCE_VO_HINT } from '../../lib/production-view.ts';
+import { BRIEF_DEFAULTS, producePayload, YAKLASIM_LINE } from '../../lib/brief-view.ts';
 
-const MODES: { id: AudioMode; label: string; hint: string }[] = [
-  { id: 'silent', label: 'No voiceover', hint: 'On-screen text and sound effects carry the story' },
-  { id: 'vo', label: 'With voiceover', hint: PRODUCE_VO_HINT },
-];
-const DURATION_MODES = [{ id: 'auto', label: 'Auto' }, { id: 'manual', label: 'Manual' }] as const;
-const pill = (on: boolean) =>
-  `min-h-9 rounded-full px-3.5 text-[13px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow md:min-h-0 md:px-3 md:py-1 ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
 const field = 'rounded-input border border-line bg-inset outline-none transition-shadow duration-150 placeholder:text-ink-3 focus:border-accent-glow/60 focus:shadow-glow';
 
 /**
  * The production form. `bar`: the tablet/desktop strip above the Studio. `sheet`: inside the phone's "New video" sheet.
  * `hero`: the empty Studio on a phone (the first thing a new user sees). All three are the same form with the same `#product-name`.
+ * YAKLASIM (spec Y1/Y2): the product and an optional brief; the approach fixes length, voice and look.
  */
 export function ProduceForm({ variant, onCreated }: { variant: 'bar' | 'sheet' | 'hero'; onCreated: (videoId: string) => void }) {
   const [name, setName] = useState('');
-  const [mode, setMode] = useState<AudioMode>('silent');
   const [brief, setBrief] = useState('');
-  const [duration, setDuration] = useState(initialDurationState);
-  // What the two boxes show while typing (may be empty); the window takes a value only once it is a number.
-  const [typed, setTyped] = useState({ minS: String(duration.minS), maxS: String(duration.maxS) });
-  useEffect(() => { setTyped((t) => ({ minS: Number(t.minS) === duration.minS ? t.minS : String(duration.minS), maxS: Number(t.maxS) === duration.maxS ? t.maxS : String(duration.maxS) })); }, [duration.minS, duration.maxS]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lock = useRef(false);
@@ -32,15 +20,13 @@ export function ProduceForm({ variant, onCreated }: { variant: 'bar' | 'sheet' |
 
   const submit = async () => {
     if (name.trim().length < 2 || lock.current) return; // a ref, not state: two clicks in one frame start one run
-    if (duration.mode === 'manual' && (typed.minS.trim() === '' || typed.maxS.trim() === '')) { setError('Fill in both length boxes.'); return; }
-    const p = producePayload({ name, mode, brief, duration });
-    if (!p.ok) { setError(p.error); return; }
+    const p = producePayload({ name, brief });
     lock.current = true;
     setBusy(true);
     setError(null);
     try {
       const r = await api.produce(p.body);
-      if (r.ok) { setName(''); setBrief(''); setDuration(initialDurationState()); onCreated(r.videoId); } else setError(r.error);
+      if (r.ok) { setName(''); setBrief(''); onCreated(r.videoId); } else setError(r.error);
     } catch {
       setError('Could not reach the server.');
     } finally {
@@ -48,25 +34,6 @@ export function ProduceForm({ variant, onCreated }: { variant: 'bar' | 'sheet' |
       setBusy(false);
     }
   };
-  const bound = (key: 'minS' | 'maxS', label: string) => (
-    <label className="flex items-center gap-1.5 text-[13px] text-ink-2">
-      {label}
-      <input
-        type="number"
-        inputMode="numeric"
-        min={DURATION_HARD.minS}
-        max={DURATION_HARD.maxS}
-        step={1}
-        value={typed[key]}
-        onChange={(e) => {
-          const v = e.target.value;
-          setTyped((t) => ({ ...t, [key]: v }));
-          if (v.trim() !== '' && Number.isFinite(Number(v))) setDuration((d) => onDurationEdit(d, { [key]: Number(v) }));
-        }}
-        className={`${field} w-16 px-2 py-1.5 text-[13px] tabular-nums md:py-1`}
-      />
-    </label>
-  );
   const create = (
     <button
       type="submit"
@@ -76,16 +43,6 @@ export function ProduceForm({ variant, onCreated }: { variant: 'bar' | 'sheet' |
       {busy ? 'Creating…' : 'Create video'}
     </button>
   );
-  const modes = (
-    <div role="radiogroup" aria-label="Voiceover" className="flex flex-wrap gap-1">
-      {MODES.map((m) => (
-        <button key={m.id} type="button" role="radio" aria-checked={mode === m.id} title={m.hint} onClick={() => setMode(m.id)} className={pill(mode === m.id)}>
-          {m.label}
-        </button>
-      ))}
-    </div>
-  );
-
   return (
     <section aria-label="New production" className={variant === 'bar' ? 'border-b border-line bg-paper px-6 py-4' : ''}>
       <form onSubmit={(e) => { e.preventDefault(); void submit(); }} className="flex flex-col gap-3">
@@ -101,32 +58,20 @@ export function ProduceForm({ variant, onCreated }: { variant: 'bar' | 'sheet' |
             enterKeyHint="go"
             className={`${field} min-w-0 flex-1 px-4 text-[15px] ${stacked ? 'min-h-12' : 'min-w-64 py-2.5'} ${variant === 'hero' ? 'border-accent-glow/35 shadow-glow' : ''}`}
           />
-          {modes}
           {!stacked && create}
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="text-[13px] text-ink-2">Length</span>
-          <div role="radiogroup" aria-label="Length" className="flex gap-1">
-            {DURATION_MODES.map((m) => (
-              <button key={m.id} type="button" role="radio" aria-checked={duration.mode === m.id} onClick={() => setDuration((d) => onDurationMode(d, m.id))} className={pill(duration.mode === m.id)}>
-                {m.label}
-              </button>
-            ))}
-          </div>
-          {duration.mode === 'manual' && <span className="flex items-center gap-2">{bound('minS', 'min')}{bound('maxS', 'max')}<span className="text-[13px] text-ink-3">s</span></span>}
-          <span data-testid="duration-badge" className="rounded-full border border-line px-2.5 py-0.5 text-[12px] text-ink-2">{durationBadge(duration)}</span>
-        </div>
+        <p data-testid="yaklasim-line" className="w-fit rounded-full border border-line px-2.5 py-0.5 text-[12px] text-ink-2">{YAKLASIM_LINE}</p>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="produce-brief" className="text-[13px] text-ink-2">Brief <span className="text-ink-3">(optional)</span></label>
           <textarea
             id="produce-brief"
             value={brief}
-            onChange={(e) => { setBrief(e.target.value); setDuration((d) => onBriefChange(d, e.target.value)); }}
+            onChange={(e) => setBrief(e.target.value)}
             maxLength={BRIEF_MAX}
             rows={stacked ? 3 : 2}
-            placeholder="e.g. keep it under 20 seconds; focus on the moment the spring pushes back; fast pace, open with a question."
+            placeholder="e.g. make the hidden spring the hero; count the clicks a pen lasts; end with the pen solving itself."
             className={`${field} resize-y px-3 py-2 text-[14px] leading-relaxed`}
           />
           <div className="flex items-start justify-between gap-4 text-[11.5px] text-ink-3">

@@ -18,6 +18,9 @@ describe('audio edit (agent music design A6/A7)', () => {
       after: async ({ o, h, run }) => {
         const before = (await getVideoView(t.pool, run.videoId))!;
         expect(before.status).toBe('ready');
+        // YAKLASIM spec Y16: the produced video's music is fixed; the composer path below is a pre-YAKLASIM video's.
+        expect(await createAudioEditRun(t.pool, { videoId: run.videoId, instruction: 'sakin', plan: audioEditPlan() })).toEqual({ error: 'YAKLASIM videosunun müziği sabittir; düzenlenecek bir şey yok' });
+        await t.pool.query('UPDATE videos SET approach = NULL WHERE id = $1', [run.videoId]);
         const finalBefore = (await latestArtifact(t.pool, run.runId, 'final_video_music'))!;
         expect(await createAudioEditRun(t.pool, { videoId: run.videoId, instruction: '   ', plan: audioEditPlan() })).toEqual({ error: 'talimat boş olamaz' });
         const edit = await createAudioEditRun(t.pool, { videoId: run.videoId, instruction: 'Müziği daha sakin yap, davulu kaldır.', plan: audioEditPlan() });
