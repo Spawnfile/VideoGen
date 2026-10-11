@@ -7,7 +7,6 @@ import { ResearchCard, StoryboardCard, useContent } from '../components/producti
 import { DraftTabs } from '../components/production/DraftTabs.tsx';
 import { ReviewPanel } from '../components/production/ReviewPanel.tsx';
 import { VideoHeader } from '../components/production/VideoHeader.tsx';
-import { PublishPanel } from '../components/publish/PublishPanel.tsx';
 import { api } from '../lib/api.ts';
 import { finished, versionLabel } from '../lib/compare-view.ts';
 import { panelView, pickDraft, pickFinal, pickReviewSheet, type FinalPick } from '../lib/production-view.ts';
@@ -147,9 +146,6 @@ export function LibraryDetail({ videoId, go }: { videoId: string; go: (url: stri
           : <p className="text-[13px] text-ink-2">No storyboard.</p>)}
         {tab === 'research' && <ResearchTab artifactId={newest(list, 'research', run?.id ?? null)} />}
         {tab === 'audit' && <Audit embedded initial={{ videoId }} fixed={['videoId']} />}
-        {tab === 'publish' && video && (video.status === 'ready' || video.status === 'published'
-          ? <PublishPanel key={videoId} videoId={videoId} />
-          : <p className="text-[13px] text-ink-2">The video must be ready to publish first.</p>)}
       </DetailTabs>
     </div>
   );

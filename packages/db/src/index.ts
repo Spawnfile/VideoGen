@@ -14,7 +14,7 @@ export * from './steps-sessions.ts';
 export * from './assets.ts';
 export * from './reviews.ts';
 export * from './voice.ts';
-export * from './publish.ts';
+export * from './locks.ts';
 export * from './versions.ts';
 export * from './media.ts';
 export * from './maintenance.ts';

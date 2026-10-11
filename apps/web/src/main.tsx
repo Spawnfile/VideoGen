@@ -5,7 +5,6 @@ import type { AgentSample, AgentSessionView, ChatMessage, ClaudeAuth, GpuWait, G
 import { AppShell } from './components/AppShell.tsx';
 import { connectLive, onLiveEvent, onUiEvent } from './lib/live.ts';
 import { activePlayer, shortcutFor } from './lib/player.ts';
-import { liveInvalidation } from './lib/publish-view.ts';
 import { chatRunning, chats, useStore, applyDelta, applyGpuWait, applyMessage, applyRow, applyRun, applySample, applySession, applyVideo } from './lib/stores.ts';
 import { filterFromQuery, queryFromFilter } from './lib/audit-view.ts';
 import { useRoute } from './lib/router.ts';
@@ -42,8 +41,6 @@ function App() {
       if (e.type === 'chat.message') applyMessage(e.payload as ChatMessage, e.id);
       if (e.type === 'video.updated') applyVideo(e.payload as VideoView, e.id);
       if (e.type === 'run.updated') applyRun(e.payload as RunView, e.id);
-      const stale = liveInvalidation(e);
-      if (stale) void queryClient.invalidateQueries({ queryKey: stale });
     });
     const offLive = onLiveEvent((e) => {
       if (e.type === 'trace.delta') {

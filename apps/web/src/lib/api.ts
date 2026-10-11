@@ -1,6 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import type { PublishInfo, TikTokStatus } from './publish-view.ts';
-import type { Publication, PublishVariant } from '@videogen/shared/browser';
 import type { ProduceBody } from './brief-view.ts';
 import type { AgentSessionView, ArtifactMeta, AssetListItem, LedgerKind, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, MaintenanceInfo, ModelAlias, NarratorVoice, SafeArea, SafeAreaState, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VersionView, VideoView, VoiceEngine } from '@videogen/shared/browser';
 
@@ -66,20 +64,11 @@ export const api = {
   setChannelStyle: (id: ChannelStyleId) => send<ChannelStyleState>('PUT', '/api/channel-style', { id }),
   narratorVoice: () => get<NarratorVoiceState>('/api/narrator-voice'),
   setNarratorVoice: (voice: NarratorVoice) => send<NarratorVoiceState>('PUT', '/api/narrator-voice', voice),
-  publishInfo: (videoId: string) => get<PublishInfo>(`/api/videos/${videoId}/publish`),
-  publish: (videoId: string, body: { variant: PublishVariant; caption?: string; confirmResend?: boolean }) =>
-    write<{ publication: Publication }>(`/api/videos/${videoId}/publish`, body),
-  markPublished: (id: string, url: string, checklist: Record<string, boolean>) => write<{ publication: Publication }>(`/api/publications/${id}/mark`, { url, checklist }),
-  cancelPublication: (id: string) => write<{ publication: Publication }>(`/api/publications/${id}/cancel`, {}),
-  exportShorts: (videoId: string) => write<{ url: string; fileName: string; caption: string }>(`/api/videos/${videoId}/exports/shorts`, {}),
-  tiktok: () => get<TikTokStatus>('/api/tiktok'),
-  tiktokConnect: () => write<{ authorizeUrl: string; expiresAt: string }>('/api/tiktok/connect', {}),
   // Plan M7 Y5: read-only audit explorer; the list path comes from audit-view's auditListPath.
   auditPage: (path: string) => get<AuditPage>(path),
   auditActions: () => get<AuditActionCount[]>('/api/audit/actions'),
   auditRow: (seq: number) => get<AuditDetail>(`/api/audit/${seq}`),
   auditVerify: (fresh = false) => get<AuditVerifyResult & { cached: boolean }>(`/api/audit/verify${fresh ? '?fresh=1' : ''}`),
-  tiktokTest: () => write<{ username: string; maxDurationS: number; privacyOptions: string[] }>('/api/tiktok/test', {}),
   // Plan M7 Y8: the asset ledger.
   assets: () => get<AssetListItem[]>('/api/assets'),
   upload: async (file: File, ext: string): Promise<WriteResult<{ uploadId: string; sha: string; bytes: number; durationMs: number }>> => {

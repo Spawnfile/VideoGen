@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
 
-export type DetailTab = 'versions' | 'reviews' | 'storyboard' | 'research' | 'audit' | 'publish';
+export type DetailTab = 'versions' | 'reviews' | 'storyboard' | 'research' | 'audit';
 export const DETAIL_TABS: [DetailTab, string][] = [
-  ['versions', 'Versions'], ['reviews', 'Reviews'], ['storyboard', 'Storyboard'], ['research', 'Research and sources'], ['audit', 'Audit log'], ['publish', 'Publish'],
+  ['versions', 'Versions'], ['reviews', 'Reviews'], ['storyboard', 'Storyboard'], ['research', 'Research and sources'], ['audit', 'Audit log'],
 ];
 
-/** Plan M7 Y7 library detail tabs; only the open tab's panel is mounted (the audit list and the publish info load when opened). */
+/** Plan M7 Y7 library detail tabs; only the open tab's panel is mounted (the audit list loads when opened). */
 export function DetailTabs({ tab, onTab, children }: { tab: DetailTab; onTab: (t: DetailTab) => void; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-4">
