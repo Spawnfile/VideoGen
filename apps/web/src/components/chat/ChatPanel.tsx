@@ -152,7 +152,7 @@ export function ChatPanel({ onNewThread }: { onNewThread?: () => void } = {}) {
               role="radio"
               aria-checked={mode === m.id}
               onClick={() => setMode(m.id)}
-              className={`min-h-9 rounded-full px-3.5 text-[13px] transition-colors duration-100 md:min-h-0 md:px-2.5 md:py-0.5 md:text-[12px] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${mode === m.id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
+              className={`min-h-9 rounded-control px-3.5 text-[13px] transition-colors duration-100 md:min-h-0 md:px-2.5 md:py-0.5 md:text-[12px] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${mode === m.id ? 'bg-ink font-medium text-canvas' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
             >
               {m.label}
             </button>
@@ -207,7 +207,7 @@ export function ChatPanel({ onNewThread }: { onNewThread?: () => void } = {}) {
               Stop
             </button>
           )}
-          <button type="submit" disabled={!text.trim() || sending} className={`${running ? '' : 'ml-auto'} min-h-10 rounded-input bg-accent px-4 py-1.5 md:min-h-0 md:rounded-control md:px-3 text-[13px] font-medium text-white transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow disabled:opacity-40`}>
+          <button type="submit" disabled={!text.trim() || sending} className={`${running ? '' : 'ml-auto'} min-h-10 rounded-input bg-ink px-4 py-1.5 md:min-h-0 md:rounded-control md:px-3 text-[13px] font-medium text-canvas transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow disabled:opacity-40`}>
             Send
           </button>
         </div>

@@ -20,7 +20,7 @@ export function DetailTabs({ tab, onTab, children }: { tab: DetailTab; onTab: (t
             aria-selected={tab === id}
             aria-controls="detail-panel"
             onClick={() => onTab(id)}
-            className={`min-h-9 shrink-0 rounded-full px-3.5 py-1 text-[13px] whitespace-nowrap transition-colors md:min-h-0 md:px-3 duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${tab === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
+            className={`min-h-9 shrink-0 rounded-control px-3.5 py-1 text-[13px] whitespace-nowrap transition-colors md:min-h-0 md:px-3 duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${tab === id ? 'bg-ink font-medium text-canvas' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
           >
             {label}
           </button>

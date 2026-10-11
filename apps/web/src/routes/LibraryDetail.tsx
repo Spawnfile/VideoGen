@@ -17,7 +17,7 @@ import { Audit } from './Audit.tsx';
 
 const card = 'rounded-card bg-paper px-4 py-3';
 const chip = (on: boolean) =>
-  `min-h-8 rounded-full px-3 py-0.5 text-[12px] transition-colors md:min-h-0 md:px-2.5 duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
+  `min-h-8 rounded-control px-3 py-0.5 text-[12px] transition-colors md:min-h-0 md:px-2.5 duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${on ? 'bg-ink font-medium text-canvas' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
 const newest = (list: ArtifactMeta[], kind: string, runId: string | null) => (list.find((a) => a.kind === kind && (!runId || a.runId === runId)) ?? list.find((a) => a.kind === kind))?.id ?? null;
 
 /** "Review'lar": a version picker (all rounds of the latest run, or one version's rounds) over the review panel and its round chips. */

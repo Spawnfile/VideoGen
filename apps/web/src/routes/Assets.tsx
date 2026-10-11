@@ -9,7 +9,7 @@ import { useShellBar } from '../components/shell/ShellContext.tsx';
 import { backTo } from '../lib/router.ts';
 
 const chip = (on: boolean) =>
-  `min-h-9 shrink-0 rounded-full px-3.5 py-1 text-[12px] whitespace-nowrap transition-colors md:min-h-0 md:px-3 duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
+  `min-h-9 shrink-0 rounded-control px-3.5 py-1 text-[12px] whitespace-nowrap transition-colors md:min-h-0 md:px-3 duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${on ? 'bg-ink font-medium text-canvas' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
 
 /** Plan M7 Y8 asset ledger (spec §13.1 Varlıklar): license fields, preview, usage, Add (upload + license gate) and revoke. */
 export function Assets() {
@@ -24,12 +24,12 @@ export function Assets() {
   return (
     <div data-testid="assets-page" className="mx-auto flex max-w-[900px] flex-col gap-4 px-4 pt-2 pb-8 md:p-8">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="hidden text-[16px] font-medium md:block">Assets</h1>
+        <h1 className="hidden text-[28px] leading-none font-bold tracking-[-0.035em] md:block">Assets</h1>
         <button
           type="button"
           aria-expanded={adding}
           onClick={() => setAdding((a) => !a)}
-          className="min-h-10 rounded-control bg-accent px-4 py-1.5 text-[13px] font-medium text-white md:min-h-0 md:px-3 transition-opacity duration-100 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
+          className="min-h-10 rounded-control bg-ink px-4 py-1.5 text-[13px] font-medium text-canvas md:min-h-0 md:px-3 transition-opacity duration-100 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
         >
           {adding ? 'Close' : 'Add'}
         </button>

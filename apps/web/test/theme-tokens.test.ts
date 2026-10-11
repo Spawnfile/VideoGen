@@ -56,4 +56,15 @@ describe('Ember theme tokens', () => {
     }
     expect(hits).toEqual([]);
   });
+  it('has no bg-accent in components or routes (ember is bg-ember; selection is neutral)', () => {
+    const hits: string[] = [];
+    for (const dir of ['components', 'routes']) {
+      for (const f of files(join(SRC, dir))) {
+        readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+          if (/\bbg-accent(?![-\w])/.test(line)) hits.push(`${f.slice(SRC.length + 1)}:${i + 1}`);
+        });
+      }
+    }
+    expect(hits).toEqual([]);
+  });
 });

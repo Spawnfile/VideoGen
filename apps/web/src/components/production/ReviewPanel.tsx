@@ -69,7 +69,7 @@ export function ReviewPanel({ reviews, runId, status, sheetSha, canSeek, failed,
                 aria-pressed={v.round === r}
                 aria-label={`round ${r + 1}${r === v.rounds.at(-1) ? ' (newest)' : ''}`}
                 onClick={() => pick(r === v.rounds.at(-1) ? null : r)}
-                className={`rounded-full px-2.5 py-0.5 text-[12px] tabular-nums transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${v.round === r ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
+                className={`rounded-control px-2.5 py-0.5 text-[12px] tabular-nums transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow ${v.round === r ? 'bg-ink font-medium text-canvas' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
               >
                 round {r + 1}
               </button>
@@ -91,7 +91,7 @@ export function ReviewPanel({ reviews, runId, status, sheetSha, canSeek, failed,
               aria-valuetext={d.score === null ? 'unknown' : `${formatScore(d.score)} / ${d.weight}${d.low ? ' (below the floor)' : ''}`}
               className="relative h-1.5 overflow-hidden rounded-full bg-inset"
             >
-              <span className={`absolute inset-y-0 left-0 rounded-full ${d.low ? 'bg-red/60' : 'bg-accent-glow'}`} style={{ width: `${d.score === null ? 0 : Math.min(100, (d.score / d.weight) * 100)}%` }} />
+              <span className={`absolute inset-y-0 left-0 rounded-full ${d.low ? 'bg-red/60' : 'bg-ink-2'}`} style={{ width: `${d.score === null ? 0 : Math.min(100, (d.score / d.weight) * 100)}%` }} />
               <span aria-hidden className="absolute inset-y-0 left-[60%] w-px bg-ink-3" />
             </span>
             <span className="text-right tabular-nums text-ink-3">{d.score === null ? '–' : formatScore(d.score)}/{d.weight}</span>

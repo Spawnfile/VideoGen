@@ -39,7 +39,7 @@ export function ChannelStyleSection() {
             >
               <img src={o.image} alt={`${STYLE_EN[o.id]?.name ?? o.id}: the example pen, first frame and exploded view`} className="aspect-[9/8] w-full rounded-control object-cover" />
               <span className="flex items-center gap-1.5 text-[13px] font-medium">
-                {selected && <span aria-hidden className="size-1.5 rounded-full bg-accent" />}
+                {selected && <span aria-hidden className="size-1.5 rounded-full bg-ink" />}
                 {STYLE_EN[o.id]?.name ?? o.name_tr}
               </span>
               <span className="text-[12px] leading-snug text-ink-2">{STYLE_EN[o.id]?.description ?? o.description_tr}</span>

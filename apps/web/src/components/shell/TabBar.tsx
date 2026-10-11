@@ -22,7 +22,7 @@ export function TabBar({ path, go, chatLive = false }: { path: string; go: (p: s
               <NavIcon d={t.icon} />
             </span>
             <span className="label-mono text-[10px]">{t.label}</span>
-            {t.path === '/chat' && chatLive && <span aria-label="Reply in progress" className="absolute top-1 left-[calc(50%+12px)] size-1.5 rounded-full bg-accent" />}
+            {t.path === '/chat' && chatLive && <span aria-label="Reply in progress" className="absolute top-1 left-[calc(50%+12px)] size-1.5 rounded-full bg-ember" />}
           </a>
         );
       })}

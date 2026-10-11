@@ -96,7 +96,7 @@ export function Settings({ go }: { go: (url: string, opts?: GoOptions) => void }
   if (layout !== 'phone') {
     return (
       <div className="mx-auto flex max-w-[900px] flex-col gap-4 p-6 desk:p-8">
-        <h1 className="text-[16px] font-medium">Settings</h1>
+        <h1 className="text-[28px] leading-none font-bold tracking-[-0.035em]">Settings</h1>
         <ClaudeSection />
         <ChannelStyleSection />
         <NarratorVoiceSection />
@@ -113,7 +113,7 @@ export function Settings({ go }: { go: (url: string, opts?: GoOptions) => void }
     <div data-testid="settings-list" className="flex flex-col gap-5 px-4 pt-2 pb-8">
       {GROUPS.map((g) => (
         <section key={g.title} aria-label={g.title} className="flex flex-col gap-1.5">
-          <h2 className="px-1 text-[12px] text-ink-3">{g.title}</h2>
+          <h2 className="label-mono px-1 text-ink-3">{g.title}</h2>
           <ul className="divide-y divide-line rounded-card bg-paper">
             {g.rows.map((r) => (
               <li key={r.id}>

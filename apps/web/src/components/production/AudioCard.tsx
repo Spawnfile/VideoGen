@@ -68,7 +68,7 @@ export function AudioCard({ video, stems, canEdit }: { video: Pick<VideoView, 'i
             className="resize-y rounded-input border border-line bg-inset px-3 py-2 text-[13.5px] leading-relaxed outline-none placeholder:text-ink-3 focus:border-accent-glow/50"
           />
           <div className="flex items-center gap-3">
-            <button type="submit" disabled={busy || !text.trim()} className="rounded-control bg-accent px-3 py-1.5 text-[13px] font-medium text-white disabled:opacity-40">Send to the agents</button>
+            <button type="submit" disabled={busy || !text.trim()} className="rounded-control bg-ink px-3 py-1.5 text-[13px] font-medium text-canvas disabled:opacity-40">Send to the agents</button>
             <span className="text-[11.5px] tabular-nums text-ink-3">{text.length}/{EDIT_MAX}</span>
           </div>
         </form>

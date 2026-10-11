@@ -78,7 +78,7 @@ export function AssetAddForm({ kind: initialKind, onDone }: { kind: LedgerKind; 
         <button
           type="submit"
           disabled={busy}
-          className="min-h-10 rounded-control bg-accent px-4 py-1.5 text-[13px] font-medium text-white md:min-h-0 md:px-3 transition-opacity duration-100 hover:opacity-90 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
+          className="min-h-10 rounded-control bg-ink px-4 py-1.5 text-[13px] font-medium text-canvas md:min-h-0 md:px-3 transition-opacity duration-100 hover:opacity-90 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
         >
           {busy ? 'Uploading…' : 'Upload and add'}
         </button>

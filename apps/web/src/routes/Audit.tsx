@@ -49,7 +49,7 @@ export function Audit({ initial = {}, onFilter, fixed = [], embedded = false }: 
 
   return (
     <div data-testid="audit-page" className={`mx-auto flex max-w-[900px] flex-col gap-4 ${embedded ? '' : 'px-4 pt-2 pb-8 md:p-8'}`}>
-      {!embedded && <h1 className="hidden text-[16px] font-medium md:block">Audit log</h1>}
+      {!embedded && <h1 className="hidden text-[28px] leading-none font-bold tracking-[-0.035em] md:block">Audit log</h1>}
       <ChainStatus />
       {phone ? (
         <>

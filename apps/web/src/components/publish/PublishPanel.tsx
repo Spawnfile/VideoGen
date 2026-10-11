@@ -64,7 +64,7 @@ export function PublishPanel({ videoId }: { videoId: string }) {
         type="button"
         data-testid="publish-open"
         onClick={() => setOpen(true)}
-        className="min-h-11 self-stretch rounded-input bg-accent px-4 py-1.5 text-[14px] font-medium text-white md:min-h-0 md:self-start md:rounded-control md:text-[13px] md:font-normal hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow"
+        className="min-h-11 self-stretch rounded-input bg-ink px-4 py-1.5 text-[14px] font-medium text-canvas md:min-h-0 md:self-start md:rounded-control md:text-[13px] md:font-normal hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow"
       >
         Publish
       </button>
@@ -94,7 +94,7 @@ export function PublishPanel({ videoId }: { videoId: string }) {
                 data-testid={`publish-variant-${id}`}
                 disabled={!q.data.variants[id]}
                 onClick={() => setVariant(id)}
-                className={`min-h-9 rounded-full px-3.5 py-1 text-[12px] transition-colors md:min-h-0 md:px-3 duration-100 focus-visible:outline-2 focus-visible:outline-accent-glow disabled:opacity-40 ${variant === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
+                className={`min-h-9 rounded-control px-3.5 py-1 text-[12px] transition-colors md:min-h-0 md:px-3 duration-100 focus-visible:outline-2 focus-visible:outline-accent-glow disabled:opacity-40 ${variant === id ? 'bg-ink font-medium text-canvas' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
               >
                 {label}
               </button>
@@ -125,7 +125,7 @@ export function PublishPanel({ videoId }: { videoId: string }) {
                 data-testid="publish-send"
                 disabled={!view.canSend || busy}
                 onClick={() => void send()}
-                className="min-h-10 rounded-input bg-accent px-4 py-1.5 text-[13px] text-white hover:opacity-90 md:min-h-0 md:rounded-control md:px-3 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40"
+                className="min-h-10 rounded-input bg-ink px-4 py-1.5 text-[13px] text-canvas hover:opacity-90 md:min-h-0 md:rounded-control md:px-3 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40"
               >
                 {view.resend ? 'Send the draft again' : 'Send draft to TikTok'}
               </button>

@@ -79,7 +79,7 @@ export function FinishCard({ publication, checklist, aigcNote, onMarked }: { pub
           data-testid="mark-published"
           disabled={!!why || busy}
           onClick={() => void mark()}
-          className="min-h-10 rounded-input bg-accent px-4 py-1.5 text-[13px] text-white md:min-h-0 md:rounded-control md:px-3 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40"
+          className="min-h-10 rounded-input bg-ink px-4 py-1.5 text-[13px] text-canvas md:min-h-0 md:rounded-control md:px-3 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40"
         >
           Mark as published
         </button>

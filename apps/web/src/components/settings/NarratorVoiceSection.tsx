@@ -43,7 +43,7 @@ export function NarratorVoiceSection() {
             onClick={() => void choose(o.key)}
             className={`flex min-h-11 items-center gap-2 rounded-input border px-3 py-2 text-left text-[13px] transition-colors duration-100 hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent-glow disabled:opacity-60 ${o.selected ? 'border-accent-glow' : 'border-line'}`}
           >
-            {o.selected && <span aria-hidden className="size-1.5 rounded-full bg-accent" />}
+            {o.selected && <span aria-hidden className="size-1.5 rounded-full bg-ink" />}
             <span className={o.selected ? 'font-medium' : ''}>{o.label}</span>
             {o.provisional && <span className="rounded-full bg-inset px-2 py-0.5 text-[11.5px] text-ink-2">provisional</span>}
           </button>

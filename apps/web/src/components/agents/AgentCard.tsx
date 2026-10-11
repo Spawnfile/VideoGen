@@ -10,7 +10,7 @@ import { useNow } from '../../lib/use-now.ts';
 import { TraceView } from '../thinking/TraceView.tsx';
 
 const DOT: Record<ReturnType<typeof statusTone>, string> = {
-  active: 'bg-accent-glow',
+  active: 'bg-ember',
   waiting: 'border border-ink-3 bg-transparent',
   ok: 'bg-green/70',
   error: 'bg-red/80',
@@ -81,7 +81,7 @@ export function AgentCard({ session, sample, gpu }: { session: AgentSessionView;
         <div className="mt-2 flex items-center gap-3 text-[12px]">
           {session.progressMessage && <span className="min-w-0 truncate text-ink-2">{session.progressMessage}</span>}
           <span className="relative h-1.5 w-28 shrink-0 overflow-hidden rounded-full bg-inset" role="progressbar" aria-valuenow={session.progress} aria-valuemin={0} aria-valuemax={100}>
-            <span className="absolute inset-y-0 left-0 bg-accent-glow transition-[width] duration-500" style={{ width: `${session.progress}%` }} />
+            <span className="absolute inset-y-0 left-0 bg-ember transition-[width] duration-500" style={{ width: `${session.progress}%` }} />
           </span>
           <span className="shrink-0 tabular-nums">{Math.round(session.progress)}%</span>
           <span className="shrink-0 text-ink-3">{session.progressSource === 'time' ? 'estimate' : 'agent report'}</span>
@@ -92,7 +92,7 @@ export function AgentCard({ session, sample, gpu }: { session: AgentSessionView;
         <p key={s.id} className="mt-1.5 flex items-center gap-2 pl-3 text-[12px] text-ink-2">
           <span aria-hidden className="text-ink-3">↳</span>
           <span className="min-w-0 truncate">subagent: “{s.title}”</span>
-          <span className={`size-1.5 rounded-full ${s.status === 'running' ? 'bg-accent-glow' : s.status === 'done' ? 'bg-green/70' : 'bg-red/80'}`} />
+          <span className={`size-1.5 rounded-full ${s.status === 'running' ? 'bg-ember' : s.status === 'done' ? 'bg-green/70' : 'bg-red/80'}`} />
           <span>{s.status === 'running' ? 'running' : s.status === 'done' ? 'done' : 'error'}</span>
           <span className="tabular-nums text-ink-3">{formatElapsed((s.endedAt ?? now) - s.startedAt)}</span>
         </p>

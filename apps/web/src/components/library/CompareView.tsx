@@ -7,7 +7,7 @@ import { setActivePlayer } from '../../lib/player.ts';
 
 type Mode = 'side' | 'ab';
 const chip = (on: boolean) =>
-  `min-h-9 rounded-full px-3.5 py-1 text-[12px] transition-colors md:min-h-0 md:px-3 duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40 ${on ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
+  `min-h-9 rounded-control px-3.5 py-1 text-[12px] transition-colors md:min-h-0 md:px-3 duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40 ${on ? 'bg-ink font-medium text-canvas' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`;
 const signed = (n: number | null) => (n === null ? '–' : `${n > 0 ? '+' : ''}${formatScore(n)}`);
 const typing = (t: EventTarget | null) => {
   const el = t as HTMLElement | null;

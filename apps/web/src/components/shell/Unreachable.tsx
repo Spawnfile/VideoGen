@@ -32,7 +32,7 @@ export function Unreachable() {
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="text-ink-3" aria-hidden><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0M12 19h.01M3 3l18 18" /></svg>
       <h1 id="unreachable-title" className="text-[18px] font-medium">Can’t reach the VideoGen server</h1>
       <p className="max-w-[34ch] text-[14px] leading-relaxed text-ink-2">Check that Tailscale is on for this device and that the computer running VideoGen is awake.</p>
-      <button type="button" onClick={async () => { if (await reachable()) location.reload(); }} className="min-h-11 rounded-input bg-accent px-6 text-[15px] font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow">Try again</button>
+      <button type="button" onClick={async () => { if (await reachable()) location.reload(); }} className="min-h-11 rounded-input bg-ember shadow-ember px-6 text-[15px] font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow">Try again</button>
     </div>
   );
 }
