@@ -34,7 +34,7 @@ Referans uygulama: `episodes/rubik` (Blender sahnesi, Remotion katmanı, `audio/
 | # | Karar | Gerekçe |
 |---|---|---|
 | Y8 | Tek stil `yaklasim` (`CHANNEL_STYLES`'a eklenir; eski üçü eski spec'ler için okunur kalır): zemin `#1a2546 → #0d1222 → #070a14` radyal gradyan + kenarlara sönen soluk 90 px ızgara (CSS, Rubik'teki gibi), ışık ön ayarı `yaklasim` (sıcak ana + mavi sol kenar + turuncu sağ kenar güneş). Boru hattı ve fixer kanal stili ayarını okumaz, her zaman `yaklasim` kullanır. Ayarlardaki kanal stili bölümü gizlenir. | "Görsel kimlik sabittir." |
-| Y9 | Yazı katmanı: Montserrat 900 (yerel `@fontsource/montserrat`, ağ yok), beyaz, `*vurgu*` kısmı sarı `#ffd23f`, hafif gölge; yazılar **anında** belirir (opaklık 1, 0,94 → 1 ölçek 4 karede), sahneyle birlikte anında değişir; kanca ve sahne yazıları ekranın üst üçte birinde ortalı; parça etiketleri (çizgi + levha) YAKLASIM'da yoktur. Son beat'te kanca yazısı geri gelir. | Rubik katmanı. Türkçe parça adları "Türkçe metin yok" kuralını bozardı; kahraman parçayı sarı halka işaretler. |
+| Y9 | Yazı katmanı: Montserrat 900 (yerel `@fontsource/montserrat`, ağ yok), beyaz, `*vurgu*` kısmı sarı `#ffd23f`, hafif gölge; yazılar **anında** belirir (opaklık 1, 0,94 → 1 ölçek 4 karede), sahneyle birlikte anında değişir; kanca ve sahne yazıları ekranın üst üçte birinde ortalı; parça etiketleri (çizgi + levha) YAKLASIM'da yoktur. Son beat'te kanca yazısı geri gelir. YAKLASIM katmanı yalnızca sahne stili `yaklasim` ise kullanılır; eski stilli taslak/spec'ler eski katmanla oynar. | Rubik katmanı. Türkçe parça adları "Türkçe metin yok" kuralını bozardı; kahraman parçayı sarı halka işaretler. |
 | Y10 | Güvenli alan: YAKLASIM payları (üst 250, sağ 120, alt 420, sol 120) ile kalibre edilmiş alanın her kenarda büyüğü. Düzen denetimi (G6) bunu kullanır. | İki kuralın da ihlal edilmemesi. |
 | Y11 | Efektler Remotion'da: `transition: 'flash'` beat başında 4 karelik beyaz parlama + 10 karelik sönen sarsıntı ve küçük zoom vuruşu; `macro` beat'inde beat'in ilk parçasının çapasında atan sarı halka; `counter` beat'inde sayaç 0'dan değere hızla tırmanır (beat'in %70'inde varır, son değer tam yazılır). | Rubik'teki vuruşlar; Blender'a gerek yok. |
 | Y12 | SceneSpec: parça hareketi `explode`'a isteğe bağlı `back: { t_start, t_end, ease }` (parça yerine döner = kenetlenme) ve parçaya isteğe bağlı `spin: { axis, degrees, t_start, t_end, ease }` (mekanizma gerçek hareketiyle döner). `explode.t_start` −1 sn'ye kadar inebilir (0. karede patlama sürüyor). vg_blender: `back`/`spin` kare kare anahtarlanır; `part_lock` olayı `back.t_end`'de üretilir; yeni şekil `vg.text(body, size, depth)` (gizli "WHAT'S INSIDE" baskısı için). | 0. karede patlama, tek tek kenetlenme, gerçek mekanizma ve kusursuz döngü bunlarsız kurulamaz. |
@@ -71,6 +71,13 @@ Referans uygulama: `episodes/rubik` (Blender sahnesi, Remotion katmanı, `audio/
 | Z3 | Serbest besteci silinir: `audio_director` rolü, `MusicScore` üretimi, FluidSynth sürücüsü ve `music.py`/`music_cli.py`; ses düzenleme (`audio_edit` koşusu, `remix` adımı, API ucu, AudioCard düzenleme alanı). Eski `music_score` artefaktları okunur kalır. |
 | Z4 | Müziksiz varyant (`final_video_tiktok`) artık üretilmez: compose tek varyant çıkarır; QC, compose `reuse` ve sürüm görünümü `final_video_music`'e bağlanır; `QcReportSchema.tiktok` boş dizi kabul eder; web'deki varyant çipleri kalkar. Eski kayıtlardaki varyant okunur. |
 | Z5 | Kütüphane SFX'leri (whoosh, swoosh, click, tick, thud) ve müzik yatağı ön koşulu (`preflight` "izinli müzik gerekli") kalkar; varlık defteri (asset ledger) kalır (lisans kaydı için). |
+
+## Riskler
+
+- **Döngü dikişi ve QC `d8` (ilk/son kare SSIM ≥ 0,9):** YAKLASIM'ın dikişi bilinçli bir "kenetlen → patla" sıçramasıdır. 0. karedeki patlama
+  ofseti küçük tutulur (Y13: oran 0,05–0,95, builder kuralı: en çok birkaç cm), yazı her iki karede aynıdır; böylece SSIM eşiği aşılır. Gerçek
+  koşuda düşerse eşik değil 0. kare ofseti küçültülür.
+- **GPU kuyruğu:** takas alanı dolu iken (§6.4 ön koşulu) Blender/TTS adımları bekler; gerçek doğrulama takas boşaldığında yapılır.
 
 ## Hata durumları
 
