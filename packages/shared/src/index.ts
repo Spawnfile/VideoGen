@@ -24,3 +24,4 @@ export * from './production.ts';
 export * from './music.ts';
 export * from './platforms.ts';
 export * from './licence-lines.ts';
+export * from './episodes.ts';

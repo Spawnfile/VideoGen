@@ -74,8 +74,9 @@ export async function createAudioEditRun(pool: pg.Pool, inp: { videoId: string; 
   const c = await pool.connect();
   try {
     await c.query('BEGIN');
-    const v = (await c.query('SELECT id, product_id, status, best_version_id, current_version_id FROM videos WHERE id = $1 FOR UPDATE', [inp.videoId])).rows[0];
+    const v = (await c.query('SELECT id, product_id, status, origin, best_version_id, current_version_id FROM videos WHERE id = $1 FOR UPDATE', [inp.videoId])).rows[0];
     if (!v) { await c.query('ROLLBACK'); return { error: 'video bulunamadı' }; }
+    if (v.origin === 'import') { await c.query('ROLLBACK'); return { error: 'içe aktarılmış bir video düzenlenemez' }; }
     if (v.status !== 'ready') { await c.query('ROLLBACK'); return { error: 'yalnızca yayına hazır bir videonun sesi düzenlenebilir' }; }
     const active = await c.query("SELECT 1 FROM runs WHERE video_id = $1 AND status IN ('queued', 'running')", [inp.videoId]);
     if (active.rowCount) { await c.query('ROLLBACK'); return { error: 'bu videoda devam eden bir üretim var' }; }

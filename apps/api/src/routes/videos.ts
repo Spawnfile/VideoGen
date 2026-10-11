@@ -25,6 +25,7 @@ const Produce = z.object({
 const AUDIO_EDIT_ERRORS: Record<string, string> = {
   'video bulunamadı': 'video not found',
   'yalnızca yayına hazır bir videonun sesi düzenlenebilir': 'Only a video that is ready to publish can have its audio edited.',
+  'içe aktarılmış bir video düzenlenemez': 'Imported videos cannot be edited.',
   'bu videoda devam eden bir üretim var': 'This video already has a production running.',
   'düzenlenecek bir final yok': 'There is no final to edit.',
 };
