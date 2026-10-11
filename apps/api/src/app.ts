@@ -16,6 +16,7 @@ import { registerChatRoutes } from './routes/chat.ts';
 import { registerMaintenanceRoutes } from './routes/maintenance.ts';
 import { registerMediaRoutes } from './routes/media.ts';
 import { registerRoleRoutes } from './routes/roles.ts';
+import { registerPlatformRoutes } from './routes/platforms.ts';
 import { registerVideoRoutes } from './routes/videos.ts';
 import { registerVoiceRoutes } from './routes/voice.ts';
 import { registerSafeAreaRoutes } from './routes/safe-area.ts';
@@ -73,6 +74,7 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
   registerAgentRoutes(app, deps);
   registerChatRoutes(app, deps);
   registerVideoRoutes(app, { pool: deps.pool, devEndpoints: deps.config.devEndpoints });
+  registerPlatformRoutes(app, { pool: deps.pool });
   // One @fastify/static instance owns reply.sendFile (Range, ETag); it serves no route of its own. The SPA instance below adds none.
   await app.register(fastifyStatic, { root: deps.config.dataDir, serve: false });
   registerMediaRoutes(app, { pool: deps.pool, dataDir: deps.config.dataDir });
