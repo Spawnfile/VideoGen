@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { produceVia, SMOKE_DIR } from './helpers.ts';
 
-test('S2 (M5b): product → … → final → review panel → "yayına hazır"; the final plays from the library in both variants; the QC card and the review panel show gates and scores', async ({ page, request }) => {
+test('S2 (M5b): product → … → final → review panel → "yayına hazır"; the final plays from the library (one variant, spec Z4); the QC card and the review panel show gates and scores', async ({ page, request }) => {
   test.setTimeout(240_000);
   const { videoId, runId } = await produceVia(request, 'Tükenmez kalem', 'silent');
   await page.goto(`/?video=${videoId}`);
@@ -37,8 +37,8 @@ test('S2 (M5b): product → … → final → review panel → "yayına hazır";
   await page.locator('body').focus();
   await page.keyboard.press('Space');
   await expect.poll(() => video.evaluate((v) => (v as HTMLVideoElement).currentTime), { timeout: 10_000 }).toBeGreaterThan(0.3);
-  await page.getByTestId('variant-chip').filter({ hasText: 'No music' }).click();
-  await expect(video).not.toHaveAttribute('src', music);
+  // Spec Z4: one variant (with music): no variant chips.
+  await expect(page.getByTestId('variant-chip')).toHaveCount(0);
 
   // Plan E6: the PNG frames of a finished run are gone; the composed files stay.
   const final = join(SMOKE_DIR, 'data', 'runs', runId, 'final');
@@ -82,7 +82,7 @@ test('S2 (M5b): "rötuş" — the Studio shows the compose-scope fix round live,
   const renders = steps.filter((s) => s.key === 'final_render');
   expect(renders).toHaveLength(1);
   expect(renders[0]!.fixRound).toBe(0);
-  expect(renders[0]!.note).toContain('1351 kare');
+  expect(renders[0]!.note).toContain('391 kare');
   const vr = await request.get(`/api/videos/${videoId}`);
   expect(vr.ok()).toBe(true);
   expect(((await vr.json()) as { video: { status: string } }).video.status).toBe('ready');
