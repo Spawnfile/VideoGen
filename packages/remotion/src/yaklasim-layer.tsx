@@ -3,7 +3,7 @@ import { AbsoluteFill, continueRender, delayRender } from 'remotion';
 import { splitAccent, YAKLASIM } from '@videogen/shared/browser';
 import montserrat900 from '@fontsource/montserrat/files/montserrat-latin-900-normal.woff2';
 import { activeBeat, DRAFT_FPS, type DraftProps } from './props.ts';
-import { beatText, counterProgress, counterText, flashAt, sinceBeat, textScale, wrap, yaklasimLayout, Y_FONT } from './yaklasim.ts';
+import { beatScale, beatText, counterProgress, counterText, flashAt, sinceBeat, wrap, yaklasimLayout, Y_FONT } from './yaklasim.ts';
 
 /** Montserrat 900 from the package (no network at render time); the render waits for it so frame 0 never shows a fallback font. */
 if (typeof FontFace !== 'undefined' && typeof document !== 'undefined') {
@@ -82,7 +82,7 @@ export const YaklasimLayer: React.FC<{ p: Pick<DraftProps, 'width' | 'height' | 
       ) : null}
       <div data-text={t.kind} style={{
         position: 'absolute', left: L.safe.left, top: L.textTop, width: L.maxW, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 * s,
-        transform: `scale(${textScale(d)})`, transformOrigin: '50% 0%',
+        transform: `scale(${beatScale(active.index, d)})`, transformOrigin: '50% 0%',
       }}>
         {b.role === 'counter' && b.counter ? <div data-text="counter" style={{ ...line(L.counterFont), color: P.accent }}>{counterText(b.counter.value, counterProgress(b, frame))}</div> : null}
         <div style={line(font)}><AccentLines text={t.text} font={font} maxW={L.maxW} /></div>

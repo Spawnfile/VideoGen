@@ -1,7 +1,7 @@
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { DRAFT_RUBRIC_VERSION, factsHint, STOP_NOTE, type AudioPlan, type MusicScore, type FinalReview, type FixReport, type SceneSpec, type Storyboard, type VoiceTrack } from '@videogen/shared';
+import { DRAFT_RUBRIC_VERSION, factsHint, STOP_NOTE, yaklasimScore, type AudioPlan, type MusicScore, type FinalReview, type FixReport, type SceneSpec, type Storyboard, type VoiceTrack } from '@videogen/shared';
 import { findArtifact, insertArtifact, insertVersion, latestArtifact, listRunReviews } from '@videogen/db';
 import { SpecStore, type FakeScript } from '@videogen/claude';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
@@ -32,14 +32,14 @@ const SKIP_NOTE = 'final düzeltme turu: taslak incelemesi atlandı (§7.2)';
  * The review step with the real fixer: the panel harness plus what the fixer reads (the SpecStore with the reviewed versions, scene/product.py and
  * the run's product_py artifact), all written under the reviewed version so the fixer's own artifacts are told apart by the pending version.
  */
-async function setup(name: string, o: { qc?: string[]; vo?: boolean } = {}) {
+async function setup(name: string, o: { qc?: string[]; vo?: boolean; legacy?: boolean } = {}) {
   const h = panelHarness(t);
   cleanups.push(() => h.stop());
   h.deps.fixer = runFixer;
   const p = await h.prepare(name, o);
   const store = new SpecStore(join(p.runDir, 'spec'), ARTIFACT_VALIDATOR);
   expect(ARTIFACT_VALIDATOR('audio', fx('audio-plan-vo'))).toEqual({ ok: true }); // M5c: write_spec(audio) is validated
-  for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', o.vo ? 'storyboard-kalem-vo' : 'storyboard-kalem'], ['scene', o.vo ? 'scene-kalem-legacy' : 'scene-kalem']] as const) await store.write(kind, fx(f));
+  for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', o.vo ? 'storyboard-kalem-vo' : o.legacy ? 'storyboard-kalem-legacy' : 'storyboard-kalem'], ['scene', o.vo || o.legacy ? 'scene-kalem-legacy' : 'scene-kalem']] as const) await store.write(kind, fx(f));
   mkdirSync(join(p.runDir, 'scene'), { recursive: true });
   copyFileSync(PRODUCT, join(p.runDir, 'scene', 'product.py'));
   const py = await putBlob(t.pool, h.dataDir, join(p.runDir, 'scene', 'product.py'));
@@ -110,10 +110,26 @@ describe('fixer (final review loop)', () => {
     expect(await s.audits('fix.scope')).toEqual([]);
   }, 180_000);
 
-  it('agent music design A13: the audio reviewer fails music_mood; the fixer (sonnet) rewrites the score, the step re-renders the music under the new version and rewinds to compose only', async () => {
-    const s = await setup('Tükenmez kalem ahenksiz');
+  it('final review I1 (YAKLASIM spec Y14/Y16): in a YAKLASIM video the fixer is not offered the score, and a score edit goes back to the same session as a refusal', async () => {
+    const s = await setup('Tükenmez kalem ahenksiz sabit'); // "ahenksiz": the fake audio reviewer fails music_mood
+    const score = yaklasimScore(fx('storyboard-kalem') as Storyboard);
+    await s.store.write('music', score);
+    await insertArtifact(t.pool, { runId: s.p.r.runId, kind: 'music', content: score, inputHash: 'music-0', versionId: s.p.r.versionId });
+    const { out } = await s.review();
+    const fixers = s.h.specs.filter((x) => x.role === 'fixer');
+    expect(fixers[0]!.prompt).not.toContain('Mevcut müzik partisyonu (MusicScore)');
+    expect(fixers[0]!.prompt).toContain('YAKLASIM müziği sabittir');
+    // the fake fixer keeps rewriting the score: every attempt is refused, the step stops without re-rendering music
+    expect(fixers.length).toBeGreaterThan(1);
+    expect(fixers[1]!.prompt).toContain('YAKLASIM müziği sabittir');
+    expect(out).toMatchObject({ status: 'failed' });
+    expect((await s.latest('music')).content).toEqual(score);
+  }, 180_000);
+
+  it('agent music design A13 (a pre-YAKLASIM video): the audio reviewer fails music_mood; the fixer (sonnet) rewrites the score, the step re-renders the music under the new version and rewinds to compose only', async () => {
+    const s = await setup('Tükenmez kalem ahenksiz', { legacy: true });
     // What the music step left: the composer's score in the SpecStore and the DB (the reviewed version).
-    const score = fakeScore(13);
+    const score = fakeScore(45);
     await s.store.write('music', score);
     await insertArtifact(t.pool, { runId: s.p.r.runId, kind: 'music', content: score, inputHash: 'music-0', versionId: s.p.r.versionId });
     expect(fixerModel(['music_mood'])).toBe('sonnet');

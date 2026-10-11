@@ -109,6 +109,9 @@ describe('YAKLASIM scene rules (spec Y12, Y13)', () => {
     expect(sceneMut((s) => { delete s.parts[1]!.explode.back; })).toMatch(/reassemble/);
     expect(sceneMut((s) => { s.parts[0]!.explode.back = { t_start: 8, t_end: 10, ease: 'linear' }; s.parts[1]!.explode.back = { t_start: 8, t_end: 11, ease: 'linear' }; })).toMatch(/assembled at the end/);
     expect(sceneMut((s) => { s.camera_keys[1] = { ...s.camera_keys[0]!, t: 6 }; })).toMatch(/static camera/);
+    // Final review I3: the loop wraps 'snap → burst', so the camera ends where it started.
+    expect(sceneMut((s) => { s.camera_keys[2] = { ...s.camera_keys[2]!, position: [5, -30, 6] }; })).toMatch(/camera returns to its first key/);
+    expect(sceneMut((s) => { s.camera_keys[2] = { ...s.camera_keys[2]!, lens_mm: 100 }; })).toMatch(/camera returns to its first key/);
   });
 });
 

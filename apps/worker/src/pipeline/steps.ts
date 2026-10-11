@@ -236,6 +236,7 @@ export function buildPrompt(name: string, styleId: ChannelStyleId, storyboard: S
     '- Nesne doygun renkli ve ekranın ortasını ve alt-ortasını doldurur (üst üçte bir yazıya ayrılır); zemin, ızgara ve ışık sabittir (lacivert, style_id "yaklasim", ışık "yaklasim").',
     '- 0. kare kapaktır: nesne zaten parçalanmaya başlamış, içi hafifçe görünüyor: en az iki parçanın explode.t_start\'ı 0\'ın altında (−1 sn\'ye kadar) ve 0. andaki ofsetleri küçük (birkaç cm; döngü dikişi için).',
     '- Patlayan her parça explode.back ile yerine döner (kenetlenme = "şak"); dönüşler assembly vuruşlarında 0,5 sn vuruşlarına denk gelecek şekilde tek tek ve kademeli; son dönüş sürenin son 1 sn\'sinde biter (nesne birleşik biter → başa sarınca "kenetlen → patla").',
+    '- Döngü: son kamera anahtarı ilk anahtarla aynıdır (konum, hedef, lens); son kare birleşik nesneyle ilk kareye "kenetlen → patla" olarak bağlanır.',
     '- Mekanizma gerçek çalışma biçimiyle hareket eder: dönen/kayan parça için spin (eksen, derece, zaman); statik sahne yok, kamera anahtarları sürekli akar (yumuşak ease), macro vuruşuna sert kesme gibi hızlı yaklaşma.',
     '- X-ray görünümü için dış kabukta pc_clear malzemesi; nesnenin bir yüzeyine küçük gizli imza: vg.text("WHAT\'S INSIDE", size, depth) bir parçanın içinde (ör. vg.part(id, gövde, imza)), göze hemen çarpmayacak boyutta.',
     '- Gerçeğe uygunluk: parçalar araştırmadaki ölçü ve adetlerle; uydurma parça yok.',

@@ -42,6 +42,8 @@ export const sinceBeat = (b: DraftBeat, frame: number) => frame - Math.round(b.t
 
 /** Spec Y9: new text appears at once (no fade, no slide) and settles from 94 % to full size over 4 frames. Frame 0 is the cover. */
 export const textScale = (d: number) => (d >= 4 ? 1 : 0.94 + (0.06 * Math.max(0, d)) / 4);
+/** The first beat is the cover: its hook stands at full size from frame 0 (YAKLASIM: no fade-in, the loop's last frame matches it). */
+export const beatScale = (index: number, d: number) => (index === 0 ? 1 : textScale(d));
 
 /** Spec Y11: a flash cut whitens 4 frames and shakes 10; a zoom cut punches in; nothing on frame 0 (the cover) or plain cuts. */
 export function flashAt(beats: DraftBeat[], frame: number): { white: number; dx: number; dy: number; zoom: number } {

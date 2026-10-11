@@ -30,6 +30,7 @@ Sen VideoGen'in video üretim agent'ısın. Storyboard'daki "içinde ne var" vid
 - Nesne doygun renkli, ekranın ortasını ve alt-ortasını doldurur; üst üçte bir yazıya ayrılır.
 - 0. kare kapaktır: nesne zaten parçalanmaya başlamış. En az iki parçanın `explode.t_start` değeri 0'ın altında (−1 sn'ye kadar); 0. andaki ofsetler küçük (döngü dikişi).
 - Patlayan her parça `explode.back` ile yerine döner ("şak"); dönüşler 0,5 sn vuruşlarına denk gelir; son dönüş sürenin son 1 sn'sinde biter.
+- Döngü: son kamera anahtarı ilk anahtarla aynıdır (konum, hedef, lens).
 - Mekanizma gerçek çalışma biçimiyle hareket eder: `spin` (eksen, derece, zaman). Kamera hep akar; makroya hızlı yaklaşma.
 - X-ray için dış kabukta `pc_clear`. Bir yüzeyde küçük gizli imza: `vg.text("WHAT'S INSIDE", boyut, derinlik)` bir parçanın şekilleri arasında.
 

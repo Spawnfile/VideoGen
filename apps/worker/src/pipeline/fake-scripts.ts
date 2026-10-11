@@ -37,7 +37,8 @@ export function fakePipelineScript(role: PipelineRole, ctx: StepContext, attempt
     const broken = attempt === 0 && /bozuk sahne/.test(name) ? "# vg-fake-error: product.py satır 7: NameError: name 'gövde' is not defined\n" : '';
     // YAKLASIM: the 13 s pen; a VO (pre-YAKLASIM) run keeps the 45 s pen of its VO storyboard.
     const scene = load(ctx.audioMode === 'vo' ? 'scene-kalem-legacy' : 'scene-kalem') as { camera_keys: { lens_mm: number }[] };
-    const fix = ctx.round > 0 && !/[iı]nat[çc][ıi]/.test(name) ? { camera_keys: scene.camera_keys.map((k, i) => (i === 0 ? { ...k, lens_mm: k.lens_mm + 5 * ctx.round } : k)) } : {};
+    // The first (and, in a YAKLASIM loop, the last) camera key change together, so the loop rule holds.
+    const fix = ctx.round > 0 && !/[iı]nat[çc][ıi]/.test(name) ? { camera_keys: scene.camera_keys.map((k, i, all) => (i === 0 || (ctx.approach === 'yaklasim' && i === all.length - 1) ? { ...k, lens_mm: k.lens_mm + 5 * ctx.round } : k)) } : {};
     return {
       fixture: 'coding',
       ...(/yava[şs]/.test(name) ? { stall: { afterIndex: 20, ms: 600_000, cpuPct: 20 } } : {}),
@@ -127,7 +128,7 @@ function fakeFixer(ctx: StepContext, name: string, extra?: FakeExtra): FakeScrip
   } else if (!unchanged && geometry) {
     const base = load(ctx.audioMode === 'vo' ? 'scene-kalem-legacy' : 'scene-kalem') as { camera_keys: { lens_mm: number }[] };
     const s = nextSpec(ctx, 'scene', base);
-    files[s.path] = JSON.stringify({ ...s.latest, camera_keys: s.latest.camera_keys.map((k, i) => (i === 0 ? { ...k, lens_mm: base.camera_keys[0]!.lens_mm + 5 } : k)) }, null, 2);
+    files[s.path] = JSON.stringify({ ...s.latest, camera_keys: s.latest.camera_keys.map((k, i, all) => (i === 0 || (ctx.approach === 'yaklasim' && i === all.length - 1) ? { ...k, lens_mm: base.camera_keys[0]!.lens_mm + 5 } : k)) }, null, 2);
   } else if (!unchanged) {
     const s = nextSpec(ctx, 'storyboard', load(ctx.audioMode === 'vo' ? 'storyboard-kalem-vo' : 'storyboard-kalem') as unknown as Storyboard);
     // The spoken fix keeps the beat times (the fake voice's lines last their target): the voice round keeps them.

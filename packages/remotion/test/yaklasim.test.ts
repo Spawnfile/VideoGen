@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CHANNEL_STYLES, type SceneSpec, type Storyboard } from '@videogen/shared';
 import { draftProps, finalProps } from '../src/props.ts';
-import { counterText, flashAt, textScale, yaklasimBoxes, yaklasimLayout } from '../src/yaklasim.ts';
+import { beatScale, counterText, flashAt, textScale, yaklasimBoxes, yaklasimLayout } from '../src/yaklasim.ts';
 import { layoutIssues } from '../src/layout.ts';
 
 const HOOK = "Why doesn't it *FALL APART*?";
@@ -48,6 +48,10 @@ describe('YAKLASIM look in Remotion (spec Y8–Y11)', () => {
     expect(textScale(2)).toBeCloseTo(0.97);
     expect(textScale(4)).toBe(1);
     expect(textScale(40)).toBe(1);
+    // Final review I2: frame 0 is the cover — the hook is at full size there (no pop-in), the same as on the last frame of the loop.
+    expect(beatScale(0, 0)).toBe(1);
+    expect(beatScale(0, 2)).toBe(1);
+    expect(beatScale(3, 0)).toBeCloseTo(0.94);
   });
 
   it('text sits centred in the top band inside the merged safe area, at full size on frame 0; the last beat shows the hook', () => {

@@ -131,6 +131,11 @@ export function yaklasimSceneErrors(spec: SceneSpec, _sb: Storyboard): string[] 
       out.push(`camera keys at ${prev.t} s and ${k.t} s are the same: no static camera, keep it flowing`);
     }
   });
+  const first = keys[0];
+  const last = keys.at(-1);
+  if (first && last && (first.position.some((v, j) => Math.abs(v - last.position[j]!) > 0.5) || first.target.some((v, j) => Math.abs(v - last.target[j]!) > 0.5) || first.lens_mm !== last.lens_mm)) {
+    out.push('loop: the camera returns to its first key at the end (same position, target and lens), so the last frame snaps back into the first');
+  }
   return out;
 }
 
