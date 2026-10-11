@@ -38,3 +38,13 @@ export function saveMode(nav: { canShare?: (d: { files: File[] }) => boolean } |
 }
 /** The user closing the share sheet is not an error; anything else falls back to the download link. */
 export const shareFailure = (err: unknown): 'cancelled' | 'fallback' => ((err as { name?: string } | null)?.name === 'AbortError' ? 'cancelled' : 'fallback');
+
+const pad = (n: number) => String(n).padStart(2, '0');
+/** The datetime-local value for "now" in the device's time zone, to the minute (the mark sheet's default). */
+export const localNowInput = (now = new Date()): string =>
+  `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+/** A datetime-local value as an ISO instant; an empty or invalid value is an inline error (the field can be cleared). */
+export function markTimeIso(value: string): { ok: true; iso: string } | { ok: false; error: string } {
+  const t = value ? new Date(value).getTime() : Number.NaN;
+  return Number.isNaN(t) ? { ok: false, error: 'Pick when it was uploaded.' } : { ok: true, iso: new Date(t).toISOString() };
+}

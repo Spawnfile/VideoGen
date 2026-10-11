@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { summarizePlatforms } from '@videogen/shared/browser';
-import { downloadHref, downloadName, filterHref, matchesFilter, parseFilter, PLATFORM_EN, saveMode, shareFailure, STATUS_EN } from '../src/lib/platform-view.ts';
+import { downloadHref, downloadName, filterHref, localNowInput, markTimeIso, matchesFilter, parseFilter, PLATFORM_EN, saveMode, shareFailure, STATUS_EN } from '../src/lib/platform-view.ts';
 
 const up = (versionId: string) => ({ action: 'uploaded' as const, versionId, uploadedAt: '2026-10-11T10:00:00.000Z', url: null });
 const vid = (approach: 'yaklasim' | null, p: Parameters<typeof summarizePlatforms>[0]) => ({ approach, platforms: summarizePlatforms(p, 'v2') });
@@ -49,5 +49,15 @@ describe('platform view (video library L14, L19–L21)', () => {
 
   it('labels are English', () => {
     for (const s of [...Object.values(PLATFORM_EN), ...Object.values(STATUS_EN)]) expect(s).not.toMatch(TURKISH);
+  });
+});
+
+describe('mark time (final review I1)', () => {
+  it('the input default is the local minute now; an empty or invalid value is an inline error, not a throw', () => {
+    const now = new Date(2026, 9, 11, 14, 40, 37);
+    expect(localNowInput(now)).toBe('2026-10-11T14:40');
+    expect(markTimeIso('2026-10-11T14:40')).toEqual({ ok: true, iso: new Date(2026, 9, 11, 14, 40).toISOString() });
+    expect(markTimeIso('')).toEqual({ ok: false, error: 'Pick when it was uploaded.' });
+    expect(markTimeIso('not a date')).toEqual({ ok: false, error: 'Pick when it was uploaded.' });
   });
 });

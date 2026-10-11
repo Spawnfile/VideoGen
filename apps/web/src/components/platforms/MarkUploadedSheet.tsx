@@ -1,16 +1,15 @@
 import { useState } from 'react';
 import type { Platform } from '@videogen/shared/browser';
-import { PLATFORM_EN } from '../../lib/platform-view.ts';
+import { localNowInput, markTimeIso, PLATFORM_EN } from '../../lib/platform-view.ts';
 import { Sheet } from '../shell/Sheet.tsx';
 
 const INPUT = 'w-full min-h-11 rounded-control border border-line-strong bg-inset px-3 text-[14px] text-ink focus-visible:outline-2 focus-visible:outline-accent-glow';
-const localNow = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); };
 
-/** Video library L22: when (default now), an optional link and note; the server validates (https, ≤ 500, not in the future). */
+/** Video library L22 (mounted per open, so "now" is the moment it opens): when (default now), an optional link and note; the server validates (https, ≤ 500, not in the future). */
 export function MarkUploadedSheet({ platform, onClose, onSave }: {
   platform: Platform | null; onClose: () => void; onSave: (p: Platform, b: { uploadedAt: string; url: string; note: string }) => Promise<string | null>;
 }) {
-  const [at, setAt] = useState(localNow);
+  const [at, setAt] = useState(() => localNowInput());
   const [url, setUrl] = useState('');
   const [note, setNote] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -18,11 +17,14 @@ export function MarkUploadedSheet({ platform, onClose, onSave }: {
   const close = () => { setErr(null); onClose(); };
   const submit = async () => {
     if (!platform) return;
+    const when = markTimeIso(at);
+    if (!when.ok) { setErr(when.error); return; }
     setBusy(true);
-    const e = await onSave(platform, { uploadedAt: new Date(at).toISOString(), url, note });
-    setBusy(false);
-    setErr(e);
-    if (!e) { setUrl(''); setNote(''); setAt(localNow()); }
+    try {
+      setErr(await onSave(platform, { uploadedAt: when.iso, url, note }));
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <Sheet open={platform !== null} onClose={close} title={platform ? `Mark as uploaded on ${PLATFORM_EN[platform]}` : 'Mark as uploaded'}>

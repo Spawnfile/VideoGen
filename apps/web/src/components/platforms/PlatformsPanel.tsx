@@ -4,6 +4,7 @@ import { PLATFORMS, type Platform, type PlatformStatus, type VideoView } from '@
 import { api, blobUrl } from '../../lib/api.ts';
 import { PLATFORM_EN, STATUS_EN } from '../../lib/platform-view.ts';
 import { formatDay } from '../../lib/production-view.ts';
+import { seedVideos } from '../../lib/stores.ts';
 import { MarkUploadedSheet } from './MarkUploadedSheet.tsx';
 import { SaveToPhone } from './SaveToPhone.tsx';
 import { VideoText } from './VideoText.tsx';
@@ -17,6 +18,7 @@ const TONE: Record<PlatformStatus, string> = { none: 'text-ink-3', uploaded: 'te
 export function PlatformsPanel({ video }: { video: VideoView }) {
   const log = useQuery({ queryKey: ['platforms', video.id, video.updatedAt], queryFn: () => api.platforms(video.id) });
   const [sheet, setSheet] = useState<Platform | null>(null);
+  const [opened, setOpened] = useState(0);
   const [confirmUndo, setConfirmUndo] = useState<Platform | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const final = video.final;
@@ -27,6 +29,8 @@ export function PlatformsPanel({ video }: { video: VideoView }) {
     if (!r.ok) return r.error;
     setSheet(null);
     setConfirmUndo(null);
+    // Final review: a PWA resumed from the platform app may sit on a half-open stream; read the row back instead of waiting for SSE.
+    void api.video(video.id).then((f) => seedVideos([f.data.video], f.eventId), () => {});
     void log.refetch();
     return null;
   };
@@ -58,7 +62,7 @@ export function PlatformsPanel({ video }: { video: VideoView }) {
                 {s.url && <> · <a href={s.url} target="_blank" rel="noreferrer" className="text-accent-glow underline">open</a></>}
               </span>
               <span className="flex gap-1">
-                <button type="button" data-testid={`mark-uploaded-${p}`} onClick={() => { setErr(null); setSheet(p); }} className="min-h-10 rounded-control border border-line-strong px-3 text-[13px] hover:bg-hover-2">
+                <button type="button" data-testid={`mark-uploaded-${p}`} onClick={() => { setErr(null); setOpened((n) => n + 1); setSheet(p); }} className="min-h-10 rounded-control border border-line-strong px-3 text-[13px] hover:bg-hover-2">
                   {s.status === 'none' ? 'Mark uploaded' : 'Uploaded again'}
                 </button>
                 {s.status !== 'none' && (confirmUndo === p
@@ -82,7 +86,7 @@ export function PlatformsPanel({ video }: { video: VideoView }) {
             </ul>
           )}
       </section>
-      <MarkUploadedSheet platform={sheet} onClose={() => setSheet(null)} onSave={(p, b) => mark(p, b)} />
+      <MarkUploadedSheet key={opened} platform={sheet} onClose={() => setSheet(null)} onSave={(p, b) => mark(p, b)} />
     </div>
   );
 }
