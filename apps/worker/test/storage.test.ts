@@ -67,11 +67,6 @@ describe('blob GC and orphan report (plan M7 T7)', { timeout: 60_000 }, () => {
         `INSERT INTO agent_sessions (id, kind, role, model, effort, status, claude_session_id, run_dir, transcript_blob_sha) VALUES ($1, 'pipeline', 'researcher', 'sonnet', 'low', 'done', $2, '/tmp/x', $3)`,
         [randomUUID(), randomUUID(), transcript],
       );
-      const published = (await blob(t, dataDir, 30, '.mp4')).sha256;
-      await t.pool.query(
-        `INSERT INTO publications (id, video_id, version_id, variant, status, blob_sha, bytes, caption, aigc_required) VALUES ($1, $2, $3, 'tiktok', 'failed', $4, 1, 'c', false)`,
-        [randomUUID(), r.videoId, r.versionId, published],
-      );
       const music = (await blob(t, dataDir, 30, '.wav')).sha256;
       const license = (await blob(t, dataDir, 30, '.txt')).sha256;
       await insertAsset(t.pool, { kind: 'music', title: 'M', blobSha: music, licenseSpdx: 'CC0-1.0', author: 'A', allowed: true, licenseSnapshotSha: license });
@@ -87,13 +82,13 @@ describe('blob GC and orphan report (plan M7 T7)', { timeout: 60_000 }, () => {
       await appendAudit(t.pool, { actorType: 'system', action: 'test.mention', data: { sha256: onlyAudited.sha256 } });
 
       const refs = await referencedShas(t.pool);
-      for (const s of [...Object.values(meta), inContent, inSettings, inNewTable, transcript, published, music, license]) expect(refs.has(s)).toBe(true);
+      for (const s of [...Object.values(meta), inContent, inSettings, inNewTable, transcript, music, license]) expect(refs.has(s)).toBe(true);
       expect(refs.has(old.sha256)).toBe(false);
 
       const rep = await gcReport({ pool: t.pool });
       const shas = rep.candidates.map((c) => c.sha);
       expect(shas.sort()).toEqual([old.sha256, oldToo.sha256, onlyAudited.sha256].sort());
-      for (const s of [...Object.values(meta), inContent, inSettings, inNewTable, transcript, published, music, license, ofActiveRun, recent]) expect(shas).not.toContain(s);
+      for (const s of [...Object.values(meta), inContent, inSettings, inNewTable, transcript, music, license, ofActiveRun, recent]) expect(shas).not.toContain(s);
       expect(rep.bytes).toBe(old.bytes + oldToo.bytes + onlyAudited.bytes);
       expect(rep.candidates[0]).toMatchObject({ mime: expect.any(String), bytes: expect.any(Number), createdAt: expect.any(String), touchedAt: expect.any(String) });
       const row = (await t.pool.query('SELECT kind, status, detail FROM maintenance_runs WHERE id = $1', [rep.id])).rows[0];

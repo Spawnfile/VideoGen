@@ -17,7 +17,7 @@ export const STEP_STATUS_EN: Record<StepStatus, string> = {
   done: 'done', failed: 'failed', skipped: 'skipped', cancelled: 'stopped',
 };
 export const VIDEO_STATUS_EN: Record<VideoStatus, string> = {
-  queued: 'Queued', running: 'In production', ready: 'Ready to publish', needs_human: 'Needs you', failed: 'Failed', cancelled: 'Stopped', published: 'Published',
+  queued: 'Queued', running: 'In production', ready: 'Ready to publish', needs_human: 'Needs you', failed: 'Failed', cancelled: 'Stopped',
 };
 export const ROLE_EN: Record<RoleName, string> = {
   researcher: 'Researcher', storyboarder: 'Storyboarder', builder: 'Video builder', audio_director: 'Audio director', reviewer_visual: 'Visual reviewer',

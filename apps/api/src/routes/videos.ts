@@ -24,7 +24,7 @@ const Produce = z.object({
 /** createAudioEditRun (packages/db) answers in Turkish; the interface is English. Unknown messages pass through. */
 const AUDIO_EDIT_ERRORS: Record<string, string> = {
   'video bulunamadı': 'video not found',
-  'yalnızca yayına hazır ya da yayınlanmış bir videonun sesi düzenlenebilir': 'Only a video that is ready to publish or published can have its audio edited.',
+  'yalnızca yayına hazır bir videonun sesi düzenlenebilir': 'Only a video that is ready to publish can have its audio edited.',
   'bu videoda devam eden bir üretim var': 'This video already has a production running.',
   'düzenlenecek bir final yok': 'There is no final to edit.',
 };

@@ -19,3 +19,4 @@ export * from './maintenance.ts';
 export * from './safe-area.ts';
 export * from './production.ts';
 export * from './music.ts';
+export * from './platforms.ts';

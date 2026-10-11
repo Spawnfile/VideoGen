@@ -30,7 +30,6 @@ export function VersionList({ versions, selected, onSelect }: { versions: Versio
               <span className="mt-0.5 flex flex-wrap gap-1">
                 {v.best && <span className={badge}>best</span>}
                 {v.current && <span className={badge}>current</span>}
-                {v.published && <span className="rounded-full bg-green/10 px-2 py-0.5 text-[11.5px] text-green">published</span>}
                 {!v.finals && <span data-testid="version-unfinished" className={`${badge} text-ink-3`}>unfinished</span>}
               </span>
             </span>

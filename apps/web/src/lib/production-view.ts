@@ -23,7 +23,7 @@ export function sourceLabel(src: ProgressSource | null): string {
 
 export function videoTone(s: VideoStatus): 'active' | 'ok' | 'error' | 'waiting' | 'muted' {
   if (s === 'running' || s === 'queued') return 'active';
-  if (s === 'ready' || s === 'published') return 'ok';
+  if (s === 'ready') return 'ok';
   if (s === 'failed') return 'error';
   if (s === 'needs_human') return 'waiting';
   return 'muted';
@@ -202,7 +202,7 @@ export function panelView(all: ReviewRecord[], runId?: string | null, pick?: num
 
 /** The badge next to the panel score: green only when ready; everything else stays neutral. */
 export function reviewBadge(verdict: string | null, status: VideoStatus): { text: string; ok: boolean } {
-  if (status === 'ready' || status === 'published' || ((status === 'running' || status === 'queued') && verdict === 'ready')) return { text: 'ready to publish', ok: true };
+  if (status === 'ready' || ((status === 'running' || status === 'queued') && verdict === 'ready')) return { text: 'ready to publish', ok: true };
   if (status === 'needs_human') return { text: 'needs you', ok: false };
   if (status === 'failed') return { text: 'failed', ok: false };
   if (status === 'cancelled') return { text: 'stopped', ok: false };
