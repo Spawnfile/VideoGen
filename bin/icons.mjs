@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// App icons from the master SVG (docs/mobile-pwa/icon/app-icon.svg), rendered by system Chrome; the PNGs are committed.
+// App icons from the master SVG (apps/web/design/app-icon.svg), rendered by system Chrome; the PNGs are committed.
 //   node bin/icons.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -7,7 +7,7 @@ import { chromium } from '@playwright/test';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const OUT = join(ROOT, 'apps/web/public/icons');
-const master = readFileSync(join(ROOT, 'docs/mobile-pwa/icon/app-icon.svg'), 'utf8');
+const master = readFileSync(join(ROOT, 'apps/web/design/app-icon.svg'), 'utf8');
 // Home screens cut their own corners (iOS) or apply a mask (Android maskable): those get the art full bleed.
 const fullBleed = master.replace(/rx="228"/g, 'rx="0"').replace(/<rect x="3" y="3"[^>]*\/>/, '');
 const favicon = readFileSync(join(ROOT, 'apps/web/public/favicon.svg'), 'utf8');

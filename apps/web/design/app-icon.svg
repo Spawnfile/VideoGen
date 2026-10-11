@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Ember app icon (spec 2026-10-11-ember-ui E19): a 9:16 frame in the ember gradient with a play cut, over three timeline bars and the playhead. -->
+  <defs>
+    <linearGradient id="base" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#16161B"/><stop offset="1" stop-color="#0A0A0C"/>
+    </linearGradient>
+    <radialGradient id="field" cx="0.86" cy="0.1" r="0.7">
+      <stop offset="0" stop-color="#FF4D6A" stop-opacity="0.42"/><stop offset="0.45" stop-color="#FF8A3D" stop-opacity="0.12"/><stop offset="1" stop-color="#FF8A3D" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ember" x1="0" y1="0" x2="1" y2="0.18">
+      <stop offset="0" stop-color="#FF4D6A"/><stop offset="1" stop-color="#FF8A3D"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0.6" y2="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.28"/><stop offset="0.45" stop-color="#fff" stop-opacity="0.04"/><stop offset="0.46" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.14"/><stop offset="0.3" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="38"/></filter>
+    <clipPath id="frame"><rect x="372" y="176" width="280" height="498" rx="44"/></clipPath>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="url(#base)"/>
+  <rect width="1024" height="1024" rx="228" fill="url(#field)"/>
+  <rect x="3" y="3" width="1018" height="1018" rx="225" fill="none" stroke="url(#rim)" stroke-width="6"/>
+  <!-- glow under the frame -->
+  <ellipse cx="512" cy="660" rx="170" ry="40" fill="#FF4D6A" opacity="0.5" filter="url(#glow)"/>
+  <!-- the frame -->
+  <rect x="372" y="176" width="280" height="498" rx="44" fill="url(#ember)"/>
+  <g clip-path="url(#frame)"><rect x="372" y="176" width="280" height="498" fill="url(#sheen)"/></g>
+  <path d="M470 345 L470 505 L600 425 Z" fill="#0A0A0C" stroke="#0A0A0C" stroke-width="18" stroke-linejoin="round"/>
+  <!-- timeline: three bars and the playhead -->
+  <rect x="292" y="752" width="150" height="40" rx="10" fill="#2E2E36"/>
+  <rect x="454" y="752" width="128" height="40" rx="10" fill="url(#ember)"/>
+  <rect x="594" y="752" width="138" height="40" rx="10" fill="none" stroke="#2E2E36" stroke-width="6" stroke-dasharray="16 12"/>
+  <rect x="551" y="726" width="10" height="92" rx="5" fill="#FF8A3D"/>
+  <path d="M538 716 L574 716 L556 738 Z" fill="#FF8A3D"/>
+</svg>
