@@ -247,19 +247,17 @@ const VIDEO_SQL = `
     GROUP BY video_id)
   SELECT v.*, p.name AS product_name, p.difficulty, lr.id AS latest_run_id, u.sessions, u.tokens, u.cost, w.d AS five_hour_delta,
     dv.blob_sha AS draft_sha, dv.duration_ms AS draft_ms, dc.blob_sha AS cover_sha,
-    fm.blob_sha AS final_sha, fm.duration_ms AS final_ms, ft.blob_sha AS tiktok_sha, fc.blob_sha AS final_cover_sha, sc.total AS score, pl.platforms
+    fm.blob_sha AS final_sha, fm.duration_ms AS final_ms, fc.blob_sha AS final_cover_sha, sc.total AS score, pl.platforms
   FROM videos v JOIN products p ON p.id = v.product_id
   LEFT JOIN LATERAL (SELECT id FROM runs r WHERE r.video_id = v.id ORDER BY r.created_at DESC LIMIT 1) lr ON true
   LEFT JOIN LATERAL (SELECT a.blob_sha, a.duration_ms FROM artifacts a JOIN runs r ON r.id = a.run_id
     WHERE r.video_id = v.id AND a.kind = 'draft_video' ORDER BY a.created_at DESC LIMIT 1) dv ON true
   LEFT JOIN LATERAL (SELECT a.blob_sha FROM artifacts a JOIN runs r ON r.id = a.run_id
     WHERE r.video_id = v.id AND a.kind = 'draft_cover' ORDER BY a.created_at DESC LIMIT 1) dc ON true
-  -- Plan E18: the newest music variant, and the TikTok variant and cover of the same compose (same run and input hash).
+  -- Plan E18: the newest final video and the cover of the same compose (same run and input hash).
   -- Plan F13: the best version's final comes first (no best version: all NULL, newest wins).
   LEFT JOIN LATERAL (SELECT a.blob_sha, a.duration_ms, a.input_hash, a.run_id FROM artifacts a JOIN runs r ON r.id = a.run_id
     WHERE r.video_id = v.id AND a.kind = 'final_video_music' ORDER BY (a.version_id = v.best_version_id) DESC NULLS LAST, a.created_at DESC LIMIT 1) fm ON true
-  LEFT JOIN LATERAL (SELECT a.blob_sha FROM artifacts a
-    WHERE a.run_id = fm.run_id AND a.kind = 'final_video_tiktok' AND a.input_hash = fm.input_hash ORDER BY a.created_at DESC LIMIT 1) ft ON true
   LEFT JOIN LATERAL (SELECT a.blob_sha FROM artifacts a
     WHERE a.run_id = fm.run_id AND a.kind = 'final_cover' AND a.input_hash = fm.input_hash ORDER BY a.created_at DESC LIMIT 1) fc ON true
   -- Plan F13/F22: the library score is the panel total (orchestrator row) of the best version, else of the newest scored round.
@@ -277,7 +275,7 @@ function toVideo(r: Record<string, any>): VideoView {
     difficulty: r.difficulty, latestRunId: r.latest_run_id, createdAt: iso(r.created_at)!, updatedAt: iso(r.updated_at)!,
     usage: { sessions: r.sessions ?? 0, tokens: Number(r.tokens ?? 0), costUsd: num(r.cost), fiveHourDelta: num(r.five_hour_delta) },
     draft: r.draft_sha ? { videoSha: r.draft_sha, coverSha: r.cover_sha ?? null, durationS: Math.round(Number(r.draft_ms ?? 0) / 100) / 10 } : null,
-    final: r.final_sha ? { musicSha: r.final_sha, tiktokSha: r.tiktok_sha ?? null, coverSha: r.final_cover_sha ?? null, durationS: Math.round(Number(r.final_ms ?? 0) / 100) / 10 } : null,
+    final: r.final_sha ? { musicSha: r.final_sha, coverSha: r.final_cover_sha ?? null, durationS: Math.round(Number(r.final_ms ?? 0) / 100) / 10 } : null,
     score: round4(r.score),
     brief: r.brief ?? null, duration: { minS: Number(r.duration_min_s ?? 35), maxS: Number(r.duration_max_s ?? 55) }, durationSource: r.duration_source ?? 'default',
     origin: r.origin ?? 'pipeline', approach: r.approach ?? null, caption: r.caption ?? null, youtubeTitle: r.youtube_title ?? null,

@@ -1,7 +1,6 @@
 import { DIMENSION_IDS, type DimensionId, type VersionView } from '@videogen/shared/browser';
 import { DIMENSION_EN } from './i18n.ts';
 
-export type CompareVariant = 'music' | 'tiktok';
 export interface CompareSide { id: string; round: number; label: string; sha: string; coverSha: string | null; durationS: number; total: number | null; best: boolean }
 export interface CompareDelta { total: number | null; dims: { id: DimensionId; label: string; a: number | null; b: number | null; delta: number | null }[] }
 export interface CompareView { a: CompareSide | null; b: CompareSide | null; delta: CompareDelta; canCompare: boolean; reason?: string }
@@ -13,10 +12,9 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
 export const versionLabel = (v: Pick<VersionView, 'round'>): string => `Version ${v.round + 1}`;
 export const finished = (versions: VersionView[]): VersionView[] => versions.filter((v) => !!v.finals);
 
-function side(v: VersionView | undefined, variant: CompareVariant): CompareSide | null {
+function side(v: VersionView | undefined): CompareSide | null {
   if (!v?.finals) return null;
-  const sha = variant === 'tiktok' ? (v.finals.tiktokSha ?? v.finals.musicSha) : v.finals.musicSha;
-  return { id: v.id, round: v.round, label: versionLabel(v), sha, coverSha: v.finals.coverSha, durationS: v.finals.durationS, total: v.total, best: v.best };
+  return { id: v.id, round: v.round, label: versionLabel(v), sha: v.finals.musicSha, coverSha: v.finals.coverSha, durationS: v.finals.durationS, total: v.total, best: v.best };
 }
 
 /**
@@ -33,12 +31,12 @@ export function defaultPair(versions: VersionView[]): { aId: string | null; bId:
 }
 
 /** Two versions side by side: deltas are B − A. A version without a final cannot be picked (an unfinished round). */
-export function compareView(versions: VersionView[], aId: string | null | undefined, bId: string | null | undefined, variant: CompareVariant): CompareView {
+export function compareView(versions: VersionView[], aId: string | null | undefined, bId: string | null | undefined): CompareView {
   const pair = aId || bId ? { aId: aId ?? null, bId: bId ?? null } : defaultPair(versions);
   const va = versions.find((v) => v.id === pair.aId);
   const vb = versions.find((v) => v.id === pair.bId);
-  const a = side(va, variant);
-  const b = side(vb, variant);
+  const a = side(va);
+  const b = side(vb);
   const dims = DIMENSION_IDS.map((id) => {
     const x = va?.finals ? (va.dims?.[id] ?? null) : null;
     const y = vb?.finals ? (vb.dims?.[id] ?? null) : null;

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { formatClock, type VersionView } from '@videogen/shared/browser';
 import { blobUrl } from '../../lib/api.ts';
-import { compareView, defaultCompareMode, defaultPair, SIDE_BY_SIDE_MIN, syncPlan, versionLabel, type CompareSide, type CompareVariant } from '../../lib/compare-view.ts';
+import { compareView, defaultCompareMode, defaultPair, SIDE_BY_SIDE_MIN, syncPlan, versionLabel, type CompareSide } from '../../lib/compare-view.ts';
 import { score as formatScore } from '../../lib/i18n.ts';
 import { setActivePlayer } from '../../lib/player.ts';
 
@@ -17,7 +17,7 @@ const typing = (t: EventTarget | null) => {
 /**
  * Plan M7 Y7 players. "Yan yana": A leads, one play/pause/seek drives both and B is moved back to A's time when it drifts more than
  * 0.15 s (syncPlan). "A/B": one player switches between A and B at the same time (B key). Play intent and time are kept here, so a new
- * source (variant, version or side) resumes where the old one was.
+ * source (version or side) resumes where the old one was.
  */
 function Players({ a, b, mode }: { a: CompareSide; b: CompareSide; mode: Mode }) {
   const ra = useRef<HTMLVideoElement>(null);
@@ -67,7 +67,7 @@ function Players({ a, b, mode }: { a: CompareSide; b: CompareSide; mode: Mode })
     addEventListener('keydown', on);
     return () => removeEventListener('keydown', on);
   }, [mode]);
-  // A new source (first load, variant, version, A/B side): back to the kept time, and playing again if it was.
+  // A new source (first load, version, A/B side): back to the kept time, and playing again if it was.
   const loaded = (v: HTMLVideoElement) => {
     v.currentTime = Math.min(time.current, Number.isFinite(v.duration) ? v.duration : time.current);
     if (v === ra.current && Number.isFinite(v.duration)) setDur(v.duration);
@@ -171,7 +171,7 @@ function Picker({ label, value, versions, onChange }: { label: string; value: st
   );
 }
 
-/** Plan M7 Y7 "Karşılaştır": two versions with a final, side by side or A/B, the variant on both, the score and dimension deltas below. */
+/** Plan M7 Y7 "Karşılaştır": two versions with a final, side by side or A/B, the score and dimension deltas below. */
 export function CompareView({ versions }: { versions: VersionView[] }) {
   const [pair, setPair] = useState(() => defaultPair(versions));
   const [mode, setMode] = useState<Mode>(() => defaultCompareMode(innerWidth));
@@ -181,9 +181,7 @@ export function CompareView({ versions }: { versions: VersionView[] }) {
     addEventListener('resize', on);
     return () => removeEventListener('resize', on);
   }, []);
-  const [variant, setVariant] = useState<CompareVariant>('music');
-  const v = compareView(versions, pair.aId, pair.bId, variant);
-  const tiktok = !!(v.a && versions.find((x) => x.id === v.a!.id)?.finals?.tiktokSha) || !!(v.b && versions.find((x) => x.id === v.b!.id)?.finals?.tiktokSha);
+  const v = compareView(versions, pair.aId, pair.bId);
   return (
     <section data-testid="compare-view" aria-label="Compare" className="flex flex-col gap-3">
       <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
@@ -194,11 +192,6 @@ export function CompareView({ versions }: { versions: VersionView[] }) {
         <div role="group" aria-label="View" className="flex gap-1">
           {([['side', 'Side by side'], ['ab', 'A/B']] as const).map(([id, label]) => (
             <button key={id} type="button" data-testid="compare-mode" aria-pressed={mode === id} disabled={id === 'side' && !roomy} title={id === 'side' && !roomy ? 'Turn the phone sideways to compare side by side' : undefined} onClick={() => setMode(id)} className={chip(mode === id)}>{label}</button>
-          ))}
-        </div>
-        <div role="group" aria-label="Variant" className="flex gap-1">
-          {([['music', 'With music'], ['tiktok', 'No music']] as const).map(([id, label]) => (
-            <button key={id} type="button" data-testid="variant-chip" aria-pressed={variant === id} disabled={id === 'tiktok' && !tiktok} onClick={() => setVariant(id)} className={chip(variant === id)}>{label}</button>
           ))}
         </div>
       </div>

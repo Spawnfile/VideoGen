@@ -106,7 +106,7 @@ export function remixExecutor(deps: StepDeps): StepExecutor {
         const m = await probeQc(scene.ffmpeg, out.music, { edges: !s.layout, signal: ctx.signal });
         const t = await probeQc(scene.ffmpeg, out.tiktok, { video: false, signal: ctx.signal });
         const issues = s.layout ? layoutIssues(s.layout.content as LayoutManifest) : null;
-        const report = buildQcReport(evaluateQc(m, { variant: 'music', layoutIssues: issues, coverOk: !!s.cover?.blobSha, window: ctx.duration }), evaluateQc(t, { variant: 'tiktok', window: ctx.duration }));
+        const report = buildQcReport(evaluateQc(m, { variant: 'music', layoutIssues: issues, coverOk: !!s.cover?.blobSha, window: ctx.duration }));
         const sound: SoundPlan = { cues: prev.cues.filter((c) => !plan.sfx.exclude.includes(c.name)).map((c) => ({ ...c, gainDb: SFX_GAIN_DB[c.name as SfxName] + plan.sfx.gain_offset_db })), music: { assetId: null, generatedSha: s.stem.blobSha, title: GENERATED_MUSIC_TITLE, license: GENERATED_MUSIC_LICENSE, attribution: null, gainDb: plan.music.gain_db } };
         const planFile = join(dir, 'audio_plan.json');
         await writeFile(planFile, JSON.stringify(sound, null, 2));

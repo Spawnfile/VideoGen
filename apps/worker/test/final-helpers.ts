@@ -65,11 +65,11 @@ export function finalHarness(t: { pool: pg.Pool }) {
   };
 }
 
-/** A music + TikTok qc report where every check passes except the given ids (the default: one soft D7 check, so the fixture panel totals 87.5). */
+/** A qc report where every check passes except the given ids (the default: one soft D7 check, so the fixture panel totals 87.5). */
 export function qcReportFailing(failing: string[] = ['d7_bitrate']): QcReport {
   const variant = (v: 'music' | 'tiktok'): QcCheckResult[] => (Object.keys(QC_CHECKS) as (keyof typeof QC_CHECKS)[])
     .filter((id) => QC_CHECKS[id].variants.includes(v)).map((id) => ({ id, pass: !failing.includes(id), value: 'x', limit: 'y' }));
-  return buildQcReport(variant('music'), variant('tiktok'));
+  return buildQcReport(variant('music'));
 }
 
 /**

@@ -16,7 +16,7 @@ const run = (bin: string, args: string[]) => new Promise<void>((resolve, reject)
   execFile(bin, args, { timeout: 120_000 }, (err, _o, stderr) => (err ? reject(new Error(`${bin}: ${String(stderr).split('\n').slice(-3).join(' ')}`)) : resolve()));
 });
 
-export interface SeededVideo { videoId: string; versionId: string; runId: string; tiktokSha: string; musicSha: string; sfxAssetId: string; musicAssetId: string }
+export interface SeededVideo { videoId: string; versionId: string; runId: string; musicSha: string; sfxAssetId: string; musicAssetId: string }
 
 /**
  * Plan M6 T4/T8: a `ready` video without a pipeline run — real 6 s 1080×1920 h264/AAC finals (testsrc2 + sine, tiktok_api_kullanim.md §6),
@@ -43,7 +43,7 @@ async function makeMedia(ffmpeg: string): Promise<string> {
     ]);
     const wav = (out: string, hz: number, s: number) => run(ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', `sine=frequency=${hz}:duration=${s}`, '-ar', '48000', out]);
     await Promise.all([
-      final(join(tmp, 'tiktok.mp4'), 440), final(join(tmp, 'music.mp4'), 660), wav(join(tmp, 'sfx.wav'), 880, 0.3), wav(join(tmp, 'bed.wav'), 220, 2),
+      final(join(tmp, 'music.mp4'), 660), wav(join(tmp, 'sfx.wav'), 880, 0.3), wav(join(tmp, 'bed.wav'), 220, 2),
       run(ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=540x960', '-frames:v', '1', join(tmp, 'cover.png')]),
     ]);
     await writeFile(join(tmp, 'license.txt'), 'Creative Commons Attribution 4.0 International (test fixture)\n');
@@ -59,7 +59,7 @@ export async function seedReadyVideo(pool: pg.Pool, dataDir: string, ffmpeg: str
   const tmp = await seedMedia(ffmpeg);
   {
     const blob = (f: string) => putBlob(pool, dataDir, join(tmp, f));
-    const [tiktok, music, cover, sfxBlob, bedBlob, lic] = await Promise.all(['tiktok.mp4', 'music.mp4', 'cover.png', 'sfx.wav', 'bed.wav', 'license.txt'].map(blob));
+    const [music, cover, sfxBlob, bedBlob, lic] = await Promise.all(['music.mp4', 'cover.png', 'sfx.wav', 'bed.wav', 'license.txt'].map(blob));
     const asset = async (kind: 'sfx' | 'music', blobSha: string, title: string, attribution: string) => {
       const inserted = await insertAsset(pool, {
         kind, title, blobSha, licenseSpdx: 'CC-BY-4.0', author: 'Test Yazar', attribution, licenseSnapshotSha: lic!.sha256, allowed: true, sourceUrl: null, durationMs: null, tags: [],
@@ -73,7 +73,6 @@ export async function seedReadyVideo(pool: pg.Pool, dataDir: string, ffmpeg: str
     const videoId = r.videoId;
     for (const s of await listRunSteps(pool, r.runId)) await updateStep(pool, s.id, { status: 'done', progress: 100, startedAt: new Date(), endedAt: new Date() });
     const media = { durationMs: 6000, width: 1080, height: 1920, codec: 'h264' };
-    await insertArtifact(pool, { runId: r.runId, versionId: r.versionId, kind: 'final_video_tiktok', blobSha: tiktok!.sha256, ...media, meta: { music: null } });
     await insertArtifact(pool, { runId: r.runId, versionId: r.versionId, kind: 'final_video_music', blobSha: music!.sha256, ...media, meta: { music: 'Yatak' } });
     await insertArtifact(pool, { runId: r.runId, versionId: r.versionId, kind: 'final_cover', blobSha: cover!.sha256 });
     await insertArtifact(pool, {
@@ -95,6 +94,6 @@ export async function seedReadyVideo(pool: pg.Pool, dataDir: string, ffmpeg: str
     await setBestVersion(pool, videoId, r.versionId);
     await updateRun(pool, r.runId, { status: 'done', progress: 100, startedAt: new Date(), endedAt: new Date() });
     await updateVideo(pool, videoId, { status: 'ready', statusNote: 'Yayına hazır · 87,5 puan' });
-    return { videoId, versionId: r.versionId, runId: r.runId, tiktokSha: tiktok!.sha256, musicSha: music!.sha256, sfxAssetId: sfx.id, musicAssetId: bed.id };
+    return { videoId, versionId: r.versionId, runId: r.runId, musicSha: music!.sha256, sfxAssetId: sfx.id, musicAssetId: bed.id };
   }
 }

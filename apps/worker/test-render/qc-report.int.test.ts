@@ -16,7 +16,7 @@ afterAll(async () => { await t.drop(); });
 const FFMPEG = process.env.VG_FFMPEG ?? 'ffmpeg';
 
 describe('qc step', () => {
-  it('measures both variants and records the report; the note carries gates and the D6/D7 scores', async () => {
+  it('measures the final video and records the report (spec Z4: the music-free list is empty); the note carries gates and the D6/D7 scores', async () => {
     const h = finalHarness(t);
     const { r, ctx } = await h.composed('Tükenmez kalem');
     // Review #2: a music track added after the compose changes the next compose's hash, but this final is not stale.
@@ -30,7 +30,8 @@ describe('qc step', () => {
     const rep = (await latestArtifact(t.pool, r.runId, 'qc_report'))!;
     expect(QcReportSchema.safeParse(rep.content).success).toBe(true);
     expect(rep.meta).toEqual({ pass: true, musicSha: (await latestArtifact(t.pool, r.runId, 'final_video_music'))!.blobSha });
-    expect((rep.content as { tiktok: { id: string }[] }).tiktok.map((c) => c.id)).toContain('g1_color');
+    expect((rep.content as { tiktok: unknown[] }).tiktok).toEqual([]);
+    expect((rep.content as { music: { id: string }[] }).music.map((c) => c.id)).toContain('g1_color');
     // The ledger is shared by this file's tests but the blob lives in this harness's data dir: take the late track out again.
     await t.pool.query("UPDATE assets SET allowed = false WHERE title = 'Geç yatak'");
     await h.stop();

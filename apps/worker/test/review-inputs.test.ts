@@ -24,7 +24,7 @@ const BIC = 'https://www.bicworld.com/en/our-products';
 const qcReport = () => {
   const run = (variant: 'music' | 'tiktok'): QcCheckResult[] => (Object.keys(QC_CHECKS) as (keyof typeof QC_CHECKS)[])
     .filter((id) => QC_CHECKS[id].variants.includes(variant)).map((id) => ({ id, pass: id !== 'd7_bitrate', value: 'x', limit: 'y' }));
-  return buildQcReport(run('music'), run('tiktok'));
+  return buildQcReport(run('music'));
 };
 const RUN_DIR = mkdtempSync(join(tmpdir(), 'vg-review-inputs-'));
 const ctx = (name: string, over: Partial<StepContext> = {}) => ({ runId: 'run-1', runDir: RUN_DIR, key: 'review', round: 0, fixRound: 0, productName: name, audioMode: 'silent', ...over }) as StepContext;

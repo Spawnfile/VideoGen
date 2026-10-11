@@ -37,30 +37,9 @@ function Mp4({ sha, cover, testId, kind }: { sha: string; cover: string | null; 
   );
 }
 
-/** Plan E18: the final in its two variants (spec §7.6): with music, and without (the sound is added in the TikTok app). */
+/** Plan E18: the final video (spec Z4: one variant, with its music). */
 function FinalPanel({ final }: { final: FinalPick }) {
-  const [variant, setVariant] = useState<'music' | 'tiktok'>('music');
-  const sha = variant === 'music' ? final.musicSha! : (final.tiktokSha ?? final.musicSha!);
-  return (
-    <div className="flex flex-col gap-2">
-      <Mp4 key={sha} sha={sha} cover={final.coverSha} testId="final-video" kind="final" />
-      <div className="flex justify-center gap-1" role="group" aria-label="Variant">
-        {([['music', 'With music'], ['tiktok', 'No music']] as const).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            data-testid="variant-chip"
-            aria-pressed={variant === id}
-            disabled={id === 'tiktok' && !final.tiktokSha}
-            onClick={() => setVariant(id)}
-            className={`min-h-8 rounded-full px-3 py-1 text-[12px] transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-glow disabled:opacity-40 ${variant === id ? 'bg-accent text-white' : 'text-ink-2 hover:bg-hover-2 hover:text-ink'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+  return <Mp4 key={final.musicSha!} sha={final.musicSha!} cover={final.coverSha} testId="final-video" kind="final" />;
 }
 
 /**

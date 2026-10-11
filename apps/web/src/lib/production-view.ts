@@ -96,10 +96,10 @@ export function finalRoundLabel(run: RunView | null | undefined): string {
 export const roundLabel = (run: RunView | null | undefined): string => finalRoundLabel(run) || draftRoundLabel(run);
 
 /** The latest final artifacts of a run (spec §13.1 Final tab, plan E18). */
-export interface FinalPick { musicSha: string | null; tiktokSha: string | null; coverSha: string | null; qcId: string | null }
+export interface FinalPick { musicSha: string | null; coverSha: string | null; qcId: string | null }
 export function pickFinal(list: ArtifactMeta[], runId: string | null): FinalPick {
   const find = (kind: string) => list.find((a) => a.kind === kind && (!runId || a.runId === runId)) ?? null;
-  return { musicSha: find('final_video_music')?.blobSha ?? null, tiktokSha: find('final_video_tiktok')?.blobSha ?? null, coverSha: find('final_cover')?.blobSha ?? null, qcId: find('qc_report')?.id ?? null };
+  return { musicSha: find('final_video_music')?.blobSha ?? null, coverSha: find('final_cover')?.blobSha ?? null, qcId: find('qc_report')?.id ?? null };
 }
 
 export type PlayerTab = 'final' | 'compare' | 'mp4' | 'live';

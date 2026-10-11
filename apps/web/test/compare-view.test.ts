@@ -8,18 +8,18 @@ const ver = (round: number, o: Partial<VersionView> = {}): VersionView => ({
   id: `v${round}`, round, reason: round ? 'fix:compose' : 'produce', parentId: round ? `v${round - 1}` : null, createdAt: `2026-10-0${round + 1}T10:00:00.000Z`, runId: 'r1',
   total: null, verdict: null, dims: null, finals: null, best: false, current: false, ...o,
 });
-const fin = (c: string, tiktok = true) => ({ musicSha: c.repeat(64), tiktokSha: tiktok ? `${c}1`.repeat(32) : null, coverSha: `${c}2`.repeat(32), durationS: 45 });
+const fin = (c: string) => ({ musicSha: c.repeat(64), coverSha: `${c}2`.repeat(32), durationS: 45 });
 
 describe('compare view', () => {
   it('compareView: picks best vs the previous version by default, shows the score and per-dimension deltas, refuses a version without a final with a Turkish reason; syncPlan seeks B only when it drifts more than 0.15 s', () => {
     const versions = [
       ver(0, { total: 72, dims: { D1: 10, D2: 9 }, finals: fin('a') }),
-      ver(1, { total: 78.5, dims: { D1: 11, D2: 9 }, finals: fin('b', false) }),
+      ver(1, { total: 78.5, dims: { D1: 11, D2: 9 }, finals: fin('b') }),
       ver(2, { total: 84, dims: { D1: 13, D2: 8.5 }, finals: fin('c'), best: true }),
       ver(3, { reason: 'fix:pending' }),
     ];
     // Default: A = the finished version before the best, B = the best.
-    const d = compareView(versions, null, null, 'music');
+    const d = compareView(versions, null, null);
     expect(d.canCompare).toBe(true);
     expect(d.reason).toBeUndefined();
     expect(d.a).toMatchObject({ id: 'v1', label: 'Version 2', sha: 'b'.repeat(64), coverSha: 'b2'.repeat(32), total: 78.5 });
@@ -28,19 +28,19 @@ describe('compare view', () => {
     expect(d.delta.dims.find((x) => x.id === 'D1')).toEqual({ id: 'D1', label: 'Hook', a: 11, b: 13, delta: 2 });
     expect(d.delta.dims.find((x) => x.id === 'D2')).toMatchObject({ a: 9, b: 8.5, delta: -0.5 });
     expect(d.delta.dims.find((x) => x.id === 'D9')).toMatchObject({ a: null, b: null, delta: null });
-    // The variant applies to both sides; without a TikTok file the music file stands in.
-    const t = compareView(versions, 'v0', 'v1', 'tiktok');
-    expect([t.a!.sha, t.b!.sha]).toEqual(['a1'.repeat(32), 'b'.repeat(64)]);
+    // Spec Z4: one variant, so both sides play their final video.
+    const t = compareView(versions, 'v0', 'v1');
+    expect([t.a!.sha, t.b!.sha]).toEqual(['a'.repeat(64), 'b'.repeat(64)]);
     expect(t.delta.total).toBe(6.5);
     // The best is the oldest: the next finished one stands in as the other side.
-    const early = compareView([ver(0, { finals: fin('a'), best: true, total: 80 }), ver(1, { finals: fin('b'), total: 70 })], null, null, 'music');
+    const early = compareView([ver(0, { finals: fin('a'), best: true, total: 80 }), ver(1, { finals: fin('b'), total: 70 })], null, null);
     expect([early.a!.id, early.b!.id]).toEqual(['v1', 'v0']);
     // An unfinished version is refused with a Turkish reason; so are the same version twice and a lone final.
-    const bad = compareView(versions, 'v2', 'v3', 'music');
+    const bad = compareView(versions, 'v2', 'v3');
     expect(bad).toMatchObject({ canCompare: false, reason: 'Version 4 is unfinished: it has no final to compare' });
     expect(bad.b).toBeNull();
-    expect(compareView(versions, 'v2', 'v2', 'music')).toMatchObject({ canCompare: false, reason: 'The same version is picked twice' });
-    expect(compareView([ver(0, { finals: fin('a') }), ver(1)], null, null, 'music')).toMatchObject({ canCompare: false, reason: 'Comparing needs two versions with a final' });
+    expect(compareView(versions, 'v2', 'v2')).toMatchObject({ canCompare: false, reason: 'The same version is picked twice' });
+    expect(compareView([ver(0, { finals: fin('a') }), ver(1)], null, null)).toMatchObject({ canCompare: false, reason: 'Comparing needs two versions with a final' });
 
     expect(syncPlan(10, 10.1)).toEqual({});
     expect(syncPlan(10, 10.15)).toEqual({});

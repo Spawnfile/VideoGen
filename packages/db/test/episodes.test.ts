@@ -36,7 +36,7 @@ describe('importEpisode (video library L9–L11)', () => {
     const vs = await listVersions(t.pool, out.videoId);
     expect(vs).toHaveLength(1);
     expect(vs[0]).toMatchObject({ reason: 'import', best: true, current: true, runId: expect.any(String) });
-    expect(vs[0]!.finals).toMatchObject({ musicSha: m.sha, tiktokSha: null, durationS: 12.6 });
+    expect(vs[0]!.finals).toEqual({ musicSha: m.sha, coverSha: expect.any(String), durationS: 12.6 });
     expect((await listRunViews(t.pool, out.videoId)).map((r) => [r.kind, r.status])).toEqual([['import', 'done']]);
     expect((await t.pool.query('SELECT trigger FROM runs WHERE video_id = $1', [out.videoId])).rows[0].trigger).toBe('cli');
     expect((await t.pool.query("SELECT data FROM audit_log WHERE action = 'video.imported' AND subject_id = $1", [out.videoId])).rows[0].data).toMatchObject({ slug: 'rubik', sha: m.sha, durationS: 12.6 });

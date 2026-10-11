@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { CHANNEL_STYLES, type SceneSpec, type Storyboard } from '@videogen/shared';
+import { CHANNEL_STYLES, YAKLASIM, type SceneSpec, type Storyboard } from '@videogen/shared';
 import { finalProps, overlayBoxes } from '@videogen/remotion/props';
 import { BlenderRenderDriver } from '../src/render/driver.ts';
 import { probeVideo } from '../src/render/ffmpeg.ts';
@@ -13,7 +13,7 @@ const FX = resolve(import.meta.dirname, '../../../tests/fixtures');
 const DATA = mkdtempSync(join(tmpdir(), 'vg-final-compose-int-'));
 afterAll(() => { if (!process.env.VG_KEEP) rmSync(DATA, { recursive: true, force: true }); });
 const json = <T>(p: string) => JSON.parse(readFileSync(join(FX, p), 'utf8')) as T;
-const style = CHANNEL_STYLES.gece_mavisi;
+const style = CHANNEL_STYLES.yaklasim;
 const { glbUrl: _g, framesUrl: _f, ...props } = finalProps({
   glbUrl: '', framesUrl: '', yfov: json<{ yfov: number[] }>('scene/kalem/camera_track.json').yfov,
   scene: json<SceneSpec>('artifacts/scene-kalem.json'), storyboard: json<Storyboard>('artifacts/storyboard-kalem.json'), style,
@@ -38,7 +38,8 @@ describe('Final3D (real system Chrome)', () => {
     const red = region(out, 10, 500, 920, 80, 80);
     expect(red[0]!).toBeGreaterThan(200);
     expect(red[1]! + red[2]!).toBeLessThan(80);
-    region(out, 10, 2, 2, 4, 4).forEach((c, i) => expect(Math.abs(c - hex(style.background.top)[i]!)).toBeLessThanOrEqual(8));
+    // The YAKLASIM backdrop: the radial gradient's outer navy in the corner (the grid fades out towards the edges).
+    region(out, 10, 2, 2, 4, 4).forEach((c, i) => expect(Math.abs(c - hex(YAKLASIM.palette.outer)[i]!)).toBeLessThanOrEqual(8));
     console.log(`final compose: 30 kare ${r.ms} ms`);
   }, 300_000);
 

@@ -73,12 +73,16 @@ describe('rubric final@3 and the QC contract', () => {
     expect(e.find((c) => c.id === 'g6_edges')).toMatchObject({ pass: true });
   });
 
-  it('builds a report: gates from both variants, scores from the music variant, Turkish reasons for failed gates', () => {
-    const music = evaluateQc(good(), { variant: 'music', layoutIssues: [{ frame: 90, kind: 'label', id: 'yay', box: [900, 600, 1060, 650] }], coverOk: true });
-    const tiktok = evaluateQc({ ...good(), video: { ...good().video, pixFmt: 'yuvj420p', colorRange: 'pc' } }, { variant: 'tiktok' });
-    const rep = buildQcReport(music, tiktok);
+  it('builds a report from the one variant (spec Z4: no music-free variant): gates and scores from it, Turkish reasons for failed gates', () => {
+    const music = evaluateQc({ ...good(), video: { ...good().video, pixFmt: 'yuvj420p', colorRange: 'pc' } }, { variant: 'music', layoutIssues: [{ frame: 90, kind: 'label', id: 'yay', box: [900, 600, 1060, 650] }], coverOk: true });
+    const rep = buildQcReport(music);
     expect(QcReportSchema.safeParse(rep).success).toBe(true);
-    expect(rep).toMatchObject({ rubric_version: 'final@3', gates: { G1: false, G5: true, G6: false }, scores: { D6: 8, D7: 5 }, pass: false });
-    expect(qcFailures(rep)).toEqual(['Teslim (müziksiz): Renk etiketleri yuvj420p/pc/bt709/bt709/bt709 (yuv420p/tv/bt709)', 'Güvenli alan: 1 kutu dışarıda (3,0 sn)']);
+    expect(rep).toMatchObject({ rubric_version: 'final@3', tiktok: [], gates: { G1: false, G5: true, G6: false }, scores: { D7: 5 }, pass: false });
+    expect(qcFailures(rep)).toEqual(['Teslim: Renk etiketleri yuvj420p/pc/bt709/bt709/bt709 (yuv420p/tv/bt709)', 'Güvenli alan: 1 kutu dışarıda (3,0 sn)']);
+  });
+
+  it('spec Z4: a stored report without the music-free list still reads (tiktok defaults to [])', () => {
+    const { tiktok: _t, ...rest } = buildQcReport(evaluateQc(good(), { variant: 'music', layoutIssues: [], coverOk: true }));
+    expect(QcReportSchema.parse(rest).tiktok).toEqual([]);
   });
 });
