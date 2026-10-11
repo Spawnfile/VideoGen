@@ -94,6 +94,9 @@ class Vg:
     def wire(self, points, radius):
         return self._new(primitives.wire, [tuple(p) for p in points], radius)
 
+    def text(self, body, size, depth):
+        return self._new(primitives.text, str(body), size, depth)
+
     def mesh(self, verts, faces):
         return self._new(primitives.mesh, [tuple(v) for v in verts], [tuple(f) for f in faces])
 

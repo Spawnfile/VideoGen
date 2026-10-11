@@ -20,6 +20,21 @@ class MotionTest(unittest.TestCase):
         self.assertEqual(motion.explode_offset(e, 3), (1.5, 0, -1))
         self.assertEqual(motion.explode_offset(e, 9), (3, 0, -2))
 
+    def test_explode_back_returns_home_and_a_negative_start_is_mid_burst_at_zero(self):
+        e = {"vector": [4, 0, 0], "t_start": -1, "t_end": 1, "ease": "linear", "back": {"t_start": 5, "t_end": 7, "ease": "linear"}}
+        self.assertEqual(motion.explode_offset(e, 0), (2, 0, 0))  # YAKLASIM spec Y12: frame 0 already bursting
+        self.assertEqual(motion.explode_offset(e, 3), (4, 0, 0))
+        self.assertEqual(motion.explode_offset(e, 6), (2, 0, 0))
+        self.assertEqual(motion.explode_offset(e, 7), (0, 0, 0))
+        self.assertEqual(motion.explode_offset(e, 12), (0, 0, 0))
+
+    def test_spin_angle_holds_before_and_after(self):
+        s = {"axis": "z", "degrees": 90, "t_start": 2, "t_end": 4, "ease": "linear"}
+        self.assertEqual(motion.spin_angle(s, 1), 0)
+        self.assertEqual(motion.spin_angle(s, 3), 45)
+        self.assertEqual(motion.spin_angle(s, 9), 90)
+        self.assertEqual(motion.spin_angle(None, 3), 0)
+
     def test_camera_interpolates_segments_with_the_starting_keys_ease(self):
         keys = [
             {"t": 0, "position": [0, -10, 0], "target": [0, 0, 0], "lens_mm": 50, "ease": "linear"},

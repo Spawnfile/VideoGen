@@ -1,3 +1,4 @@
+import math
 import json
 import os
 import shutil
@@ -55,6 +56,27 @@ class BuildTest(unittest.TestCase):
         self.assertTrue({"explode_start", "part_lock", "label_in", "zoom"} <= types)
         self.assertGreaterEqual(r["hero_ratio"], 0.35)
         self.assertGreater(r["triangles"], 0)
+
+    def test_parts_reassemble_and_spin_and_lock_when_they_snap_back(self):
+        import bpy
+        from vg_blender import stage
+        stage.reset(300)
+        root = bpy.data.objects.new("p_root", None)
+        bpy.context.scene.collection.objects.link(root)
+        spec = {"parts": [{"id": "p", "explode": {"vector": [6, 0, 0], "t_start": -1, "t_end": 1, "ease": "linear",
+                                                   "back": {"t_start": 6, "t_end": 8, "ease": "linear"}},
+                           "spin": {"axis": "z", "degrees": 90, "t_start": 2, "t_end": 4, "ease": "linear"}}]}
+        build.animate_parts(spec, {"p": root}, 30, 300)
+        sc = bpy.context.scene
+        sc.frame_set(0)
+        self.assertAlmostEqual(root.location.x, 3, places=4)
+        sc.frame_set(120)
+        self.assertAlmostEqual(root.location.x, 6, places=4)
+        self.assertAlmostEqual(root.rotation_euler.z, math.radians(90), places=4)
+        sc.frame_set(240)
+        self.assertAlmostEqual(root.location.x, 0, places=4)
+        ev = build.events_manifest({"parts": spec["parts"], "camera_keys": []}, {"beats": []}, 30)["events"]
+        self.assertIn({"id": "part_lock:p", "type": "part_lock", "frame": 240, "part_id": "p"}, ev)
 
     def test_missing_and_extra_parts_fail_the_build(self):
         src = product().replace('vg.part("yay", vg.spring(0.18, 0.02, 12, 1.8).move(z=1.2))', 'vg.part("kapak", vg.box((1, 1, 1)))')

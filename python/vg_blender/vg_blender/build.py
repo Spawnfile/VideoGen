@@ -31,11 +31,22 @@ def animate_parts(spec, roots, fps, frames):
         root = roots[p["id"]]
         rest = Vector(root.location)
         e = p["explode"]
-        f0, f1 = round(e["t_start"] * fps), round(e["t_end"] * fps)
+        clip = lambda f: min(frames, max(0, f))  # noqa: E731 — the burst may start before frame 0 (YAKLASIM spec Y12)
+        f0, f1 = clip(round(e["t_start"] * fps)), clip(round(e["t_end"] * fps))
+        keyed = {0, *range(f0, f1 + 1), frames}
+        if e.get("back"):
+            keyed |= set(range(clip(round(e["back"]["t_start"] * fps)), clip(round(e["back"]["t_end"] * fps)) + 1))
         # A hold key on the last frame: every glTF clip spans the whole video (a finished LoopOnce action would otherwise snap back).
-        for f in sorted({0, *range(f0, f1 + 1), frames}):
+        for f in sorted(keyed):
             root.location = rest + Vector(motion.explode_offset(e, f / fps))
             root.keyframe_insert("location", frame=f)
+        spin = p.get("spin")
+        if spin:
+            axis = "xyz".index(spin["axis"])
+            base = root.rotation_euler[axis]
+            for f in sorted({0, *range(clip(round(spin["t_start"] * fps)), clip(round(spin["t_end"] * fps)) + 1), frames}):
+                root.rotation_euler[axis] = base + math.radians(motion.spin_angle(spin, f / fps))
+                root.keyframe_insert("rotation_euler", index=axis, frame=f)
 
 
 def add_anchors(spec, roots):
@@ -105,7 +116,8 @@ def events_manifest(spec, storyboard, fps):
         e = p["explode"]
         if any(abs(v) > 1e-6 for v in e["vector"]):
             ev.append({"id": f"explode_start:{p['id']}", "type": "explode_start", "frame": round(e["t_start"] * fps), "part_id": p["id"]})
-            ev.append({"id": f"part_lock:{p['id']}", "type": "part_lock", "frame": round(e["t_end"] * fps), "part_id": p["id"]})
+            lock = e["back"]["t_end"] if e.get("back") else e["t_end"]  # with `back` the part locks when it snaps home
+            ev.append({"id": f"part_lock:{p['id']}", "type": "part_lock", "frame": round(lock * fps), "part_id": p["id"]})
     for b in storyboard["beats"]:
         for pid in b["parts"]:
             ev.append({"id": f"label_in:{b['id']}:{pid}", "type": "label_in", "frame": round(b["t_start"] * fps), "part_id": pid})
