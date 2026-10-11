@@ -41,13 +41,3 @@ export interface AssetListItem {
   blobSha: string; createdAt: string; used: number;
 }
 
-/**
- * Y8 / P8: why a clone voice may not use this ledger row (null: it may). The voice preflight and the voice step both ask; the stored verdict,
- * the revocation and today's license rule all count.
- */
-export function voiceRefProblem(a: { kind: AssetKind; title: string; allowed: boolean; licenseSpdx: string; attribution: string | null; revokedAt?: string | null } | null): string | null {
-  if (!a || a.kind !== 'voice_ref') return 'ses referansı defterde yok';
-  if (a.revokedAt) return `ses referansının izni geri alındı: ${a.title}`;
-  if (!a.allowed || !licenseVerdict({ spdx: a.licenseSpdx, attribution: a.attribution, kind: 'voice_ref' }).allowed) return `ses referansı izinli değil: ${a.title}`;
-  return null;
-}

@@ -54,7 +54,7 @@ async function makeMedia(ffmpeg: string): Promise<string> {
   }
 }
 
-export async function seedReadyVideo(pool: pg.Pool, dataDir: string, ffmpeg: string, o: { productName?: string; aigcLabel?: boolean } = {}): Promise<SeededVideo> {
+export async function seedReadyVideo(pool: pg.Pool, dataDir: string, ffmpeg: string, o: { productName?: string } = {}): Promise<SeededVideo> {
   const name = o.productName ?? 'Tükenmez kalem';
   const tmp = await seedMedia(ffmpeg);
   {
@@ -89,7 +89,7 @@ export async function seedReadyVideo(pool: pg.Pool, dataDir: string, ffmpeg: str
     });
     await insertArtifact(pool, {
       runId: r.runId, kind: 'finish',
-      content: { bestVersionId: r.versionId, round: 0, total: 87.5, verdict: 'ready', stop: null, openFindings: [], aigcLabel: o.aigcLabel ?? false },
+      content: { bestVersionId: r.versionId, round: 0, total: 87.5, verdict: 'ready', stop: null, openFindings: [] },
     });
     await setBestVersion(pool, videoId, r.versionId);
     await updateRun(pool, r.runId, { status: 'done', progress: 100, startedAt: new Date(), endedAt: new Date() });

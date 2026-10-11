@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api.ts';
-import { panelView, pickDraft, pickFinal, pickReviewSheet, pickVoice, pickStems, isRunActive } from '../../lib/production-view.ts';
+import { panelView, pickDraft, pickFinal, pickReviewSheet, pickStems, isRunActive } from '../../lib/production-view.ts';
 import { latestRunOf, pipeline, seedRuns, seedVideos, useStore } from '../../lib/stores.ts';
 import { BuildCard, ResearchCard, ReviewCard, StoryboardCard } from './ArtifactCards.tsx';
 import { DraftTabs } from './DraftTabs.tsx';
@@ -10,7 +10,6 @@ import { ReviewPanel } from './ReviewPanel.tsx';
 import { StepList } from './StepList.tsx';
 import { AudioCard } from './AudioCard.tsx';
 import { VideoHeader } from './VideoHeader.tsx';
-import { VoiceCard } from './VoiceCard.tsx';
 
 export function ProductionPanel({ videoId }: { videoId: string | null }) {
   const state = useStore(pipeline);
@@ -40,7 +39,7 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
     const pick = (kind: string) => find(kind)?.id ?? null;
     return {
       research: pick('research'), storyboard: pick('storyboard'), report: pick('build_report'), scene: pick('scene'), sheet: find('preview_sheet')?.blobSha ?? null,
-      ...pickVoice(list, run?.id ?? null), draft: pickDraft(list, run?.id ?? null), final: pickFinal(list, run?.id ?? null),
+      draft: pickDraft(list, run?.id ?? null), final: pickFinal(list, run?.id ?? null),
       stems: pickStems(list, run?.id ?? null),
     };
   }, [detail.data, run]);
@@ -58,7 +57,6 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
       <ResearchCard artifactId={latest.research} video={video} />
       <StoryboardCard artifactId={latest.storyboard} />
       <AudioCard video={video} stems={latest.stems} />
-      <VoiceCard trackId={latest.voiceTrack} stemSha={latest.voiceStem} />
       <BuildCard reportId={latest.report} sceneId={latest.scene} sheetSha={latest.sheet} />
       <ReviewCard artifactId={latest.draft.reviewId} />
       <QcCard artifactId={latest.final.qcId} />

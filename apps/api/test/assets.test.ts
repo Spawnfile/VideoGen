@@ -3,17 +3,13 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DEFAULT_NARRATOR, loadConfig, producePlan, UPLOAD_MAX_BYTES, type AudioPlan } from '@videogen/shared';
-import { createProduceRun, getAsset, getNarratorVoice, getRunContext, insertArtifact, insertAsset, listAssets, setNarratorVoice } from '@videogen/db';
+import { loadConfig, producePlan, UPLOAD_MAX_BYTES, type AudioPlan } from '@videogen/shared';
+import { createProduceRun, getAsset, getRunContext, insertArtifact, insertAsset, listAssets } from '@videogen/db';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
-import { FakeAudioDriver } from '../../worker/src/audio/driver.ts';
 import { seedReadyVideo } from '../../worker/src/dev/seed-ready.ts';
 import { audioRefErrors } from '../../worker/src/pipeline/fixer.ts';
 import { runPreflight } from '../../worker/src/pipeline/preflight.ts';
 import { effectiveAudioPlan, LicenseError, soundPlan } from '../../worker/src/pipeline/sound.ts';
-import type { StepDeps } from '../../worker/src/pipeline/steps.ts';
-import type { StepContext } from '../../worker/src/pipeline/types.ts';
-import { voiceExecutor } from '../../worker/src/pipeline/voice-step.ts';
 import { buildApp } from '../src/app.ts';
 import { EventHub } from '../src/event-hub.ts';
 
@@ -132,7 +128,7 @@ describe('asset ledger endpoints (plan M7 T5)', () => {
     expect((await revoke(sakin!.id, { reason: 'r' }, EVIL)).statusCode).toBe(403);
     const ok = await revoke(sakin!.id, { reason: 'Kaynak sitesi lisansı değiştirdi' });
     expect(ok.statusCode).toBe(200);
-    expect(ok.json()).toMatchObject({ asset: { id: sakin!.id, allowed: false, revokeReason: 'Kaynak sitesi lisansı değiştirdi', revokedAt: expect.any(String), reason: 'Kaynak sitesi lisansı değiştirdi', used: 1 }, narratorReset: false });
+    expect(ok.json()).toMatchObject({ asset: { id: sakin!.id, allowed: false, revokeReason: 'Kaynak sitesi lisansı değiştirdi', revokedAt: expect.any(String), reason: 'Kaynak sitesi lisansı değiştirdi', used: 1 } });
     expect((await revoke(sakin!.id, { reason: 'tekrar' })).statusCode).toBe(409);
     expect(await audit('asset.revoked')).toEqual([{ subject_id: sakin!.id, data: { kind: 'music', title: 'Sakin', reason: 'Kaynak sitesi lisansı değiştirdi' } }]);
     expect((await app.inject({ url: '/api/assets?kind=music', headers: H })).json()[0]).toMatchObject({ allowed: false, revokeReason: 'Kaynak sitesi lisansı değiştirdi' });
@@ -155,12 +151,12 @@ describe('asset ledger endpoints (plan M7 T5)', () => {
     expect((await audit('asset.revoked')).map((r) => [r.subject_id, r.data.reason])).toEqual([[sakin!.id, 'Kaynak sitesi lisansı değiştirdi'], [tik.id, 'Pixabay sayfası kaldırıldı']]);
   });
 
-  it('a revoked asset is refused by compose (sound plan) and marking as uploaded; the fixer cannot name a ledger track and the preflight needs none (spec Z5); a revoked voice reference is refused by the voice preflight and the voice step, and revoking the narrator\'s reference resets the narrator to the stock voice in the same transaction (audited); an existing final stays playable', { timeout: 60_000 }, async () => {
+  it('a revoked asset is refused by compose (sound plan) and marking as uploaded; the fixer cannot name a ledger track and the preflight needs none (spec Z5); a voice reference revokes without side effects (Z1); an existing final stays playable', { timeout: 60_000 }, async () => {
     const v = await seedReadyVideo(t.pool, dataDir, FFMPEG);
     const revoke = (id: string, reason: string) => app.inject({ method: 'POST', url: `/api/assets/${id}/revoke`, headers: H, payload: { reason } });
     const allowedMusic = async () => listAssets(t.pool, { kind: 'music', allowedOnly: true });
     const ctx = (await getRunContext(t.pool, v.runId))!;
-    const preflight = runPreflight({ pool: t.pool, audio: new FakeAudioDriver(), dataDir });
+    const preflight = runPreflight({});
     const silent = { ...ctx, audioMode: 'silent' as const, run: { ...ctx.run, plan: producePlan('silent').filter((s) => s.key !== 'music') } }; // spec Z5: no ledger rule, even without the music step
     expect((await allowedMusic()).length).toBeGreaterThan(0);
     expect(await preflight(silent)).toBeNull();
@@ -192,31 +188,15 @@ describe('asset ledger endpoints (plan M7 T5)', () => {
     expect((await app.inject({ url: `/api/videos/${v.videoId}/platforms`, headers: H })).json().refused).toEqual(['Klik', 'Yatak']);
     expect((await app.inject({ url: `/api/blobs/${v.musicSha}`, headers: H })).statusCode).toBe(200);
 
-    // Voice: an own-voice reference becomes the narrator; revoking it resets the narrator to the stock voice with an audit row.
+    // Review Focus 5 (spec Z1): an own-voice reference still imports and revokes in the ledger, with no narrator side effect.
     const ref = await uploaded(tone('ses.wav', 180, 2));
     const own = (await importAsset({ ...base, uploadId: ref.uploadId, kind: 'voice_ref', title: 'Kendi sesim', license: 'LicenseRef-Own-Voice', author: 'Alper' })).json().asset;
     expect(own.allowed).toBe(true);
-    const clone = { engine: 'chatterbox' as const, voice: { kind: 'clone' as const, asset_id: own.id } };
-    expect((await app.inject({ method: 'PUT', url: '/api/narrator-voice', headers: H, payload: clone })).statusCode).toBe(200);
-    const vo = { ...ctx, audioMode: 'vo' as const, run: { ...ctx.run, plan: producePlan('vo') } };
-    expect(await preflight(vo)).toBeNull();
     const r = await revoke(own.id, 'rıza geri çekildi');
-    expect(r.json()).toMatchObject({ narratorReset: true, asset: { allowed: false } });
-    expect(await getNarratorVoice(t.pool)).toEqual({ voice: DEFAULT_NARRATOR, chosen: true });
-    expect((await audit('settings.narrator_voice')).at(-1)!.data).toEqual({ from: clone, to: DEFAULT_NARRATOR, reason: 'revoked' });
-    expect((await app.inject({ url: '/api/narrator-voice', headers: H })).json().options[0].voices.map((o: { kind: string }) => o.kind)).toEqual(['preset']);
-
-    // A stale setting still naming the revoked (or a never-allowed) reference is refused by the voice preflight and the voice step.
-    const foreign = (await importAsset({ ...base, uploadId: (await uploaded(tone('baska.wav', 210, 2))).uploadId, kind: 'voice_ref', title: 'Başkasının sesi', license: 'CC0-1.0' })).json().asset;
-    expect(foreign.allowed).toBe(false);
-    const deps = { pool: t.pool, dataDir, audio: new FakeAudioDriver() } as unknown as StepDeps;
-    const step = voiceExecutor(deps);
-    const stepCtx = { runId: v.runId, videoId: v.videoId, stepId: crypto.randomUUID(), audioMode: 'vo', fixRound: 0, runDir: join(dataDir, 'runs', v.runId), progress: () => {}, status: () => {}, signal: new AbortController().signal } as unknown as StepContext;
-    for (const [id, why] of [[own.id, 'ses referansının izni geri alındı: Kendi sesim'], [foreign.id, 'ses referansı izinli değil: Başkasının sesi']] as const) {
-      await setNarratorVoice(t.pool, { engine: 'chatterbox', voice: { kind: 'clone', asset_id: id } });
-      expect(await preflight(vo)).toBe(`Seslendirme kullanılamıyor: ${why}`);
-      expect(await step.run(stepCtx, 'h'.repeat(64))).toEqual({ status: 'failed', error: why, retry: false });
-    }
-    await setNarratorVoice(t.pool, { ...DEFAULT_NARRATOR, voice: { ...DEFAULT_NARRATOR.voice } });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ asset: { allowed: false } });
+    expect(r.json()).not.toHaveProperty('narratorReset');
+    expect((await t.pool.query("SELECT 1 FROM settings WHERE key = 'narrator.voice'")).rowCount).toBe(0);
+    expect(await audit('settings.narrator_voice')).toEqual([]);
   });
 });

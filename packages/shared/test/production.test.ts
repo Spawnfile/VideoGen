@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { LEGACY_VO_WINDOW } from '../src/voice.ts';
 import {
-  BRIEF_MAX, DEFAULT_DURATION, DURATION_HARD, durationWindowErrors, effectiveDuration, formatWindow, parseBriefDuration, recommendedWindow, voBounds, windowErrors,
+  BRIEF_MAX, DEFAULT_DURATION, DURATION_HARD, durationWindowErrors, effectiveDuration, formatWindow, parseBriefDuration, recommendedWindow, windowErrors,
 } from '../src/production.ts';
 
 describe('production brief and duration window (brief design Y1–Y3, Y9)', () => {
@@ -49,14 +48,6 @@ describe('production brief and duration window (brief design Y1–Y3, Y9)', () =
     expect(recommendedWindow({ duration_min_s: 5, duration_max_s: 90 })).toEqual({ minS: 10, maxS: 60 });
     expect(recommendedWindow({ duration_min_s: 30, duration_max_s: 30 })).toEqual({ minS: 29, maxS: 31 });
     expect(recommendedWindow({ duration_min_s: 50, duration_max_s: 30 })).toEqual({ minS: 30, maxS: 50 });
-  });
-
-  it('VO bounds follow the window and equal the old 36/52 s on the legacy VO window', () => {
-    expect(voBounds(LEGACY_VO_WINDOW)).toEqual({ minS: 36, maxS: 52 });
-    expect(voBounds({ minS: 20, maxS: 25 })).toEqual({ minS: 19, maxS: 22 });
-    expect(voBounds({ minS: 15, maxS: 17 })).toEqual({ minS: 11, maxS: 14 });
-    expect(voBounds({ minS: 10, maxS: 12 })).toEqual({ minS: 6, maxS: 9 });
-    expect(voBounds({ minS: 20, maxS: 22 })).toEqual({ minS: 16, maxS: 19 }); // never a single exact value
   });
 
   it('the storyboard check holds a duration to the video window', () => {

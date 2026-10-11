@@ -22,16 +22,13 @@ describe('audio facts for reviewer_audio (agent music design A11)', () => {
     expect(c[3]!).toBeLessThan(-20);
   });
 
-  it('music under the voice, the voice above it, and the lift at the hook, rehook and payoff', () => {
+  it('the music lift at the hook, rehook and payoff; no music, no moments', () => {
     const n = Math.ceil(sb.duration_s / 0.5);
     const music = Array.from({ length: n }, (_, i) => (i * 0.5 >= sb.payoff_at ? -14 : -24));
-    const voice = Array.from({ length: n }, (_, i) => (i % 4 < 2 ? -12 : -90));
-    const f = audioFacts({ music, voice, sfx: null, storyboard: sb });
-    expect(f.musicUnderVoiceDb).not.toBeNull();
-    expect(f.voiceOverMusicDb!).toBeGreaterThan(5);
+    const f = audioFacts({ music, sfx: null, storyboard: sb });
     const payoff = f.moments.find((m) => m.name === 'ödül')!;
     expect(payoff.liftDb).toBe(10);
     expect(f.moments.find((m) => m.name === 'kanca')!.beforeDb).toBeNull();
-    expect(audioFacts({ music: null, voice, sfx: null, storyboard: sb })).toMatchObject({ moments: [], musicUnderVoiceDb: null, musicRangeDb: null });
+    expect(audioFacts({ music: null, sfx: null, storyboard: sb })).toMatchObject({ moments: [], musicRangeDb: null });
   });
 });

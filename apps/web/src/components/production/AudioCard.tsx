@@ -6,12 +6,11 @@ import { useContent } from './ArtifactCards.tsx';
 const card = 'rounded-card bg-paper px-4 py-3';
 const PARTS = [
   { key: 'music', label: 'Music', file: 'music' },
-  { key: 'voice', label: 'Voiceover', file: 'voice' },
   { key: 'sfx', label: 'Sound effects', file: 'effects' },
 ] as const;
 
 /**
- * Agent music design A5: the stems of the newest final (music at its mix level, the effects; the voice of older videos), each playable and
+ * Agent music design A5: the stems of the newest final (music at its mix level, the effects), each playable and
  * downloadable, and the score in a line.
  */
 export function AudioCard({ video, stems }: { video: Pick<VideoView, 'id' | 'productName'>; stems: StemPick }) {

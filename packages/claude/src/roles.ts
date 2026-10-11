@@ -23,7 +23,7 @@ export interface RoleDef {
 }
 
 const READ = ['Read', 'Glob', 'Grep'];
-const ALL_MCP = ['report_progress', 'get_context', 'read_spec', 'write_spec', 'register_artifact', 'build_scene', 'render_preview_stills', 'render_draft', 'extract_frames', 'run_qc', 'tts_synthesize', 'align_captions', 'search_assets', 'request_rerender'];
+const ALL_MCP = ['report_progress', 'get_context', 'read_spec', 'write_spec', 'register_artifact', 'build_scene', 'render_preview_stills', 'render_draft', 'extract_frames', 'run_qc', 'search_assets', 'request_rerender'];
 
 /** Spec §6.2. */
 export const ROLES: Record<ActiveRoleName, RoleDef> = {

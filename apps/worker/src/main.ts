@@ -18,7 +18,6 @@ import { startHeartbeat } from './heartbeat.ts';
 import { fakePipelineScript } from './pipeline/fake-scripts.ts';
 import { Orchestrator } from './pipeline/orchestrator.ts';
 import { SystemProbe } from './pipeline/resources.ts';
-import { FakeAudioDriver, PythonAudioDriver, type AudioDriver } from './audio/driver.ts';
 import { FakeMusicDriver, YaklasimMusicDriver, type MusicDriver } from './audio/music.ts';
 import { runPreflight } from './pipeline/preflight.ts';
 import { BlenderRenderDriver, FakeRenderDriver, type Capability, type RenderDriver } from './render/driver.ts';
@@ -50,10 +49,6 @@ const renderAudit = (action: string, data: Record<string, unknown>) => appendAud
 const render: RenderDriver = config.render.driver === 'fake'
   ? new FakeRenderDriver({ ffmpeg: config.render.ffmpeg })
   : new BlenderRenderDriver({ blender: config.render.blender, bwrap: config.render.bwrap, dataDir: config.dataDir, home: homedir(), audit: renderAudit });
-// M5c: the voice CLI child (K22: only under the orchestrator's GPU lock); the fake render driver comes with the fake TTS.
-const audio: AudioDriver = config.render.driver === 'fake'
-  ? new FakeAudioDriver({ ffmpeg: config.render.ffmpeg })
-  : new PythonAudioDriver({ ...config.audio, dataDir: config.dataDir, audit: renderAudit });
 // YAKLASIM spec Y14: the fixed music bed (the audio service's generator; an ffmpeg pad with the fake render driver).
 const music: MusicDriver = config.render.driver === 'fake'
   ? new FakeMusicDriver({ ffmpeg: config.render.ffmpeg })
@@ -74,9 +69,9 @@ const manager = new SessionManager({
   ),
 });
 const orchestrator = new Orchestrator({
-  pool, dataDir: config.dataDir, probe, locks, gate: guard, preflight: runPreflight({ pool, audio, music, dataDir: config.dataDir }),
+  pool, dataDir: config.dataDir, probe, locks, gate: guard, preflight: runPreflight({ music }),
   executors: pipelineExecutors({
-    pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined, reviews, gate: guard, audio, music,
+    pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined, reviews, gate: guard, music,
     scene: { pool, render, locks, probe, ffmpeg: config.render.ffmpeg, encodePreset: config.render.encodePreset, capability: () => renderCapability },
   }),
 });
@@ -131,7 +126,7 @@ try {
       },
       ...(config.devEndpoints ? {
         'dev.video.ready': async (c: Record<string, unknown>) => {
-          const v = await seedReadyVideo(pool, config.dataDir, config.render.ffmpeg, { productName: typeof c.productName === 'string' ? c.productName.slice(0, 80) : undefined, aigcLabel: c.aigc === true });
+          const v = await seedReadyVideo(pool, config.dataDir, config.render.ffmpeg, { productName: typeof c.productName === 'string' ? c.productName.slice(0, 80) : undefined });
           await appendAudit(pool, { actorType: 'system', action: 'dev.video.ready', data: { videoId: v.videoId, requestId: typeof c.requestId === 'string' ? c.requestId.slice(0, 64) : null } });
         },
         'dev.session.start': (c: Record<string, unknown>) => manager.start({ kind: 'pipeline', role: roleOf(c.role), prompt: typeof c.prompt === 'string' ? c.prompt.slice(0, 2000) : 'Merhaba', fakeScript: (c.script ?? undefined) as FakeScript | undefined }),

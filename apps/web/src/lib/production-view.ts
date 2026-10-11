@@ -1,9 +1,8 @@
 import {
   CHANNEL_STYLES, DIMENSION_FLOOR, DIMENSION_IDS, DIMENSIONS, DRAFT_MAX_RETURNS, draftRound, FINAL_CHECKS, FINAL_MAX_ROUNDS, finalRound, formatClock, GATE_IDS, GATES, QC_CHECKS,
   type ArtifactMeta, type BuildReport, type DimensionId, type FinalCheckId, type FinalReviewerRole, type GateId, type ProgressSource, type QcReport, type ReviewRecord,
-  type RunView, type SceneSpec, type StepView, type VideoStatus, type VideoUsage, type VideoView, type VoiceTrack,
+  type RunView, type SceneSpec, type StepView, type VideoStatus, type VideoUsage, type VideoView,
 } from '@videogen/shared/browser';
-import type { NarratorVoiceState } from './api.ts';
 import { DIMENSION_EN, FINAL_CHECK_EN, GATE_EN, QC_CHECK_EN, REVIEWER_EN, STYLE_EN } from './i18n.ts';
 import { int, time } from './locale.ts';
 import { formatElapsed, formatTokens } from './trace-view.ts';
@@ -215,70 +214,15 @@ export function pickReviewSheet(list: ArtifactMeta[], runId: string | null, roun
   return a?.blobSha ?? null;
 }
 
-/** The newest voice_track of the run and the stem it names (meta.stemSha); no stem when none matches. */
-export function pickVoice(list: ArtifactMeta[], runId: string | null): { voiceTrack: string | null; voiceStem: string | null } {
-  const track = list.find((a) => a.kind === 'voice_track' && (!runId || a.runId === runId)) ?? null;
-  const want = (track?.meta as { stemSha?: unknown } | undefined)?.stemSha;
-  const stem = typeof want === 'string' ? list.find((a) => a.kind === 'voice_stem' && a.blobSha === want) : undefined;
-  return { voiceTrack: track?.id ?? null, voiceStem: stem?.blobSha ?? null };
-}
-
-/** Produce bar hint of the VO mode (K17: the narrator voice is chosen in Settings). */
-export const PRODUCE_VO_HINT = 'Narration uses local TTS; pick the voice in Settings';
-
-const ENGINE_NAME: Record<string, string> = { chatterbox: 'Chatterbox', freya: 'Freya' };
-/** Preset voices by id (the API's labels are Turkish); a clone keeps the asset's own title. */
-const PRESET_EN: Record<string, string> = { hazir: 'Stock voice', leyla: 'Leyla' };
-const dec = (n: number) => (Number.isFinite(n) ? n.toFixed(1) : '–');
-/** Spec §8.1: a line whose ASR round trip misses more than 3 % of the characters is flagged. */
-const CER_WARN = 0.03;
-
-export interface VoiceViewModel {
-  title: string; provisional: boolean; lines: number; duration: string; worstCer: string; firstWord: string; pace: string; aigc: boolean;
-  rows: { beat: string; text: string; cer: string; warn: boolean }[];
-}
-/** The Seslendirme card (plan T10): engine and voice, the provisional K17 mark, the facts of the track and one row per line; null without a track. */
-export function voiceView(track: VoiceTrack | null, o: { chosen: boolean }): VoiceViewModel | null {
-  // An invalid stored payload draws no card rather than throwing in render.
-  if (!track || !track.provider || !track.facts || !Array.isArray(track.lines)) return null;
-  const { engine, voice } = track.provider;
-  const who = voice.kind === 'clone' ? 'cloned voice' : voice.id === 'hazir' ? 'stock voice' : voice.id === 'leyla' ? 'Leyla' : voice.id;
-  return {
-    title: `Voiceover · ${ENGINE_NAME[engine] ?? engine} · ${who}`,
-    provisional: !o.chosen,
-    lines: track.lines.length,
-    duration: `${dec(track.duration_ms / 1000)} s`,
-    worstCer: `${dec(track.facts.max_cer * 100)}%`,
-    firstWord: `${dec(track.facts.first_word_s)} s`,
-    pace: `${dec(track.facts.syllables_per_s)} syllables/s`,
-    aigc: voice.kind === 'clone',
-    rows: track.lines.map((l) => ({ beat: l.beat_id, text: l.text_tr, cer: `${dec(l.cer * 100)}%`, warn: l.cer > CER_WARN })),
-  };
-}
-
-export interface NarratorItem { key: string; label: string; value: NarratorVoiceState['voice']; selected: boolean; provisional: boolean }
-/** Settings → Anlatıcı sesi: the flat option list; the selected one is marked provisional until the user chooses. */
-export function narratorOptions(s: NarratorVoiceState): { items: NarratorItem[]; hasClone: boolean; note: string } {
-  const items = s.options.flatMap((g) => g.voices.map((v): NarratorItem => {
-    const value = (v.kind === 'clone' ? { engine: g.engine, voice: { kind: 'clone', asset_id: v.asset_id! } } : { engine: g.engine, voice: { kind: 'preset', id: v.id! } }) as NarratorVoiceState['voice'];
-    const selected = s.voice.engine === g.engine && s.voice.voice.kind === v.kind && (v.kind === 'clone' ? (s.voice.voice as { asset_id: string }).asset_id === v.asset_id : (s.voice.voice as { id: string }).id === v.id);
-    return {
-      key: `${g.engine}:${v.kind}:${v.asset_id ?? v.id}`, value, selected, provisional: selected && !s.chosen,
-      label: `${ENGINE_NAME[g.engine] ?? g.engine} · ${v.kind === 'clone' ? `clone: ${v.label_tr}` : (PRESET_EN[v.id ?? ''] ?? v.label_tr)}`,
-    };
-  }));
-  return { items, hasClone: items.some((i) => i.value.voice.kind === 'clone'), note: s.chosen ? '' : 'Not chosen yet: provisional default' };
-}
-
-/** Agent music design A5: the run's newest stems (a compose records all of them together) and the composer's score. */
-export interface StemPick { music: string | null; voice: string | null; sfx: string | null; scoreId: string | null }
+/** Agent music design A5: the run's newest stems (a compose records all of them together) and the music score. */
+export interface StemPick { music: string | null; sfx: string | null; scoreId: string | null }
 export function pickStems(list: ArtifactMeta[], runId: string | null): StemPick {
   const newest = (kind: string) => list.find((a) => a.kind === kind && (!runId || a.runId === runId)) ?? null;
-  return { music: newest('stem_music')?.blobSha ?? null, voice: newest('stem_voice')?.blobSha ?? null, sfx: newest('stem_sfx')?.blobSha ?? null, scoreId: newest('music')?.id ?? null };
+  return { music: newest('stem_music')?.blobSha ?? null, sfx: newest('stem_sfx')?.blobSha ?? null, scoreId: newest('music')?.id ?? null };
 }
 
 /** "tukenmez-kalem-music.flac": a plain ASCII name the media endpoint accepts for ?download=. */
-export function stemFileName(productName: string, part: 'music' | 'voice' | 'effects'): string {
+export function stemFileName(productName: string, part: 'music' | 'effects'): string {
   const slug = productName.toLocaleLowerCase('tr').replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'video';
   return `${slug}-${part}.flac`;

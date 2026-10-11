@@ -144,27 +144,4 @@ describe('runs and artifacts', () => {
     expect((await app.inject({ url: '/api/videos/00000000-0000-4000-8000-000000000000/reviews', headers: H })).statusCode).toBe(404);
     expect((await app.inject({ url: '/api/videos/nope/reviews', headers: H })).statusCode).toBe(404);
   });
-
-  it('a VO video lists voice_track and voice_stem; the track content is served and the stem streams as audio/flac with Range', async () => {
-    // A pre-YAKLASIM voiceover video (the API no longer starts one: spec Y2).
-    const { videoId, runId } = await createProduceRun(t.pool, { productName: 'Kalem', audioMode: 'vo', plan: producePlan('vo') });
-    const sha = 'ca'.repeat(32);
-    const rel = join('media', 'sha256', 'ca', 'ca', `${sha}.flac`);
-    mkdirSync(join(dataDir, 'media', 'sha256', 'ca', 'ca'), { recursive: true });
-    writeFileSync(join(dataDir, rel), Buffer.from('fLaC0123456789'));
-    await insertBlob(t.pool, { sha256: sha, path: rel, bytes: 14, mime: 'audio/flac' });
-    const track = { lines: [{ beat_id: 'b1', text_tr: 'Merhaba', cer: 0.02 }], duration_ms: 1000 };
-    const tr = await insertArtifact(t.pool, { runId, kind: 'voice_track', content: track, meta: { stemSha: sha } });
-    await insertArtifact(t.pool, { runId, kind: 'voice_stem', blobSha: sha });
-    const arts = (await app.inject({ url: `/api/videos/${videoId}`, headers: H })).json().artifacts as { id: string; kind: string; blobSha: string | null }[];
-    expect(arts.find((a) => a.kind === 'voice_track')!.id).toBe(tr.id);
-    expect((arts.find((a) => a.kind === 'voice_track') as { meta?: { stemSha?: string } }).meta?.stemSha).toBe(sha);
-    expect(arts.find((a) => a.kind === 'voice_stem')!.blobSha).toBe(sha);
-    expect((await app.inject({ url: `/api/artifacts/${tr.id}`, headers: H })).json()).toMatchObject({ kind: 'voice_track', content: track });
-    const part = await app.inject({ url: `/api/blobs/${sha}`, headers: { ...H, range: 'bytes=4-7' } });
-    expect(part.statusCode).toBe(206);
-    expect(part.headers['content-type']).toBe('audio/flac');
-    expect(part.headers['content-range']).toBe('bytes 4-7/14');
-    expect(part.body).toBe('0123');
-  });
 });

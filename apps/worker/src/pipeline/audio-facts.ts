@@ -13,13 +13,7 @@ export interface AudioFacts {
   windowS: number;
   /** dBFS RMS per window, one decimal; null: no such stem in this final. */
   music: number[] | null;
-  voice: number[] | null;
   sfx: number[] | null;
-  /** Mean music level in windows where the voice speaks / does not (dB); null without a voice or music stem. */
-  musicUnderVoiceDb: number | null;
-  musicWithoutVoiceDb: number | null;
-  /** Mean voice level minus mean music level where the voice speaks (dB): how far the narration sits above the music. */
-  voiceOverMusicDb: number | null;
   moments: { name: 'kanca' | 'ikinci kanca' | 'ödül'; t: number; beforeDb: number | null; afterDb: number; liftDb: number | null }[];
   musicRangeDb: { min: number; max: number } | null;
 }
@@ -46,22 +40,10 @@ export function rmsCurve(ffmpeg: string, file: string, windowS = WINDOW_S, signa
 }
 
 const mean = (xs: number[]) => (xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10 : null);
-/** A window counts as speech when the voice stem is within 30 dB of its loudest window (and above -55 dBFS). */
-const speaking = (voice: number[]) => { const top = Math.max(...voice); return voice.map((v) => v > Math.max(-55, top - 30)); };
 
-export function audioFacts(o: { music: number[] | null; voice: number[] | null; sfx: number[] | null; storyboard: Storyboard; windowS?: number }): AudioFacts {
+export function audioFacts(o: { music: number[] | null; sfx: number[] | null; storyboard: Storyboard; windowS?: number }): AudioFacts {
   const w = o.windowS ?? WINDOW_S;
   const at = (t: number) => Math.max(0, Math.floor(t / w));
-  let under: number | null = null, without: number | null = null, over: number | null = null;
-  if (o.music && o.voice) {
-    const s = speaking(o.voice);
-    const n = Math.min(o.music.length, o.voice.length);
-    const idx = [...Array(n).keys()];
-    under = mean(idx.filter((i) => s[i]).map((i) => o.music![i]!));
-    without = mean(idx.filter((i) => !s[i]).map((i) => o.music![i]!));
-    const v = mean(idx.filter((i) => s[i]).map((i) => o.voice![i]!));
-    over = v !== null && under !== null ? Math.round((v - under) * 10) / 10 : null;
-  }
   const sb = o.storyboard;
   const moments: AudioFacts['moments'] = o.music ? ([['kanca', 0], ['ikinci kanca', sb.rehook_at], ['ödül', sb.payoff_at]] as const).map(([name, t]) => {
     const m = o.music!;
@@ -72,7 +54,7 @@ export function audioFacts(o: { music: number[] | null; voice: number[] | null; 
   }) : [];
   const audible = o.music?.filter((x) => x > FLOOR_DB) ?? [];
   return {
-    windowS: w, music: o.music, voice: o.voice, sfx: o.sfx, musicUnderVoiceDb: under, musicWithoutVoiceDb: without, voiceOverMusicDb: over, moments,
+    windowS: w, music: o.music, sfx: o.sfx, moments,
     musicRangeDb: audible.length ? { min: Math.min(...audible), max: Math.max(...audible) } : null,
   };
 }

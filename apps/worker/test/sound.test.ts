@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { AssetRecord } from '@videogen/db';
 import { AudioPlanSchema } from '@videogen/shared';
-import { defaultAudioPlan, duckingEnvelope, effectiveAudioPlan, LicenseError, soundPlan, type SfxCue } from '../src/pipeline/sound.ts';
+import { defaultAudioPlan, effectiveAudioPlan, LicenseError, soundPlan, type SfxCue } from '../src/pipeline/sound.ts';
 import { masterAudio, masterVariant, measureLoudnorm, mixTrack, parseLoudnormJson } from '../src/render/audio.ts';
 import { encodeDelivery, fakeFinal, muxVariant } from '../src/render/ffmpeg.ts';
 
@@ -48,35 +48,6 @@ describe('sound plan, mix, mastering and the two variants', { timeout: 60_000 },
     });
     expect(() => effectiveAudioPlan({ stored: null, mode: 'silent', generated: null })).toThrow(/üretilen müzik bulunamadı/);
     expect(() => effectiveAudioPlan({ stored: { ...stored, music: { asset_id: '11111111-1111-4111-8111-111111111111', gain_db: -18 } }, mode: 'silent', generated: gen })).toThrow(/defterden bir müzik/);
-  });
-
-  it("duckingEnvelope: −duck_db under each VO line with 150 ms ramps and the 150/300 ms margins, 0 dB in the gaps, '1' without lines", () => {
-    const o = { duckDb: 12, preMs: 150, postMs: 300, rampMs: 150 };
-    expect(duckingEnvelope([], o)).toBe('1');
-    const lines = [{ start_ms: 1000, end_ms: 2000 }, { start_ms: 5000, end_ms: 6000 }];
-    const expr = duckingEnvelope(lines, o);
-    expect(duckingEnvelope(lines, o)).toBe(expr);
-    // evaluate the expression the way ffmpeg does (t in seconds)
-    const clip = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
-    const gainDb = (t: number) => 20 * Math.log10(new Function('t', 'clip', 'min', `return ${expr}`)(t, clip, Math.min) as number);
-    expect(gainDb(0)).toBeCloseTo(0, 6);
-    expect(gainDb(0.7)).toBeCloseTo(0, 6); // before the down ramp (starts at 0.7 s)
-    expect(gainDb(0.775)).toBeCloseTo(-4.07, 1); // mid ramp: linear in amplitude (0.625)
-    expect(gainDb(0.85)).toBeCloseTo(-12, 1); // plateau starts 150 ms before the line
-    expect(gainDb(1)).toBeCloseTo(-12, 1);
-    expect(gainDb(2.3)).toBeCloseTo(-12, 1); // plateau ends 300 ms after the line
-    expect(gainDb(2.375)).toBeCloseTo(-4.07, 1);
-    expect(gainDb(2.45)).toBeCloseTo(0, 6);
-    expect(gainDb(3.5)).toBeCloseTo(0, 6);
-    expect(gainDb(5.5)).toBeCloseTo(-12, 1);
-    // a line at 0 ms: the window starts at 0, its down ramp before 0 prints as `t+x` (no `t--x`), the plateau holds from t = 0
-    const zero = duckingEnvelope([{ start_ms: 0, end_ms: 1000 }], o);
-    expect(zero).not.toContain('--');
-    const zeroDb = (t: number) => 20 * Math.log10(new Function('t', 'clip', 'min', `return ${zero}`)(t, clip, Math.min) as number);
-    expect([zeroDb(0), zeroDb(1.3), zeroDb(1.375), zeroDb(1.5)].map((x) => Math.round(x * 10) / 10)).toEqual([-12, -12, -4.1, 0]);
-    // lines closer than the ramps share one plateau; the depth follows duck_db
-    expect(duckingEnvelope([{ start_ms: 1000, end_ms: 2000 }, { start_ms: 2400, end_ms: 3000 }], o)).toBe(duckingEnvelope([{ start_ms: 1000, end_ms: 3000 }], o));
-    expect(duckingEnvelope(lines, { ...o, duckDb: 6 })).not.toBe(expr);
   });
 
   it('parses loudnorm measurements, including a silent input', () => {

@@ -21,6 +21,9 @@ describe('role labels of old sessions (spec Z3)', () => {
     expect(roleEn('audio_director')).toBe('Audio director');
     expect(roleEn('retired_x')).toBe('retired_x');
   });
+  it('spec Z1: an old run\'s voice step row keeps its label', () => {
+    expect(STEP_EN.voice).toBe('Voiceover');
+  });
 });
 
 describe('English labels for shared ids (shared labels also feed the agents, so the web maps them)', () => {

@@ -69,35 +69,3 @@ export function effectiveAudioPlan(o: { stored: AudioPlan | null; mode: AudioMod
   if (o.stored.music.source !== 'generated' || o.stored.music.asset_id !== null) throw new LicenseError('ses planı defterden bir müzik istiyor; müzik sabit YAKLASIM müziğidir');
   return { plan: o.stored, persist: false, generated: o.generated };
 }
-
-/** `lines`' merged windows (plateau from `preMs` before a line to `postMs` after it) of H9, in ms; two windows closer than both ramps merge. */
-function duckWindows(lines: { start_ms: number; end_ms: number }[], o: { preMs: number; postMs: number; rampMs: number }): [number, number][] {
-  const out: [number, number][] = [];
-  for (const l of [...lines].sort((a, b) => a.start_ms - b.start_ms)) {
-    const w: [number, number] = [Math.max(0, l.start_ms - o.preMs), l.end_ms + o.postMs];
-    const last = out.at(-1);
-    if (last && w[0] - last[1] <= 2 * o.rampMs) last[1] = Math.max(last[1], w[1]);
-    else out.push(w);
-  }
-  return out;
-}
-
-/** H9 constants of the ducking envelope; part of the VO compose hash (a change re-composes). */
-export const DUCK = { preMs: 150, postMs: 300, rampMs: 150 } as const;
-
-/**
- * H9: the music's gain envelope as an ffmpeg `volume` expression (`eval=frame`; `t` in seconds): −`duckDb` from `preMs` before each VO line to `postMs`
- * after it, linear ramps of `rampMs` outside that plateau, 1 in the gaps; '1' without lines. SFX never see it. Deterministic text.
- */
-export function duckingEnvelope(lines: { start_ms: number; end_ms: number }[], o: { duckDb: number; preMs: number; postMs: number; rampMs: number }): string {
-  const wins = duckWindows(lines, o);
-  if (!wins.length) return '1';
-  // a negative time (a window starting at 0 ms) must print as `t+x`, not `t--x`
-  const at = (ms: number) => (ms >= 0 ? `t-${(ms / 1000).toFixed(3)}` : `t+${(-ms / 1000).toFixed(3)}`);
-  const sec = (ms: number) => (ms / 1000).toFixed(3);
-  const r = sec(o.rampMs);
-  const depth = (1 - 10 ** (-o.duckDb / 20)).toFixed(5);
-  // one trapezoid per window: 0 → 1 over the ramp before the plateau, 1 → 0 over the ramp after it
-  const traps = wins.map(([a, b]) => `clip(min((${at(a - o.rampMs)})/${r},(${sec(b + o.rampMs)}-t)/${r}),0,1)`);
-  return `1-${depth}*(${traps.join('+')})`;
-}

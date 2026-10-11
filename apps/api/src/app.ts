@@ -17,7 +17,6 @@ import { registerMediaRoutes } from './routes/media.ts';
 import { registerRoleRoutes } from './routes/roles.ts';
 import { registerPlatformRoutes } from './routes/platforms.ts';
 import { registerVideoRoutes } from './routes/videos.ts';
-import { registerVoiceRoutes } from './routes/voice.ts';
 import { registerSafeAreaRoutes } from './routes/safe-area.ts';
 import { registerDevReadyVideo } from './routes/dev.ts';
 import { registerSse } from './sse.ts';
@@ -78,7 +77,6 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
   await app.register(fastifyStatic, { root: deps.config.dataDir, serve: false });
   registerMediaRoutes(app, { pool: deps.pool, dataDir: deps.config.dataDir });
   registerRoleRoutes(app, { pool: deps.pool, devEndpoints: deps.config.devEndpoints });
-  registerVoiceRoutes(app, { pool: deps.pool });
   registerSafeAreaRoutes(app, { pool: deps.pool });
   registerAssetRoutes(app, { pool: deps.pool, config: deps.config, ...(deps.uploadMaxBytes ? { uploadMaxBytes: deps.uploadMaxBytes } : {}) });
   if (deps.config.devEndpoints) registerDevReadyVideo(app, deps.pool);

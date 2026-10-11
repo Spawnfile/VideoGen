@@ -2,13 +2,12 @@ import { copyFile, mkdir, open, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { CHANNEL_STYLES, cleanChildEnv, DEFAULT_NARRATOR, QC_CHECKS, type Config, type QcCheckResult, type UsageSnapshot } from '@videogen/shared';
-import type { VoiceOutput } from '../audio/driver.ts';
+import { CHANNEL_STYLES, cleanChildEnv, QC_CHECKS, type Config, type QcCheckResult, type UsageSnapshot } from '@videogen/shared';
 import type { RealStep, StepOutcome, Workspace } from './profile.ts';
 
 /**
- * Plan M7 Y14: the six real steps of `test:smoke:real` and their pure evidence parsers. Every heavy dependency (the Claude SDK,
- * Blender, Remotion/Chrome, the audio venv, Postgres) is imported inside `run`, so `--help`, a refused run and the unit tests
+ * Plan M7 Y14: the real steps of `test:smoke:real` (spec Z1: step 5, TTS, is gone; the ids stay) and their pure evidence parsers. Every heavy dependency (the Claude SDK,
+ * Blender, Remotion/Chrome, Postgres) is imported inside `run`, so `--help`, a refused run and the unit tests
  * never load or start any of them.
  */
 
@@ -47,12 +46,6 @@ export function rendererEvidence(text: string): { nvidia: boolean; renderer: str
   return { nvidia, renderer, ok: nvidia };
 }
 
-/** Step 5: the worst line's CER against the 5 % gate (voice_cli.py), and no line left over the gate. */
-export function cerEvidence(result: Pick<VoiceOutput, 'lines' | 'failed'>): { cer: number; ok: boolean } {
-  const cer = result.lines.reduce((m, l) => Math.max(m, l.cer), 0);
-  return { cer, ok: result.lines.length > 0 && result.failed.length === 0 && cer <= 0.05 };
-}
-
 /** docs/m5/real-check.md:22–28: the seven failures the pen pilot must show. */
 export const PILOT_EXPECTED_FAILURES = ['d6_loudness', 'd6_lra', 'd6_first_audio', 'd6_silence', 'd3_freeze', 'g1_color', 'g6_edges'] as const;
 
@@ -87,7 +80,6 @@ async function pngSize(path: string): Promise<{ width: number; height: number } 
 export const DEFAULT_PILOT_VIDEO = join(process.env.VG_DATA_DIR ?? join(homedir(), 'videogen-data'), 'episodes/pilot-kalem/final.mp4');
 const FIXTURES = resolve(import.meta.dirname, '../../../../tests/fixtures/artifacts');
 const CLAUDE_TIMEOUT_MS = 120_000;
-const TTS_LINE = 'Bu kalemin içinde küçük bir yay saklı.';
 
 export interface RealStepsOptions { config: Config; pilotVideo: string }
 
@@ -177,25 +169,6 @@ export function realSteps(o: RealStepsOptions): RealStep[] {
         const size = await pngSize(r.out);
         const evidence = { size: size ? `${size.width}×${size.height}` : null, ms: r.ms, gl: CHROME.gl };
         return verdict(size?.width === 1080 && size.height === 1920, evidence, 'bir 1080×1920 PNG beklenirdi');
-      },
-    },
-    {
-      id: 5,
-      title_tr: 'TTS + Whisper (tek cümle, CER ≤ %5)',
-      async run(ctx) {
-        const { PythonAudioDriver } = await import('../audio/driver.ts');
-        const audio = new PythonAudioDriver({ ...config.audio, dataDir: ctx.dataDir });
-        const cap = await audio.capabilities(DEFAULT_NARRATOR);
-        if (!cap.ok) return { status: 'fail', evidence: {}, reason: cap.reason };
-        const dir = join(ctx.dataDir, 'runs', 'real-voice');
-        const v = await audio.voice({
-          runDir: dir, outDir: join(dir, 'voice'), cacheDir: join(dir, 'voice-cache'), owner: 'real-smoke', narrator: { ...DEFAULT_NARRATOR },
-          refWav: null, lines: [{ id: 'l1', text: TTS_LINE, targetMs: 3000, seed: 1 }],
-        });
-        const c = cerEvidence(v);
-        const line = v.lines[0];
-        const evidence = { engine: v.engine, model: v.model, cer: c.cer, text: TTS_LINE, asr: line?.asr ?? null, durationMs: line?.durationMs ?? null, ms: v.ms };
-        return verdict(c.ok, evidence, `CER %${(c.cer * 100).toFixed(1)} (sınır %5)`);
       },
     },
     {

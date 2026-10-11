@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type pg from 'pg';
 import {
   canonical, CHANNEL_STYLES, DRAFT_CHECK_IDS, DRAFT_CHECKS, DRAFT_GATES, DRAFT_MAX_RETURNS, DRAFT_RUBRIC_VERSION, draftDecision, formatClock, HOOK_PATTERN_LABELS,
-  normalizeProductName, rendersChanged, reviewRefErrors, sceneRefErrors, storyboardRefErrors, storyboardVoErrors, validateArtifact, yaklasimSceneErrors, yaklasimStoryboardErrors,
+  normalizeProductName, rendersChanged, reviewRefErrors, sceneRefErrors, storyboardRefErrors, validateArtifact, yaklasimSceneErrors, yaklasimStoryboardErrors,
   DEFAULT_DURATION, formatWindow, windowErrors,
   type DurationSource, type DurationWindow, type AudioMode, type BuildReport, type ChannelStyleId, type DraftCheckId, type ProductResearch, type Review, type SceneSpec, type StepKey, type Storyboard,
 } from '@videogen/shared';
@@ -16,20 +16,18 @@ import { draftProps, type DraftProps } from '@videogen/remotion/props';
 import { briefBlock, fenced } from './fence.ts';
 import { ARTIFACT_VALIDATOR } from './validator.ts';
 import { RESUME_PROMPT, type SessionManager, type UsageGate } from '../agents/manager.ts';
-import type { AudioDriver } from '../audio/driver.ts';
 import type { MusicDriver } from '../audio/music.ts';
 import { musicExecutor } from './music-step.ts';
 import { fileSha256, putBlob } from '../media.ts';
 import { RenderError, type BuildFiles } from '../render/driver.ts';
 import { contactSheet, draftProbeErrors, extractFrame, probeVideo } from '../render/ffmpeg.ts';
 import type { ReviewTargets } from './review-tools.ts';
-import { causeKey, retimedBuildPrompt, reworkBuildPrompt, reworkStoryboardPrompt, roundCause, roundFindings } from './fix-round.ts';
+import { causeKey, reworkBuildPrompt, reworkStoryboardPrompt, roundCause, roundFindings } from './fix-round.ts';
 import { runFixer } from './fixer.ts';
 import { finalizeExecutor } from './finalize-step.ts';
 import { reviewExecutor, type FixerRun } from './review-step.ts';
 import { runStructured } from './agent-step.ts';
 import { composeExecutor, finalRenderExecutor, qcExecutor } from './final-steps.ts';
-import { voiceExecutor } from './voice-step.ts';
 import { buildScene, previewScene, type SceneBuild, type SceneDeps } from './scene-tools.ts';
 import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
 
@@ -54,8 +52,6 @@ export interface StepDeps {
   gate?: Pick<UsageGate, 'allowsNewPipeline' | 'resumeAt'>;
   /** M5b: the fixer the final review runs for a `fix` verdict (T8); null or absent: no fixer, the loop stops (`no_fixer`). */
   fixer?: FixerRun | null;
-  /** M5c: the TTS + alignment driver of the voice step (absent: the step fails with a reason). */
-  audio?: AudioDriver;
   /** Agent music design A2: the score renderer of the music step (absent: the step stops for a human). */
   music?: MusicDriver;
 }
@@ -116,7 +112,7 @@ export function storyboardPrompt(name: string, mode: AudioMode, research: Produc
 
 /**
  * `latest`: the SpecStore already holds this value as its newest version (the fixer's own write): record that version instead of writing a copy.
- * `meta`: extra artifact meta next to `specVersion` (the voice step's retimedFrom/voiceHash).
+ * `meta`: extra artifact meta next to `specVersion`.
  */
 export async function persist(deps: StepDeps, ctx: StepContext, kind: SpecKind, value: unknown, inputHash: string, o: { latest?: boolean; meta?: Record<string, unknown> } = {}): Promise<void> {
   const store = new SpecStore(join(ctx.runDir, 'spec'), ARTIFACT_VALIDATOR);
@@ -188,7 +184,7 @@ export function storyboardExecutor(deps: StepDeps): StepExecutor {
         prompt: storyboardPrompt(ctx.productName, ctx.audioMode, research.value, briefOf(ctx)) + (findings ? `\n\n${reworkStoryboardPrompt(findings)}` : ''),
         check: (s) => [
           ...storyboardRefErrors(s, research.value), ...(s.audio_mode === ctx.audioMode ? [] : [`audio_mode ${ctx.audioMode} olmalı`]),
-          ...windowErrors(s.duration_s, ctx.duration), ...(ctx.audioMode === 'vo' ? storyboardVoErrors(s, { window: ctx.duration }) : []),
+          ...windowErrors(s.duration_s, ctx.duration),
           // YAKLASIM spec Y6: the approach's rules come back to the same session before any reviewer sees the video.
           ...(ctx.approach === 'yaklasim' ? yaklasimStoryboardErrors(s) : []),
         ],
@@ -286,16 +282,7 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
       const draftFix = review?.ok && rm?.round === ctx.round - 1 && (rm.fixRound ?? 0) === ctx.fixRound;
       const cause = ctx.fixRound > 0 && !draftFix ? await roundCause(deps.pool, ctx.runId, ctx.fixRound) : null;
       if (cause?.kind === 'build') return buildWithoutAgent(deps, ctx, hash, scene);
-      // H13: a voice round. The voice step ran before this step: kept beat times pass the scene through (or build it agent-free when the fixer touched it); retimed ones resume the builder.
-      if (cause?.kind === 'voice' && cause.rebuild === null) return { status: 'failed', error: 'seslendirme turu: bu turun seslendirmesi yok', retry: false };
-      if (cause?.kind === 'voice' && cause.rebuild === false) {
-        if (rendersChanged(cause.changed)) return buildWithoutAgent(deps, ctx, hash, scene);
-        return { status: 'done', note: 'seslendirme turu: vuruş süreleri korundu; sahne yeniden kullanıldı' };
-      }
-      const retimed = cause?.kind === 'voice' && cause.rebuild === true;
-      // A retimed round must end in a different scene; the previous spec and GLB are read before the builder runs.
-      const [prevScene, prevGlb] = retimed ? await Promise.all([latestArtifact(deps.pool, ctx.runId, 'scene'), latestArtifact(deps.pool, ctx.runId, 'scene_glb')]) : [null, null];
-      const fixes = draftFix && review?.ok ? draftFixPrompt(review.value, ctx.round - 1) : cause?.kind === 'rework' ? reworkBuildPrompt(storyboard.value) : cause?.kind === 'voice' ? retimedBuildPrompt(storyboard.value) : null;
+      const fixes = draftFix && review?.ok ? draftFixPrompt(review.value, ctx.round - 1) : cause?.kind === 'rework' ? reworkBuildPrompt(storyboard.value) : null;
       // Plan B15 + C8: a restarted attempt, a draft fix round or a rework round continues the step's own builder session (it knows product.py).
       const prior = ctx.attempt > 1 || fixes ? await latestStepSession(deps.pool, ctx.stepId, 'builder') : null;
       const resumePrompt = fixes ? (ctx.attempt > 1 ? `${RESUME_PROMPT}\n\n${fixes}` : fixes) : RESUME_PROMPT;
@@ -320,9 +307,6 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
       if (!r.ok) return failure(r);
       const built = last as SceneBuild | null;
       if (!built?.ok || !built.files) return { status: 'failed', error: 'güvenilir build sonucu yok', retry: false };
-      if (retimed && prevScene && prevGlb?.blobSha && canonical(prevScene.content) === canonical(r.value) && (await fileSha256(built.files.glb)) === prevGlb.blobSha) {
-        return { status: 'failed', error: 'seslendirme turu: storyboard yeniden zamanlandı ama sahne değişmedi', retry: false };
-      }
       return recordBuild(deps, ctx, hash, scene, { spec: r.value, built });
     },
   };
@@ -415,13 +399,9 @@ export function draftRenderExecutor(deps: StepDeps): StepExecutor {
     async run(ctx, hash) {
       const scene = deps.scene;
       if (!scene) return { status: 'failed', error: 'render yapılandırılmadı', retry: false };
-      // H13: a voice round that kept the beat times and left the scene alone: the draft is not consumed afterwards (the review is skipped too), so it is not rendered again.
-      const cause = ctx.fixRound > 0 ? await roundCause(deps.pool, ctx.runId, ctx.fixRound) : null;
-      if (cause?.kind === 'voice' && cause.rebuild === false && !rendersChanged(cause.changed)) return { status: 'done', note: 'seslendirme turu: taslak yeniden kullanıldı' };
       const src = await draftSource(deps, ctx.runId);
       if (!src) return { status: 'failed', error: "sahne çıktısı yok (GLB, sahne spec'i, storyboard ya da kamera izi)", retry: false };
-      // A retimed voice round changed the storyboard, so a same-scene draft is not "unchanged" (below).
-      if (ctx.round > 0 && cause?.kind !== 'voice') {
+      if (ctx.round > 0) {
         // Inherited rule: a fix round whose GLB and scene spec equal the previous round's is not rendered or reviewed again.
         const prev = (await latestArtifact(deps.pool, ctx.runId, 'draft_video'))?.meta as DraftMeta | undefined;
         if (prev && prev.round < ctx.round && prev.glbSha === src.glbSha && prev.specHash === src.specHash) {
@@ -545,7 +525,7 @@ export function draftReviewExecutor(deps: StepDeps): StepExecutor {
     // No `reuse`: a stored review is replayed in run(), so a "revise" is never turned into "done" (grilling C7).
     async run(ctx, hash) {
       // Plan F12, spec §7.2: the final fix round of a build change re-renders the draft but does not review it again (before the stale-draft check).
-      if (ctx.fixRound > 0 && ['build', 'voice'].includes((await roundCause(deps.pool, ctx.runId, ctx.fixRound))?.kind ?? '')) return { status: 'done', note: 'final düzeltme turu: taslak incelemesi atlandı (§7.2)' };
+      if (ctx.fixRound > 0 && (await roundCause(deps.pool, ctx.runId, ctx.fixRound))?.kind === 'build') return { status: 'done', note: 'final düzeltme turu: taslak incelemesi atlandı (§7.2)' };
       if (!deps.scene) return { status: 'failed', error: 'render yapılandırılmadı', retry: false };
       const draft = await latestArtifact(deps.pool, ctx.runId, 'draft_video');
       const meta = draft?.meta as DraftMeta | null | undefined;
@@ -564,7 +544,7 @@ export function draftReviewExecutor(deps: StepDeps): StepExecutor {
 
 export function pipelineExecutors(deps: StepDeps): Partial<Record<StepKey, StepExecutor>> {
   return {
-    research: researchExecutor(deps), storyboard: storyboardExecutor(deps), voice: voiceExecutor(deps), music: musicExecutor(deps), build: buildExecutor(deps),
+    research: researchExecutor(deps), storyboard: storyboardExecutor(deps), music: musicExecutor(deps), build: buildExecutor(deps),
     draft_render: draftRenderExecutor(deps), draft_review: draftReviewExecutor(deps),
     final_render: finalRenderExecutor(deps), compose: composeExecutor(deps), qc: qcExecutor(deps),
     // T8: `fixer: null` means no fixer; unset means the real one.

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { ProduceBody } from './brief-view.ts';
-import type { AgentSessionView, ArtifactMeta, AssetListItem, LedgerKind, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, MaintenanceInfo, ModelAlias, NarratorVoice, Platform, PlatformAction, PlatformEvent, PlatformSummary, SafeArea, SafeAreaState, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VersionView, VideoView, VoiceEngine } from '@videogen/shared/browser';
+import type { AgentSessionView, ArtifactMeta, AssetListItem, LedgerKind, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, MaintenanceInfo, ModelAlias, Platform, PlatformAction, PlatformEvent, PlatformSummary, SafeArea, SafeAreaState, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VersionView, VideoView } from '@videogen/shared/browser';
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
@@ -61,8 +61,6 @@ export const api = {
   run: (id: string) => getFresh<RunView>(`/api/runs/${id}`),
   cancelRun: (id: string) => send<{ accepted: boolean }>('POST', `/api/runs/${id}/cancel`),
   artifact: (id: string) => get<ArtifactMeta & { content: unknown }>(`/api/artifacts/${id}`),
-  narratorVoice: () => get<NarratorVoiceState>('/api/narrator-voice'),
-  setNarratorVoice: (voice: NarratorVoice) => send<NarratorVoiceState>('PUT', '/api/narrator-voice', voice),
   // Plan M7 Y5: read-only audit explorer; the list path comes from audit-view's auditListPath.
   auditPage: (path: string) => get<AuditPage>(path),
   auditActions: () => get<AuditActionCount[]>('/api/audit/actions'),
@@ -77,7 +75,7 @@ export const api = {
   },
   importAsset: (body: { uploadId: string; kind: LedgerKind; title: string; license: string; author: string; licenseText: string; attribution?: string; source?: string }) =>
     write<{ created: boolean; asset: AssetListItem }>('/api/assets', body),
-  revokeAsset: (id: string, reason: string) => write<{ asset: AssetListItem; narratorReset: boolean }>(`/api/assets/${id}/revoke`, { reason }),
+  revokeAsset: (id: string, reason: string) => write<{ asset: AssetListItem }>(`/api/assets/${id}/revoke`, { reason }),
   // Plan M7 Y11: Settings → "Veri ve yedek" and the footer's free disk.
   maintenance: () => get<MaintenanceInfo>('/api/maintenance'),
   runMaintenance: (what: 'backup' | 'gc-report' | 'orphans') => write<{ accepted: boolean; kind: string }>(`/api/maintenance/${what}`, {}),
@@ -95,12 +93,6 @@ async function write<T>(path: string, body: unknown, method: 'POST' | 'PUT' | 'P
   return r.ok ? { ok: true, data: j as T } : { ok: false, status: r.status, error: typeof j.error === 'string' ? j.error : `Request failed (${r.status})`, body: j };
 }
 
-/** GET/PUT /api/narrator-voice (K17: `chosen:false` = the provisional default is in use). */
-export interface NarratorVoiceState {
-  voice: NarratorVoice;
-  chosen: boolean;
-  options: { engine: VoiceEngine; voices: { kind: 'preset' | 'clone'; id?: string; asset_id?: string; label_tr: string }[] }[];
-}
 
 
 /** Content-addressed media (HTTP Range, immutable). */

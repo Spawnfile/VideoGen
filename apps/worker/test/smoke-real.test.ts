@@ -2,9 +2,9 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { fromGetUsage, QC_CHECK_IDS, type QcCheckResult } from '@videogen/shared';
+import { fromGetUsage, loadConfig, QC_CHECK_IDS, type QcCheckResult } from '@videogen/shared';
 import { runProfile, type RealStep, type StepOutcome } from '../src/real/profile.ts';
-import { cerEvidence, initEvidence, qcEvidence, rendererEvidence, usageEvidence } from '../src/real/steps.ts';
+import { initEvidence, qcEvidence, realSteps, rendererEvidence, usageEvidence } from '../src/real/steps.ts';
 
 const dirs: string[] = [];
 afterAll(() => { for (const d of dirs) rmSync(d, { recursive: true, force: true }); });
@@ -129,12 +129,10 @@ describe('test:smoke:real profile (plan M7 Y14)', () => {
     expect(rendererEvidence('llvmpipe (LLVM 17.0.6, 256 bits)')).toMatchObject({ nvidia: false, ok: false });
     expect(rendererEvidence('')).toMatchObject({ nvidia: false, ok: false });
 
-    const line = (cer: number) => ({ id: 'l1', wav: '/x.wav', durationMs: 2100, seed: 1, attempts: 1, cer, normalized: 'a', asr: 'a', words: [] });
-    expect(cerEvidence({ lines: [line(0.03)], failed: [] })).toEqual({ cer: 0.03, ok: true });
-    expect(cerEvidence({ lines: [line(0.05)], failed: [] }).ok).toBe(true);
-    expect(cerEvidence({ lines: [line(0.06)], failed: ['l1'] })).toEqual({ cer: 0.06, ok: false });
-    expect(cerEvidence({ lines: [line(0.051)], failed: [] }).ok).toBe(false);
-    expect(cerEvidence({ lines: [], failed: [] }).ok).toBe(false);
+    // Spec Z1: no TTS/Whisper step (the voiceover path is gone).
+    const real = realSteps({ config: loadConfig(), pilotVideo: '/nonexistent.mp4' });
+    expect(real.map((r) => r.id)).toEqual([1, 2, 3, 4, 6]);
+    expect(real.map((r) => r.title_tr).join(' ')).not.toMatch(/TTS|Whisper/);
 
     const EXPECTED = ['d6_loudness', 'd6_lra', 'd6_first_audio', 'd6_silence', 'd3_freeze', 'g1_color', 'g6_edges'];
     const checks = (failing: string[]): QcCheckResult[] => QC_CHECK_IDS.filter((id) => id !== 'g6_layout')

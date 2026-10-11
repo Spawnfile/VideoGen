@@ -53,7 +53,7 @@ export function listItem(a: AssetRecord, used: number): AssetListItem {
 
 /**
  * Plan M7 Y8: the asset ledger — list with usage, upload (streamed to `<dataDir>/uploads/<uuid>.<ext>`, ffprobe-checked), import through the
- * license gate (a rejected file is recorded too) and revocation (audited; the narrator's own reference resets to the stock voice). Writes need a
+ * license gate (a rejected file is recorded too) and revocation (audited). Writes need a
  * local Origin (guard.ts).
  */
 export function registerAssetRoutes(app: FastifyInstance, deps: { pool: pg.Pool; config: Config; uploadMaxBytes?: number }): void {
@@ -141,6 +141,6 @@ export function registerAssetRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
     const r = await revokeAssetAudited(pool, id, b.data.reason);
     if (r.kind === 'missing') return reply.code(404).send({ error: 'asset not found' });
     if (r.kind === 'already') return reply.code(409).send({ error: 'this asset’s permission is already revoked', asset: await item(r.asset) });
-    return { asset: await item(r.asset), narratorReset: r.narratorReset };
+    return { asset: await item(r.asset) };
   });
 }

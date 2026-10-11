@@ -38,20 +38,19 @@ export function finalHarness(t: { pool: pg.Pool }) {
     tools: toolHosts(sceneToolHost(scene), reviewToolHost({ ffmpeg: FFMPEG, targets: reviews })),
   });
   const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene, reviews, music: new FakeMusicDriver({ ffmpeg: process.env.VG_FFMPEG ?? 'ffmpeg' }) };
-  /** `vo`: a seslendirmeli run (VO storyboard fixture; the voice track is the caller's to insert). */
-  async function run(name: string, through: StepKey[], o: { vo?: boolean } = {}) {
-    const mode = o.vo ? 'vo' : 'silent';
+  async function run(name: string, through: StepKey[]) {
+    const mode = 'silent';
     const r = await createProduceRun(t.pool, { productName: name, audioMode: mode, plan: producePlan(mode) });
     const runDir = join(dataDir, 'runs', r.runId);
     const store = new SpecStore(join(runDir, 'spec'), ARTIFACT_VALIDATOR);
-    for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', o.vo ? 'storyboard-kalem-vo' : 'storyboard-kalem']] as const) {
+    for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', 'storyboard-kalem']] as const) {
       await store.write(kind, fx(f));
       await insertArtifact(t.pool, { runId: r.runId, kind, content: fx(f) });
     }
     const steps = await listRunSteps(t.pool, r.runId);
     const ctx = (key: StepKey): StepContext => ({
       runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt: 1, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode: mode,
-      versionId: r.versionId, brief: null, ...(mode === 'vo' ? { duration: { minS: 35, maxS: 55 }, approach: null } : { duration: { minS: 12, maxS: 15 }, approach: 'yaklasim' as const }), durationSource: 'default' as const, runDir, signal: new AbortController().signal, progress: () => {}, status: () => {}, session: () => {},
+      versionId: r.versionId, brief: null, duration: { minS: 12, maxS: 15 }, approach: 'yaklasim' as const, durationSource: 'default' as const, runDir, signal: new AbortController().signal, progress: () => {}, status: () => {}, session: () => {},
     });
     const ex = { music: musicExecutor(deps), build: buildExecutor(deps), final_render: finalRenderExecutor(deps), compose: composeExecutor(deps) } as const;
     for (const k of through) { const e = ex[k as keyof typeof ex]; expect(await e.run(ctx(k), await e.inputHash(ctx(k)))).toMatchObject({ status: 'done' }); }
@@ -60,7 +59,7 @@ export function finalHarness(t: { pool: pg.Pool }) {
   return {
     dataDir, deps,
     /** Spec Z5: the fixed music stem is part of every final (`noMusic`: leave it out to test the gate). */
-    framed: (name: string, o: { vo?: boolean; noMusic?: boolean } = {}) => run(name, [...(o.noMusic || o.vo ? [] : ['music' as const]), 'build', 'final_render'], o),
+    framed: (name: string, o: { noMusic?: boolean } = {}) => run(name, [...(o.noMusic ? [] : ['music' as const]), 'build', 'final_render']),
     composed: (name: string) => run(name, ['music', 'build', 'final_render', 'compose']),
     specs,
     stop: () => manager.stop(),
@@ -94,13 +93,13 @@ export function panelHarness(t: { pool: pg.Pool }) {
   const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene, reviews, music: new FakeMusicDriver({ ffmpeg: process.env.VG_FFMPEG ?? 'ffmpeg' }) };
   /** `qc`: the check ids that fail in the qc report (a gate id makes the AUTO gate fail). */
   /** `legacy`: a pre-YAKLASIM silent video (the 45 s pen, approach null, its own style and rules). */
-  async function prepare(name: string, o: { qc?: string[]; musicShaInQc?: string; vo?: boolean; legacy?: boolean } = {}) {
-    const mode = o.vo ? 'vo' : 'silent';
-    const old = !!o.vo || !!o.legacy;
+  async function prepare(name: string, o: { qc?: string[]; musicShaInQc?: string; legacy?: boolean } = {}) {
+    const mode = 'silent';
+    const old = !!o.legacy;
     const r = await createProduceRun(t.pool, { productName: name, audioMode: mode, plan: producePlan(mode, [...IMPLEMENTED_STEPS, 'review']) });
     if (old) await t.pool.query('UPDATE videos SET approach = NULL WHERE id = $1', [r.videoId]);
     const runDir = join(dataDir, 'runs', r.runId);
-    for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', o.vo ? 'storyboard-kalem-vo' : o.legacy ? 'storyboard-kalem-legacy' : 'storyboard-kalem'], ['scene', old ? 'scene-kalem-legacy' : 'scene-kalem']] as const) await insertArtifact(t.pool, { runId: r.runId, kind, content: fx(f) });
+    for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', o.legacy ? 'storyboard-kalem-legacy' : 'storyboard-kalem'], ['scene', old ? 'scene-kalem-legacy' : 'scene-kalem']] as const) await insertArtifact(t.pool, { runId: r.runId, kind, content: fx(f) });
     const dir = join(runDir, 'final', 'compose');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'scene.blend'), 'blend');

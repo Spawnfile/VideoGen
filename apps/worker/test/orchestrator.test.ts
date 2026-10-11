@@ -2,10 +2,9 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_NARRATOR, type Resource, type StepKey } from '@videogen/shared';
+import type { Resource, StepKey } from '@videogen/shared';
 import { claimJob, createProduceRun, insertAsset, insertBlob, enqueueJob, getRunContext, getRunView, getVideoView, listRunSteps, updateRun, updateStep } from '@videogen/db';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
-import type { AudioDriver } from '../src/audio/driver.ts';
 import { Orchestrator, type OrchestratorDeps } from '../src/pipeline/orchestrator.ts';
 import { preflightFor, runPreflight } from '../src/pipeline/preflight.ts';
 import type { Probe, ResourceSnapshot } from '../src/pipeline/resources.ts';
@@ -196,35 +195,21 @@ describe('Orchestrator', () => {
     release();
     await vi.waitFor(async () => expect(await runStatus(r.runId)).toBe('done'));
   });
-  it('preflight: preflightFor says why a plan without a working music generator or a VO plan without a working voice cannot start (spec Z5: no ledger music rule); wired into startRun the run ends needs_human before the first step with the reason and audit run.preflight_failed; a passing preflight starts the run', async () => {
+  it('preflight: preflightFor says why a plan without a working music generator cannot start (spec Z1/Z5: no voice, no ledger music rule); wired into startRun the run ends needs_human before the first step with the reason and audit run.preflight_failed; a passing preflight starts the run', async () => {
     const ok = { ok: true as const };
-    const no = { ok: false as const, reason: 'Python bulunamadı (python)' };
     const reviewed: StepKey[] = ['research', 'storyboard', 'build', 'review', 'finalize'];
-    // Spec Z5: no ledger music is needed for any plan.
-    expect(preflightFor({ audioMode: 'silent', plan: reviewed, voice: ok })).toBeNull();
-    expect(preflightFor({ audioMode: 'silent', plan: ['research', 'storyboard', 'build'], voice: no })).toBeNull();
-    expect(preflightFor({ audioMode: 'vo', plan: ['research', 'storyboard', 'voice', 'build', 'review'], voice: no })).toBe('Seslendirme kullanılamıyor: Python bulunamadı (python)');
-    expect(preflightFor({ audioMode: 'vo', plan: ['research', 'storyboard', 'voice', 'build', 'review'], voice: ok })).toBeNull();
-    expect(preflightFor({ audioMode: 'vo', plan: ['research', 'storyboard', 'build'], voice: no })).toBeNull();
+    // Spec Z1/Z5: no voice, no ledger music: a plan without the music step always passes.
+    expect(preflightFor({ plan: reviewed })).toBeNull();
     // YAKLASIM spec Y14: a plan with the music step needs the fixed generator.
     const composed: StepKey[] = ['research', 'storyboard', 'music', 'build', 'review', 'finalize'];
-    expect(preflightFor({ audioMode: 'silent', plan: composed, voice: ok, music: ok })).toBeNull();
-    expect(preflightFor({ audioMode: 'silent', plan: composed, voice: ok, music: { ok: false, reason: 'ses servisi Python\'u bulunamadı' } })).toBe('Müzik kullanılamıyor: ses servisi Python\'u bulunamadı');
+    expect(preflightFor({ plan: composed, music: ok })).toBeNull();
+    expect(preflightFor({ plan: composed, music: { ok: false, reason: 'ses servisi Python\'u bulunamadı' } })).toBe('Müzik kullanılamıyor: ses servisi Python\'u bulunamadı');
 
-    // runPreflight asks the driver; a stored narrator choice is what the driver is asked about.
-    const asked: string[] = [];
-    const audio = { kind: 'fake', capabilities: async (v) => { asked.push(v.engine); return no; }, voice: async () => { throw new Error('unused'); } } as AudioDriver;
-    const pf = runPreflight({ pool: t.pool, audio, narrator: async () => DEFAULT_NARRATOR });
-    const mk = async (audioMode: 'silent' | 'vo', keys: StepKey[], name: string) => {
-      const r = await createProduceRun(t.pool, { productName: name, audioMode, plan: keys.map((key) => ({ key, weight: 10 })) });
-      return r;
-    };
-    const silent = await mk('silent', reviewed, 'Kalem P1');
-    expect(await pf((await getRunContext(t.pool, silent.runId))!)).toBeNull(); // Review Focus 4: an empty music ledger blocks nothing
-    expect(asked).toEqual([]);
-    const vo = await mk('vo', ['research', 'storyboard', 'voice'], 'Kalem P2');
-    expect(await pf((await getRunContext(t.pool, vo.runId))!)).toBe('Seslendirme kullanılamıyor: Python bulunamadı (python)');
-    expect(asked).toEqual(['chatterbox']);
+    // runPreflight asks the music driver; an empty music ledger blocks nothing (Review Focus 4).
+    const r0 = await createProduceRun(t.pool, { productName: 'Kalem P1', audioMode: 'silent', plan: composed.map((key) => ({ key, weight: 10 })) });
+    const music = { kind: 'fake' as const, yaklasimCapabilities: async () => ok, renderYaklasim: async () => { throw new Error('unused'); } };
+    expect(await runPreflight({ music })((await getRunContext(t.pool, r0.runId))!)).toBeNull();
+    expect(await runPreflight({ music: { ...music, yaklasimCapabilities: async () => ({ ok: false as const, reason: 'yok' }) } })((await getRunContext(t.pool, r0.runId))!)).toBe('Müzik kullanılamıyor: yok');
 
     // Wired into startRun: the run stops before the first step, no executor runs, the steps are skipped with a note.
     const research = exec('research');

@@ -1,11 +1,10 @@
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { DRAFT_RUBRIC_VERSION, factsHint, STOP_NOTE, yaklasimScore, type AudioPlan, type MusicScore, type FinalReview, type FixReport, type SceneSpec, type Storyboard, type VoiceTrack } from '@videogen/shared';
+import { DRAFT_RUBRIC_VERSION, factsHint, STOP_NOTE, yaklasimScore, type AudioPlan, type MusicScore, type FinalReview, type FixReport, type SceneSpec, type Storyboard } from '@videogen/shared';
 import { findArtifact, insertArtifact, insertVersion, latestArtifact, listRunReviews } from '@videogen/db';
 import { SpecStore, type FakeScript } from '@videogen/claude';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
-import { FakeAudioDriver, type FakeAudioOptions, type VoiceOutput } from '../src/audio/driver.ts';
 import { putBlob } from '../src/media.ts';
 import { finalRenderExecutor, finalSource } from '../src/pipeline/final-steps.ts';
 import { causeKey, reworkStoryboardPrompt, roundCause } from '../src/pipeline/fix-round.ts';
@@ -13,7 +12,6 @@ import { audioRefErrors, fixerModel, fixerPrompt, runFixer } from '../src/pipeli
 import { fakeScore } from '../src/pipeline/fake-scripts.ts';
 import { fixVersionId, reviewExecutor, type FixFinding } from '../src/pipeline/review-step.ts';
 import { buildExecutor, draftRenderExecutor, draftReviewExecutor, sha, storyboardExecutor } from '../src/pipeline/steps.ts';
-import { voiceExecutor, voKey } from '../src/pipeline/voice-step.ts';
 import { ARTIFACT_VALIDATOR } from '../src/pipeline/validator.ts';
 import { panelHarness } from './final-helpers.ts';
 
@@ -32,14 +30,14 @@ const SKIP_NOTE = 'final düzeltme turu: taslak incelemesi atlandı (§7.2)';
  * The review step with the real fixer: the panel harness plus what the fixer reads (the SpecStore with the reviewed versions, scene/product.py and
  * the run's product_py artifact), all written under the reviewed version so the fixer's own artifacts are told apart by the pending version.
  */
-async function setup(name: string, o: { qc?: string[]; vo?: boolean; legacy?: boolean } = {}) {
+async function setup(name: string, o: { qc?: string[]; legacy?: boolean } = {}) {
   const h = panelHarness(t);
   cleanups.push(() => h.stop());
   h.deps.fixer = runFixer;
   const p = await h.prepare(name, o);
   const store = new SpecStore(join(p.runDir, 'spec'), ARTIFACT_VALIDATOR);
-  expect(ARTIFACT_VALIDATOR('audio', fx('audio-plan-vo'))).toEqual({ ok: true }); // M5c: write_spec(audio) is validated
-  for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', o.vo ? 'storyboard-kalem-vo' : o.legacy ? 'storyboard-kalem-legacy' : 'storyboard-kalem'], ['scene', o.vo || o.legacy ? 'scene-kalem-legacy' : 'scene-kalem']] as const) await store.write(kind, fx(f));
+  expect(ARTIFACT_VALIDATOR('audio', fx('audio-plan-silent'))).toEqual({ ok: true }); // M5c: write_spec(audio) is validated
+  for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', o.legacy ? 'storyboard-kalem-legacy' : 'storyboard-kalem'], ['scene', o.legacy ? 'scene-kalem-legacy' : 'scene-kalem']] as const) await store.write(kind, fx(f));
   mkdirSync(join(p.runDir, 'scene'), { recursive: true });
   copyFileSync(PRODUCT, join(p.runDir, 'scene', 'product.py'));
   const py = await putBlob(t.pool, h.dataDir, join(p.runDir, 'scene', 'product.py'));
@@ -56,17 +54,6 @@ async function setup(name: string, o: { qc?: string[]; vo?: boolean; legacy?: bo
   const latest = async (kind: string) => (await latestArtifact(t.pool, p.r.runId, kind))!;
   const audits = async (action: string) => (await t.pool.query('SELECT data FROM audit_log WHERE run_id = $1 AND action = $2 ORDER BY id', [p.r.runId, action])).rows.map((x) => x.data);
   const roles = async (key: Parameters<typeof p.ctx>[0]) => h.sessionRoles(p.ctx(key).stepId);
-  // A VO run as the pipeline leaves it before the review: compose has persisted the audio plan and the voice step has run (stub stem: no ffmpeg mix).
-  const audioOpts: FakeAudioOptions = {};
-  const tweak: { out?: (o: VoiceOutput) => VoiceOutput } = {};
-  h.deps.audio = { kind: 'fake', capabilities: (v, c) => new FakeAudioDriver().capabilities(v, c), voice: async (i) => { const out = await new FakeAudioDriver(audioOpts).voice(i); return tweak.out ? tweak.out(out) : out; } };
-  const vex = voiceExecutor(h.deps, { stem: (_f, i) => Promise.resolve(writeFileSync(i.out, `stem ${i.lines.length} ${i.durationS}`)) });
-  if (o.vo) {
-    await store.write('audio', fx('audio-plan-vo'));
-    await insertArtifact(t.pool, { runId: p.r.runId, kind: 'audio', content: fx('audio-plan-vo'), versionId: p.r.versionId });
-    const vc = p.ctx('voice');
-    expect(await vex.run(vc, await vex.inputHash(vc))).toMatchObject({ status: 'done' });
-  }
   const verdict = (round: number) => insertArtifact(t.pool, { runId: p.r.runId, kind: 'final_verdict', content: { verdict: 'fix', failed: ['text_readable'] }, meta: { fixRound: round } });
   /** One fix round (new round number `round`) without the reviewers: the fixer writes the specs `edits(attempt)` names, as write_spec would. */
   const fix = async (round: number, edits: (attempt: number) => Partial<Record<'storyboard' | 'scene' | 'audio', unknown>>, scope: FixReport['rerender_scope'] = 'compose') => {
@@ -78,7 +65,7 @@ async function setup(name: string, o: { qc?: string[]; vo?: boolean; legacy?: bo
     return runFixer(h.deps, p.ctx('review', { fixRound: round - 1 }), { hash: `fix-${round}`, round, versionId: fixVersionId(p.r.runId, round), verdict: 'fix', findings: [finding] });
   };
   const head = async <T>(kind: 'storyboard' | 'scene' | 'audio') => (await store.read(kind))!.value as T;
-  return { h, p, store, fixerScript, reviewerScript, review, latest, audits, roles, vex, tweak, fix, head };
+  return { h, p, store, fixerScript, reviewerScript, review, latest, audits, roles, fix, head };
 }
 
 const withBeat = (s: Storyboard, i: number, f: (b: Storyboard['beats'][number]) => Storyboard['beats'][number]): Storyboard => ({ ...s, beats: s.beats.map((b, k) => (k === i ? f(b) : b)) });
@@ -319,7 +306,7 @@ describe('fixer (final review loop)', () => {
     const vid = fixVersionId(s.p.r.runId, 1);
     expect(out).toMatchObject({ status: 'rewind', to: 'storyboard', loop: 'final', version: { id: vid, reason: 'fix:rework' } });
     const verdict = await s.latest('final_verdict');
-    expect(await roundCause(t.pool, s.p.r.runId, 1)).toEqual({ kind: 'rework', verdictId: verdict.id, fixReportId: null, failed: (verdict.content as { failed: string[] }).failed, rebuild: null, changed: [] });
+    expect(await roundCause(t.pool, s.p.r.runId, 1)).toEqual({ kind: 'rework', verdictId: verdict.id, fixReportId: null, failed: (verdict.content as { failed: string[] }).failed, changed: [] });
 
     const over = { fixRound: 1, versionId: vid };
     const sc = s.p.ctx('storyboard', over);
@@ -409,15 +396,11 @@ describe('fixer (final review loop)', () => {
     const v0 = await at('final_verdict', 0, { verdict: 'fix', failed: ['mechanism_shot'] });
     const f0 = await at('fix_report', 0, fx('fix-report-compose'), { scope: 'build', changed: ['scene.render'], claimed: 'build' });
     const v1 = await at('final_verdict', 1, { verdict: 'rework', failed: ['hook_frame0', 'payoff'] });
-    expect(await roundCause(t.pool, s.p.r.runId, 1)).toEqual({ kind: 'build', verdictId: v0.id, fixReportId: f0.id, failed: ['mechanism_shot'], rebuild: null, changed: ['scene.render'] });
-    // The M5b shape of the key is kept for a non-voice cause, and a voice track of that round (a rework or voice round's) cannot move a build round's hash.
+    expect(await roundCause(t.pool, s.p.r.runId, 1)).toEqual({ kind: 'build', verdictId: v0.id, fixReportId: f0.id, failed: ['mechanism_shot'], changed: ['scene.render'] });
+    // The M5b shape of the key is kept.
     expect(causeKey(await roundCause(t.pool, s.p.r.runId, 1))).toEqual({ kind: 'build', verdict: v0.id, fixReport: f0.id });
-    const hashOf = async () => buildExecutor(s.h.deps).inputHash(s.p.ctx('build', { fixRound: 1 }));
-    const buildHash = await hashOf();
-    await at('voice_track', 1, {}, { rebuild: true });
-    expect(await hashOf()).toBe(buildHash);
     // A newer fix report of another round never leaks in: round 2 reads round 1 only.
-    expect(await roundCause(t.pool, s.p.r.runId, 2)).toEqual({ kind: 'rework', verdictId: v1.id, fixReportId: null, failed: ['hook_frame0', 'payoff'], rebuild: null, changed: [] });
+    expect(await roundCause(t.pool, s.p.r.runId, 2)).toEqual({ kind: 'rework', verdictId: v1.id, fixReportId: null, failed: ['hook_frame0', 'payoff'], changed: [] });
     expect(await roundCause(t.pool, s.p.r.runId, 3)).toBeNull();
     expect(await roundCause(t.pool, s.p.r.runId, 0)).toBeNull();
     // A claimed storyboard rewrite without any change is a rework too.

@@ -3,8 +3,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   audioFailures, averageVisual, checksOf, FINAL_CHECK_IDS, FINAL_CHECKS, FINAL_REVIEWER_ROLES, finalReviewRefErrors, finalVerdict, formatScore, GATE_IDS, isBorderline, loopAction,
-  checkHistory, g4Gate, licenseVerdict, panelScore, QC_CHECKS, QcReportSchema, RUBRIC_VERSION, SceneEventsSchema, scoreReview, STOP_NOTE, validateArtifact, VoiceTrackSchema,
-  type AudioMode, type FinalCheckId, type FinalReview, type FinalReviewerRole, type LoopStop, type PanelScore, type ProductResearch, type QcReport, type RoundChecks, type SceneSpec, type Storyboard, type VoiceTrack, type MusicScore,
+  checkHistory, licenseVerdict, panelScore, QC_CHECKS, QcReportSchema, RUBRIC_VERSION, SceneEventsSchema, scoreReview, STOP_NOTE, validateArtifact,
+  type AudioMode, type FinalCheckId, type FinalReview, type FinalReviewerRole, type LoopStop, type PanelScore, type ProductResearch, type QcReport, type RoundChecks, type SceneSpec, type Storyboard, type MusicScore,
 } from '@videogen/shared';
 import {
   appendAudit, findArtifact, getBlob, insertVersion, latestArtifact, latestStepSession, listAssets, listRunReviews, recordReviewRound,
@@ -17,12 +17,11 @@ import { contactSheet, extractFrame, probeVideo } from '../render/ffmpeg.ts';
 import { runStructured } from './agent-step.ts';
 import { currentEvents, finalSource, type FinalFramesMeta } from './final-steps.ts';
 import { LIMIT_NOTE } from './notes.ts';
-import { manifestFacts, numericGaps, qcFacts, recentHooks, retentionTimes, voInputs, webCheckTargets, type VoInputs, type WebTarget } from './review-inputs.ts';
+import { manifestFacts, numericGaps, qcFacts, recentHooks, retentionTimes, webCheckTargets, type WebTarget } from './review-inputs.ts';
 import { isYaklasim, audioPrompt, factsPrompt, retentionPrompt, visualPrompt } from './review-prompts.ts';
 import { audioFacts, rmsCurve, type AudioFacts } from './audio-facts.ts';
 import { labelOf } from './fix-round.ts';
 import { failure, record, sha, sheetTimes, type StepDeps } from './steps.ts';
-import { voKey } from './voice-step.ts';
 import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
 
 type Verdict = 'ready' | 'fix' | 'rework';
@@ -120,34 +119,6 @@ function withGapGate(s: PanelScore, gaps: string[]): PanelScore {
   };
 }
 
-/**
- * H8: the voice track a final was mixed with (its compose recorded `meta.voiceStemSha`; the newest track may belong to a later voice round).
- * Two tracks with one stem: the newest. An invalid stored track reads as none.
- */
-export async function voiceTrackFor(pool: pg.Pool, runId: string, stemSha: string | null): Promise<VoiceTrack | null> {
-  if (!stemSha) return null;
-  const { rows } = await pool.query("SELECT content FROM artifacts WHERE run_id = $1 AND kind = 'voice_track' AND meta->>'stemSha' = $2 ORDER BY created_at DESC, id DESC LIMIT 1", [runId, stemSha]);
-  const parsed = rows[0] ? VoiceTrackSchema.safeParse(rows[0].content) : null;
-  return parsed?.success ? parsed.data : null;
-}
-
-export interface ReviewVoiceOptions { runId: string; audioMode: AudioMode; voiceStemSha: string | null }
-
-/** The track of the reviewed final and G4 as a rule over it. A reference that was withdrawn or is not an own-voice licence no longer counts as permitted. */
-export async function reviewVoice(pool: pg.Pool, o: ReviewVoiceOptions): Promise<{ track: VoiceTrack | null; g4: boolean }> {
-  if (o.audioMode === 'silent') return { track: null, g4: true };
-  const track = await voiceTrackFor(pool, o.runId, o.voiceStemSha);
-  const voice = track?.provider.voice;
-  const ref = voice?.kind === 'clone' ? (await listAssets(pool, { kind: 'voice_ref' })).find((a) => a.id === voice.asset_id) : undefined;
-  const refPermitted = !!ref && ref.allowed && licenseVerdict({ spdx: ref.licenseSpdx, attribution: ref.attribution, kind: ref.kind }).allowed;
-  return { track, g4: g4Gate({ audioMode: o.audioMode, track, refPermitted }) };
-}
-
-/** What the G4 finding tells: no matching track is a pipeline fault, otherwise the clone's label or reference is the problem. */
-export const g4Hint = (track: VoiceTrack | null) => (track
-  ? "Klon ses için AI etiketi gerekli; anlatıcı sesini Ayarlar'dan değiştirin ya da etiketi açın"
-  : 'seslendirme izi bulunamadı: incelenen final ile eşleşen voice_track yok');
-
 export const openLabels = (failed: string[]) => `${failed.slice(0, 5).map(labelOf).join(', ')}${failed.length > 5 ? ` (+${failed.length - 5})` : ''}`;
 
 /** The fan-out gate (plan F8): wait, with the signal and a poll, until a new pipeline session may start. false: the run was cancelled meanwhile. */
@@ -209,7 +180,7 @@ function panelContexts(ctx: StepContext, active: FinalReviewerRole[], o: { sessi
 
 interface Inputs {
   video: string; durationS: number; frames: number; sheetRel: string; sheetTimes: number[]; hookRel: string; hookTimes: number[];
-  storyboard: Storyboard; scene: SceneSpec; research: ProductResearch; qc: QcReport; targets: WebTarget[]; mixed64?: number; vo?: VoInputs; g4: boolean;
+  storyboard: Storyboard; scene: SceneSpec; research: ProductResearch; qc: QcReport; targets: WebTarget[]; mixed64?: number; g4: boolean;
   /** Agent music design A11: the score and the stems' measurements of the reviewed final (reviewer_audio). */
   score: MusicScore | null; audio: AudioFacts | null;
 }
@@ -274,16 +245,6 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
       const invalid = [!qc.success ? 'qc_report' : null, !storyboard?.ok ? 'storyboard' : null, !sceneSpec?.ok ? 'scene' : null, !research?.ok ? 'research' : null].filter(Boolean);
       if (invalid.length) return { status: 'failed', error: `eksik ya da geçersiz girdi: ${invalid.join(', ')}`, retry: false };
       if (!qc.success || !storyboard?.ok || !sceneSpec?.ok || !research?.ok) throw new Error('unreachable');
-      // M7 Y18 (8), as compose checks it: in VO mode the newest voice track must belong to the newest storyboard's words and times, and the
-      // final must be mixed with that track's stem. No track at all is left to G4 (no_voice_track).
-      if (ctx.audioMode === 'vo') {
-        const voice = await latestArtifact(deps.pool, ctx.runId, 'voice_track');
-        const vm = voice?.meta as { voKey?: string; stemSha?: string } | null | undefined;
-        if (voice && (vm?.voKey !== voKey(storyboard.value) || ((music.meta ?? {}) as { voiceStemSha?: string }).voiceStemSha !== vm?.stemSha)) {
-          return { status: 'failed', error: 'final video güncel seslendirmeyle uyuşmuyor (bayat artefakt, §8.3)', retry: false };
-        }
-      }
-
       // A stored verdict of this very input decides again without a session (restart after the round was recorded).
       const storedVerdict = await findArtifact(deps.pool, { runId: ctx.runId, kind: 'final_verdict', inputHash: hash });
       if (storedVerdict && isStoredVerdict(storedVerdict.content)) {
@@ -297,8 +258,8 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
       const sessions = new Map<string, string | null>();
       let inputs: Inputs | null = null;
       let gaps: string[] = [];
-      // H8/H14: the narration the reviewed final carries (reviewers read its script and transcript) and G4, decided once for both panel scores.
-      const { track, g4 } = await reviewVoice(deps.pool, { runId: ctx.runId, audioMode: ctx.audioMode, voiceStemSha: ((music.meta ?? {}) as { voiceStemSha?: string }).voiceStemSha ?? null });
+      // Spec Z1: no voiceover, so G4 (the AI label of a cloned narrator voice) always holds.
+      const g4 = true;
       if (qc.data.pass) {
         const probe = await probeVideo(scene.ffmpeg, join(deps.dataDir, blob.path), ctx.signal);
         const frames = (await latestArtifact(deps.pool, ctx.runId, 'final_frames'))?.meta as FinalFramesMeta | null;
@@ -306,7 +267,7 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
           video: join(deps.dataDir, blob.path), durationS: probe.durationS, frames: probe.frames, sheetRel: `${rel}/sheet.png`, sheetTimes: sheetTimes(probe.durationS),
           hookRel: `${rel}/hook.png`, hookTimes: retentionTimes(storyboard.value, probe.durationS), storyboard: storyboard.value, scene: sceneSpec.value, research: research.value,
           qc: qc.data, targets: webCheckTargets(research.value, storyboard.value, `${ctx.runId}:${ctx.fixRound}`), ...(frames?.mixed64 ? { mixed64: frames.mixed64 } : {}),
-          ...(track ? { vo: voInputs(track, storyboard.value) } : {}), g4, ...(await reviewAudio(ctx, music.inputHash, storyboard.value)),
+          g4, ...(await reviewAudio(ctx, music.inputHash, storyboard.value)),
         };
         gaps = numericGaps(research.value, storyboard.value);
         try {
@@ -347,8 +308,6 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
           evidence: { frame, timecode: Math.round((frame / FPS) * 100) / 100, claim_id: claimId }, fixHint: `Kaynağı yetersiz sayısal iddia: ${gaps[0]}. Ekrandaki iddiayı çıkar ya da yeniden yaz.`,
         });
       }
-      // G4 is a gate, not a check id: a finding on the orchestrator row without evidence (the fixer cannot add the label; loopAction stops with 'declaration', 'no_voice_track' without a track).
-      if (!g4) orchestrator.push({ checkId: 'G4', severity: 'blocker', dimension: null, gate: 'G4', evidence: null, fixHint: g4Hint(track), status: 'open' });
       rows.push({
         reviewerRole: 'orchestrator', seq: 1, rubricVersion: RUBRIC_VERSION, stepId: ctx.stepId, total: score.total, dimensionScores: score.dimensions, gates: score.gates, verdict,
         summaryTr: score.total === null ? 'Otomatik kapı geçmedi; reviewer çalışmadı.' : `Toplam ${formatScore(score.total)} puan · karar: ${verdict}`, findings: orchestrator,
@@ -370,7 +329,6 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
 
       const stored: StoredVerdict = {
         verdict, total: score.total, dimensions: score.dimensions, gates: score.gates, low: score.low, failed: score.failed, regressed: history.regressed, fixed: history.fixed, oscillating: history.oscillating,
-        ...(g4 ? {} : { g4Cause: track ? 'clone' as const : 'no_track' as const }),
       };
       await mkdir(dir, { recursive: true });
       const file = join(dir, 'verdict.json');
@@ -389,10 +347,10 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
       const b = a?.blobSha ? await getBlob(deps.pool, a.blobSha) : null;
       return b && existsSync(join(deps.dataDir, b.path)) ? rmsCurve(ffmpeg, join(deps.dataDir, b.path), undefined, ctx.signal) : null;
     };
-    const [m, v, s] = await Promise.all([curve('stem_music'), curve('stem_voice'), curve('stem_sfx')]);
+    const [m, s] = await Promise.all([curve('stem_music'), curve('stem_sfx')]);
     const sc = await latestArtifact(deps.pool, ctx.runId, 'music');
     const score = sc ? validateArtifact('MusicScore', sc.content) : null;
-    return { score: score?.ok ? score.value : null, audio: m || v || s ? audioFacts({ music: m, voice: v, sfx: s, storyboard }) : null };
+    return { score: score?.ok ? score.value : null, audio: m || s ? audioFacts({ music: m, sfx: s, storyboard }) : null };
   }
 
   /** The failed checks of the round as the fixer reads them (reviewer hints; qc checks carry their measurement). */
@@ -448,12 +406,12 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
       const common = { name: ctx.productName, durationS: i.durationS, frames: i.frames, times: i.sheetTimes, sheet: i.sheetRel, brief: ctx.brief, yaklasim: isYaklasim(i.storyboard) };
       return {
         reviewer_visual: visualPrompt({
-          ...common, storyboard: i.storyboard, scene: i.scene, qc: qcFacts('reviewer_visual', i.qc), hooks: await recentHooks(deps.pool, ctx.videoId), ...(i.mixed64 ? { mixed64: i.mixed64 } : {}), ...(i.vo ? { vo: i.vo } : {}),
+          ...common, storyboard: i.storyboard, scene: i.scene, qc: qcFacts('reviewer_visual', i.qc), hooks: await recentHooks(deps.pool, ctx.videoId), ...(i.mixed64 ? { mixed64: i.mixed64 } : {}),
           facts: manifestFacts({ events: ev?.success ? currentEvents(ev.data.events, i.storyboard.beats, FPS) : [], beats: i.storyboard.beats, layout: (layout?.content as LayoutManifest | null) ?? null, fps: FPS, durationS: i.durationS }),
         }),
-        reviewer_facts: factsPrompt({ ...common, research: i.research, storyboard: i.storyboard, targets: i.targets, ...(i.vo ? { vo: i.vo } : {}) }),
-        reviewer_retention: retentionPrompt({ ...common, storyboard: i.storyboard, qc: qcFacts('reviewer_retention', i.qc), hookSheet: i.hookRel, hookTimes: i.hookTimes, ...(i.vo ? { vo: i.vo } : {}) }),
-        reviewer_audio: audioPrompt({ ...common, storyboard: i.storyboard, score: i.score, facts: i.audio, qc: qcFacts('reviewer_audio', i.qc), ...(i.vo ? { vo: i.vo } : {}) }),
+        reviewer_facts: factsPrompt({ ...common, research: i.research, storyboard: i.storyboard, targets: i.targets }),
+        reviewer_retention: retentionPrompt({ ...common, storyboard: i.storyboard, qc: qcFacts('reviewer_retention', i.qc), hookSheet: i.hookRel, hookTimes: i.hookTimes }),
+        reviewer_audio: audioPrompt({ ...common, storyboard: i.storyboard, score: i.score, facts: i.audio, qc: qcFacts('reviewer_audio', i.qc) }),
       };
     };
     const register = (role: FinalReviewerRole, seq: number) => deps.reviews?.set(ctx.stepId, {

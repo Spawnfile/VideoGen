@@ -3,7 +3,6 @@ import type { AssetKind } from '@videogen/shared';
 import type pg from 'pg';
 import { appendAudit } from './audit.ts';
 import type { Queryable } from './client.ts';
-import { resetNarratorForRevokedRef } from './voice.ts';
 
 export interface NewAsset {
   kind: AssetKind; title: string; blobSha: string; licenseSpdx: string; author: string; allowed: boolean;
@@ -74,11 +73,10 @@ export async function assetUsage(db: Queryable): Promise<Map<string, number>> {
   return new Map(rows.map((r) => [r.asset_id as string, r.n as number]));
 }
 
-export type RevokeResult = { kind: 'revoked'; asset: AssetRecord; narratorReset: boolean } | { kind: 'already'; asset: AssetRecord } | { kind: 'missing' };
+export type RevokeResult = { kind: 'revoked'; asset: AssetRecord } | { kind: 'already'; asset: AssetRecord } | { kind: 'missing' };
 
 /**
- * Y8 (API and `bin/assets.mjs revoke`): one transaction — the conditional revocation, its audit row (`asset.revoked` with the reason) and,
- * for the narrator's own reference, the reset to the stock voice (audited too).
+ * Y8 (API and `bin/assets.mjs revoke`): one transaction — the conditional revocation and its audit row (`asset.revoked` with the reason).
  */
 export async function revokeAssetAudited(pool: pg.Pool, id: string, reason: string): Promise<RevokeResult> {
   const c = await pool.connect();
@@ -91,9 +89,8 @@ export async function revokeAssetAudited(pool: pg.Pool, id: string, reason: stri
       return current ? { kind: 'already', asset: current } : { kind: 'missing' };
     }
     await appendAudit(c, { actorType: 'user', action: 'asset.revoked', subjectType: 'asset', subjectId: id, data: { kind: asset.kind, title: asset.title, reason } });
-    const narratorReset = asset.kind === 'voice_ref' ? await resetNarratorForRevokedRef(c, id) : false;
     await c.query('COMMIT');
-    return { kind: 'revoked', asset, narratorReset };
+    return { kind: 'revoked', asset };
   } catch (e) {
     await c.query('ROLLBACK').catch(() => {});
     throw e;
