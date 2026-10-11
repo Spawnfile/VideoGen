@@ -36,6 +36,21 @@ try {
   process.exit(1);
 }
 
+// 3. Phone access (Tailscale Serve, tailnet only): with VG_TAILNET_HOST set, refuse to start while Funnel would put VideoGen on the
+// public internet, and say where the phone reaches it.
+const { parseServeStatus } = await import('./tailnet-status.mjs');
+let phone = null;
+if (process.env.VG_TAILNET_HOST) {
+  const port = Number(process.env.VG_TAILNET_HOST.split(':')[1] ?? 443);
+  const st = (() => { try { const raw = spawnSync('tailscale', ['serve', 'status', '--json'], { encoding: 'utf8' }).stdout.trim(); return parseServeStatus(raw ? JSON.parse(raw) : {}, port); } catch { return null; } })();
+  if (st?.funnel) {
+    console.error(`[videogen] Tailscale Funnel ${port} portunda açık: VideoGen internete açılırdı. Kapatın: sudo tailscale funnel --https=${port} off`);
+    process.exit(1);
+  }
+  phone = st?.served && st.target === `http://127.0.0.1:${PORT}` ? `https://${process.env.VG_TAILNET_HOST}` : null;
+  if (!phone) console.log(`[videogen] telefon erişimi kapalı: node bin/tailnet.mjs enable --port ${port} --target ${PORT}`);
+}
+
 mkdirSync(LOGS, { recursive: true });
 
 function run(cmd, args) {
@@ -131,6 +146,7 @@ async function waitHealthy() {
 if (await waitHealthy()) {
   const url = `http://127.0.0.1:${PORT}`;
   console.log(`[videogen] hazır: ${url}`);
+  if (phone) console.log(`[videogen] telefon (Tailscale): ${phone}`);
   if (process.env.VG_NO_BROWSER !== '1') {
     const opener = spawn('xdg-open', [url], { stdio: 'ignore', detached: true });
     opener.on('error', () => console.log(`[videogen] tarayıcı açılamadı, adresi elle açın: ${url}`));

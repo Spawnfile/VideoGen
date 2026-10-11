@@ -14,7 +14,7 @@ test('S2: product → draft → review; the draft MP4 streams with Range and pla
   await expect(header).toContainText('Taslak hazır ve incelendi. Final render bu sürümde henüz yok.');
   await expect(page.locator('[data-testid="step"][data-key="draft_render"]')).toContainText('540×960 · 0:02');
   await expect(page.locator('[data-testid="step"][data-key="draft_review"]')).toContainText('geçti · küçük bulgu: Yazılar okunur');
-  await expect(page.getByTestId('review-card')).toContainText('Yazılar okunur');
+  await expect(page.getByTestId('review-card')).toContainText('Text readable');
   const src = (await page.getByTestId('draft-video').getAttribute('src'))!;
   const ranged = await request.get(src, { headers: { range: 'bytes=0-11' } });
   expect(ranged.status()).toBe(206);
@@ -23,7 +23,7 @@ test('S2: product → draft → review; the draft MP4 streams with Range and pla
   expect((await sessionsOf(request, runId)).map((s) => s.role).sort()).toEqual(['audio_director', 'builder', 'researcher', 'reviewer_visual', 'storyboarder']);
 
   // Spec §16.2 S2 (M4: the draft instead of the final): from the library to a playing video.
-  await page.getByRole('link', { name: 'Kütüphane' }).click();
+  await page.getByRole('link', { name: 'Library' }).click();
   const item = page.getByTestId('library-item').filter({ hasText: 'Tükenmez kalem' }).first();
   await expect(item.getByTestId('library-duration')).toHaveText(' · 0:02');
   await expect.poll(() => item.getByTestId('library-cover').evaluate((i) => (i as HTMLImageElement).naturalWidth)).toBe(270);
@@ -37,7 +37,7 @@ test('S2: product → draft → review; the draft MP4 streams with Range and pla
   await expect.poll(() => video.evaluate((v) => (v as HTMLVideoElement).paused)).toBe(true);
 
   // The live tab: the same composition in @remotion/player (lazy chunk, WebGL canvas); Space plays it too.
-  await page.getByRole('tab', { name: 'Taslak', exact: true }).click();
+  await page.getByRole('tab', { name: 'Live draft', exact: true }).click();
   const live = page.getByTestId('draft-live');
   await expect(live.locator('canvas')).toBeVisible({ timeout: 20_000 });
   await page.locator('body').focus();
@@ -50,18 +50,18 @@ test('S2: a flawed draft goes back to build once ("Taslak turu 1/2"), the same b
   const { videoId, runId } = await produceVia(request, 'Kusurlu kalem', 'silent', 'draft_review');
   await page.goto(`/?video=${videoId}`);
   const header = page.getByTestId('video-header');
-  const bar = header.getByRole('progressbar', { name: 'Genel ilerleme' });
+  const bar = header.getByRole('progressbar', { name: 'Overall progress' });
   const samples: number[] = [];
   const sampler = setInterval(() => { void bar.getAttribute('aria-valuenow', { timeout: 100 }).then((v) => { if (v !== null) samples.push(Number(v)); }, () => {}); }, 150);
   try {
-    await expect(page.getByTestId('draft-round')).toContainText('Taslak turu 1/2', { timeout: 90_000 });
+    await expect(page.getByTestId('draft-round')).toContainText('Draft round 1/2', { timeout: 90_000 });
     await expect(header).toHaveAttribute('data-status', 'needs_human', { timeout: 90_000 });
   } finally {
     clearInterval(sampler);
   }
   for (let i = 1; i < samples.length; i++) expect(samples[i], `progress went back at sample ${i}`).toBeGreaterThanOrEqual(samples[i - 1]!);
   await expect(page.getByTestId('draft-round')).toHaveCount(0);
-  await expect(page.getByTestId('review-card')).toContainText('geçti');
+  await expect(page.getByTestId('review-card')).toContainText('passed');
   const s = await sessionsOf(request, runId);
   expect(s.filter((x) => x.role === 'reviewer_visual')).toHaveLength(2);
   const builders = s.filter((x) => x.role === 'builder');

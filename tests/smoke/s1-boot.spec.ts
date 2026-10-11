@@ -8,21 +8,21 @@ test('S1: shell boots under 2 s and shows Claude connection, usage and worker li
 
   const t0 = Date.now();
   await page.goto('/');
-  await expect(page.getByRole('navigation', { name: 'Ana menü' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Main menu' })).toBeVisible();
   expect(Date.now() - t0).toBeLessThan(2000);
 
   const footer = page.getByRole('contentinfo');
-  await expect(footer.getByText('Claude bağlı')).toBeVisible();
+  await expect(footer.getByText('Claude connected')).toBeVisible();
   await expect(footer.getByText('max', { exact: true })).toBeVisible();
-  await expect(footer.getByTestId('usage-5h')).toContainText('%35');
-  await expect(footer.getByTestId('usage-7d')).toContainText('%12');
-  await expect(footer.getByText('Worker canlı')).toBeVisible({ timeout: 10_000 });
+  await expect(footer.getByTestId('usage-5h')).toContainText('35%');
+  await expect(footer.getByTestId('usage-7d')).toContainText('12%');
+  await expect(footer.getByText('Worker live')).toBeVisible({ timeout: 10_000 });
 
-  await page.getByRole('link', { name: 'Ayarlar' }).click();
-  await expect(page.getByRole('heading', { name: 'Claude bağlantısı' })).toBeVisible();
-  await expect(page.getByText('claude.ai aboneliği')).toBeVisible();
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await expect(page.getByRole('heading', { name: 'Claude connection' })).toBeVisible();
+  await expect(page.getByText('claude.ai subscription')).toBeVisible();
   // M7 Y15: the safe area starts at the spec's default.
-  await expect(page.getByTestId('safe-area-source')).toContainText('varsayılan');
+  await expect(page.getByTestId('safe-area-source')).toContainText('default');
   await expect(page.getByTestId('safe-area-top')).toHaveValue('150');
   await expect(page).toHaveTitle('VideoGen');
   expect(errors).toEqual([]);

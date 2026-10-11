@@ -12,24 +12,24 @@ test('S2f: the composer\'s music, the audio reviewer in the panel, the stems car
   await expect(header).toHaveAttribute('data-status', 'ready', { timeout: 200_000 });
 
   const card = page.getByTestId('audio-card');
-  await expect(card.getByTestId('music-score')).toContainText('Müzik (besteci ajan): A minör · 100 BPM · 3 bölüm');
+  await expect(card.getByTestId('music-score')).toContainText('Music by the composer agent: A minor · 100 BPM · 3 sections');
   await expect(card.getByTestId('stem-music')).toBeVisible();
   await expect(card.getByTestId('stem-sfx')).toBeVisible();
   // A stem downloads as FLAC with a plain name.
-  const href = await card.getByTestId('stem-music').getByRole('link', { name: 'İndir (FLAC)' }).getAttribute('href');
-  expect(href).toMatch(/\?download=muzikli-kalem-muzik\.flac$/);
+  const href = await card.getByTestId('stem-music').getByRole('link', { name: 'Download FLAC' }).getAttribute('href');
+  expect(href).toMatch(/\?download=muzikli-kalem-music\.flac$/);
   const dl = await request.get(href!);
   expect(dl.status()).toBe(200);
-  expect(dl.headers()['content-disposition']).toBe('attachment; filename="muzikli-kalem-muzik.flac"');
+  expect(dl.headers()['content-disposition']).toBe('attachment; filename="muzikli-kalem-music.flac"');
   // The audio reviewer sat on the panel.
   const reviews = (await (await request.get(`/api/videos/${videoId}/reviews`)).json()) as { reviewerRole: string }[];
   expect(reviews.map((r) => r.reviewerRole)).toContain('reviewer_audio');
 
   // An audio edit by instruction: a new run (music → remix), the picture kept, a new best version.
   const before = (await (await request.get(`/api/videos/${videoId}/versions`)).json()) as unknown[];
-  await card.getByRole('textbox', { name: 'Sesi ajanlarla düzenle' }).fill('Müzik daha sakin olsun, davul olmasın.');
-  await card.getByRole('button', { name: 'Ajan düzenlesin' }).click();
-  await expect(card.getByRole('status')).toContainText('Ses düzenlemesi başladı');
+  await card.getByRole('textbox', { name: 'Edit the audio with the agents' }).fill('Müzik daha sakin olsun, davul olmasın.');
+  await card.getByRole('button', { name: 'Send to the agents' }).click();
+  await expect(card.getByRole('status')).toContainText('Audio edit started');
   await expect(page.locator('[data-testid="step"][data-key="remix"]')).toHaveAttribute('data-status', 'done', { timeout: 90_000 });
   await expect(page.locator('[data-testid="step"][data-key="remix"]')).toContainText('ses yeniden karıştırıldı');
   await expect(header).toHaveAttribute('data-status', 'ready', { timeout: 15_000 });

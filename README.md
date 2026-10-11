@@ -1,6 +1,6 @@
 # VideoGen
 
-A local-only, single-user video generation studio: a Postgres-backed API + worker platform driven by a Claude subscription (no paid API keys), with a Turkish web UI.
+A local-only, single-user video generation studio: a Postgres-backed API + worker platform driven by a Claude subscription (no paid API keys), with an English web UI that works as an installable app on desktop and phone (video content stays Turkish).
 
 ![VideoGen shell](docs/m2/shell.png)
 
@@ -21,6 +21,18 @@ Prerequisites: Docker (for Postgres 17), a logged-in Claude subscription (`claud
 `npm install` may warn that install scripts (esbuild) were blocked; this is harmless for VideoGen.
 
 If you run `npm run build` while the API is running (for example next to `npm run dev:api`), restart the API afterwards: static assets are registered when the API starts. `npm start` always builds first, so it is not affected.
+
+## Phone access (Tailscale)
+
+The same interface runs on a phone as an installable app (PWA), reached over your tailnet only. The API keeps listening on `127.0.0.1`; Tailscale Serve terminates HTTPS with the tailnet certificate and forwards to it. Funnel (public internet) is never used: the launcher refuses to start if it is on.
+
+1. Serve the API on a tailnet port (needs `sudo` once; 443 may already be taken on this machine, so 8443 is the default):
+   `node bin/tailnet.mjs enable --port 8443 --target 5180` — it prints the two variables for step 2.
+2. Start VideoGen with them: `VG_TAILNET_HOST=<machine>.<tailnet>.ts.net:8443 VG_TAILNET_USERS=<your tailscale login> npm start`.
+   Only that exact host and those logins get in (Tailscale sets `Tailscale-User-Login` itself; clients cannot forge it).
+3. On the phone (Tailscale on), open `https://<machine>.<tailnet>.ts.net:8443`, then Share → Add to Home Screen (iPhone) or Install app (Android).
+
+`node bin/tailnet.mjs status` shows what the port serves; `disable` stops it. Connecting a TikTok account only works on the computer (the OAuth callback is a localhost URL); publishing works from the phone. Icons are regenerated from `docs/mobile-pwa/icon/app-icon.svg` with `node bin/icons.mjs`.
 
 ## Commands
 

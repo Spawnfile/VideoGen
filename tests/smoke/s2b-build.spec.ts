@@ -15,7 +15,7 @@ test('S2b: storyboard → build: the builder card, the build card with its previ
   await expect(header).toContainText('Taslak hazır ve incelendi. Final render bu sürümde henüz yok.');
   await expect(page.locator('[data-testid="step"][data-key="build"]')).toContainText('5 parça · 7.526 üçgen');
   const card = page.getByTestId('build-card');
-  await expect(card).toContainText('5 parça · 7.526 üçgen · kahraman %80');
+  await expect(card).toContainText('5 parts · 7,526 triangles · hero 80%');
   const img = card.getByRole('img');
   await expect.poll(() => img.evaluate((i) => (i as HTMLImageElement).naturalWidth)).toBe(4 * 270 + 3 * 6);
   const src = (await img.getAttribute('src'))!;
@@ -23,7 +23,7 @@ test('S2b: storyboard → build: the builder card, the build card with its previ
   expect(ranged.status()).toBe(206);
   expect([...(await ranged.body())]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]); // PNG signature
   expect((await sessionsOf(request, runId)).map((s) => s.role).sort()).toEqual(['audio_director', 'builder', 'researcher', 'reviewer_visual', 'storyboarder']);
-  await expect(page.getByTestId('agent-card').filter({ hasText: 'Video üretim' }).first()).toBeVisible();
+  await expect(page.getByTestId('agent-card').filter({ hasText: 'Video builder' }).first()).toBeVisible();
 });
 
 test('S2b: a broken first build goes back to the same builder session and the step still finishes', async ({ page, request }) => {
@@ -43,7 +43,7 @@ test('S2b: "Üretimi durdur" during the build stops the builder; research, story
   await page.goto(`/?video=${videoId}`);
   const header = page.getByTestId('video-header');
   await expect(page.locator('[data-testid="step"][data-key="build"]')).toHaveAttribute('data-status', 'running', { timeout: 60_000 });
-  await header.getByRole('button', { name: 'Üretimi durdur' }).click();
+  await header.getByRole('button', { name: 'Stop production' }).click();
   await expect(header).toHaveAttribute('data-status', 'cancelled', { timeout: 15_000 });
   await expect(page.locator('[data-testid="step"][data-key="build"]')).toHaveAttribute('data-status', 'cancelled');
   await expect(page.locator('[data-testid="step"][data-status="done"]')).toHaveCount(3);
@@ -54,12 +54,12 @@ test('S2b: "Üretimi durdur" during the build stops the builder; research, story
 test('S2b: the channel identity chosen in Settings is the style of the next build (K19)', async ({ page, request }) => {
   test.setTimeout(90_000);
   await page.goto('/settings');
-  const group = page.getByRole('radiogroup', { name: 'Kanal kimliği' });
-  await expect(page.getByText('Henüz seçilmedi: geçici olarak')).toBeVisible(); // the channel note sits above the options (the narrator voice section has its own)
-  await group.getByRole('radio', { name: /Beyaz laboratuvar/ }).click();
-  await expect(group.getByRole('radio', { name: /Beyaz laboratuvar/ })).toHaveAttribute('aria-checked', 'true');
+  const group = page.getByRole('radiogroup', { name: 'Channel identity' });
+  await expect(page.getByRole('region', { name: 'Channel identity' }).getByText('Not chosen yet:')).toBeVisible(); // the channel note sits above the options (the narrator voice section has its own)
+  await group.getByRole('radio', { name: /White lab/ }).click();
+  await expect(group.getByRole('radio', { name: /White lab/ })).toHaveAttribute('aria-checked', 'true');
   const { videoId } = await produceVia(request, 'Beyaz kalem', 'silent', 'draft_review');
   await page.goto(`/?video=${videoId}`);
-  await expect(page.getByTestId('build-card')).toContainText('Beyaz laboratuvar', { timeout: 60_000 });
+  await expect(page.getByTestId('build-card')).toContainText('White lab', { timeout: 60_000 });
   await expect(page.locator('[data-testid="step"][data-key="build"]')).not.toContainText('kanal kimliği geçici');
 });

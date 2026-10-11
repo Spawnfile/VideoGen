@@ -19,16 +19,16 @@ test('S4: API restart → "yeniden bağlanıyor" → reconnect replays every mis
   });
   await page.goto('/');
   const footer = page.getByRole('contentinfo');
-  await expect(footer.getByText('Worker canlı')).toBeVisible({ timeout: 10_000 });
+  await expect(footer.getByText('Worker live')).toBeVisible({ timeout: 10_000 });
 
   await startDevSession(request, { role: 'fixer', script: SLOW_SCRIPT });
-  const card = page.getByTestId('agent-card').filter({ hasText: 'Düzeltici' }).first();
+  const card = page.getByTestId('agent-card').filter({ hasText: 'Fixer' }).first();
   await expect(card).toBeVisible({ timeout: 10_000 });
 
   const old = killHard('api');
-  await expect(page.getByText('Bağlantı koptu, yeniden bağlanıyor…')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('Connection lost, reconnecting…')).toBeVisible({ timeout: 10_000 });
   await waitForRestart('api', old);
-  await expect(page.getByText('Bağlantı koptu, yeniden bağlanıyor…')).toBeHidden({ timeout: 20_000 });
+  await expect(page.getByText('Connection lost, reconnecting…')).toBeHidden({ timeout: 20_000 });
   await expect(card).toHaveAttribute('data-status', 'done', { timeout: 45_000 });
 
   const max = await serverMaxEventId(request);
@@ -42,11 +42,11 @@ test('S4: a dead worker shows "Worker yanıt vermiyor" and recovers when restart
   test.setTimeout(60_000);
   await page.goto('/');
   const footer = page.getByRole('contentinfo');
-  await expect(footer.getByText('Worker canlı')).toBeVisible({ timeout: 10_000 });
+  await expect(footer.getByText('Worker live')).toBeVisible({ timeout: 10_000 });
   holdRestart('worker');
   const old = killHard('worker');
-  await expect(footer.getByText('Worker yanıt vermiyor')).toBeVisible({ timeout: 15_000 });
+  await expect(footer.getByText('Worker not responding')).toBeVisible({ timeout: 15_000 });
   releaseRestart('worker');
   await waitForRestart('worker', old);
-  await expect(footer.getByText('Worker canlı')).toBeVisible({ timeout: 20_000 });
+  await expect(footer.getByText('Worker live')).toBeVisible({ timeout: 20_000 });
 });

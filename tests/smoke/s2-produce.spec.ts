@@ -5,17 +5,17 @@ import { produceVia } from './helpers.ts';
 test('S2a: Seslendirmeli — product name → research → … → voice → … → final, the voice card plays, one run for a double click, monotone progress, listed in the library', async ({ page, request }) => {
   test.setTimeout(300_000);
   await page.goto('/');
-  const bar = page.getByRole('region', { name: 'Yeni üretim' });
-  await bar.getByRole('textbox', { name: 'Ürün adı' }).fill('Tükenmez kalem');
-  await bar.getByRole('radio', { name: 'Seslendirmeli' }).click();
+  const bar = page.getByRole('region', { name: 'New production' });
+  await bar.getByRole('textbox', { name: 'Product name' }).fill('Tükenmez kalem');
+  await bar.getByRole('radio', { name: 'With voiceover' }).click();
   const listed = async () => { const r = await request.get('/api/videos'); expect(r.ok()).toBe(true); return (await r.json()) as { id: string; status: string; statusNote: string | null }[]; };
   const beforeIds = new Set((await listed()).map((v) => v.id));
   const before = beforeIds.size;
   // Two clicks in one task: only the send lock can stop the second (separate clicks would see the cleared box).
-  await bar.getByRole('button', { name: 'Üret' }).evaluate((b) => { (b as HTMLButtonElement).click(); (b as HTMLButtonElement).click(); });
+  await bar.getByRole('button', { name: 'Create video' }).evaluate((b) => { (b as HTMLButtonElement).click(); (b as HTMLButtonElement).click(); });
 
   const header = page.getByTestId('video-header');
-  const bar2 = header.getByRole('progressbar', { name: 'Genel ilerleme' });
+  const bar2 = header.getByRole('progressbar', { name: 'Overall progress' });
   const samples: number[] = [];
   const sampler = setInterval(() => { void bar2.getAttribute('aria-valuenow', { timeout: 100 }).then((v) => { if (v !== null) samples.push(Number(v)); }, () => {}); }, 150);
   try {
@@ -38,12 +38,12 @@ test('S2a: Seslendirmeli — product name → research → … → voice → …
   }
   const last = await bar2.getAttribute('aria-valuenow');
   const seen = [...samples, ...(last !== null ? [Number(last)] : [])];
-  await expect(header).toContainText('yayına hazır');
+  await expect(header).toContainText('Ready to publish');
   await expect(page.getByTestId('storyboard-card').locator('li')).toHaveCount(7);
   await expect(bar2).toHaveAttribute('aria-valuenow', '100');
   const card = page.getByTestId('voice-card');
   await expect(card).toBeVisible({ timeout: 10_000 });
-  await expect(card).toHaveAccessibleName('Seslendirme');
+  await expect(card).toHaveAccessibleName('Voiceover');
   const audio = page.getByTestId('voice-audio');
   await expect(audio).toBeVisible({ timeout: 10_000 });
   // Headless Chrome only autoplays muted media.
@@ -58,7 +58,7 @@ test('S2a: Seslendirmeli — product name → research → … → voice → …
   expect([created[0]!.status, created[0]!.statusNote]).toEqual(['ready', null]);
   expect(all.length - before).toBe(1);
 
-  await page.getByRole('link', { name: 'Kütüphane' }).click();
+  await page.getByRole('link', { name: 'Library' }).click();
   await expect(page.getByTestId('library-item').filter({ hasText: 'Tükenmez kalem' }).first()).toHaveAttribute('data-status', 'ready');
 });
 
@@ -67,7 +67,7 @@ test('S2a: a product that cannot be modelled stops at research with the reason',
   const { videoId } = await produceVia(request, 'İmkansız telefon işlemcisi', 'silent');
   await page.goto(`/?video=${videoId}`);
   await expect(page.getByTestId('video-header')).toHaveAttribute('data-status', 'needs_human', { timeout: 30_000 });
-  await expect(page.getByTestId('research-card')).toContainText('modellenemiyor');
+  await expect(page.getByTestId('research-card')).toContainText('cannot be modelled');
   await expect(page.locator('[data-testid="step"][data-key="storyboard"]')).toHaveAttribute('data-status', 'skipped');
 });
 
@@ -77,11 +77,11 @@ test('S2a: Durdur cancels a running production and progress does not go back', a
   await page.goto(`/?video=${videoId}`);
   const header = page.getByTestId('video-header');
   await expect(page.locator('[data-testid="step"][data-key="research"]')).toHaveAttribute('data-status', 'running', { timeout: 15_000 });
-  const at = Number(await header.getByRole('progressbar', { name: 'Genel ilerleme' }).getAttribute('aria-valuenow'));
-  await header.getByRole('button', { name: 'Üretimi durdur' }).click();
+  const at = Number(await header.getByRole('progressbar', { name: 'Overall progress' }).getAttribute('aria-valuenow'));
+  await header.getByRole('button', { name: 'Stop production' }).click();
   await expect(header).toHaveAttribute('data-status', 'cancelled', { timeout: 15_000 });
   await expect(page.locator('[data-testid="step"][data-status="cancelled"]')).toHaveCount(11);
-  expect(Number(await header.getByRole('progressbar', { name: 'Genel ilerleme' }).getAttribute('aria-valuenow'))).toBeGreaterThanOrEqual(at);
+  expect(Number(await header.getByRole('progressbar', { name: 'Overall progress' }).getAttribute('aria-valuenow'))).toBeGreaterThanOrEqual(at);
   // The research agent itself is stopped (not left to finish and settle the step afterwards).
   const sessionId = ((await (await request.get(`/api/runs/${runId}`)).json()) as { steps: { sessionId: string | null }[] }).steps[0]!.sessionId;
   expect(sessionId).toBeTruthy();

@@ -21,7 +21,7 @@ test('S7: the audit explorer filters a run, shows a valid chain and opens the ra
   await page.goto('/audit');
   const audit = page.getByTestId('audit-page');
   await expect(audit.getByTestId('chain-status')).toHaveAttribute('data-tone', 'ok', { timeout: 15_000 });
-  await expect(audit.getByTestId('chain-status')).toContainText('Zincir geçerli');
+  await expect(audit.getByTestId('chain-status')).toContainText('Chain valid');
   const rows = audit.getByTestId('audit-row');
   await expect(rows.first()).toBeVisible();
   const box = audit.getByRole('textbox', { name: 'Run' });
@@ -35,9 +35,9 @@ test('S7: the audit explorer filters a run, shows a valid chain and opens the ra
   const created = rows.filter({ hasText: 'artifact.created' }).first();
   await created.click();
   const detail = audit.getByTestId('audit-detail');
-  await expect(detail.getByRole('heading', { name: 'Artefakt' })).toBeVisible();
+  await expect(detail.getByRole('heading', { name: 'Artifact' })).toBeVisible();
   await expect(detail).toContainText('research');
-  const href = (await detail.getByRole('link', { name: 'İçeriği aç' }).getAttribute('href'))!;
+  const href = (await detail.getByRole('link', { name: 'Open the content' }).getAttribute('href'))!;
   const art = await request.get(href);
   expect(art.status()).toBe(200);
   expect(JSON.stringify(await art.json())).toContain('claims');
@@ -45,7 +45,7 @@ test('S7: the audit explorer filters a run, shows a valid chain and opens the ra
   // The library detail's Audit tab: the video filter shows the same run rows and the researcher's tool rows.
   await page.goto(`/library/${videoId}`);
   await expect(page.getByTestId('library-detail')).toBeVisible();
-  await page.getByRole('tab', { name: 'Audit' }).click();
+  await page.getByRole('tab', { name: 'Audit log' }).click();
   const lib = page.getByTestId('audit-page');
   const libRows = lib.getByTestId('audit-row');
   await expect(libRows.first()).toBeVisible();
@@ -65,10 +65,10 @@ test('S7: the audit explorer filters a run, shows a valid chain and opens the ra
       WHERE s.run_id::text = $1 AND a.action = 'agent.tool' AND a.subject_id = 'WebSearch' ORDER BY a.seq DESC LIMIT 1`, [runId],
   );
   expect(tool).toBeDefined();
-  await lib.getByRole('combobox', { name: 'Eylem' }).selectOption('agent.tool');
+  await lib.getByRole('combobox', { name: 'Action' }).selectOption('agent.tool');
   const toolRow = lib.locator(`[data-testid="audit-row"][data-seq="${tool!.seq}"]`);
   await toolRow.click();
   const toolDetail = lib.getByTestId('audit-detail');
-  await expect(toolDetail.getByRole('heading', { name: 'Araç girdisi · WebSearch' })).toBeVisible();
+  await expect(toolDetail.getByRole('heading', { name: 'Tool input · WebSearch' })).toBeVisible();
   await expect(toolDetail.locator('pre').first()).toContainText('"query"');
 });

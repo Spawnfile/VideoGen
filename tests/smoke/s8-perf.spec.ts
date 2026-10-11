@@ -86,7 +86,7 @@ test('S8: 4× CPU: step list and a 1000-row trace scroll at p95 ≤ 16.8 ms with
     await doneSession(request, 'reviewer_visual', 'subagent'),
   ];
   const cdp = await page.context().newCDPSession(page);
-  const panel = page.getByRole('region', { name: 'Üretim', exact: true });
+  const panel = page.getByRole('region', { name: 'Production', exact: true });
 
   // (a) A finished 10-step run and three open agent cards with their recorded traces.
   await page.goto(`/?video=${videoId}`);
@@ -94,7 +94,7 @@ test('S8: 4× CPU: step list and a 1000-row trace scroll at p95 ≤ 16.8 ms with
   await expect(page.getByTestId('step')).toHaveCount(11);
   for (const id of small) {
     const card = page.locator(`[data-testid="agent-card"][data-session="${id}"]`);
-    await card.getByRole('button', { name: 'İzi göster' }).click();
+    await card.getByRole('button', { name: 'Show trace' }).click();
     await expect(card.getByTestId('thinking').first()).toBeAttached();
   }
   const a = await measure(page, cdp, 'steps + agent cards', panel, 0);
@@ -104,7 +104,7 @@ test('S8: 4× CPU: step list and a 1000-row trace scroll at p95 ≤ 16.8 ms with
   expect(((await (await request.get(`/api/sessions/${long}/trace`)).json()) as unknown[]).length).toBe(1000);
   await page.goto(`/?video=${videoId}`);
   const card = page.locator(`[data-testid="agent-card"][data-session="${long}"]`);
-  await card.getByRole('button', { name: 'İzi göster' }).click();
+  await card.getByRole('button', { name: 'Show trace' }).click();
   await expect(card.getByTestId('thinking').first()).toBeAttached();
   const from = await card.evaluate((c) => {
     let box = c.parentElement;
@@ -129,7 +129,7 @@ test('S8: idle Studio stays under 0.2 s of main-thread work in 10 s with no long
   const { videoId } = (await (await request.post('/api/dev/videos/ready', { data: { productName: 'Smoke kalem boşta' } })).json()) as { videoId: string };
   await page.goto(`/?video=${videoId}`);
   await expect(page.getByTestId('video-header')).toHaveAttribute('data-status', 'ready', { timeout: 20_000 });
-  await expect(page.getByText('Worker canlı')).toBeVisible({ timeout: 15_000 }); // the event stream is open (heartbeat)
+  await expect(page.getByText('Worker live')).toBeVisible({ timeout: 15_000 }); // the event stream is open (heartbeat)
   await page.waitForTimeout(1_000); // let the first fetches and the fade-ins settle
 
   const cdp = await page.context().newCDPSession(page);

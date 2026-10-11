@@ -5,10 +5,10 @@ test('S5 (kısmi): a chat message streams a Search trace that settles into an an
   await page.goto('/');
   // A fresh event stream starts at the current max id (no replay): a turn sent before it is open streams unseen and its
   // trace first appears settled (REST refetch on open). "Worker canlı" needs a heartbeat over the stream, so it is open.
-  await expect(page.getByText('Worker canlı')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Worker live')).toBeVisible({ timeout: 15_000 });
   const chat = page.getByRole('region', { name: 'Chat' });
-  await chat.getByRole('button', { name: 'Yeni sohbet' }).click();
-  const box = chat.getByRole('textbox', { name: 'Mesaj' });
+  await chat.getByRole('button', { name: 'New chat' }).click();
+  const box = chat.getByRole('textbox', { name: 'Message' });
 
   await box.fill('Tükenmez kalemin içinde ne var?');
   // Two Enters in the same task (one frame): only the send lock stops the second; separate press() calls would
@@ -17,12 +17,12 @@ test('S5 (kısmi): a chat message streams a Search trace that settles into an an
   const search = chat.locator('[data-testid="thinking"][data-variant="search"]').first();
   await expect(search).toHaveAttribute('data-status', 'live', { timeout: 15_000 });
   await expect(search).toHaveAttribute('data-status', 'settled', { timeout: 30_000 });
-  await expect(search.getByText("Web'de arandı, 9 kaynak")).toBeVisible();
+  await expect(search.getByText('Searched the web, 9 sources')).toBeVisible();
   await expect(chat.getByTestId('chat-message').filter({ hasText: /^Based on the search results/ })).toBeVisible({ timeout: 15_000 });
   await box.fill('   ');
   await box.press('Enter'); // whitespace only: nothing is sent
   await expect(chat.locator('[data-testid="chat-message"][data-role="user"]')).toHaveCount(1);
-  await search.getByRole('button', { name: /Web'de arandı/ }).click();
+  await search.getByRole('button', { name: /Searched the web/ }).click();
   await expect(search.getByText('nguyeneng21007.commons.gc.cuny.edu').first()).toBeVisible();
 
   await box.fill('Notları bir dosyaya yaz.');
@@ -30,7 +30,7 @@ test('S5 (kısmi): a chat message streams a Search trace that settles into an an
   // coding.ndjson: reasoning, Write (one coding block), reasoning, Edit (another): the first coding block is the Write.
   const coding = chat.locator('[data-testid="thinking"][data-variant="coding"]').first();
   await expect(coding).toHaveAttribute('data-status', 'settled', { timeout: 30_000 });
-  await coding.getByRole('button', { name: /araç çalıştırdı/ }).click();
+  await coding.getByRole('button', { name: /Ran \d+ tools/ }).click();
   await expect(coding.getByText('notes.txt').first()).toBeVisible();
   await expect(coding.getByText('+3')).toBeVisible();
   await expect(chat.locator('[data-testid="chat-message"][data-role="assistant"]')).toHaveCount(2, { timeout: 15_000 });
@@ -38,7 +38,7 @@ test('S5 (kısmi): a chat message streams a Search trace that settles into an an
 
 test('S5: a message sent while "Yeni sohbet" is still creating the thread lands in that new thread and stays visible', async ({ page, request }) => {
   await page.goto('/');
-  await expect(page.getByText('Worker canlı')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Worker live')).toBeVisible({ timeout: 15_000 });
   const count = async () => ((await (await request.get('/api/chat/threads')).json()) as unknown[]).length;
   const before = await count();
   // Hold the create response so the message goes out while the new thread is still being created.
@@ -47,8 +47,8 @@ test('S5: a message sent while "Yeni sohbet" is still creating the thread lands 
     await r.continue();
   });
   const chat = page.getByRole('region', { name: 'Chat' });
-  await chat.getByRole('button', { name: 'Yeni sohbet' }).click();
-  const box = chat.getByRole('textbox', { name: 'Mesaj' });
+  await chat.getByRole('button', { name: 'New chat' }).click();
+  const box = chat.getByRole('textbox', { name: 'Message' });
   await box.fill('Yeni sohbette ilk soru');
   await box.press('Enter');
   const mine = chat.locator('[data-testid="chat-message"][data-role="user"]');
@@ -62,20 +62,20 @@ test('S5: "Yeni sohbet" starts empty: the old messages leave the screen and the 
   // A video on the left (the Studio otherwise falls back to the newest one).
   await request.post('/api/videos', { data: { productName: 'Sohbet kalemi', audioMode: 'silent' } });
   await page.goto('/');
-  await expect(page.getByText('Worker canlı')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Worker live')).toBeVisible({ timeout: 15_000 });
   const chat = page.getByRole('region', { name: 'Chat' });
-  const studio = page.getByRole('region', { name: 'Üretim' });
+  const studio = page.getByRole('region', { name: 'Production' });
   await expect(studio.getByTestId('video-header')).toBeVisible({ timeout: 15_000 });
-  await chat.getByRole('button', { name: 'Yeni sohbet' }).click();
-  const box = chat.getByRole('textbox', { name: 'Mesaj' });
+  await chat.getByRole('button', { name: 'New chat' }).click();
+  const box = chat.getByRole('textbox', { name: 'Message' });
   await box.fill('Eski sohbetin sorusu');
   await box.press('Enter');
   await expect(chat.locator('[data-testid="chat-message"][data-role="user"]')).toHaveCount(1, { timeout: 10_000 });
-  await chat.getByRole('button', { name: 'Yeni sohbet' }).click();
+  await chat.getByRole('button', { name: 'New chat' }).click();
   await expect(chat.locator('[data-testid="chat-message"]')).toHaveCount(0);
-  await expect(chat.getByText('Platform ya da bir video hakkında soru sorun.')).toBeVisible();
+  await expect(chat.getByText('Ask about the platform or a video.')).toBeVisible();
   await expect(studio.getByTestId('video-header')).toHaveCount(0);
-  await expect(studio.getByText("Üstteki alana bir ürün adı yazıp Üret'e basın.")).toBeVisible();
+  await expect(studio.getByText('Type a product name and choose Create video.')).toBeVisible();
   // The new thread is the selected one and stays selected (no snap back to the previous thread).
   await page.waitForTimeout(500);
   await expect(chat.locator('[data-testid="chat-message"]')).toHaveCount(0);

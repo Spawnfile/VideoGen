@@ -19,11 +19,13 @@ import { Settings } from './routes/Settings.tsx';
 import { NEW_VIDEO_EVENT, Studio } from './routes/Studio.tsx';
 import './styles/theme.css';
 import { registerServiceWorker } from './lib/sw-register.ts';
+import { useAppBadge } from './lib/badge.ts';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, refetchOnWindowFocus: true } } });
 
 function App() {
   const [path, go, search] = useRoute();
+  useAppBadge();
   useEffect(() => {
     // A fresh SSE connect starts at the current max id (no history replay), so REST state is refetched on every open.
     const stop = connectLive('/events', {
