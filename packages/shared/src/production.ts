@@ -94,15 +94,6 @@ export function effectiveDuration(_i: { user: DurationWindow | null; agent: Dura
   return { window: DEFAULT_DURATION, source: 'default' };
 }
 
-/**
- * Y9: the spoken-length bounds of a VO storyboard: [36, 52] s on the default window, as before. The band is at least 3 s wide on a
- * narrow window (a 2 s window would otherwise ask for one exact estimate); the retime pads a short VO up to the window minimum.
- */
-export function voBounds(w: DurationWindow): DurationWindow {
-  const maxS = Math.max(w.maxS - 3, w.minS - 1);
-  return { minS: Math.min(w.minS + 1, maxS - 3), maxS };
-}
-
 export const DURATION_SOURCE_LABELS: Record<DurationSource, string> = { default: 'varsayılan', agent: 'ajan önerisi', user: 'senin kararın' };
 
 /** Y9: the storyboard step's check against the video's own window. */

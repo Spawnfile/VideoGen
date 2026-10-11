@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { outputJsonSchema, validateArtifact, type ArtifactSchemaName, type ModelAlias, type RoleName } from '@videogen/shared';
+import { outputJsonSchema, validateArtifact, type ArtifactSchemaName, type ModelAlias, type ActiveRoleName } from '@videogen/shared';
 import type { FakeScript } from '@videogen/claude';
 import { RESUME_PROMPT, type SessionManager, type StartRequest } from '../agents/manager.ts';
 import type { RunEnd } from '../agents/runner.ts';
@@ -49,7 +49,7 @@ export const fixPrompt = (errors: string[]) =>
 export interface StructuredRequest<T> {
   manager: SessionManager;
   ctx: StepContext;
-  role: RoleName;
+  role: ActiveRoleName;
   prompt: string;
   schema: ArtifactSchemaName;
   /** Cross-artifact rules after the schema. */

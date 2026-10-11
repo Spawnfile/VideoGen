@@ -17,8 +17,7 @@ const load = (name: string) => JSON.parse(readFileSync(resolve(DIR, `${name}.jso
  * In a draft fix round (ctx.round ≥ 1) the builder changes the first camera lens, except for "inatçı …" (the unchanged-fix rule).
  * The final review (ctx.key 'review'; plan F20): triggers `rötuş` (text checks fail in fix round 0), `geometri` (mechanism and parts fail in round 0), `dengesiz`
  * (the retention hook fails in rounds 0 and 2), `vasat` (every score 0.55 in round 0), `sınırda` (visual 0.7, the second review passes), `değişmez` (like `rötuş`
- * in every round, and its fixer changes nothing). In a seslendirmeli run (M5c) `telaffuz` fails the facts reviewer's claims_supported and claims_verified in round 0 (a number is
- * read wrong), and its fixer rewrites beat 2's vo_text ("Düzeltilmiş anlatım <tur>", scope voice). The fixer writes the next spec version into <runDir>/spec/<kind>/ the way write_spec does.
+ * in every round, and its fixer changes nothing). The fixer writes the next spec version into <runDir>/spec/<kind>/ the way write_spec does.
  * "öneri …": the researcher recommends 40–50 s and two brief lines (brief design Y5).
  * `ahenksiz` (agent music design A13): the audio reviewer fails music_mood in fix round 0; its fixer rewrites the score (scope compose).
  * The draft reviewer passes, except: "kusurlu …" fails the first review only, "umutsuz …" and "inatçı …" fail every review.
@@ -35,8 +34,8 @@ export function fakePipelineScript(role: PipelineRole, ctx: StepContext, attempt
   if (role === 'builder') {
     const styleId = extra?.styleId ?? DEFAULT_CHANNEL_STYLE;
     const broken = attempt === 0 && /bozuk sahne/.test(name) ? "# vg-fake-error: product.py satır 7: NameError: name 'gövde' is not defined\n" : '';
-    // YAKLASIM: the 13 s pen; a VO (pre-YAKLASIM) run keeps the 45 s pen of its VO storyboard.
-    const scene = load(ctx.audioMode === 'vo' ? 'scene-kalem-legacy' : 'scene-kalem') as { camera_keys: { lens_mm: number }[] };
+    // YAKLASIM: the 13 s pen.
+    const scene = load('scene-kalem') as { camera_keys: { lens_mm: number }[] };
     // The first (and, in a YAKLASIM loop, the last) camera key change together, so the loop rule holds.
     const fix = ctx.round > 0 && !/[iı]nat[çc][ıi]/.test(name) ? { camera_keys: scene.camera_keys.map((k, i, all) => (i === 0 || (ctx.approach === 'yaklasim' && i === all.length - 1) ? { ...k, lens_mm: k.lens_mm + 5 * ctx.round } : k)) } : {};
     return {
@@ -47,15 +46,13 @@ export function fakePipelineScript(role: PipelineRole, ctx: StepContext, attempt
     };
   }
   if (role === 'fixer') return fakeFixer(ctx, name, extra);
-  if (role === 'audio_director') return { fixture: 'basic', structured: fakeScore(extra?.durationS ?? 45) };
   if (ctx.key === 'review' && role === 'reviewer_audio') return { fixture: 'basic', structured: fakeAudioReview(ctx, name) };
   if (ctx.key === 'review' && (role === 'reviewer_visual' || role === 'reviewer_facts' || role === 'reviewer_retention')) return { fixture: 'basic', structured: fakeFinalReview(role, ctx, name, extra) };
   if (role === 'reviewer_visual') {
     const fail = /umutsuz|[iı]nat[çc][ıi]/.test(name) || (/kusurlu/.test(name) && ctx.round === 0);
     return { fixture: 'basic', structured: load(fail ? 'review-revise' : 'review-pass') };
   }
-  // A VO storyboard comes with realistic Turkish vo_text on every beat (estimateVoS 36–52 s; the kalem beats keep their times).
-  return { fixture: 'basic', structured: load(ctx.audioMode === 'vo' ? 'storyboard-kalem-vo' : 'storyboard-kalem') };
+  return { fixture: 'basic', structured: load('storyboard-kalem') };
 }
 
 type Tweak = { score: number; frame?: number; hint?: string };
@@ -97,10 +94,8 @@ function fakeFinalReview(role: 'reviewer_visual' | 'reviewer_facts' | 'reviewer_
   }
   // The targets come from the kalem fixtures (research-kalem, storyboard-kalem): the fake facts reviewer assumes a kalem run.
   const pass = load('final-review-facts-pass') as unknown as FinalReview;
-  const targets = webCheckTargets(load('research-kalem') as unknown as ProductResearch, load(ctx.audioMode === 'vo' ? 'storyboard-kalem-vo' : 'storyboard-kalem') as unknown as Storyboard, `${ctx.runId}:${r}`);
+  const targets = webCheckTargets(load('research-kalem') as unknown as ProductResearch, load('storyboard-kalem') as unknown as Storyboard, `${ctx.runId}:${r}`);
   const base = { ...pass, web_checks: targets.map((t) => ({ claim_id: t.claim_id, url: t.url, reachable: true, supports: true })) };
-  // The spoken claim is wrong: claims_supported alone only takes D4 to its floor (9 of 15), so the G2 check fails with it (the prompt puts spoken claims under both).
-  if (trig(/telaffuz/) && ctx.audioMode === 'vo' && r === 0) return { ...(load('final-review-facts-vo-fix') as unknown as FinalReview), web_checks: base.web_checks };
   return trig(/vasat/) && r === 0 ? flat(base, 0.55) : base;
 }
 
@@ -118,28 +113,26 @@ function fakeFixer(ctx: StepContext, name: string, extra?: FakeExtra): FakeScrip
   const failed = extra?.failed ?? [];
   const unchanged = /de[ğg]i[şs]mez/.test(name);
   const geometry = /geometri/.test(name);
-  const spoken = /telaffuz/.test(name) && ctx.audioMode === 'vo';
   const files: Record<string, string> = {};
   const audioFix = failed.some((id) => id in FINAL_CHECKS && FINAL_CHECKS[id as FinalCheckId].category === 'audio');
   if (!unchanged && audioFix) {
     // Agent music design A13: a calmer score (90 BPM, no drums) answers the audio reviewer.
-    const m = nextSpec(ctx, 'music', fakeScore(ctx.audioMode === 'vo' ? 45 : 13));
+    const m = nextSpec(ctx, 'music', fakeScore(13));
     files[m.path] = JSON.stringify({ ...m.latest, version: m.latest.version + 1, bpm: 90, sections: m.latest.sections.map((s) => ({ ...s, layers: s.layers.filter((l) => l.instrument !== 'drums') })) }, null, 2);
   } else if (!unchanged && geometry) {
-    const base = load(ctx.audioMode === 'vo' ? 'scene-kalem-legacy' : 'scene-kalem') as { camera_keys: { lens_mm: number }[] };
+    const base = load('scene-kalem') as { camera_keys: { lens_mm: number }[] };
     const s = nextSpec(ctx, 'scene', base);
     files[s.path] = JSON.stringify({ ...s.latest, camera_keys: s.latest.camera_keys.map((k, i, all) => (i === 0 || (ctx.approach === 'yaklasim' && i === all.length - 1) ? { ...k, lens_mm: base.camera_keys[0]!.lens_mm + 5 } : k)) }, null, 2);
   } else if (!unchanged) {
-    const s = nextSpec(ctx, 'storyboard', load(ctx.audioMode === 'vo' ? 'storyboard-kalem-vo' : 'storyboard-kalem') as unknown as Storyboard);
-    // The spoken fix keeps the beat times (the fake voice's lines last their target): the voice round keeps them.
-    files[s.path] = JSON.stringify({ ...s.latest, beats: s.latest.beats.map((b, i) => (i !== 1 ? b : spoken ? { ...b, vo_text: { tr: `Düzeltilmiş anlatım ${round}` } } : { ...b, onscreen_text: { tr: ctx.audioMode === 'vo' ? `Kısa yazı ${round}` : `Short text ${round}` } })) }, null, 2);
+    const s = nextSpec(ctx, 'storyboard', load('storyboard-kalem') as unknown as Storyboard);
+    files[s.path] = JSON.stringify({ ...s.latest, beats: s.latest.beats.map((b, i) => (i !== 1 ? b : { ...b, onscreen_text: { tr: `Short text ${round}` } })) }, null, 2);
   }
   const touched = Object.keys(files);
   const report: FixReport = {
     round,
-    addressed: failed.filter((id) => !id.startsWith('d7_')).map((id) => ({ check_id: id, change_summary_tr: audioFix ? 'Müzik sakinleştirildi (90 BPM, davulsuz)' : geometry ? 'Kamera lensi değiştirildi' : spoken ? 'Seslendirme metni sözle yazıldı' : 'Vuruş yazısı kısaltıldı', files: touched })),
+    addressed: failed.filter((id) => !id.startsWith('d7_')).map((id) => ({ check_id: id, change_summary_tr: audioFix ? 'Müzik sakinleştirildi (90 BPM, davulsuz)' : geometry ? 'Kamera lensi değiştirildi' : 'Vuruş yazısı kısaltıldı', files: touched })),
     not_addressed: failed.filter((id) => id.startsWith('d7_')).map((id) => ({ check_id: id, reason: 'Kodlama ayarı bu turda değiştirilemez' })),
-    rerender_scope: audioFix ? 'compose' : geometry && !unchanged ? 'build' : spoken && !unchanged ? 'voice' : 'compose',
+    rerender_scope: audioFix ? 'compose' : geometry && !unchanged ? 'build' : 'compose',
     spec_diffs: touched.map((f) => `${f} yazıldı`),
   };
   return { fixture: 'coding', files, structured: report };

@@ -22,7 +22,7 @@ describe('service worker routing (the app shell is cached; API, live events and 
   it('caches hashed assets and icons first, and serves pages network-first', () => {
     expect(classify(req('/assets/index-abc.js'), O)).toBe('asset');
     expect(classify(req('/icons/icon-192.png'), O)).toBe('asset');
-    expect(classify(req('/k19/atolye.png'), O)).toBe('asset');
+    expect(classify(req('/k19/atolye.png'), O)).not.toBe('asset'); // spec Z2: the K19 previews are gone
     expect(classify(req('/library/x', { mode: 'navigate' }), O)).toBe('shell');
     expect(classify(req('/', { mode: 'navigate' }), O)).toBe('shell');
     expect(classify(req('/api/blobs/abc', { mode: 'navigate' }), O)).toBe('bypass');

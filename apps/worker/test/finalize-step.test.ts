@@ -66,7 +66,7 @@ describe('finalize step (plan T9)', () => {
     const fin = (await t.pool.query("SELECT content, input_hash FROM artifacts WHERE run_id = $1 AND kind = 'finish'", [p.r.runId])).rows;
     expect(fin).toHaveLength(1);
     expect(fin[0].input_hash).toBe(hash);
-    expect(fin[0].content).toEqual({ bestVersionId: p.r.versionId, round: 0, total: 87.5, verdict: 'ready', stop: null, openFindings: ['d7_bitrate'], aigcLabel: false });
+    expect(fin[0].content).toEqual({ bestVersionId: p.r.versionId, round: 0, total: 87.5, verdict: 'ready', stop: null, openFindings: ['d7_bitrate'] });
     expect(existsSync(frames)).toBe(false);
     // YAKLASIM spec Y17: the storyboard's caption and YouTube title reach the video (the kalem fixture's publish block).
     const v = (await t.pool.query('SELECT caption, youtube_title FROM videos WHERE id = $1', [p.r.videoId])).rows[0];
@@ -80,15 +80,6 @@ describe('finalize step (plan T9)', () => {
     expect(await count(p.r.runId, "artifacts WHERE run_id = $1 AND kind = 'finish'")).toBe(1);
     expect(await count(p.r.runId, "audit_log WHERE run_id = $1 AND action = 'frames.deleted'")).toBe(1);
 
-    // H8: a cloned narrator voice ships with the AI label: the flag is on the finish and the note says so. The track is the one the BEST version's
-    // music final was mixed with, not the newest one (a later round's preset track).
-    const clone = await seed('Klon ses', [{ total: 85, verdict: 'ready', failed: [] }]);
-    const track = (voice: object, stem: string) => insertArtifact(t.pool, { runId: clone.p.r.runId, kind: 'voice_track', inputHash: `vt-${stem}`, meta: { stemSha: stem }, content: { ...fx('voice-track-kalem'), provider: { engine: 'chatterbox', model: 'm', voice, aigc_label: true } } });
-    await insertArtifact(t.pool, { runId: clone.p.r.runId, kind: 'final_video_music', versionId: clone.p.r.versionId, inputHash: 'c-best', meta: { voiceStemSha: 'stem-clone' } });
-    await track({ kind: 'clone', asset_id: '6b0f6f0e-65c0-4d3c-9d5e-3b1d2f4a7c11' }, 'stem-clone');
-    await track({ kind: 'preset', id: 'hazir' }, 'stem-newer');
-    expect(await clone.run()).toEqual({ status: 'done', note: `Yayına hazır · ${formatScore(85)} puan · AI etiketi zorunlu (klon ses)` });
-    expect((await t.pool.query("SELECT content FROM artifacts WHERE run_id = $1 AND kind = 'finish'", [clone.p.r.runId])).rows[0].content).toMatchObject({ aigcLabel: true });
     // a G4 stop: needs_human with its reason; the gate finding is not an open check
     const decl = await seed('Beyan eksik', [{ total: 85, verdict: 'fix', failed: [] }]);
     await appendAudit(t.pool, { actorType: 'orchestrator', action: 'loop.stop', runId: decl.p.r.runId, data: { reason: 'declaration', fixRound: 0, verdict: 'fix', total: 85 } });

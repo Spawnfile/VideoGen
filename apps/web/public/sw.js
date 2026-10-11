@@ -1,6 +1,6 @@
 /* VideoGen service worker: caches the app shell only. The API, the live event stream (/events) and media (Range) always go to the
  * network untouched. Rules mirror apps/web/src/lib/sw-routes.ts (test/sw-routes.test.ts keeps them equal). */
-const RULES = {"bypass":["^/api/","^/events"],"asset":["^/assets/","^/icons/","^/k19/","^/favicon\\.svg$","^/manifest\\.webmanifest$"]};
+const RULES = {"bypass":["^/api/","^/events"],"asset":["^/assets/","^/icons/","^/favicon\\.svg$","^/manifest\\.webmanifest$"]};
 const BUILD = new URL(self.location.href).searchParams.get('v') || 'dev';
 const CACHE = `vg-shell-${BUILD}`;
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon-180.png'];

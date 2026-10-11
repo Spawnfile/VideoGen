@@ -17,7 +17,6 @@ const HEAVY: [RegExp, string][] = [
   [/^blender(-gpu)?$/, 'mcp__videogen__build_scene (or mcp__videogen__render_preview_stills)'],
   [/^remotion$/, 'mcp__videogen__render_draft'],
   [/^(ffmpeg|ffprobe)$/, 'mcp__videogen__extract_frames or mcp__videogen__run_qc'],
-  [/^(chatterbox|faster_whisper|whisper)$/, 'mcp__videogen__tts_synthesize or mcp__videogen__align_captions'],
 ];
 const BASH_BINS = new Set(['ls', 'cat', 'head', 'jq', 'python3']);
 const SECRET_HOME_DIRS = ['.ssh', '.aws', '.gnupg', '.config', '.docker', '.kube', '.claude', 'tiktok-poster'];

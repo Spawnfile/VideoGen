@@ -2,7 +2,7 @@ import type { AudioMode, ProductResearch, Storyboard, FixReport } from './artifa
 import { FINAL_CHECKS, FINAL_MAX_ROUNDS, type FinalCheckId } from './final-review.ts';
 import { QC_CHECKS, type QcCheckId } from './qc.ts';
 import type { SceneSpec } from './scene.ts';
-import type { AudioPlan } from './voice.ts';
+import type { AudioPlan } from './audio-plan.ts';
 import type { MusicScore } from './music.ts';
 
 /** Plan F3/F11/F14/F15: the pure logic of the final fix loop. Types only from artifacts.ts (no value cycle). */
@@ -66,11 +66,11 @@ function storyboardStructure(s: Storyboard): unknown {
 const labels = (scene: SceneSpec) => scene.parts.map((p) => ({ id: p.id, name_tr: p.name_tr }));
 
 /**
- * F11/H12: the step computes the scope, the fixer's own claim is only a claim. voice = a VO video's vo_text or beat timing changed (wins over build: the rewind goes to the earliest step; `changed` lists both);
- * build = product.py or the scene's render fields changed; compose = any other storyboard field, a part label or the audio plan; none = nothing that renders or is reviewed.
- * In a silent video timing/vo changes only recompose. A research change is reported but has no scope (the fixer may not change it).
+ * F11/H12: the step computes the scope, the fixer's own claim is only a claim. build = product.py or the scene's render fields changed;
+ * compose = any other storyboard field, a part label or the audio plan; none = nothing that renders or is reviewed. Spec Z1: there is no voice
+ * scope any more (timing or vo_text changes only recompose). A research change is reported but has no scope (the fixer may not change it).
  */
-export function fixScope(i: { prev: ScopeInput; next: ScopeInput }): { scope: 'none' | 'compose' | 'voice' | 'build'; changed: ScopeChange[] } {
+export function fixScope(i: { prev: ScopeInput; next: ScopeInput }): { scope: 'none' | 'compose' | 'build'; changed: ScopeChange[] } {
   const differs = (f: (x: ScopeInput) => unknown) => canonical(f(i.prev)) !== canonical(f(i.next));
   const changed: ScopeChange[] = [];
   if (i.prev.productSha !== i.next.productSha) changed.push('product.py');
@@ -83,9 +83,7 @@ export function fixScope(i: { prev: ScopeInput; next: ScopeInput }): { scope: 'n
   if (differs((x) => audioPlan(x.audio))) changed.push('audio');
   if (differs((x) => musicScore(x.music ?? null))) changed.push('music');
   if (differs((x) => x.research)) changed.push('research');
-  const voiceChanged = i.next.audioMode === 'vo' && changed.some((c) => c === 'storyboard.vo' || c === 'storyboard.timing');
-  const buildChanged = rendersChanged(changed);
-  const scope = voiceChanged ? 'voice' : buildChanged ? 'build' : changed.some((c) => c !== 'research') ? 'compose' : 'none';
+  const scope = rendersChanged(changed) ? 'build' : changed.some((c) => c !== 'research') ? 'compose' : 'none';
   return { scope, changed };
 }
 

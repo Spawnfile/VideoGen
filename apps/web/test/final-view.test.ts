@@ -6,8 +6,8 @@ const a = (kind: string, runId: string, i: number): ArtifactMeta => ({ id: `${ki
 
 describe('final player and QC card helpers', () => {
   it('picks the run\'s newest final variants, cover and QC report', () => {
-    const list = [a('final_video_music', 'r1', 2), a('final_video_tiktok', 'r1', 2), a('final_cover', 'r1', 2), a('qc_report', 'r1', 1), a('final_video_music', 'r0', 1)];
-    expect(pickFinal(list, 'r1')).toEqual({ musicSha: 'final_video_music-sha-2', tiktokSha: 'final_video_tiktok-sha-2', coverSha: 'final_cover-sha-2', qcId: 'qc_report-r1-1' });
+    const list = [a('final_video_music', 'r1', 2), a('final_cover', 'r1', 2), a('qc_report', 'r1', 1), a('final_video_music', 'r0', 1)];
+    expect(pickFinal(list, 'r1')).toEqual({ musicSha: 'final_video_music-sha-2', coverSha: 'final_cover-sha-2', qcId: 'qc_report-r1-1' });
     expect(pickFinal([], 'r1').musicSha).toBeNull();
   });
 
@@ -22,7 +22,7 @@ describe('final player and QC card helpers', () => {
       video: { codec: 'h264', profile: 'High', width: 1080, height: 1920, fps: '30/1', pixFmt: 'yuv420p', colorRange: 'tv', colorSpace: 'bt709', colorPrimaries: 'bt709', colorTransfer: 'bt709', frames: 391, durationS: 13.03, bitrateKbps: 1200, maxGopFrames: 60, faststart: true },
       audio: { codec: 'aac', sampleRate: 48000 }, bytes: 8e6, loudness: { i: -14.1, tp: -1.5, lra: 5 }, firstAudioS: 0, silences: [{ start: 12, end: 13.3 }], blacks: [], freezes: [], flashMaxPerS: 0, flashAt: null, loopSsim: 0.95, edgeBands: { maxDensity: 0, at: null },
     };
-    const rep = buildQcReport(evaluateQc(m, { variant: 'music', layoutIssues: [], coverOk: true }), evaluateQc(m, { variant: 'tiktok' }));
+    const rep = buildQcReport(evaluateQc(m, { variant: 'music', layoutIssues: [], coverOk: true }));
     expect(qcLines(rep)).toEqual({
       gates: 'Delivery ✓ · Safety ✓ · Safe area ✓',
       scores: 'Sound (measured) 6/8 · Technical polish 4/5', // final@2: qc holds 8 of D6's 12

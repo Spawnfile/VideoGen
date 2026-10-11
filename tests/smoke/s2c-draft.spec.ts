@@ -20,7 +20,7 @@ test('S2: product → draft → review; the draft MP4 streams with Range and pla
   expect(ranged.status()).toBe(206);
   expect(ranged.headers()['content-type']).toBe('video/mp4');
   expect(Buffer.from(await ranged.body()).subarray(4, 8).toString()).toBe('ftyp');
-  expect((await sessionsOf(request, runId)).map((s) => s.role).sort()).toEqual(['audio_director', 'builder', 'researcher', 'reviewer_visual', 'storyboarder']);
+  expect((await sessionsOf(request, runId)).map((s) => s.role).sort()).toEqual(['builder', 'researcher', 'reviewer_visual', 'storyboarder']);
 
   // Spec §16.2 S2 (M4: the draft instead of the final): from the library to a playing video.
   await page.getByRole('link', { name: 'Library' }).click();

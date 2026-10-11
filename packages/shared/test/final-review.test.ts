@@ -13,7 +13,7 @@ const reviews = () => ({ reviewer_visual: fx('visual-pass'), reviewer_facts: fx(
 const qcReport = (failing: string[] = ['d7_bitrate']) => {
   const run = (variant: 'music' | 'tiktok'): QcCheckResult[] => (Object.keys(QC_CHECKS) as (keyof typeof QC_CHECKS)[])
     .filter((id) => QC_CHECKS[id].variants.includes(variant)).map((id) => ({ id, pass: !failing.includes(id), value: 'x', limit: 'y' }));
-  return buildQcReport(run('music'), run('tiktok'));
+  return buildQcReport(run('music'));
 };
 const withChecks = (r: FinalReview, set: Record<string, { score: number; pass?: boolean }>): FinalReview => ({
   ...r,

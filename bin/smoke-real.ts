@@ -14,7 +14,6 @@ Adımlar (sırayla; her biri pass | fail | skip, süre ve kanıtla):
   2  Kullanım okuması (SdkUsageSource): yüzdeler 0..100, 5 sa sıfırlanma zamanı
   3  Blender önizleme: örnek kalem, 2 kare 270×480, renderer NVIDIA
   4  Remotion still: kalibrasyon kartının ilk karesi, 1080×1920
-  5  TTS + Whisper: tek cümle, CER ≤ %5
   6  qc kalem pilotu üzerinde: çıkış 3 ve beklenen 7 ✗ (VG_PILOT_VIDEO, varsayılan ${DEFAULT_PILOT_VIDEO})
 
 Ön koşullar: ortamda ücretli API anahtarı yok (ANTHROPIC_API_KEY …); 5 sa kullanımı < %80.

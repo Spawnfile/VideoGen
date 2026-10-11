@@ -22,7 +22,7 @@ test('S2b: storyboard → build: the builder card, the build card with its previ
   const ranged = await request.get(src, { headers: { range: 'bytes=0-7' } });
   expect(ranged.status()).toBe(206);
   expect([...(await ranged.body())]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]); // PNG signature
-  expect((await sessionsOf(request, runId)).map((s) => s.role).sort()).toEqual(['audio_director', 'builder', 'researcher', 'reviewer_visual', 'storyboarder']);
+  expect((await sessionsOf(request, runId)).map((s) => s.role).sort()).toEqual(['builder', 'researcher', 'reviewer_visual', 'storyboarder']);
   await expect(page.getByTestId('agent-card').filter({ hasText: 'Video builder' }).first()).toBeVisible();
 });
 

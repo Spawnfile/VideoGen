@@ -25,7 +25,7 @@ function runDir(product = join(PYTHON_DIR, 'examples/kalem/product.py')) {
 }
 const input = (run: string) => ({
   runDir: run, specPath: join(run, 'scene/spec.json'), storyboardPath: join(run, 'scene/storyboard.json'), productPath: join(run, 'scene/product.py'),
-  outDir: join(run, 'scene/build'), style: CHANNEL_STYLES.gece_mavisi, owner: 'test',
+  outDir: join(run, 'scene/build'), style: CHANNEL_STYLES.yaklasim, owner: 'test',
 });
 /** pids whose command line mentions `needle` (not `pgrep -f`: it would match the shell that runs it). */
 function processesMentioning(needle: string): number[] {
@@ -45,10 +45,10 @@ describe('BlenderRenderDriver (real bubblewrap + Blender)', () => {
     const b = await driver().build(input(run));
     expect(b.report.ok, b.report.errors.join('; ')).toBe(true);
     const json = (p: string) => JSON.parse(readFileSync(p, 'utf8'));
-    const eq = checkEquivalence(await parseGlb(readFileSync(b.files!.glb)), json(b.files!.anchors), json(b.files!.cameraTrack), EQUIVALENCE_FRAMES(1350));
+    const eq = checkEquivalence(await parseGlb(readFileSync(b.files!.glb)), json(b.files!.anchors), json(b.files!.cameraTrack), EQUIVALENCE_FRAMES(390));
     expect(eq.pass, JSON.stringify(eq.rows.filter((r) => r.px > 8))).toBe(true);
     const progress: number[] = [];
-    const s = await driver().stills({ runDir: run, blendPath: b.files!.blend, frames: [0, 675], outDir: join(run, 'scene/stills'), scale: 25, samples: 4, owner: 'test', onProgress: (d) => progress.push(d) });
+    const s = await driver().stills({ runDir: run, blendPath: b.files!.blend, frames: [0, 195], outDir: join(run, 'scene/stills'), scale: 25, samples: 4, owner: 'test', onProgress: (d) => progress.push(d) });
     expect(s.renderer).toContain('NVIDIA');
     expect(progress).toEqual([1, 2]);
     expect(s.files.every((f) => existsSync(f))).toBe(true);

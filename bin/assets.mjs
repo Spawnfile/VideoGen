@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Asset ledger (spec §9, plan E13): `node bin/assets.mjs add --kind music --file … --title … --license CC0-1.0 --author … --license-text …` · `node bin/assets.mjs list`
-// · `node bin/assets.mjs revoke <id> --reason "…"` (plan M7 Y8: not undone; the narrator's own reference resets to the stock voice)
+// · `node bin/assets.mjs revoke <id> --reason "…"` (plan M7 Y8: not undone)
 import { resolve } from 'node:path';
 import { register } from 'tsx/esm/api';
 
@@ -23,7 +23,7 @@ try {
     const r = isUuid(rest[0]) ? await revokeAssetAudited(pool, rest[0], rest[2].trim()) : { kind: 'missing' };
     if (r.kind === 'missing') { console.error(`varlık bulunamadı: ${rest[0]}`); process.exitCode = 3; }
     else if (r.kind === 'already') { console.error(`zaten geri alınmış: ${r.asset.title} (${r.asset.id})`); process.exitCode = 3; }
-    else console.log(`izin geri alındı: ${r.asset.title} (${r.asset.id})${r.narratorReset ? ' · anlatıcı sesi hazır sese döndü' : ''}`);
+    else console.log(`izin geri alındı: ${r.asset.title} (${r.asset.id})`);
   } else {
     console.error('kullanım: node bin/assets.mjs add --kind music|sfx|voice_ref --file F --title T --license SPDX --author A --license-text L [--source URL] [--attribution M] [--tags a,b] | list | revoke <id> --reason "…"\n  voice_ref: kendi sesinizin kaydı, --license LicenseRef-Own-Voice (yalnızca bu tür için izinli)');
     process.exitCode = 2;

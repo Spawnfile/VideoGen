@@ -21,7 +21,7 @@ import { FakeMusicDriver } from '../src/audio/music.ts';
 /**
  * Production path of the draft (no Blender, no Claude): the committed Blender build of the pen (fake build driver) goes through the
  * real draft_render step — the Remotion child process in system Chrome, the §7.5 probe, the artifacts — and then the draft_review step
- * makes its contact sheet from that real 45 s draft. Optional: VG_DRAFT_SHEET=<path> keeps a copy of the sheet for a visual check.
+ * makes its contact sheet from that real 13 s draft. Optional: VG_DRAFT_SHEET=<path> keeps a copy of the sheet for a visual check.
  */
 const FFMPEG = process.env.VG_FFMPEG ?? 'ffmpeg';
 const fx = (name: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${name}.json`), 'utf8'));
@@ -32,7 +32,7 @@ beforeAll(async () => { t = await createTestDb(); });
 afterAll(async () => { for (const c of cleanups) await c(); await t.drop(); rmSync(dataDir, { recursive: true, force: true }); });
 
 describe('draft_render + draft_review steps on the real Remotion driver', () => {
-  it('renders the full pen draft (1351 frames, h264 yuv420p tv bt709), records it, and reviews it from a 4×3 contact sheet', async () => {
+  it('renders the full pen draft (391 frames, h264 yuv420p tv bt709), records it, and reviews it from a 4×3 contact sheet', async () => {
     const fake = new FakeRenderDriver({ ffmpeg: FFMPEG, delayMs: 1 });
     const real = new BlenderRenderDriver({ blender: '/nonexistent', bwrap: '/nonexistent', dataDir, home: dataDir });
     const render: RenderDriver = { kind: 'real', capabilities: () => fake.capabilities(), build: (i) => fake.build(i), stills: (i) => fake.stills(i), draft: (i) => real.draft(i) , final: (i) => fake.final(i), compose: (i) => fake.compose(i) };
@@ -67,16 +67,16 @@ describe('draft_render + draft_review steps on the real Remotion driver', () => 
     expect(progress).toEqual([...progress].sort((a, b) => a - b));
 
     const video = (await t.pool.query("SELECT blob_sha, width, height, codec, duration_ms, meta FROM artifacts WHERE run_id = $1 AND kind = 'draft_video'", [r.runId])).rows[0];
-    expect(video).toMatchObject({ width: 540, height: 960, codec: 'h264', meta: expect.objectContaining({ round: 0, frames: 1351 }) });
-    expect(Math.round(video.duration_ms / 1000)).toBe(45);
+    expect(video).toMatchObject({ width: 540, height: 960, codec: 'h264', meta: expect.objectContaining({ round: 0, frames: 391 }) });
+    expect(Math.round(video.duration_ms / 1000)).toBe(13);
     const file = join(dataDir, (await getBlob(t.pool, video.blob_sha))!.path);
-    expect(draftProbeErrors(await probeVideo(FFMPEG, file), { width: 540, height: 960, frames: 1351 })).toEqual([]);
+    expect(draftProbeErrors(await probeVideo(FFMPEG, file), { width: 540, height: 960, frames: 391 })).toEqual([]);
 
     const review = draftReviewExecutor(deps);
     expect(await review.run(ctx('draft_review'), await review.inputHash(ctx('draft_review')))).toMatchObject({ status: 'done' });
     const sheet = (await listArtifacts(t.pool, r.videoId)).find((a) => a.kind === 'review_sheet')!;
     const sheetPath = join(dataDir, (await getBlob(t.pool, sheet.blobSha!))!.path);
     if (process.env.VG_DRAFT_SHEET) copyFileSync(sheetPath, process.env.VG_DRAFT_SHEET);
-    console.log(`draft step: 1351 kare, meta ${JSON.stringify(video.meta)}`);
+    console.log(`draft step: 391 kare, meta ${JSON.stringify(video.meta)}`);
   }, 900_000);
 });

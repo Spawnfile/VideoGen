@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  buildQcReport, canonical, captionPages, CHANNEL_STYLES, evaluateQc, formatClock, QC_CHECKS, qcFailures, QcReportSchema, RUBRIC_VERSION, SceneEventsSchema, sceneRender, validateArtifact, VoiceTrackSchema, type AudioMode, type AudioPlan, type QcReport, type SafeArea, type SceneEvents, type Storyboard,
+  buildQcReport, canonical, CHANNEL_STYLES, evaluateQc, formatClock, QC_CHECKS, qcFailures, QcReportSchema, RUBRIC_VERSION, SceneEventsSchema, sceneRender, validateArtifact, type AudioMode, type AudioPlan, type QcReport, type SafeArea, type SceneEvents, type Storyboard,
 } from '@videogen/shared';
 import { appendAudit, findArtifact, getBlob, getSafeArea, insertArtifact, latestArtifact, listAssets } from '@videogen/db';
 import { parseGlb } from '@videogen/scene3d';
@@ -15,9 +15,8 @@ import { RenderError } from '../render/driver.ts';
 import { draftProbeErrors, encodeDelivery, extractFrame, FINAL_ENCODE, probeVideo } from '../render/ffmpeg.ts';
 import { missingFrames, removeStaleFrames } from '../render/frames.ts';
 import { probeQc } from '../render/qc.ts';
-import { DUCK, duckingEnvelope, effectiveAudioPlan, LicenseError, planSfx, planSfxYaklasim, soundPlan, withImportedSfx, type GeneratedMusic, type SoundPlan } from './sound.ts';
+import { effectiveAudioPlan, LicenseError, planSfxYaklasim, soundPlan, type GeneratedMusic, type SoundPlan } from './sound.ts';
 import { persist, record, sha, type StepDeps } from './steps.ts';
-import { voKey } from './voice-step.ts';
 import type { StepExecutor, StepOutcome } from './types.ts';
 
 /** Fixed final render parameters (spec §7.5; part of the §8.3 input hash). The .blend carries the EEVEE settings (stage.configure). */
@@ -104,11 +103,9 @@ export interface ComposeSource {
   /** H4: the plan compose mixes by; `persist` = no `audio` artifact yet (the run writes the default once). */
   plan: AudioPlan;
   persist: boolean;
-  /** H9: the voice stem and its lines (VO mode only); `stemSha` is the blob's sha. */
-  vo: { file: string; stemSha: string; durationMs: number; lines: { start_ms: number; end_ms: number }[] } | null;
   files: Map<string, string>;
-  /** Agent music design A4: the composer's music_stem when the plan plays it. */
-  generated: GeneratedMusic | null;
+  /** The music step's music_stem (the fixed YAKLASIM bed). */
+  generated: GeneratedMusic;
 }
 
 /** Python's `round` (banker's: .5 goes to the even integer), which is what Blender's events_manifest used for the frames. */
@@ -128,15 +125,18 @@ export function currentEvents(stored: SceneEvents['events'], beats: Storyboard['
   return [...stored.filter((e) => e.type !== 'label_in'), ...labels].sort((a, b) => a.frame - b.frame || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
+/** The mix recipe: a change re-composes (loop@1: the music runs to the last frame with a 40 ms tail, no 2 s outro). */
+const MIX = 'loop@1';
+
 /**
- * Plan E16: compose's input hash — frames, GLB, overlay props, template, master/encode settings, sound plan, the VO stem and plan, and
- * (M7 Y15) the safe area the text is laid out in, so a final composed under another area is not reused.
+ * Plan E16: compose's input hash — frames, GLB, overlay props, template, master/encode settings, sound plan and (M7 Y15) the safe area the
+ * text is laid out in, so a final composed under another area is not reused.
  */
-export function composeInputHash(o: { framesHash: string; glbSha: string; props: unknown; preset: string; sound: unknown; vo: { stemSha: string; plan: unknown } | null; safeArea: SafeArea }): string {
+export function composeInputHash(o: { framesHash: string; glbSha: string; props: unknown; preset: string; sound: unknown; safeArea: SafeArea }): string {
   const { top, bottom, right, left } = o.safeArea;
   return sha({
-    step: 'compose', frames: o.framesHash, glb: o.glbSha, props: sha(o.props), bundle: bundleHash(), master: FINAL_MASTER, encode: FINAL_ENCODE, preset: o.preset, sound: sha(o.sound),
-    ...(o.vo ? { vo: o.vo.stemSha, plan: sha(canonical(o.vo.plan)), duck: DUCK } : {}), safeArea: [top, bottom, right, left],
+    step: 'compose', frames: o.framesHash, glb: o.glbSha, props: sha(o.props), bundle: bundleHash(), master: FINAL_MASTER, encode: FINAL_ENCODE, preset: o.preset, sound: sha(o.sound), mix: MIX,
+    safeArea: [top, bottom, right, left],
   });
 }
 
@@ -152,28 +152,12 @@ export async function composeSource(deps: StepDeps, runId: string, videoId: stri
   const glbBlob = glb?.blobSha ? await getBlob(deps.pool, glb.blobSha) : null;
   const meta = frames?.meta as FinalFramesMeta | undefined;
   if (!frames?.inputHash || !meta || !current || !s?.ok || !b?.ok || !ev?.success || !yfov || !glbBlob) return null;
-  // H9: in VO mode the newest voice track and its stem; the track must belong to the newest storyboard's words and times (§8.3).
-  let vo: ComposeSource['vo'] = null;
-  let captions: ReturnType<typeof captionPages> | undefined;
-  if (audioMode === 'vo') {
-    const voice = await latestArtifact(deps.pool, runId, 'voice_track');
-    const vt = voice ? VoiceTrackSchema.safeParse(voice.content) : null;
-    const m = voice?.meta as { voKey?: string; stemSha?: string } | null;
-    if (!voice || !vt?.success || !m?.stemSha) return { error: 'seslendirme yok (voice adımı çalışmadı)' };
-    if (m.voKey !== voKey(b.value)) return { error: 'seslendirme güncel storyboard ile uyuşmuyor (bayat artefakt, §8.3)' };
-    const stem = await getBlob(deps.pool, m.stemSha);
-    const stemFile = stem ? join(deps.dataDir, stem.path) : null;
-    if (!stemFile || !existsSync(stemFile)) return { error: 'seslendirme dosyası yok' };
-    vo = { file: stemFile, stemSha: m.stemSha, durationMs: vt.data.duration_ms, lines: vt.data.lines.map((l) => ({ start_ms: l.start_ms, end_ms: l.end_ms })) };
-    captions = captionPages(vt.data.words);
-  }
   // M7 Y15: the safe area of the settings at compose time; the props carry it to Remotion and layoutManifest writes it into layout.json.
   const { area: safeArea } = await getSafeArea(deps.pool);
-  const { glbUrl: _g, framesUrl: _f, ...props } = finalProps({ glbUrl: '', framesUrl: '', yfov, scene: s.value, storyboard: b.value, style: CHANNEL_STYLES[s.value.style_id], captions, safeArea });
+  const { glbUrl: _g, framesUrl: _f, ...props } = finalProps({ glbUrl: '', framesUrl: '', yfov, scene: s.value, storyboard: b.value, style: CHANNEL_STYLES[s.value.style_id], safeArea });
   const durationS = (props.frames + 1) / 30;
-  const library = withImportedSfx(await ensureSfxLibrary(deps.pool, deps.dataDir, ffmpeg), await listAssets(deps.pool, { kind: 'sfx', allowedOnly: true }));
-  const tracks = await listAssets(deps.pool, { kind: 'music', allowedOnly: true });
-  // Agent music design A4: the newest rendered score of this run (the music step's output).
+  const library = await ensureSfxLibrary(deps.pool, deps.dataDir, ffmpeg);
+  // YAKLASIM spec Y14, Z5: the music is the newest stem of this run's music step (never a ledger track).
   const stemArt = await latestArtifact(deps.pool, runId, 'music_stem');
   const stemBlob = stemArt?.blobSha ? await getBlob(deps.pool, stemArt.blobSha) : null;
   const generated: GeneratedMusic | null = stemBlob && existsSync(join(deps.dataDir, stemBlob.path)) ? { sha: stemBlob.sha256, file: join(deps.dataDir, stemBlob.path) } : null;
@@ -183,23 +167,23 @@ export async function composeSource(deps: StepDeps, runId: string, videoId: stri
   let sound: SoundPlan;
   let eff: ReturnType<typeof effectiveAudioPlan>;
   try {
-    eff = effectiveAudioPlan({ stored: storedPlan?.ok ? storedPlan.value : null, mode: audioMode, music: tracks, seed: videoId, generated });
+    eff = effectiveAudioPlan({ stored: storedPlan?.ok ? storedPlan.value : null, mode: audioMode, generated });
     const events = currentEvents(ev.data.events, b.value.beats, 30);
-    // YAKLASIM spec Y15: the approach's quiet-then-snap sound plan for a yaklasim scene; older videos keep theirs.
-    const cues = s.value.style_id === 'yaklasim' ? planSfxYaklasim({ events, beats: b.value.beats, fps: 30, durationS }) : planSfx({ events, beats: b.value.beats, fps: 30, durationS });
-    sound = soundPlan(cues, library, eff.music, eff.plan, eff.generated);
+    // YAKLASIM spec Y15, Z5: the approach's quiet-then-snap sounds for every video.
+    const cues = planSfxYaklasim({ events, beats: b.value.beats, fps: 30, durationS });
+    sound = soundPlan(cues, library, eff.generated, eff.plan);
   } catch (e) {
     if (e instanceof LicenseError) return { error: `lisans kapısı: ${e.message}` };
     throw e;
   }
-  const { plan, music } = eff;
+  const { plan } = eff;
   const files = new Map<string, string>();
-  for (const a of [...Object.values(library), ...(music ? [music] : [])]) files.set(a.id, join(deps.dataDir, (await getBlob(deps.pool, a.blobSha))!.path));
-  const hash = composeInputHash({ framesHash: frames.inputHash, glbSha: glbBlob.sha256, props, preset: deps.scene?.encodePreset ?? 'slow', sound, vo: vo ? { stemSha: vo.stemSha, plan } : null, safeArea });
-  return { hash, framesHash: frames.inputHash, currentFramesHash: current.hash, framesDir: meta.dir, glbPath: join(deps.dataDir, glbBlob.path), props, durationS, sound, plan, persist: eff.persist, vo, files, generated: eff.generated };
+  for (const a of Object.values(library)) files.set(a.id, join(deps.dataDir, (await getBlob(deps.pool, a.blobSha))!.path));
+  const hash = composeInputHash({ framesHash: frames.inputHash, glbSha: glbBlob.sha256, props, preset: deps.scene?.encodePreset ?? 'slow', sound, safeArea });
+  return { hash, framesHash: frames.inputHash, currentFramesHash: current.hash, framesDir: meta.dir, glbPath: join(deps.dataDir, glbBlob.path), props, durationS, sound, plan, persist: eff.persist, files, generated: eff.generated };
 }
 
-/** Spec §7.1 step 8: Final3D over the frames → delivery encode → SFX + music + mastering → the two variants (plan E7–E12). heavy_cpu. */
+/** Spec §7.1 step 8: Final3D over the frames → delivery encode → SFX + music + mastering → the final video (spec Z4: one variant). heavy_cpu. */
 export function composeExecutor(deps: StepDeps): StepExecutor {
   return {
     key: 'compose',
@@ -210,7 +194,7 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
       return src && 'hash' in src ? src.hash : sha({ step: 'compose', missing: true, error: src && 'error' in src ? src.error : null });
     },
     async reuse(ctx, hash) {
-      const a = await findArtifact(deps.pool, { runId: ctx.runId, kind: 'final_video_tiktok', inputHash: hash });
+      const a = await findArtifact(deps.pool, { runId: ctx.runId, kind: 'final_video_music', inputHash: hash });
       const blob = a?.blobSha ? await getBlob(deps.pool, a.blobSha) : null;
       return !!blob && existsSync(join(deps.dataDir, blob.path));
     },
@@ -226,7 +210,7 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
       const framesDir = join(ctx.runDir, src.framesDir);
       const missing = missingFrames(framesDir, src.props.frames);
       if (missing.length) return { status: 'failed', error: `eksik final kare: ${missing.length} (ilk: f${String(missing[0]).padStart(5, '0')})`, retry: false };
-      // H3: the default plan is written before anything is rendered or recorded, so a crash later can never leave variants without it.
+      // H3: the default plan is written before anything is rendered or recorded, so a crash later can never leave a final without it.
       if (src.persist) await persist(deps, ctx, 'audio', src.plan, hash);
       const dir = join(ctx.runDir, 'final', 'compose', hash.slice(0, 16));
       await mkdir(dir, { recursive: true });
@@ -252,28 +236,23 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
         ctx.progress(85, 'render');
         ctx.status('running', 'ses: efektler, müzik, mastering');
         const cues = src.sound.cues.map((c) => ({ atMs: c.atMs, gainDb: c.gainDb, file: src.files.get(c.assetId)! }));
-        // A ledger track fades in over 1 s; the composer's music opens on the hook accent and carries its own short fade (A4).
+        // The fixed music opens at full energy on frame 0 with a short fade (YAKLASIM: no intro).
         const sm = src.sound.music;
-        const music = sm ? { file: sm.assetId ? src.files.get(sm.assetId)! : src.generated!.file, gainDb: sm.gainDb, fadeInS: sm.assetId ? 1 : 0.02 } : null;
-        const vo = src.vo ? { file: src.vo.file, gainDb: src.plan.vo_gain_db } : null;
-        // H9: the envelope rides on the music chain only; the TikTok variant is VO + SFX without music.
-        const duck = src.vo && music ? duckingEnvelope(src.vo.lines, { duckDb: src.plan.duck_db, ...DUCK }) : null;
-        const out: Record<'music' | 'tiktok', string> = { music: join(dir, 'final_music.mp4'), tiktok: join(dir, 'final_tiktok.mp4') };
-        for (const v of ['music', 'tiktok'] as const) {
-          await mixTrack(scene.ffmpeg, { cues, music: v === 'music' ? music : null, vo, duck: v === 'music' ? duck : null, durationS: src.durationS, out: join(dir, `mix-${v}.wav`), signal: ctx.signal });
-          await masterVariant(scene.ffmpeg, join(dir, `mix-${v}.wav`), video, out[v], ctx.signal);
-        }
-        // Agent music design A5: the stems the user gets, at their levels in the mix (music with its ducking); mastering acts on the sum only.
+        // YAKLASIM loops: full energy to the last frame (no outro), only a 40 ms click-free tail at the seam.
+        const music = { file: src.generated.file, gainDb: sm.gainDb, fadeInS: 0.02, fadeOutS: 0.04 };
+        const out = { music: join(dir, 'final_music.mp4') };
+        await mixTrack(scene.ffmpeg, { cues, music, durationS: src.durationS, out: join(dir, 'mix-music.wav'), signal: ctx.signal });
+        await masterVariant(scene.ffmpeg, join(dir, 'mix-music.wav'), video, out.music, ctx.signal);
+        // Agent music design A5: the stems the user gets, at their levels in the mix; mastering acts on the sum only.
         const stems: { kind: string; file: string }[] = [];
         if (music) {
-          await mixTrack(scene.ffmpeg, { cues: [], music, vo: null, duck, durationS: src.durationS, out: join(dir, 'stem-music.wav'), signal: ctx.signal });
+          await mixTrack(scene.ffmpeg, { cues: [], music, durationS: src.durationS, out: join(dir, 'stem-music.wav'), signal: ctx.signal });
           await toFlac(scene.ffmpeg, join(dir, 'stem-music.wav'), join(dir, 'stem-music.flac'), ctx.signal);
           stems.push({ kind: 'stem_music', file: join(dir, 'stem-music.flac') });
         }
-        await mixTrack(scene.ffmpeg, { cues, music: null, vo: null, duck: null, durationS: src.durationS, out: join(dir, 'stem-sfx.wav'), signal: ctx.signal });
+        await mixTrack(scene.ffmpeg, { cues, music: null, durationS: src.durationS, out: join(dir, 'stem-sfx.wav'), signal: ctx.signal });
         await toFlac(scene.ffmpeg, join(dir, 'stem-sfx.wav'), join(dir, 'stem-sfx.flac'), ctx.signal);
         stems.push({ kind: 'stem_sfx', file: join(dir, 'stem-sfx.flac') });
-        if (src.vo) stems.push({ kind: 'stem_voice', file: src.vo.file });
         ctx.status('running', null);
         ctx.progress(95, 'render');
         const cover = join(dir, 'cover.png');
@@ -283,13 +262,11 @@ export function composeExecutor(deps: StepDeps): StepExecutor {
         const media = { durationMs: Math.round(probe.durationS * 1000), width: probe.width, height: probe.height, codec: probe.codec };
         await record(deps, ctx, { kind: 'layout', file: layoutFile, content: layout, inputHash: hash });
         await record(deps, ctx, { kind: 'audio_plan', file: planFile, content: src.sound, inputHash: hash });
-        await record(deps, ctx, { kind: 'final_video_music', file: out.music, inputHash: hash, media, meta: { music: src.sound.music?.title ?? null, framesHash: src.framesHash, ...(src.vo ? { voiceStemSha: src.vo.stemSha } : {}) } });
-        await record(deps, ctx, { kind: 'final_video_tiktok', file: out.tiktok, inputHash: hash, media, meta: { music: null, framesHash: src.framesHash } });
+        await record(deps, ctx, { kind: 'final_video_music', file: out.music, inputHash: hash, media, meta: { music: src.sound.music.title, framesHash: src.framesHash } });
         await record(deps, ctx, { kind: 'final_cover', file: cover, inputHash: hash });
-        for (const st of stems) await record(deps, ctx, { kind: st.kind, file: st.file, inputHash: hash, meta: { ...(st.kind === 'stem_music' ? { title: sm?.title ?? null, gainDb: sm?.gainDb ?? null, ducked: !!duck } : {}) } });
+        for (const st of stems) await record(deps, ctx, { kind: st.kind, file: st.file, inputHash: hash, meta: { ...(st.kind === 'stem_music' ? { title: sm.title, gainDb: sm.gainDb } : {}) } });
         await removeIntermediates(dir);
-        const voNote = src.vo ? ` · VO ${formatClock(src.vo.durationMs / 1000)}${duck ? ` · ducking ${src.plan.duck_db} dB` : ''}` : '';
-        return { status: 'done', note: `1080×1920 · ${formatClock(probe.durationS)} · ${src.sound.cues.length} efekt · müzik: ${src.sound.music?.title ?? 'yok'}${voNote}` };
+        return { status: 'done', note: `1080×1920 · ${formatClock(probe.durationS)} · ${src.sound.cues.length} efekt · müzik: ${src.sound.music.title}` };
       } catch (e) {
         if (e instanceof RenderError && e.kind !== 'aborted') return { status: 'failed', error: e.message, retry: false };
         throw e;
@@ -320,18 +297,18 @@ export function qcExecutor(deps: StepDeps): StepExecutor {
     key: 'qc',
     resource: 'heavy_cpu',
     async inputHash(ctx) {
-      const [m, t] = await Promise.all(['final_video_music', 'final_video_tiktok'].map((k) => latestArtifact(deps.pool, ctx.runId, k)));
-      return sha({ step: 'qc', music: m?.blobSha ?? null, tiktok: t?.blobSha ?? null, rubric: RUBRIC_VERSION });
+      const m = await latestArtifact(deps.pool, ctx.runId, 'final_video_music');
+      return sha({ step: 'qc', music: m?.blobSha ?? null, rubric: RUBRIC_VERSION });
     },
     async run(ctx, hash) {
       const scene = deps.scene;
       if (!scene) return { status: 'failed', error: 'render yapılandırılmadı', retry: false };
       const music = await latestArtifact(deps.pool, ctx.runId, 'final_video_music');
-      // The variant, cover and layout of the same compose (same input hash), not merely the latest rows.
-      const [tiktok, cover, layout] = music?.inputHash
-        ? await Promise.all(['final_video_tiktok', 'final_cover', 'layout'].map((kind) => findArtifact(deps.pool, { runId: ctx.runId, kind, inputHash: music.inputHash! })))
-        : [null, null, null];
-      if (!music?.blobSha || !tiktok?.blobSha) return { status: 'failed', error: 'denetlenecek final video yok', retry: false };
+      // The cover and layout of the same compose (same input hash), not merely the latest rows.
+      const [cover, layout] = music?.inputHash
+        ? await Promise.all(['final_cover', 'layout'].map((kind) => findArtifact(deps.pool, { runId: ctx.runId, kind, inputHash: music.inputHash! })))
+        : [null, null];
+      if (!music?.blobSha) return { status: 'failed', error: 'denetlenecek final video yok', retry: false };
       // §8.3: the frames this final was composed from must still be the current scene's (the compose hash itself also moves with the
       // asset ledger, which is not staleness).
       const current = await finalSource(deps, ctx.runId);
@@ -345,15 +322,14 @@ export function qcExecutor(deps: StepDeps): StepExecutor {
       ctx.status('running', 'ölçülüyor: görüntü ve ses');
       const m = await probeQc(scene.ffmpeg, await file(music.blobSha), { edges: !layout, signal: ctx.signal });
       ctx.progress(60, 'deterministic');
-      const t = await probeQc(scene.ffmpeg, await file(tiktok.blobSha), { video: false, signal: ctx.signal });
       ctx.status('running', null);
       const issues = layout ? layoutIssues(layout.content as LayoutManifest) : null;
       // Brief design Y9: G1 is the video's own window.
-      const report = buildQcReport(evaluateQc(m, { variant: 'music', layoutIssues: issues, coverOk: !!cover?.blobSha, window: ctx.duration }), evaluateQc(t, { variant: 'tiktok', window: ctx.duration }));
+      const report = buildQcReport(evaluateQc(m, { variant: 'music', layoutIssues: issues, coverOk: !!cover?.blobSha, window: ctx.duration }));
       const dir = join(ctx.runDir, 'final', 'qc', hash.slice(0, 16));
       await mkdir(dir, { recursive: true });
       const qcFile = join(dir, 'qc.json');
-      await writeFile(qcFile, JSON.stringify({ report, measure: { music: m, tiktok: t } }, null, 2));
+      await writeFile(qcFile, JSON.stringify({ report, measure: { music: m } }, null, 2));
       await record(deps, ctx, { kind: 'qc_report', file: qcFile, content: report, inputHash: hash, meta: { pass: report.pass, musicSha: music.blobSha } });
       return decideQc(report, musicTitle, reviewed);
     },

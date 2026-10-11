@@ -5,7 +5,7 @@ import { ReviewSchema, type Review } from './review.ts';
 import { MusicScoreSchema, type MusicScore } from './music.ts';
 import { DURATION_HARD } from './production.ts';
 import { SceneSpecSchema, type SceneSpec } from './scene.ts';
-import { AudioPlanSchema, type AudioPlan } from './voice.ts';
+import { AudioPlanSchema, type AudioPlan } from './audio-plan.ts';
 
 /** Spec §8.1 D1: the hook uses one of five patterns. Names are derived (the spec lists none); M5 calibration may revise them. */
 export const HOOK_PATTERNS = ['question', 'number', 'misconception', 'reveal', 'contrast'] as const;

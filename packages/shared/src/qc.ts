@@ -136,17 +136,18 @@ export function qcGates(results: QcCheckResult[]): { G1: boolean; G5: boolean; G
 export const QcReportSchema = z.object({
   rubric_version: z.literal(RUBRIC_VERSION),
   music: z.array(QcCheckResultSchema),
-  tiktok: z.array(QcCheckResultSchema),
+  /** Spec Z4: the music-free variant is gone; old reports carried its checks, new ones an empty list. */
+  tiktok: z.array(QcCheckResultSchema).default([]),
   scores: z.object({ D6: z.number().min(0).max(12), D7: z.number().min(0).max(5) }),
   gates: z.object({ G1: z.boolean(), G5: z.boolean(), G6: z.boolean() }),
   pass: z.boolean(),
 });
 export type QcReport = z.infer<typeof QcReportSchema>;
 
-/** Gates from both variants; D6/D7 scores from the music variant (the reviewed one, spec §7.1 step 10). */
-export function buildQcReport(music: QcCheckResult[], tiktok: QcCheckResult[]): QcReport {
-  const gates = qcGates([...music, ...tiktok]);
-  return { rubric_version: RUBRIC_VERSION, music, tiktok, scores: qcScores(music), gates, pass: gates.G1 && gates.G5 && gates.G6 };
+/** Gates and D6/D7 scores from the one final video (spec Z4: compose writes no music-free variant). */
+export function buildQcReport(music: QcCheckResult[]): QcReport {
+  const gates = qcGates(music);
+  return { rubric_version: RUBRIC_VERSION, music, tiktok: [], scores: qcScores(music), gates, pass: gates.G1 && gates.G5 && gates.G6 };
 }
 
 /** Failed gate checks as Turkish reasons ("Güvenli alan: 1 kutu dışarıda (3,0 sn)"). */

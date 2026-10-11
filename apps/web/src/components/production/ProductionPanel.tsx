@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api.ts';
-import { panelView, pickDraft, pickFinal, pickReviewSheet, pickVoice, pickStems, isRunActive } from '../../lib/production-view.ts';
+import { panelView, pickDraft, pickFinal, pickReviewSheet, pickStems, isRunActive } from '../../lib/production-view.ts';
 import { latestRunOf, pipeline, seedRuns, seedVideos, useStore } from '../../lib/stores.ts';
 import { BuildCard, ResearchCard, ReviewCard, StoryboardCard } from './ArtifactCards.tsx';
 import { DraftTabs } from './DraftTabs.tsx';
@@ -11,7 +11,6 @@ import { StepList } from './StepList.tsx';
 import { Timeline } from './Timeline.tsx';
 import { AudioCard } from './AudioCard.tsx';
 import { VideoHeader } from './VideoHeader.tsx';
-import { VoiceCard } from './VoiceCard.tsx';
 
 export function ProductionPanel({ videoId }: { videoId: string | null }) {
   const state = useStore(pipeline);
@@ -37,13 +36,12 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
   const sheet = useMemo(() => (panel ? pickReviewSheet(detail.data ?? [], panel.runId, panel.round) : null), [panel, detail.data]);
   const latest = useMemo(() => {
     const list = detail.data ?? [];
-    // An audio edit run (A6) has finals and stems only: the other cards fall back to the newest earlier artifact of the video.
-    const find = (kind: string) => list.find((a) => a.kind === kind && (!run || a.runId === run.id)) ?? (run?.kind === 'audio_edit' ? list.find((a) => a.kind === kind) ?? null : null);
+    const find = (kind: string) => list.find((a) => a.kind === kind && (!run || a.runId === run.id)) ?? null;
     const pick = (kind: string) => find(kind)?.id ?? null;
     return {
       research: pick('research'), storyboard: pick('storyboard'), report: pick('build_report'), scene: pick('scene'), sheet: find('preview_sheet')?.blobSha ?? null,
-      ...pickVoice(list, run?.kind === 'audio_edit' ? null : run?.id ?? null), draft: pickDraft(list, run?.kind === 'audio_edit' ? null : run?.id ?? null), final: pickFinal(list, run?.id ?? null),
-      stems: pickStems(list, run?.id ?? null, { fallback: run?.kind === 'audio_edit' }),
+      draft: pickDraft(list, run?.id ?? null), final: pickFinal(list, run?.id ?? null),
+      stems: pickStems(list, run?.id ?? null),
     };
   }, [detail.data, run]);
 
@@ -60,8 +58,7 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
       {run && <StepList run={run} />}
       <ResearchCard artifactId={latest.research} video={video} />
       <StoryboardCard artifactId={latest.storyboard} />
-      <AudioCard video={video} stems={latest.stems} canEdit={video.status === 'ready' && video.origin !== 'import' && video.approach !== 'yaklasim' && !isRunActive(run)} />
-      <VoiceCard trackId={latest.voiceTrack} stemSha={latest.voiceStem} />
+      <AudioCard video={video} stems={latest.stems} />
       <BuildCard reportId={latest.report} sceneId={latest.scene} sheetSha={latest.sheet} />
       <ReviewCard artifactId={latest.draft.reviewId} />
       <QcCard artifactId={latest.final.qcId} />

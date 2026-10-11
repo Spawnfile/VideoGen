@@ -54,3 +54,11 @@ def test_cli_music_and_sfx(tmp_path, capsys):
     assert sorted(p.name for p in (tmp_path / "sfx").iterdir()) == ["land.wav", "snap.wav", "tap.wav"]
     job.write_text(json.dumps({"kind": "music", "duration_s": 3, "out": str(tmp_path / "x.wav")}))
     assert yaklasim_cli.main(["--job", str(job)]) == 2
+
+
+def test_no_voice_modules_remain():
+    """Spec Z1: the audio service is only the YAKLASIM generator; the TTS/ASR modules are gone (the source tree, not an editable install)."""
+    from pathlib import Path
+
+    pkg = Path(__file__).resolve().parent.parent / "audio_service"
+    assert sorted(p.name for p in pkg.glob("*.py")) == ["__init__.py", "yaklasim_audio.py", "yaklasim_cli.py"]

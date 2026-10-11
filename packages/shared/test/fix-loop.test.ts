@@ -18,9 +18,8 @@ describe('fix loop', () => {
       'round: 2 olmalı', 'hero_frame0: addressed ya da not_addressed içinde olmalı', 'payoff: başarısız kontroller arasında değil',
     ]);
     expect(fixReportRefErrors({ ...r, not_addressed: [] }, { round: 1, failed, audioMode: 'silent' })).toEqual(['payoff: addressed ya da not_addressed içinde olmalı']);
-    const voice = FixReportSchema.parse(fx('fix-report-voice'));
-    expect(voice.rerender_scope).toBe('voice');
-    expect(fixReportRefErrors(voice, { round: 1, failed, audioMode: 'vo' })).toEqual([]);
+    // An old report that claimed a voice round still reads; a silent video never takes one.
+    const voice = FixReportSchema.parse({ ...r, rerender_scope: 'voice' });
     expect(fixReportRefErrors(voice, { round: 1, failed, audioMode: 'silent' })).toEqual(['rerender_scope: seslendirmesiz videoda voice yok']);
     const dup: FixReport = { ...r, not_addressed: [{ check_id: 'text_readable', reason: 'x' }] };
     expect(FixReportSchema.safeParse(dup).success).toBe(false);
@@ -51,29 +50,23 @@ describe('fix loop', () => {
     expect(next((x) => { x.research.engineer_insight = 'Başka bir içgörü'; }).changed).toEqual(['research']);
   });
 
-  it('fixScope with audio and VO: a vo_text → voice; a beat time in VO mode → voice, in silent mode → compose; an AudioPlan gain → compose; a lens plus a vo_text → voice with both changes; the AudioPlan version alone → none', () => {
+  it('fixScope with audio (spec Z1: never voice): a beat time → compose; an AudioPlan gain → compose; a lens plus a stray vo_text → build with both changes; the AudioPlan version alone → none; even an old VO run has no voice scope', () => {
     const sb = fx<Storyboard>('storyboard-kalem-legacy');
-    const plan = fx<AudioPlan>('audio-plan-vo');
-    const vo: Storyboard = { ...clone(sb), audio_mode: 'vo', beats: sb.beats.map((b, i) => ({ ...b, vo_text: { tr: `Cümle ${i}` } })) };
+    const plan = fx<AudioPlan>('audio-plan-silent');
     const mk = (audioMode: AudioMode, storyboard: Storyboard, audio: AudioPlan | null) =>
       ({ storyboard, scene: fx<SceneSpec>('scene-kalem-legacy'), research: fx<ProductResearch>('research-kalem'), productSha: 'a'.repeat(64), audio, audioMode });
     const run = (audioMode: AudioMode, storyboard: Storyboard, audio: AudioPlan | null, f: (x: ReturnType<typeof mk>) => void) => {
       const n = clone(mk(audioMode, storyboard, audio)); f(n); return fixScope({ prev: mk(audioMode, storyboard, audio), next: n });
     };
-    expect(run('vo', vo, plan, (x) => { x.storyboard.beats[1]!.vo_text = { tr: 'Başka cümle' }; })).toEqual({ scope: 'voice', changed: ['storyboard.vo'] });
     const shift = (x: { storyboard: Storyboard }) => { x.storyboard.beats[1]!.t_end = 9.5; x.storyboard.beats[2]!.t_start = 9.5; };
-    expect(run('vo', vo, plan, shift)).toEqual({ scope: 'voice', changed: ['storyboard.timing'] });
     expect(run('silent', sb, null, shift)).toEqual({ scope: 'compose', changed: ['storyboard.timing'] });
-    expect(run('vo', vo, plan, (x) => { x.audio!.vo_gain_db = 2; })).toEqual({ scope: 'compose', changed: ['audio'] });
-    expect(run('vo', vo, plan, (x) => { x.audio!.version += 1; })).toEqual({ scope: 'none', changed: [] });
-    expect(run('vo', vo, plan, (x) => { x.scene.camera_keys[1]!.lens_mm = 100; x.storyboard.beats[0]!.vo_text = { tr: 'Yeni' }; })).toEqual({ scope: 'voice', changed: ['scene.render', 'storyboard.vo'] });
+    expect(run('vo', { ...clone(sb), audio_mode: 'vo' }, plan, shift)).toEqual({ scope: 'compose', changed: ['storyboard.timing'] });
+    expect(run('silent', sb, plan, (x) => { x.audio!.music.gain_db = -20; })).toEqual({ scope: 'compose', changed: ['audio'] });
+    expect(run('silent', sb, plan, (x) => { x.audio!.version += 1; })).toEqual({ scope: 'none', changed: [] });
     for (const f of ['payoff_at', 'duration_s', 'rehook_at'] as const) {
-      const bump = (x: { storyboard: Storyboard }) => { x.storyboard[f] += 0.5; };
-      expect(run('silent', sb, null, bump)).toEqual({ scope: 'compose', changed: ['storyboard.timing'] });
-      expect(run('vo', vo, plan, bump)).toEqual({ scope: 'voice', changed: ['storyboard.timing'] });
+      expect(run('silent', sb, null, (x) => { x.storyboard[f] += 0.5; })).toEqual({ scope: 'compose', changed: ['storyboard.timing'] });
     }
     expect(run('silent', sb, null, (x) => { x.scene.camera_keys[1]!.lens_mm = 100; x.storyboard.beats[0]!.vo_text = { tr: 'Yeni' }; })).toEqual({ scope: 'build', changed: ['scene.render', 'storyboard.vo'] });
-    // silent mode: a stray vo_text never asks for voice
     expect(run('silent', sb, null, (x) => { x.storyboard.beats[0]!.vo_text = { tr: 'Merhaba' }; })).toEqual({ scope: 'compose', changed: ['storyboard.vo'] });
   });
 

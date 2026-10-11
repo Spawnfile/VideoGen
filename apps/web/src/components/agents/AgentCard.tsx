@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import type { AgentSessionView, GpuWait } from '@videogen/shared/browser';
-import { ROLE_EN } from '../../lib/i18n.ts';
+import { roleEn } from '../../lib/i18n.ts';
 import { cardMeta, cardStatusLabel, isLiveStatus } from '../../lib/agent-view.ts';
 import { api } from '../../lib/api.ts';
 import { seedTrace, traceRows, traces, useStore, type SampleView } from '../../lib/stores.ts';
@@ -52,11 +52,11 @@ export function AgentCard({ session, sample, gpu }: { session: AgentSessionView;
       data-testid="agent-card"
       data-session={session.id}
       data-status={session.status}
-      aria-label={`${ROLE_EN[session.role]} agent`}
+      aria-label={`${roleEn(session.role)} agent`}
       className="rounded-card bg-paper px-4 py-3"
     >
       <header className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <h3 className="text-[14px] font-medium">{ROLE_EN[session.role]}</h3>
+        <h3 className="text-[14px] font-medium">{roleEn(session.role)}</h3>
         <span className="text-[12px] text-ink-2">{modelLabel(session.model)} · {session.effort}</span>
         <span className="ml-auto flex items-center gap-1.5 text-[12px] text-ink-2">
           <span className={`size-2 rounded-full ${DOT[tone]}`} style={tone === 'active' ? { animation: 'fade-in 900ms ease-in-out infinite alternate' } : undefined} />

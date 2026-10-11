@@ -19,6 +19,7 @@ import { ARTIFACT_VALIDATOR } from '../src/pipeline/validator.ts';
 import { FakeRenderDriver } from '../src/render/driver.ts';
 import { ResourceLocks } from '../src/render/locks.ts';
 import { FakeMusicDriver } from '../src/audio/music.ts';
+import { musicExecutor } from '../src/pipeline/music-step.ts';
 
 const FFMPEG = process.env.VG_FFMPEG ?? 'ffmpeg';
 const fx = (n: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${n}.json`), 'utf8'));
@@ -37,39 +38,39 @@ export function finalHarness(t: { pool: pg.Pool }) {
     tools: toolHosts(sceneToolHost(scene), reviewToolHost({ ffmpeg: FFMPEG, targets: reviews })),
   });
   const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene, reviews, music: new FakeMusicDriver({ ffmpeg: process.env.VG_FFMPEG ?? 'ffmpeg' }) };
-  /** `vo`: a seslendirmeli run (VO storyboard fixture; the voice track is the caller's to insert). */
-  async function run(name: string, through: StepKey[], o: { vo?: boolean } = {}) {
-    const mode = o.vo ? 'vo' : 'silent';
+  async function run(name: string, through: StepKey[]) {
+    const mode = 'silent';
     const r = await createProduceRun(t.pool, { productName: name, audioMode: mode, plan: producePlan(mode) });
     const runDir = join(dataDir, 'runs', r.runId);
     const store = new SpecStore(join(runDir, 'spec'), ARTIFACT_VALIDATOR);
-    for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', o.vo ? 'storyboard-kalem-vo' : 'storyboard-kalem']] as const) {
+    for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', 'storyboard-kalem']] as const) {
       await store.write(kind, fx(f));
       await insertArtifact(t.pool, { runId: r.runId, kind, content: fx(f) });
     }
     const steps = await listRunSteps(t.pool, r.runId);
     const ctx = (key: StepKey): StepContext => ({
       runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt: 1, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode: mode,
-      versionId: r.versionId, brief: null, ...(mode === 'vo' ? { duration: { minS: 35, maxS: 55 }, approach: null } : { duration: { minS: 12, maxS: 15 }, approach: 'yaklasim' as const }), durationSource: 'default' as const, runDir, signal: new AbortController().signal, progress: () => {}, status: () => {}, session: () => {},
+      versionId: r.versionId, brief: null, duration: { minS: 12, maxS: 15 }, approach: 'yaklasim' as const, durationSource: 'default' as const, runDir, signal: new AbortController().signal, progress: () => {}, status: () => {}, session: () => {},
     });
-    const ex = { build: buildExecutor(deps), final_render: finalRenderExecutor(deps), compose: composeExecutor(deps) } as const;
+    const ex = { music: musicExecutor(deps), build: buildExecutor(deps), final_render: finalRenderExecutor(deps), compose: composeExecutor(deps) } as const;
     for (const k of through) { const e = ex[k as keyof typeof ex]; expect(await e.run(ctx(k), await e.inputHash(ctx(k)))).toMatchObject({ status: 'done' }); }
     return { r, ctx, runDir };
   }
   return {
     dataDir, deps,
-    framed: (name: string, o: { vo?: boolean } = {}) => run(name, ['build', 'final_render'], o),
-    composed: (name: string) => run(name, ['build', 'final_render', 'compose']),
+    /** Spec Z5: the fixed music stem is part of every final (`noMusic`: leave it out to test the gate). */
+    framed: (name: string, o: { noMusic?: boolean } = {}) => run(name, [...(o.noMusic ? [] : ['music' as const]), 'build', 'final_render']),
+    composed: (name: string) => run(name, ['music', 'build', 'final_render', 'compose']),
     specs,
     stop: () => manager.stop(),
   };
 }
 
-/** A music + TikTok qc report where every check passes except the given ids (the default: one soft D7 check, so the fixture panel totals 87.5). */
+/** A qc report where every check passes except the given ids (the default: one soft D7 check, so the fixture panel totals 87.5). */
 export function qcReportFailing(failing: string[] = ['d7_bitrate']): QcReport {
   const variant = (v: 'music' | 'tiktok'): QcCheckResult[] => (Object.keys(QC_CHECKS) as (keyof typeof QC_CHECKS)[])
     .filter((id) => QC_CHECKS[id].variants.includes(v)).map((id) => ({ id, pass: !failing.includes(id), value: 'x', limit: 'y' }));
-  return buildQcReport(variant('music'), variant('tiktok'));
+  return buildQcReport(variant('music'));
 }
 
 /**
@@ -92,13 +93,13 @@ export function panelHarness(t: { pool: pg.Pool }) {
   const deps: StepDeps = { pool: t.pool, dataDir, manager, fakeScript: fakePipelineScript, scene, reviews, music: new FakeMusicDriver({ ffmpeg: process.env.VG_FFMPEG ?? 'ffmpeg' }) };
   /** `qc`: the check ids that fail in the qc report (a gate id makes the AUTO gate fail). */
   /** `legacy`: a pre-YAKLASIM silent video (the 45 s pen, approach null, its own style and rules). */
-  async function prepare(name: string, o: { qc?: string[]; musicShaInQc?: string; vo?: boolean; legacy?: boolean } = {}) {
-    const mode = o.vo ? 'vo' : 'silent';
-    const old = !!o.vo || !!o.legacy;
+  async function prepare(name: string, o: { qc?: string[]; musicShaInQc?: string; legacy?: boolean } = {}) {
+    const mode = 'silent';
+    const old = !!o.legacy;
     const r = await createProduceRun(t.pool, { productName: name, audioMode: mode, plan: producePlan(mode, [...IMPLEMENTED_STEPS, 'review']) });
     if (old) await t.pool.query('UPDATE videos SET approach = NULL WHERE id = $1', [r.videoId]);
     const runDir = join(dataDir, 'runs', r.runId);
-    for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', o.vo ? 'storyboard-kalem-vo' : o.legacy ? 'storyboard-kalem-legacy' : 'storyboard-kalem'], ['scene', old ? 'scene-kalem-legacy' : 'scene-kalem']] as const) await insertArtifact(t.pool, { runId: r.runId, kind, content: fx(f) });
+    for (const [kind, f] of [['research', 'research-kalem'], ['storyboard', o.legacy ? 'storyboard-kalem-legacy' : 'storyboard-kalem'], ['scene', old ? 'scene-kalem-legacy' : 'scene-kalem']] as const) await insertArtifact(t.pool, { runId: r.runId, kind, content: fx(f) });
     const dir = join(runDir, 'final', 'compose');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'scene.blend'), 'blend');

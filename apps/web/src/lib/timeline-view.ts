@@ -14,7 +14,7 @@ import { STEP_EN, STEP_STATUS_EN } from './i18n.ts';
 export type LaneId = 'V' | 'A' | 'QC';
 export const LANE_OF: Record<StepKey, LaneId> = {
   research: 'V', storyboard: 'V', build: 'V', draft_render: 'V', final_render: 'V', compose: 'V', finalize: 'V',
-  voice: 'A', music: 'A', remix: 'A',
+  voice: 'A', music: 'A',
   draft_review: 'QC', qc: 'QC', review: 'QC',
 };
 const LANES: LaneId[] = ['V', 'A', 'QC'];

@@ -1,4 +1,4 @@
-import type { Effort, ModelAlias, RoleName } from '@videogen/shared';
+import type { ActiveRoleName, Effort, ModelAlias } from '@videogen/shared';
 
 export const SPEC_KINDS = ['research', 'storyboard', 'scene', 'audio', 'music'] as const;
 export type SpecKind = (typeof SPEC_KINDS)[number];
@@ -7,7 +7,7 @@ export type SpecKind = (typeof SPEC_KINDS)[number];
 export const IMPLEMENTED_MCP = ['report_progress', 'get_context', 'read_spec', 'write_spec', 'register_artifact', 'build_scene', 'render_preview_stills', 'extract_frames', 'run_qc'] as const;
 
 export interface RoleDef {
-  role: RoleName;
+  role: ActiveRoleName;
   model: ModelAlias;
   effort: Effort;
   maxTurns: number | null;
@@ -23,15 +23,13 @@ export interface RoleDef {
 }
 
 const READ = ['Read', 'Glob', 'Grep'];
-const ALL_MCP = ['report_progress', 'get_context', 'read_spec', 'write_spec', 'register_artifact', 'build_scene', 'render_preview_stills', 'render_draft', 'extract_frames', 'run_qc', 'tts_synthesize', 'align_captions', 'search_assets', 'request_rerender'];
+const ALL_MCP = ['report_progress', 'get_context', 'read_spec', 'write_spec', 'register_artifact', 'build_scene', 'render_preview_stills', 'render_draft', 'extract_frames', 'run_qc', 'search_assets', 'request_rerender'];
 
 /** Spec §6.2. */
-export const ROLES: Record<RoleName, RoleDef> = {
+export const ROLES: Record<ActiveRoleName, RoleDef> = {
   researcher: { role: 'researcher', model: 'sonnet', effort: 'high', maxTurns: 40, tools: ['WebSearch', 'WebFetch', ...READ, 'Write'], bash: false, subagents: false, mcp: ['report_progress', 'get_context'], writeDirs: ['research'], specWrite: [], outputSchema: 'ProductResearch' },
   storyboarder: { role: 'storyboarder', model: 'opus', effort: 'high', maxTurns: 20, tools: [...READ], bash: false, subagents: false, mcp: ['read_spec', 'report_progress', 'get_context'], writeDirs: [], specWrite: [], outputSchema: 'Storyboard' },
   builder: { role: 'builder', model: 'opus', effort: 'high', maxTurns: 60, tools: [...READ, 'Write', 'Edit'], bash: true, subagents: true, mcp: ['build_scene', 'render_preview_stills', 'read_spec', 'write_spec', 'report_progress', 'register_artifact', 'get_context'], writeDirs: ['scene'], specWrite: ['scene'], outputSchema: 'SceneSpec' },
-  // Agent music design A1/A6: the composer (score) and, in an audio edit, the mix levels (AudioPlan).
-  audio_director: { role: 'audio_director', model: 'sonnet', effort: 'medium', maxTurns: 25, tools: [...READ], bash: false, subagents: false, mcp: ['read_spec', 'write_spec', 'report_progress', 'get_context'], writeDirs: [], specWrite: ['music', 'audio'], outputSchema: 'MusicScore' },
   reviewer_visual: { role: 'reviewer_visual', model: 'opus', effort: 'high', maxTurns: 25, tools: [...READ], bash: false, subagents: false, mcp: ['extract_frames', 'run_qc', 'get_context'], writeDirs: [], specWrite: [], outputSchema: 'Review' },
   // M7 Y19: WebFetch only to the review's check targets (GuardContext.webAllow, set by the session manager); WebSearch stays open.
   reviewer_facts: { role: 'reviewer_facts', model: 'sonnet', effort: 'high', maxTurns: 40, tools: [...READ, 'WebFetch', 'WebSearch'], bash: false, subagents: false, mcp: ['read_spec', 'extract_frames', 'get_context'], writeDirs: [], specWrite: [], outputSchema: 'Review' },
@@ -43,9 +41,9 @@ export const ROLES: Record<RoleName, RoleDef> = {
   summarizer: { role: 'summarizer', model: 'haiku', effort: 'low', maxTurns: 3, tools: [], bash: false, subagents: false, mcp: [], writeDirs: [], specWrite: [], outputSchema: null },
 };
 
-export type RoleOverrides = Partial<Record<RoleName, { model?: ModelAlias; effort?: Effort }>>;
+export type RoleOverrides = Partial<Record<ActiveRoleName, { model?: ModelAlias; effort?: Effort }>>;
 
-export function resolveRole(role: RoleName, overrides: RoleOverrides = {}): RoleDef {
+export function resolveRole(role: ActiveRoleName, overrides: RoleOverrides = {}): RoleDef {
   const o = overrides[role] ?? {};
   return { ...ROLES[role], ...(o.model ? { model: o.model } : {}), ...(o.effort ? { effort: o.effort } : {}) };
 }

@@ -10,7 +10,7 @@ import { sendCommand } from './notify.ts';
  */
 export function registerDevReadyVideo(app: FastifyInstance, pool: pg.Pool): void {
   app.post('/api/dev/videos/ready', async (req, reply) => {
-    const b = z.object({ productName: z.string().max(80).optional(), aigc: z.boolean().optional() }).safeParse(req.body ?? {});
+    const b = z.object({ productName: z.string().max(80).optional() }).safeParse(req.body ?? {});
     if (!b.success) return reply.code(400).send({ error: 'invalid request' });
     const requestId = randomUUID();
     await sendCommand(pool, { type: 'dev.video.ready', requestId, ...b.data });

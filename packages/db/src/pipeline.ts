@@ -62,68 +62,6 @@ export async function createProduceRun(pool: pg.Pool, inp: { productName: string
   }
 }
 
-export const AUDIO_EDIT_MAX = 1000;
-
-/**
- * Agent music design A6/A8: an audio edit of a finished video. The source is the newest done run with a music final (a produce run or an
- * earlier edit); the new version's parent is the video's best version. One transaction; refusals come back as Turkish errors.
- */
-export async function createAudioEditRun(pool: pg.Pool, inp: { videoId: string; instruction: string; plan: PlanStep[] }): Promise<CreatedRun | { error: string }> {
-  const instruction = inp.instruction.trim();
-  if (!instruction) return { error: 'talimat boş olamaz' };
-  if (instruction.length > AUDIO_EDIT_MAX) return { error: `talimat en çok ${AUDIO_EDIT_MAX} karakter olabilir` };
-  const c = await pool.connect();
-  try {
-    await c.query('BEGIN');
-    const v = (await c.query('SELECT id, product_id, status, origin, approach, best_version_id, current_version_id FROM videos WHERE id = $1 FOR UPDATE', [inp.videoId])).rows[0];
-    if (!v) { await c.query('ROLLBACK'); return { error: 'video bulunamadı' }; }
-    if (v.origin === 'import') { await c.query('ROLLBACK'); return { error: 'içe aktarılmış bir video düzenlenemez' }; }
-    // YAKLASIM spec Y16: the music is fixed (deterministic): an instruction has nothing to change.
-    if (v.approach === 'yaklasim') { await c.query('ROLLBACK'); return { error: 'YAKLASIM videosunun müziği sabittir; düzenlenecek bir şey yok' }; }
-    if (v.status !== 'ready') { await c.query('ROLLBACK'); return { error: 'yalnızca yayına hazır bir videonun sesi düzenlenebilir' }; }
-    const active = await c.query("SELECT 1 FROM runs WHERE video_id = $1 AND status IN ('queued', 'running')", [inp.videoId]);
-    if (active.rowCount) { await c.query('ROLLBACK'); return { error: 'bu videoda devam eden bir üretim var' }; }
-    const src = (await c.query(
-      `SELECT r.id FROM runs r WHERE r.video_id = $1 AND r.status = 'done' AND EXISTS (SELECT 1 FROM artifacts a WHERE a.run_id = r.id AND a.kind = 'final_video_music')
-       ORDER BY r.created_at DESC LIMIT 1`, [inp.videoId],
-    )).rows[0];
-    if (!src) { await c.query('ROLLBACK'); return { error: 'düzenlenecek bir final yok' }; }
-    const round = Number((await c.query('SELECT coalesce(max(round), 0) + 1 AS n FROM versions WHERE video_id = $1', [inp.videoId])).rows[0].n);
-    const runId = randomUUID();
-    const versionId = randomUUID();
-    await c.query(`INSERT INTO versions (id, video_id, parent_version_id, round, reason) VALUES ($1, $2, $3, $4, 'audio_edit')`, [versionId, inp.videoId, v.best_version_id ?? v.current_version_id, round]);
-    await c.query(
-      `INSERT INTO runs (id, video_id, kind, trigger, parent_run_id, instruction, version_id, plan, status) VALUES ($1, $2, 'audio_edit', 'user', $3, $4, $5, $6, 'queued')`,
-      [runId, inp.videoId, src.id, instruction, versionId, JSON.stringify(inp.plan)],
-    );
-    for (const [i, s] of inp.plan.entries()) {
-      await c.query(`INSERT INTO steps (id, run_id, key, ordinal, weight, status) VALUES ($1, $2, $3, $4, $5, 'pending')`, [randomUUID(), runId, s.key, i, s.weight]);
-    }
-    await appendAudit(c, {
-      actorType: 'user', action: 'video.audio_edit_requested', subjectType: 'video', subjectId: inp.videoId, runId,
-      data: { parentRunId: src.id, versionId, round, chars: instruction.length, preview: instruction.slice(0, 200) },
-    });
-    await c.query('COMMIT');
-    return { productId: v.product_id, videoId: inp.videoId, runId, versionId };
-  } catch (e) {
-    await c.query('ROLLBACK').catch(() => {});
-    throw e;
-  } finally {
-    c.release();
-  }
-}
-
-/** The produce run an audio edit chain started from (storyboard, voice and scene live there). */
-export async function originRunId(db: Queryable, runId: string): Promise<string> {
-  let id = runId;
-  for (let i = 0; i < 32; i++) {
-    const r = (await db.query('SELECT kind, parent_run_id FROM runs WHERE id = $1', [id])).rows[0];
-    if (!r || r.kind !== 'audio_edit' || !r.parent_run_id) return id;
-    id = r.parent_run_id;
-  }
-  return id;
-}
-
 export interface RunRecord { id: string; videoId: string; kind: RunKind; status: RunStatus; plan: PlanStep[]; progress: number; etaS: number | null; error: string | null; usageStart: UsageMark | null; createdAt: string; startedAt: string | null; endedAt: string | null }
 export interface StepRecord extends StepView { inputHash: string | null }
 export interface RunPatch { status?: RunStatus; progress?: number; etaS?: number | null; error?: string | null; startedAt?: Date; endedAt?: Date; usageStart?: UsageMark | null; usageEnd?: UsageMark | null }
@@ -179,8 +117,6 @@ export async function getStep(db: Queryable, id: string): Promise<StepRecord | n
 
 export interface RunContext {
   run: RunRecord; videoId: string; productId: string; productName: string; audioMode: AudioMode; versionId: string | null;
-  /** Agent music design A6: an audio edit's instruction and the run it edits (null for other runs). */
-  instruction: string | null; parentRunId: string | null;
   /** Brief design Y1/Y4: read at every step launch, so the agent's window set after research reaches the later steps. */
   brief: string | null; duration: DurationWindow; durationSource: DurationSource;
   /** YAKLASIM spec Y4: 'yaklasim' for the approach's videos; null for videos made before it (their own rules and styles apply). */
@@ -194,9 +130,8 @@ export async function getRunContext(db: Queryable, runId: string): Promise<RunCo
   );
   const r = rows[0];
   return r ? {
-    // An audio edit writes under its own version (A6); every other run under the video's current version.
+    // A run with its own version (the retired audio edits, A6) writes under it; every other run under the video's current version.
     run: toRun(r), videoId: r.video_id, productId: r.product_id, productName: r.product_name, audioMode: r.audio_mode, versionId: r.run_version_id ?? r.current_version_id,
-    instruction: r.instruction ?? null, parentRunId: r.parent_run_id ?? null,
     brief: r.brief ?? null, duration: { minS: Number(r.duration_min_s), maxS: Number(r.duration_max_s) }, durationSource: r.duration_source,
     approach: r.approach ?? null,
   } : null;
@@ -247,19 +182,17 @@ const VIDEO_SQL = `
     GROUP BY video_id)
   SELECT v.*, p.name AS product_name, p.difficulty, lr.id AS latest_run_id, u.sessions, u.tokens, u.cost, w.d AS five_hour_delta,
     dv.blob_sha AS draft_sha, dv.duration_ms AS draft_ms, dc.blob_sha AS cover_sha,
-    fm.blob_sha AS final_sha, fm.duration_ms AS final_ms, ft.blob_sha AS tiktok_sha, fc.blob_sha AS final_cover_sha, sc.total AS score, pl.platforms
+    fm.blob_sha AS final_sha, fm.duration_ms AS final_ms, fc.blob_sha AS final_cover_sha, sc.total AS score, pl.platforms
   FROM videos v JOIN products p ON p.id = v.product_id
   LEFT JOIN LATERAL (SELECT id FROM runs r WHERE r.video_id = v.id ORDER BY r.created_at DESC LIMIT 1) lr ON true
   LEFT JOIN LATERAL (SELECT a.blob_sha, a.duration_ms FROM artifacts a JOIN runs r ON r.id = a.run_id
     WHERE r.video_id = v.id AND a.kind = 'draft_video' ORDER BY a.created_at DESC LIMIT 1) dv ON true
   LEFT JOIN LATERAL (SELECT a.blob_sha FROM artifacts a JOIN runs r ON r.id = a.run_id
     WHERE r.video_id = v.id AND a.kind = 'draft_cover' ORDER BY a.created_at DESC LIMIT 1) dc ON true
-  -- Plan E18: the newest music variant, and the TikTok variant and cover of the same compose (same run and input hash).
+  -- Plan E18: the newest final video and the cover of the same compose (same run and input hash).
   -- Plan F13: the best version's final comes first (no best version: all NULL, newest wins).
   LEFT JOIN LATERAL (SELECT a.blob_sha, a.duration_ms, a.input_hash, a.run_id FROM artifacts a JOIN runs r ON r.id = a.run_id
     WHERE r.video_id = v.id AND a.kind = 'final_video_music' ORDER BY (a.version_id = v.best_version_id) DESC NULLS LAST, a.created_at DESC LIMIT 1) fm ON true
-  LEFT JOIN LATERAL (SELECT a.blob_sha FROM artifacts a
-    WHERE a.run_id = fm.run_id AND a.kind = 'final_video_tiktok' AND a.input_hash = fm.input_hash ORDER BY a.created_at DESC LIMIT 1) ft ON true
   LEFT JOIN LATERAL (SELECT a.blob_sha FROM artifacts a
     WHERE a.run_id = fm.run_id AND a.kind = 'final_cover' AND a.input_hash = fm.input_hash ORDER BY a.created_at DESC LIMIT 1) fc ON true
   -- Plan F13/F22: the library score is the panel total (orchestrator row) of the best version, else of the newest scored round.
@@ -277,7 +210,7 @@ function toVideo(r: Record<string, any>): VideoView {
     difficulty: r.difficulty, latestRunId: r.latest_run_id, createdAt: iso(r.created_at)!, updatedAt: iso(r.updated_at)!,
     usage: { sessions: r.sessions ?? 0, tokens: Number(r.tokens ?? 0), costUsd: num(r.cost), fiveHourDelta: num(r.five_hour_delta) },
     draft: r.draft_sha ? { videoSha: r.draft_sha, coverSha: r.cover_sha ?? null, durationS: Math.round(Number(r.draft_ms ?? 0) / 100) / 10 } : null,
-    final: r.final_sha ? { musicSha: r.final_sha, tiktokSha: r.tiktok_sha ?? null, coverSha: r.final_cover_sha ?? null, durationS: Math.round(Number(r.final_ms ?? 0) / 100) / 10 } : null,
+    final: r.final_sha ? { musicSha: r.final_sha, coverSha: r.final_cover_sha ?? null, durationS: Math.round(Number(r.final_ms ?? 0) / 100) / 10 } : null,
     score: round4(r.score),
     brief: r.brief ?? null, duration: { minS: Number(r.duration_min_s ?? 35), maxS: Number(r.duration_max_s ?? 55) }, durationSource: r.duration_source ?? 'default',
     origin: r.origin ?? 'pipeline', approach: r.approach ?? null, caption: r.caption ?? null, youtubeTitle: r.youtube_title ?? null,
@@ -303,7 +236,7 @@ export interface NewArtifact {
   durationMs?: number | null; width?: number | null; height?: number | null; codec?: string | null;
 }
 export type ArtifactRecord = Omit<ArtifactMeta, 'meta'> & { content: unknown; inputHash: string | null; meta: unknown };
-const toMeta = (r: Record<string, any>): ArtifactMeta => ({ id: r.id, runId: r.run_id, stepId: r.step_id, versionId: r.version_id, kind: r.kind, blobSha: r.blob_sha, createdAt: iso(r.created_at)!, ...(r.kind === 'final_review_sheet' || r.kind === 'voice_track' ? { meta: r.meta } : {}) });
+const toMeta = (r: Record<string, any>): ArtifactMeta => ({ id: r.id, runId: r.run_id, stepId: r.step_id, versionId: r.version_id, kind: r.kind, blobSha: r.blob_sha, createdAt: iso(r.created_at)!, ...(r.kind === 'final_review_sheet' ? { meta: r.meta } : {}) });
 const toArtifact = (r: Record<string, any>): ArtifactRecord => ({ ...toMeta(r), content: r.content, inputHash: r.input_hash, meta: r.meta });
 
 export async function insertArtifact(db: Queryable, a: NewArtifact): Promise<ArtifactMeta> {

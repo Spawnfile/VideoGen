@@ -111,7 +111,7 @@ export function LibraryDetail({ videoId, go }: { videoId: string; go: (url: stri
   // The player shows the picked version's final; by default the best, else the newest finished one, else the latest run's final.
   const chosen = done.find((v) => v.id === selected) ?? done.find((v) => v.best) ?? done.at(-1) ?? null;
   const runFinal = pickFinal(list, run?.id ?? null);
-  const final: FinalPick = chosen?.finals ? { musicSha: chosen.finals.musicSha, tiktokSha: chosen.finals.tiktokSha, coverSha: chosen.finals.coverSha, qcId: null } : runFinal;
+  const final: FinalPick = chosen?.finals ? { musicSha: chosen.finals.musicSha, coverSha: chosen.finals.coverSha, qcId: null } : runFinal;
   const draft = pickDraft(list, run?.id ?? null);
 
   if (detail.isError && !video) {

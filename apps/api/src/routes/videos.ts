@@ -1,9 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import { z } from 'zod';
-import { audioEditPlan, AUDIO_MODES, BRIEF_MAX, durationWindowErrors, IMPLEMENTED_STEPS, producePlan, STEP_KEYS } from '@videogen/shared';
+import { AUDIO_MODES, BRIEF_MAX, durationWindowErrors, IMPLEMENTED_STEPS, producePlan, STEP_KEYS } from '@videogen/shared';
 import {
-  appendAudit, AUDIO_EDIT_MAX, createAudioEditRun, createProduceRun, getArtifact, getRun, getRunView, getVideoView, isUuid, listArtifacts, listVersionReviews, listVersions, listVideoReviews, listRunViews, listVideoViews, publishRunAndVideo, versionVideoId,
+  appendAudit, createProduceRun, getArtifact, getRun, getRunView, getVideoView, isUuid, listArtifacts, listVersionReviews, listVersions, listVideoReviews, listRunViews, listVideoViews, publishRunAndVideo, versionVideoId,
 } from '@videogen/db';
 import { sendCommand } from './notify.ts';
 
@@ -21,16 +21,6 @@ const Produce = z.object({
   until: z.enum(STEP_KEYS).optional(),
 });
 
-/** createAudioEditRun (packages/db) answers in Turkish; the interface is English. Unknown messages pass through. */
-const AUDIO_EDIT_ERRORS: Record<string, string> = {
-  'video bulunamadı': 'video not found',
-  'yalnızca yayına hazır bir videonun sesi düzenlenebilir': 'Only a video that is ready to publish can have its audio edited.',
-  'içe aktarılmış bir video düzenlenemez': 'Imported videos cannot be edited.',
-  'YAKLASIM videosunun müziği sabittir; düzenlenecek bir şey yok': 'YAKLASIM music is fixed; there is nothing to edit.',
-  'bu videoda devam eden bir üretim var': 'This video already has a production running.',
-  'düzenlenecek bir final yok': 'There is no final to edit.',
-};
-
 export function registerVideoRoutes(app: FastifyInstance, deps: { pool: pg.Pool; devEndpoints?: boolean }): void {
   const { pool } = deps;
   const id = (req: { params: unknown }) => (req.params as { id: string }).id;
@@ -46,18 +36,6 @@ export function registerVideoRoutes(app: FastifyInstance, deps: { pool: pg.Pool;
     await publishRunAndVideo(pool, created.runId);
     await sendCommand(pool, { type: 'run.start', runId: created.runId });
     return reply.code(202).send({ videoId: created.videoId, runId: created.runId });
-  });
-
-  // Agent music design A6: the user's audio instruction on a finished video → an audio_edit run (music → remix) under a new version.
-  app.post('/api/videos/:id/audio-edits', async (req, reply) => {
-    if (!isUuid(id(req))) return reply.code(404).send({ error: 'not found' });
-    const b = z.object({ instruction: z.string().trim().min(1, 'the instruction cannot be empty').max(AUDIO_EDIT_MAX, `the instruction can be at most ${AUDIO_EDIT_MAX} characters`) }).safeParse(req.body ?? {});
-    if (!b.success) return reply.code(400).send({ error: b.error.issues[0]?.message ?? 'invalid request' });
-    const created = await createAudioEditRun(pool, { videoId: id(req), instruction: b.data.instruction, plan: audioEditPlan() });
-    if ('error' in created) return reply.code(created.error === 'video bulunamadı' ? 404 : 409).send({ error: AUDIO_EDIT_ERRORS[created.error] ?? created.error });
-    await publishRunAndVideo(pool, created.runId);
-    await sendCommand(pool, { type: 'run.start', runId: created.runId });
-    return reply.code(202).send({ runId: created.runId, versionId: created.versionId });
   });
 
   app.get('/api/videos', async () => listVideoViews(pool));

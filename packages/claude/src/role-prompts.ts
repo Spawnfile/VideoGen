@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { RoleName } from '@videogen/shared';
+import type { ActiveRoleName } from '@videogen/shared';
 import type { RoleDef } from './roles.ts';
 
 export const PLUGIN_DIR = resolve(import.meta.dirname, '../../../claude-plugin');
 
 /** Body of claude-plugin/agents/<role>.md without its frontmatter. */
-export function loadRolePrompt(role: RoleName, dir = PLUGIN_DIR): string {
+export function loadRolePrompt(role: ActiveRoleName, dir = PLUGIN_DIR): string {
   const raw = readFileSync(resolve(dir, 'agents', `${role}.md`), 'utf8');
   return raw.replace(/^---\n[\s\S]*?\n---\n/, '').trim();
 }

@@ -24,14 +24,8 @@ export async function importAsset(pool: pg.Pool, dataDir: string, ffmpeg: string
   return (await importAssetFile(pool, dataDir, i, { durationMs: (f) => audioDurationMs(ffmpeg, f) })).asset;
 }
 
-/** Plan E10: procedural, deterministic (fixed noise seed), 48 kHz mono. CC0 by construction (made here with ffmpeg). */
+/** Plan E10: procedural, deterministic, 48 kHz mono. CC0 by construction (made here with ffmpeg). */
 const SFX_RECIPES: Record<SfxName, string> = {
-  whoosh: 'anoisesrc=d=0.6:c=pink:r=48000:a=0.5:seed=7,highpass=f=300,lowpass=f=4000,afade=t=in:d=0.25,afade=t=out:st=0.3:d=0.3',
-  swoosh: 'anoisesrc=d=0.4:c=white:r=48000:a=0.35:seed=11,bandpass=f=1800:width_type=h:w=1200,afade=t=in:d=0.1,afade=t=out:st=0.15:d=0.25',
-  click: "aevalsrc='0.8*sin(2*PI*2400*t)*exp(-t*90)':d=0.06:s=48000",
-  snap: "aevalsrc='0.9*(sin(2*PI*1200*t)+0.5*sin(2*PI*3100*t))*exp(-t*60)':d=0.12:s=48000",
-  tick: "aevalsrc='0.5*sin(2*PI*3600*t)*exp(-t*140)':d=0.04:s=48000",
-  thud: "aevalsrc='0.9*sin(2*PI*90*t)*exp(-t*18)':d=0.35:s=48000",
   // YAKLASIM spec Y15 (episodes/rubik/audio/sfx.py): fixed-pitch sines, 6–8 ms attack, exponential decay, 20 ms release.
   y_snap: "aevalsrc='0.55*(sin(2*PI*330*t)+0.6*sin(2*PI*165*t)+0.12*sin(2*PI*660*t))*min(1,t/0.006)*exp(-t*22)*min(1,(0.14-t)/0.02)':d=0.14:s=48000",
   y_tap: "aevalsrc='0.7*(sin(2*PI*294*t)+0.4*sin(2*PI*147*t))*min(1,t/0.008)*exp(-t*20)*min(1,(0.12-t)/0.02)':d=0.12:s=48000",

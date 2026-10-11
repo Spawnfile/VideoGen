@@ -31,7 +31,7 @@ async function seed(name: string) {
   await insertVersion(t.pool, { id: v1, videoId: r.videoId, parentVersionId: r.versionId, round: 1, reason: 'fix:compose' });
   await insertVersion(t.pool, { id: v2, videoId: r.videoId, parentVersionId: v1, round: 2, reason: 'fix:pending' });
   const final = async (versionId: string, c: string, hash: string, ms: number) => {
-    for (const [kind, ch] of [['final_video_music', c], ['final_video_tiktok', `${c}1`], ['final_cover', `${c}2`]] as const) {
+    for (const [kind, ch] of [['final_video_music', c], ['final_cover', `${c}2`]] as const) {
       const sha = ch.repeat(64 / ch.length);
       await insertBlob(t.pool, { sha256: sha, path: `media/${sha}`, bytes: 1, mime: 'video/mp4' });
       await insertArtifact(t.pool, { runId: r.runId, versionId, kind, blobSha: sha, inputHash: hash, ...(kind === 'final_cover' ? {} : { durationMs: ms, width: 1080, height: 1920, codec: 'h264' }) });
@@ -58,13 +58,14 @@ describe('versions', () => {
     expect(list.map((v: { id: string }) => v.id)).toEqual([s.versionId, s.v1, s.v2]);
     expect(list[0]).toMatchObject({
       round: 0, reason: 'produce', parentId: null, runId: s.runId, total: 72, verdict: 'fix', dims: { D1: 10 },
-      finals: { musicSha: 'a'.repeat(64), tiktokSha: 'a1'.repeat(32), coverSha: 'a2'.repeat(32), durationS: 45 }, best: false, current: false,
+      finals: { musicSha: 'a'.repeat(64), coverSha: 'a2'.repeat(32), durationS: 45 }, best: false, current: false,
     });
     expect(list[1]).toMatchObject({
       round: 1, reason: 'fix:compose', parentId: s.versionId, runId: s.runId, total: 84, verdict: 'ready', dims: { D1: 13 },
-      finals: { musicSha: 'c'.repeat(64), tiktokSha: 'c1'.repeat(32), coverSha: 'c2'.repeat(32), durationS: 43 }, best: true, current: false,
+      finals: { musicSha: 'c'.repeat(64), coverSha: 'c2'.repeat(32), durationS: 43 }, best: true, current: false,
     });
     expect(list[2]).toMatchObject({ round: 2, reason: 'fix:pending', parentId: s.v1, runId: s.runId, total: null, verdict: null, finals: null, best: false, current: true });
+    expect(list[0].finals).not.toHaveProperty('tiktokSha'); // spec Z4
     expect(typeof list[0].createdAt).toBe('string');
     // The other video's rows never leak in.
     expect(list.some((v: { id: string }) => [other.versionId, other.v1, other.v2].includes(v.id))).toBe(false);

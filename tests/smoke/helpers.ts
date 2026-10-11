@@ -49,7 +49,7 @@ export async function serverMaxEventId(request: APIRequestContext): Promise<numb
 }
 
 /** `until` (dev endpoints only) ends the plan at that step: the M4 scenarios stop at the draft review. */
-export async function produceVia(request: APIRequestContext, productName: string, audioMode: 'vo' | 'silent', until?: string): Promise<{ videoId: string; runId: string }> {
+export async function produceVia(request: APIRequestContext, productName: string, audioMode: 'silent', until?: string): Promise<{ videoId: string; runId: string }> {
   const r = await request.post('/api/videos', { data: { productName, audioMode, ...(until ? { until } : {}) } });
   if (r.status() !== 202) throw new Error(`produce: ${r.status()}`);
   return (await r.json()) as { videoId: string; runId: string };

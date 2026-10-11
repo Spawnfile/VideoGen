@@ -2,7 +2,8 @@
   "version": 1,
   "mode": "silent",
   "music": {
-    "asset_id": "5b0e2c9a-3d1f-4c7e-8a64-2f9b1d7e4a10",
+    "source": "generated",
+    "asset_id": null,
     "gain_db": -18
   },
   "vo_gain_db": 0,

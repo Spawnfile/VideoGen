@@ -26,8 +26,8 @@ test('S2a: YAKLASIM — product name → research → storyboard → music → �
     await expect(page.locator('[data-testid="step"][data-key="build"]')).toHaveAttribute('data-status', 'done', { timeout: 30_000 });
     // YAKLASIM spec Y14: the fixed music, no composer.
     await expect(page.locator('[data-testid="step"][data-key="music"]')).toContainText('YAKLASIM · 120 BPM · A minör', { timeout: 60_000 });
-    // The whole plan, in order (retrying: the list may still be rendering): no voice step (spec Y2); `remix` belongs to audio edits only.
-    const produced = STEP_KEYS.filter((k) => k !== 'remix' && k !== 'voice');
+    // The whole plan, in order (retrying: the list may still be rendering): no voice step (spec Y2).
+    const produced = STEP_KEYS.filter((k) => k !== 'voice');
     await expect(page.locator('[data-testid="step"]')).toHaveCount(produced.length);
     expect(await page.locator('[data-testid="step"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-key')))).toEqual(produced);
     await expect(header).toHaveAttribute('data-status', 'ready', { timeout: 200_000 });

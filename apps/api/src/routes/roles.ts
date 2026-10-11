@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import { z } from 'zod';
-import { ROLE_LABELS, ROLE_NAMES, type RoleName } from '@videogen/shared';
+import { ACTIVE_ROLE_NAMES, ROLE_LABELS, type ActiveRoleName } from '@videogen/shared';
 import { appendAudit } from '@videogen/db';
 import { ROLES, type RoleOverrides } from '@videogen/claude';
 import { sendCommand } from './notify.ts';
@@ -9,7 +9,7 @@ import { sendCommand } from './notify.ts';
 const Patch = z.object({ model: z.enum(['opus', 'sonnet', 'haiku']).optional(), effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional() })
   .strict().refine((v) => v.model || v.effort, 'model veya effort gerekli');
 const DevSession = z.object({
-  role: z.enum(ROLE_NAMES),
+  role: z.enum(ACTIVE_ROLE_NAMES as [ActiveRoleName, ...ActiveRoleName[]]),
   prompt: z.string().max(2000).optional(),
   script: z.object({ fixture: z.string().regex(/^[a-z0-9-]+$/) }).passthrough().optional(),
 });
@@ -24,7 +24,8 @@ export function registerRoleRoutes(app: FastifyInstance, deps: { pool: pg.Pool; 
 
   app.get('/api/roles', async () => {
     const o = await readOverrides(pool);
-    return ROLE_NAMES.map((r) => ({
+    // Spec Z3: retired roles (the composer) have no settings.
+    return ACTIVE_ROLE_NAMES.map((r) => ({
       role: r, label: ROLE_LABELS[r], model: o[r]?.model ?? ROLES[r].model, effort: o[r]?.effort ?? ROLES[r].effort,
       defaults: { model: ROLES[r].model, effort: ROLES[r].effort },
     }));
@@ -32,11 +33,11 @@ export function registerRoleRoutes(app: FastifyInstance, deps: { pool: pg.Pool; 
 
   app.put('/api/roles/:role', async (req, reply) => {
     const role = (req.params as { role: string }).role;
-    if (!(ROLE_NAMES as readonly string[]).includes(role)) return reply.code(404).send({ error: 'not found' });
+    if (!(ACTIVE_ROLE_NAMES as readonly string[]).includes(role)) return reply.code(404).send({ error: 'not found' });
     const b = Patch.safeParse(req.body ?? {});
     if (!b.success) return reply.code(400).send({ error: 'invalid model or effort' });
     const before = await readOverrides(pool);
-    const r = role as RoleName;
+    const r = role as ActiveRoleName;
     const next: RoleOverrides = { ...before, [r]: { ...before[r], ...b.data } };
     await pool.query(
       `INSERT INTO settings (key, value, updated_at) VALUES ('roles', $1, now())

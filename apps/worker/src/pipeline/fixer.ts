@@ -3,10 +3,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type pg from 'pg';
 import {
-  canonical, FINAL_CHECKS, FINAL_MAX_ROUNDS, fixReportRefErrors, musicScoreErrors, fixScope, formatScore, rendersChanged, sceneRefErrors, yaklasimSceneErrors, yaklasimStoryboardErrors, STOP_NOTE, storyboardRefErrors, storyboardVoErrors, validateArtifact, windowErrors,
+  canonical, FINAL_CHECKS, FINAL_MAX_ROUNDS, fixReportRefErrors, fixScope, formatScore, rendersChanged, sceneRefErrors, yaklasimSceneErrors, yaklasimStoryboardErrors, STOP_NOTE, storyboardRefErrors, validateArtifact, windowErrors,
   type AudioMode, type AudioPlan, type FinalCheckId, type MusicScore, type FixReport, type ModelAlias, type ProductResearch, type SceneSpec, type ScopeInput, type Storyboard,
 } from '@videogen/shared';
-import { appendAudit, findArtifact, styleFor, insertVersion, listAssets } from '@videogen/db';
+import { appendAudit, findArtifact, insertVersion } from '@videogen/db';
 import { SpecStore } from '@videogen/claude';
 import { RESUME_PROMPT } from '../agents/manager.ts';
 import { runStructured } from './agent-step.ts';
@@ -17,11 +17,9 @@ import { openLabels, priorSession, type FixerRun, type FixFinding } from './revi
 import { failure, persist, record, type StepDeps } from './steps.ts';
 import type { StepContext, StepOutcome } from './types.ts';
 import { ARTIFACT_VALIDATOR } from './validator.ts';
-import { voKey } from './voice-step.ts';
-import { musicRenderS } from './music-step.ts';
 
 /** Plan T8: the fixer's instruction. Only failed checks (with owner, severity, evidence and hint) are given; reviewer summaries and passing checks never are (spec §8.3). */
-export function fixerPrompt(o: { name: string; round: number; reviewedRound: number; findings: FixFinding[]; audioMode?: AudioMode; audio?: AudioPlan | null; brief?: string | null; music?: MusicScore | null; yaklasim?: boolean }): string {
+export function fixerPrompt(o: { name: string; round: number; reviewedRound: number; findings: FixFinding[]; audioMode?: AudioMode; audio?: AudioPlan | null; brief?: string | null; yaklasim?: boolean }): string {
   const rel = `review/final/r${o.reviewedRound}`;
   return [
     `Ürün: ${JSON.stringify(o.name)}. Final inceleme (tur ${o.reviewedRound}) videoyu düzeltmeye gönderdi; bu düzeltme turu ${o.round}/${FINAL_MAX_ROUNDS}.`,
@@ -31,14 +29,11 @@ export function fixerPrompt(o: { name: string; round: number; reviewedRound: num
     ...(o.brief?.trim() ? [...briefBlock(o.brief, 'fixer'), ''] : []),
     `Kanıt kareleri: ${rel}/sheet.png (12 kare), ${rel}/hook.png (kanca sayfası) ve ${rel}/frames/ (tek kareler); Read ile bakabilirsin. Final 1080×1920, 30 fps; kare numarası/30 = saniye. qc bulgularında kanıt ölçülen değer ve sınırdır.`,
     'Yalnızca bu bulguları düzelt. Ekran yazısı, kanca ve etiket adları → write_spec(storyboard/scene) (yeniden birleştirme, dakikalar). Kamera, zamanlama, geometri, malzeme → write_spec(scene) ve/veya scene/product.py, sonra build_scene ve render_preview_stills ile kontrol (final yeniden render, ~35 dk). Araştırmayı değiştirme; desteksiz bir iddiayı ekrandan çıkar ya da yumuşat. cta ve loop_strategy hiçbir şey çizmez. Düzeltemediğini not_addressed\'e gerekçesiyle yaz.',
-    ...(o.audioMode === 'vo' ? ["Seslendirme metni ya da telaffuz → write_spec(storyboard) içinde vo_text (yeniden seslendirme; bir vuruş 0,3 sn'den fazla uzarsa sahne yeniden kurulur, ~35 dk). Vuruş zamanlarını değiştirme: zamanları seslendirme belirler."] : []),
-    `Müzik seviyesi, ducking, efektler → write_spec(audio) (yeniden birleştirme, dakikalar).${o.audioMode === 'silent' ? ' Seslendirmesiz videoda müzik kaldırılamaz.' : ''}`,
-    // YAKLASIM spec Y14/Y16 (final review I1): the score is fixed; the fixer is not offered it.
-    ...(o.yaklasim ? ['YAKLASIM müziği sabittir (120 BPM Am–F–C–G): write_spec(music) yapma; ses bulgusunu sahne zamanlamasıyla (kenetlenme anları, vuruş sınırları) ya da write_spec(audio) ile seviyelerle çöz.'] : []),
-    ...(o.music && !o.yaklasim ? ['Müziğin kendisi (ruh hâli, tempo, ton, enerji, vurgu yerleri, enstrümanlar) → write_spec(music) ile partisyonu değiştir (duration_s, bölümler 0 sn\'den sona boşluksuz; adım müziği yeniden sentezler ve yeniden birleştirir, dakikalar). Müziği seslendirmenin altında daha kısık istiyorsan duck_db ya da music.gain_db (write_spec(audio)).'] : []),
+    'Müzik seviyesi, ducking, efektler → write_spec(audio) (yeniden birleştirme, dakikalar); müziğin kendisi sabittir (music.source "generated").',
+    // YAKLASIM spec Y14/Y16 (final review I1), spec Z3: the score is fixed for every video; the fixer is not offered it.
+    'YAKLASIM müziği sabittir (120 BPM Am–F–C–G): write_spec(music) yapma; ses bulgusunu sahne zamanlamasıyla (kenetlenme anları, vuruş sınırları) ya da write_spec(audio) ile seviyelerle çöz.',
     ...(o.audio ? ['', fenced('Mevcut ses planı (AudioPlan)', o.audio)] : []),
-    ...(o.music && !o.yaklasim ? ['', fenced('Mevcut müzik partisyonu (MusicScore)', o.music)] : []),
-    `Çıktı: FixReport şeması. round ${o.round}; her başarısız kontrol kimliği addressed (check_id, change_summary_tr, files) ya da not_addressed (check_id, reason) içinde tam bir kez; rerender_scope: yazı/etiket/storyboard değişimi ve ses planı için "compose", ${o.audioMode === 'vo' ? 'seslendirme (vo_text) için "voice", ' : ''}sahne ya da product.py için "build", storyboard'un baştan yazılması gerekiyorsa "storyboard"; spec_diffs kısa Türkçe özet.`,
+    `Çıktı: FixReport şeması. round ${o.round}; her başarısız kontrol kimliği addressed (check_id, change_summary_tr, files) ya da not_addressed (check_id, reason) içinde tam bir kez; rerender_scope: yazı/etiket/storyboard değişimi ve ses planı için "compose", sahne ya da product.py için "build", storyboard'un baştan yazılması gerekiyorsa "storyboard"; spec_diffs kısa Türkçe özet.`,
   ].join('\n');
 }
 
@@ -87,32 +82,15 @@ async function readNext(ctx: StepContext, prev: Prev): Promise<{ next: ScopeInpu
   return { next: { storyboard: storyboard.value, scene: scene.value, research: research?.ok ? research.value : prev.research, productSha, audio: audio?.ok ? audio.value : prev.audio, audioMode: ctx.audioMode, music: music?.ok ? music.value : prev.music } };
 }
 
-/**
- * H12/H10: what the fixer may do to the audio plan. The music track must be an allowed one of the ledger (checked only when the plan changed:
- * a stored plan is replayed as is); a silent video's music cannot be taken away (it would ship mute); the plan's mode is the run's.
- * `prev === null` (a legacy run without a stored plan) counts as "no music before", so silent removal is not refused there.
- */
-export function audioRefErrors(o: { next: AudioPlan | null; prev: AudioPlan | null; mode: AudioMode; allowedMusic: ReadonlyMap<string, string> }): string[] {
-  const { next, prev, mode } = o;
-  if (!next || (prev && canonical(next) === canonical(prev))) return [];
-  const out: string[] = [];
-  if (next.mode !== mode) out.push(`ses planı: mode ${mode} olmalı`);
-  const id = next.music.asset_id;
-  if (id !== null && !o.allowedMusic.has(id)) {
-    const list = [...o.allowedMusic].map(([i, title]) => `${i} (${title})`).join(', ') || 'yok';
-    out.push(`ses planı: müzik ${id} izinli müzik listesinde yok; izinli parçalar: ${list}`);
-  }
-  if (next.music.source === 'generated' && id !== null) out.push('ses planı: üretilen müzikte asset_id null olmalı');
-  // Agent music design A4: the composer's music counts as music; switching between it and a ledger track is allowed.
-  const hadMusic = !!prev && (prev.music.asset_id !== null || prev.music.source === 'generated');
-  const hasMusic = id !== null || next.music.source === 'generated';
-  if (!hasMusic && mode === 'silent' && hadMusic) out.push('ses planı: seslendirmesiz videoda müzik kaldırılamaz');
-  return out;
+/** H12/H10, spec Z5: what the fixer may do to the audio plan — levels and sounds, never the music itself (the fixed YAKLASIM stem). */
+export function audioRefErrors(next: AudioPlan | null): string[] {
+  if (!next) return [];
+  return next.music.source === 'generated' && next.music.asset_id === null ? [] : ['ses planı: müzik sabit YAKLASIM müziğidir (music.source "generated", asset_id null)'];
 }
 
-/** The outcome of a recorded fix round (also the replay): compose/voice/build rewind, a claimed rewrite without change is a rework, nothing changed stops the loop. */
+/** The outcome of a recorded fix round (also the replay): compose/build rewind, a claimed rewrite without change is a rework, nothing changed stops the loop. */
 async function outcomeOf(deps: StepDeps, ctx: StepContext, input: Parameters<FixerRun>[2], m: FixMeta, replay: boolean): Promise<StepOutcome> {
-  const to = m.scope === 'build' ? 'build' : m.scope === 'compose' ? 'compose' : m.scope === 'voice' ? 'voice' : m.claimed === 'storyboard' ? 'storyboard' : null;
+  const to = m.scope === 'build' ? 'build' : m.scope === 'compose' ? 'compose' : m.claimed === 'storyboard' ? 'storyboard' : null;
   if (to) {
     const reason = `fix:${to === 'storyboard' ? 'rework' : to}`;
     return { status: 'rewind', to, loop: 'final', reason: `düzeltme (${to}): ${openLabels(input.findings.map((f) => f.check_id))}`, version: { id: input.versionId, reason } };
@@ -138,7 +116,6 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
   await insertVersion(deps.pool, { id: versionId, videoId: ctx.videoId, parentVersionId: ctx.versionId, round, reason: 'fix:pending' });
   const prev = await loadPrev(deps.pool, ctx.runId, versionId);
   if (!prev) return { status: 'failed', error: 'düzeltilecek storyboard, sahne ya da araştırma çıktısı yok', retry: false };
-  const style = await styleFor(deps.pool, ctx.approach);
   const prevInput: ScopeInput = { storyboard: prev.storyboard, scene: prev.scene, research: prev.research, productSha: prev.productSha ?? '', audio: prev.audio, audioMode: ctx.audioMode, music: prev.music };
 
   let computed: { next: ScopeInput; scope: 'none' | 'compose' | 'voice' | 'build'; changed: string[] } | null = null;
@@ -147,26 +124,18 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
     const n = await readNext(ctx, prev);
     if ('errors' in n) return { errors: n.errors };
     const refs: string[] = [
-      ...storyboardRefErrors(n.next.storyboard, prev.research), ...sceneRefErrors(n.next.scene, n.next.storyboard, style.id),
+      ...storyboardRefErrors(n.next.storyboard, prev.research), ...sceneRefErrors(n.next.scene, n.next.storyboard, 'yaklasim'),
       // YAKLASIM spec Y6/Y13: a fix may not break the approach (window, chain, words, loop, identity, mid-burst frame 0, snaps).
       ...(ctx.approach === 'yaklasim' ? [...yaklasimStoryboardErrors(n.next.storyboard), ...yaklasimSceneErrors(n.next.scene, n.next.storyboard)] : []),
-      ...(ctx.approach === 'yaklasim' && canonical(n.next.music ?? null) !== canonical(prev.music ?? null) ? ['YAKLASIM müziği sabittir: partisyonu (write_spec music) değiştirme; ses bulgusunu sahne zamanlamasıyla ya da ses planıyla (write_spec audio) çöz.'] : []), ...(n.next.storyboard.audio_mode === ctx.audioMode ? [] : [`audio_mode ${ctx.audioMode} olmalı`]),
+      ...(canonical(n.next.music ?? null) !== canonical(prev.music ?? null) ? ['YAKLASIM müziği sabittir: partisyonu (write_spec music) değiştirme; ses bulgusunu sahne zamanlamasıyla ya da ses planıyla (write_spec audio) çöz.'] : []), ...(n.next.storyboard.audio_mode === ctx.audioMode ? [] : [`audio_mode ${ctx.audioMode} olmalı`]),
       // H6: the VO text rules and the VO ceiling of the window (the floor is the storyboarder's, not a fix's); brief design Y9: the video window holds.
-      ...storyboardVoErrors(n.next.storyboard, { minS: false, window: ctx.duration }), ...windowErrors(n.next.storyboard.duration_s, ctx.duration),
-      // Agent music design A13: a changed score must still fit the (possibly changed) storyboard.
-      ...(n.next.music && canonical(n.next.music) !== canonical(prev.music) ? musicScoreErrors(n.next.music, { durationS: n.next.storyboard.duration_s }).map((e) => `music: ${e}`) : []),
-      ...audioRefErrors({ next: n.next.audio, prev: prev.audio, mode: ctx.audioMode, allowedMusic: new Map((await listAssets(deps.pool, { kind: 'music', allowedOnly: true })).map((a) => [a.id, a.title])) }),
+      ...windowErrors(n.next.storyboard.duration_s, ctx.duration),
+      ...audioRefErrors(n.next.audio),
     ];
     const s = fixScope({ prev: prevInput, next: n.next });
-    // H12: in a VO video the voice step owns the beat times.
-    if (ctx.audioMode === 'vo' && s.changed.includes('storyboard.timing')) refs.push("vuruş zamanlarını seslendirme belirler; yalnızca vo_text'i değiştir (süre, vuruş zamanları, rehook_at ve payoff_at aynı kalmalı).");
-    // M7 Y18 (4): the voice track is tied to the beat ids and lines (voKey); outside a voice round compose would refuse it as stale.
-    else if (ctx.audioMode === 'vo' && s.scope !== 'voice' && voKey(n.next.storyboard) !== voKey(prev.storyboard)) {
-      refs.push('seslendirmeli videoda vuruş kimliklerini ve metinlerini değiştirme: seslendirme bunlara bağlı; yalnızca vo_text değişikliğiyle (seslendirme turu) değiştirilebilirler.');
-    }
     if (refs.length) return { errors: refs };
     if (s.changed.includes('research')) return { errors: ['research değiştirilemez: araştırmayı eski haline getir; desteksiz bir iddiayı storyboard\'dan çıkar ya da yumuşat.'] };
-    // A render change is built here whatever the scope (a VO text plus a lens change is a voice round; the next build step then runs agent-free).
+    // A render change is built here whatever the scope.
     if (rendersChanged(s.changed)) {
       if (!deps.scene) return { errors: [], fatal: 'render yapılandırılmadı' };
       const b = await buildScene(deps.scene, { runDir: ctx.runDir, owner: ctx.stepId, signal: ctx.signal });
@@ -181,7 +150,7 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
   const prior = await priorSession(deps.pool, { ...ctx, fixRound: round }, 'fixer');
   const r = await runStructured<FixReport>({
     manager: deps.manager, ctx, role: 'fixer', schema: 'FixReport', model: fixerModel(failed),
-    prompt: fixerPrompt({ name: ctx.productName, round, reviewedRound: ctx.fixRound, findings, audioMode: ctx.audioMode, audio: prev.audio, brief: ctx.brief, music: prev.music, yaklasim: ctx.approach === 'yaklasim' }),
+    prompt: fixerPrompt({ name: ctx.productName, round, reviewedRound: ctx.fixRound, findings, audioMode: ctx.audioMode, audio: prev.audio, brief: ctx.brief, yaklasim: ctx.approach === 'yaklasim' }),
     initialResume: prior ? { claudeSessionId: prior.claudeSessionId, parent: prior.id, prompt: RESUME_PROMPT } : undefined,
     check: (v) => fixReportRefErrors(v, { round, failed, audioMode: ctx.audioMode }),
     checkAsync,
@@ -208,16 +177,6 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
       const have = await pendingOf(kind);
       if (have ? canonical(have.content) === canonical(after) : canonical(before) === canonical(after)) continue;
       await persist(deps, fixCtx, kind, after, hash, { latest: true });
-    }
-    // Agent music design A13: a new score is rendered here (seconds), so the recompose plays it; the stem belongs to the pending version.
-    if (done.changed.includes('music') && done.next.music) {
-      const have = await pendingOf('music_stem');
-      if (!have) {
-        if (!deps.music) return { status: 'failed', error: 'müzik sentezleyici yapılandırılmadı', retry: false };
-        const out = join(ctx.runDir, 'music', `music-fix-r${round}.wav`);
-        const m = await deps.music.render({ score: done.next.music, out, renderS: musicRenderS(done.next.storyboard.duration_s), owner: ctx.stepId, signal: ctx.signal });
-        await record(deps, fixCtx, { kind: 'music_stem', file: m.file, inputHash: hash, meta: { renderer: m.renderer, notes: m.notes, peakDb: m.peakDb, renderS: m.durationS, fixRound: round } });
-      }
     }
     if (done.changed.includes('product.py')) {
       const file = join(ctx.runDir, 'scene', 'product.py');

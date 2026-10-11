@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { CHANNEL_STYLES, type SceneSpec, type Storyboard } from '@videogen/shared';
+import { CHANNEL_STYLES, YAKLASIM, type SceneSpec, type Storyboard } from '@videogen/shared';
 import { bundleHash } from '@videogen/remotion/hash';
 import { draftProps } from '@videogen/remotion/props';
 import { BlenderRenderDriver, RenderError, REMOTION_CLI } from '../src/render/driver.ts';
@@ -14,7 +14,7 @@ const FX = resolve(import.meta.dirname, '../../../tests/fixtures');
 const DATA = mkdtempSync(join(tmpdir(), 'vg-draft-int-'));
 afterAll(() => rmSync(DATA, { recursive: true, force: true }));
 const json = <T>(p: string) => JSON.parse(readFileSync(join(FX, p), 'utf8')) as T;
-const style = CHANNEL_STYLES.gece_mavisi;
+const style = CHANNEL_STYLES.yaklasim;
 const { glbUrl: _u, ...props } = draftProps({
   glbUrl: '', yfov: json<{ yfov: number[] }>('scene/kalem/camera_track.json').yfov, width: 540, height: 960,
   scene: json<SceneSpec>('artifacts/scene-kalem.json'), storyboard: json<Storyboard>('artifacts/storyboard-kalem.json'), style,
@@ -34,9 +34,9 @@ describe('Remotion draft (real system Chrome, ANGLE)', () => {
     expect(r.frames).toBe(60);
     expect(stages).toEqual(['bundle', 'browser', 'frames']);
     expect(draftProbeErrors(await probeVideo(FFMPEG, out), { width: 540, height: 960, frames: 60 })).toEqual([]);
-    // Top-left corner (outside the safe area, no text): the gradient's top colour, within codec tolerance (grilling C29: sRGB output).
+    // Top-left corner (outside the safe area, no text): the YAKLASIM radial gradient's outer navy, within codec tolerance (grilling C29: sRGB output).
     const px = [...execFileSync(FFMPEG, ['-v', 'error', '-i', out, '-vf', 'select=eq(n\\,0),crop=4:4:2:2,scale=1:1', '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'])];
-    hex(style.background.top).forEach((c, i) => expect(Math.abs(px[i]! - c)).toBeLessThanOrEqual(8));
+    hex(YAKLASIM.palette.outer).forEach((c, i) => expect(Math.abs(px[i]! - c)).toBeLessThanOrEqual(8));
     const bundle = join(DATA, 'cache', 'remotion', bundleHash());
     expect(existsSync(join(bundle, 'index.html'))).toBe(true);
     const at = statSync(bundle).mtimeMs;

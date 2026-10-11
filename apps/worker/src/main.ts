@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { assertNoPaidKeys, cleanChildEnv, loadConfig, ROLE_NAMES, watchParent, type RoleName } from '@videogen/shared';
+import { ACTIVE_ROLE_NAMES, assertNoPaidKeys, cleanChildEnv, loadConfig, watchParent, type ActiveRoleName } from '@videogen/shared';
 import { appendAudit, createPool, isUuid } from '@videogen/db';
 import { FakeClaudeDriver, PLUGIN_DIR, SdkClaudeDriver, type ClaudeDriver, type FakeScript } from '@videogen/claude';
 import { ChatService } from './agents/chat.ts';
@@ -18,8 +18,7 @@ import { startHeartbeat } from './heartbeat.ts';
 import { fakePipelineScript } from './pipeline/fake-scripts.ts';
 import { Orchestrator } from './pipeline/orchestrator.ts';
 import { SystemProbe } from './pipeline/resources.ts';
-import { FakeAudioDriver, PythonAudioDriver, type AudioDriver } from './audio/driver.ts';
-import { FakeMusicDriver, FluidMusicDriver, type MusicDriver } from './audio/music.ts';
+import { FakeMusicDriver, YaklasimMusicDriver, type MusicDriver } from './audio/music.ts';
 import { runPreflight } from './pipeline/preflight.ts';
 import { BlenderRenderDriver, FakeRenderDriver, type Capability, type RenderDriver } from './render/driver.ts';
 import { ResourceLocks } from './render/locks.ts';
@@ -50,14 +49,10 @@ const renderAudit = (action: string, data: Record<string, unknown>) => appendAud
 const render: RenderDriver = config.render.driver === 'fake'
   ? new FakeRenderDriver({ ffmpeg: config.render.ffmpeg })
   : new BlenderRenderDriver({ blender: config.render.blender, bwrap: config.render.bwrap, dataDir: config.dataDir, home: homedir(), audit: renderAudit });
-// M5c: the voice CLI child (K22: only under the orchestrator's GPU lock); the fake render driver comes with the fake TTS.
-const audio: AudioDriver = config.render.driver === 'fake'
-  ? new FakeAudioDriver({ ffmpeg: config.render.ffmpeg })
-  : new PythonAudioDriver({ ...config.audio, dataDir: config.dataDir, audit: renderAudit });
-// Agent music design A2/A9: the score renderer (FluidSynth on the machine; an ffmpeg pad with the fake render driver).
+// YAKLASIM spec Y14: the fixed music bed (the audio service's generator; an ffmpeg pad with the fake render driver).
 const music: MusicDriver = config.render.driver === 'fake'
   ? new FakeMusicDriver({ ffmpeg: config.render.ffmpeg })
-  : new FluidMusicDriver({ python: config.audio.python, soundfont: config.audio.soundfont, dataDir: config.dataDir, audit: renderAudit });
+  : new YaklasimMusicDriver({ python: config.audio.python, dataDir: config.dataDir, audit: renderAudit });
 const locks = new ResourceLocks();
 const probe = new SystemProbe(config.dataDir);
 let renderCapability: Capability = { ok: false, reason: 'denetlenmedi' };
@@ -74,9 +69,9 @@ const manager = new SessionManager({
   ),
 });
 const orchestrator = new Orchestrator({
-  pool, dataDir: config.dataDir, probe, locks, gate: guard, preflight: runPreflight({ pool, audio, music, dataDir: config.dataDir }),
+  pool, dataDir: config.dataDir, probe, locks, gate: guard, preflight: runPreflight({ music }),
   executors: pipelineExecutors({
-    pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined, reviews, gate: guard, audio, music,
+    pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined, reviews, gate: guard, music,
     scene: { pool, render, locks, probe, ffmpeg: config.render.ffmpeg, encodePreset: config.render.encodePreset, capability: () => renderCapability },
   }),
 });
@@ -91,9 +86,9 @@ const uuidOf = (c: Record<string, unknown>, k: string): string => {
   if (typeof v !== 'string' || !isUuid(v)) throw new TypeError(`invalid ${k}`);
   return v;
 };
-const roleOf = (v: unknown): RoleName => {
-  if (typeof v !== 'string' || !(ROLE_NAMES as readonly string[]).includes(v)) throw new TypeError('invalid role');
-  return v as RoleName;
+const roleOf = (v: unknown): ActiveRoleName => {
+  if (typeof v !== 'string' || !(ACTIVE_ROLE_NAMES as readonly string[]).includes(v)) throw new TypeError('invalid role');
+  return v as ActiveRoleName;
 };
 
 let authTimer: NodeJS.Timeout | undefined;
@@ -131,7 +126,7 @@ try {
       },
       ...(config.devEndpoints ? {
         'dev.video.ready': async (c: Record<string, unknown>) => {
-          const v = await seedReadyVideo(pool, config.dataDir, config.render.ffmpeg, { productName: typeof c.productName === 'string' ? c.productName.slice(0, 80) : undefined, aigcLabel: c.aigc === true });
+          const v = await seedReadyVideo(pool, config.dataDir, config.render.ffmpeg, { productName: typeof c.productName === 'string' ? c.productName.slice(0, 80) : undefined });
           await appendAudit(pool, { actorType: 'system', action: 'dev.video.ready', data: { videoId: v.videoId, requestId: typeof c.requestId === 'string' ? c.requestId.slice(0, 64) : null } });
         },
         'dev.session.start': (c: Record<string, unknown>) => manager.start({ kind: 'pipeline', role: roleOf(c.role), prompt: typeof c.prompt === 'string' ? c.prompt.slice(0, 2000) : 'Merhaba', fakeScript: (c.script ?? undefined) as FakeScript | undefined }),

@@ -68,7 +68,7 @@ describe('final review tools', { timeout: 60_000 }, () => {
   const qcReport = () => {
     const ok = (id: QcCheckResult['id']): QcCheckResult => ({ id, pass: true, value: 'tamam', limit: '-' });
     const music: QcCheckResult[] = [ok('g1_video'), { id: 'd7_bitrate', pass: false, value: '2000 kb/sn', limit: '3000–11000 kb/sn' }, { id: 'd3_freeze', pass: true, value: 'yok', limit: '≤ 0,5 sn' }, { id: 'd8_loop', pass: false, value: '0,70', limit: '≥ 0,90' }];
-    return buildQcReport(music, [ok('g1_video')]);
+    return buildQcReport(music);
   };
 
   it('each final reviewer role has its own 12-frame budget per round and pass; run_qc returns the stored report; an unregistered role gets nothing', async () => {

@@ -10,7 +10,7 @@ import {
 
 export const STEP_EN: Record<StepKey, string> = {
   research: 'Research', storyboard: 'Storyboard', voice: 'Voiceover', music: 'Music', build: 'Scene build', draft_render: 'Draft render',
-  draft_review: 'Draft review', final_render: 'Final render', compose: 'Compose', qc: 'Automatic checks', review: 'Review', finalize: 'Finalize', remix: 'Audio mix',
+  draft_review: 'Draft review', final_render: 'Final render', compose: 'Compose', qc: 'Automatic checks', review: 'Review', finalize: 'Finalize',
 };
 export const STEP_STATUS_EN: Record<StepStatus, string> = {
   pending: 'waiting', queued: 'queued', running: 'running', waiting_gpu: 'waiting for GPU', waiting_limit: 'waiting for usage limit', waiting_disk: 'waiting for disk space',
@@ -23,6 +23,8 @@ export const ROLE_EN: Record<RoleName, string> = {
   researcher: 'Researcher', storyboarder: 'Storyboarder', builder: 'Video builder', audio_director: 'Audio director', reviewer_visual: 'Visual reviewer',
   reviewer_facts: 'Accuracy reviewer', reviewer_retention: 'Retention reviewer', reviewer_audio: 'Audio reviewer', fixer: 'Fixer', chat: 'Chat', summarizer: 'Summarizer',
 };
+/** A session's role label; a retired role keeps its label and an unknown one shows its id (spec Z3: old sessions stay readable). */
+export const roleEn = (role: string): string => ROLE_EN[role as RoleName] ?? role;
 export const DURATION_SOURCE_EN: Record<DurationSource, string> = { default: 'default', agent: 'agent suggestion', user: 'your choice' };
 export const HOOK_PATTERN_EN: Record<HookPattern, string> = {
   question: 'Curiosity question', number: 'Surprising number', misconception: 'Common misconception', reveal: 'Visual reveal', contrast: 'Outside vs inside',

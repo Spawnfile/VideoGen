@@ -181,8 +181,7 @@ export class Orchestrator {
       `UPDATE steps SET status = 'cancelled', ended_at = coalesce(ended_at, now()) WHERE run_id = $1 AND status NOT IN ('done', 'skipped', 'failed')`,
       [runId],
     );
-    // Agent music design A6: a stopped audio edit leaves the finished video as it was (its previous version stays the best one).
-    await updateVideo(pool, run.videoId, run.kind === 'audio_edit' ? { status: 'ready', statusNote: 'Ses düzenlemesi durduruldu; önceki sürüm geçerli' } : { status: 'cancelled', statusNote: 'Kullanıcı durdurdu' });
+    await updateVideo(pool, run.videoId, { status: 'cancelled', statusNote: 'Kullanıcı durdurdu' });
     for (const r of this.running.values()) if (r.runId === runId) r.abort.abort();
     await this.audit('run.cancelled', runId, { actor });
     await this.cleanupFrames(runId);
@@ -273,7 +272,7 @@ export class Orchestrator {
     return {
       runId: step.runId, stepId: step.id, key: step.key, attempt, round: step.round, fixRound: step.fixRound, plan: ctx.run.plan.map((p) => p.key), videoId: ctx.videoId, productId: ctx.productId, productName: ctx.productName,
       audioMode: ctx.audioMode, versionId: ctx.versionId, brief: ctx.brief, duration: ctx.duration, durationSource: ctx.durationSource, approach: ctx.approach,
-      ...(ctx.run.kind === 'audio_edit' && ctx.instruction && ctx.parentRunId ? { edit: { instruction: ctx.instruction, parentRunId: ctx.parentRunId } } : {}), runDir: join(this.d.dataDir, 'runs', step.runId), signal,
+      runDir: join(this.d.dataDir, 'runs', step.runId), signal,
       progress: (pct, source) => { void this.stepProgress(step.id, pct, source); },
       status: (s, note) => { statuses = statuses.then(() => this.stepStatus(step.id, s, note)).catch(() => {}); },
       session: (sessionId) => { void updateStep(this.d.pool, step.id, { sessionId }).then(() => this.publish(step.runId)); },
@@ -414,22 +413,18 @@ export class Orchestrator {
     const ctx = await getRunContext(pool, runId);
     if (!ctx || TERMINAL.includes(ctx.run.status)) return;
     const plan = ctx.run.plan;
-    // K13: "yayına hazır" needs the M5 review gates, so only a plan that reaches finalize may mark the video ready. An audio edit (A6/A7) keeps the
-    // reviewed picture and runs the audio qc itself, so its done run is complete; a failed or stopped one leaves the previous version in place.
-    const edit = ctx.run.kind === 'audio_edit';
-    const complete = status === 'done' && (edit || plan.some((s) => s.key === 'finalize'));
+    // K13: "yayına hazır" needs the M5 review gates, so only a plan that reaches finalize may mark the video ready.
+    const complete = status === 'done' && plan.some((s) => s.key === 'finalize');
     await updateRun(pool, runId, { status, endedAt: new Date(), etaS: null, error: status === 'failed' ? (reason ?? null) : null, usageEnd: await latestUsageMark(pool) });
     if (status === 'done') {
       const last = plan.at(-1)?.key ?? 'research';
       await updateVideo(pool, ctx.videoId, complete ? { status: 'ready', statusNote: null } : { status: 'needs_human', statusNote: PIPELINE_INCOMPLETE_NOTE(last) });
-    } else if (edit) {
-      await updateVideo(pool, ctx.videoId, { status: 'ready', statusNote: `Ses düzenlemesi ${status === 'failed' ? 'başarısız' : 'durdu'}: ${reason ?? 'neden yok'}; önceki sürüm geçerli` });
     } else {
       await updateVideo(pool, ctx.videoId, { status, statusNote: reason ?? null });
     }
     if (status !== 'needs_human') await this.recompute(runId, complete);
     // Plan I6: a run that stops after a final review round (even before finalize) still shows its best round in the library.
-    if (status !== 'done' && !edit) await settleBest(pool, runId).catch((e) => this.log(`settleBest ${runId} failed (${errorTag(e)})`));
+    if (status !== 'done') await settleBest(pool, runId).catch((e) => this.log(`settleBest ${runId} failed (${errorTag(e)})`));
     await this.audit(`run.${status}`, runId, { data: reason ? { reason } : undefined });
     await this.cleanupFrames(runId);
     await this.publish(runId);

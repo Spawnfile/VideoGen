@@ -36,13 +36,14 @@ describe('asset import and the procedural SFX library', () => {
     expect((await actions()).at(-1)).toMatchObject({ action: 'asset.exists', data: { license: 'CC-BY-4.0', allowed: true } });
   });
 
-  it('generates nine deterministic CC0 sound effects (six classic, three YAKLASIM sines) once and registers them as allowed', async () => {
+  it('generates the three deterministic CC0 YAKLASIM sines once and registers them as allowed (spec Z5: no classic library sounds)', async () => {
     const lib = await ensureSfxLibrary(t.pool, tmp(), FFMPEG);
-    expect(Object.keys(lib).sort()).toEqual([...SFX_NAMES].sort());
+    expect(Object.keys(lib).sort()).toEqual(['y_land', 'y_snap', 'y_tap']);
+    expect([...SFX_NAMES].sort()).toEqual(['y_land', 'y_snap', 'y_tap']);
     expect(Object.values(lib).every((a) => a.allowed && a.licenseSpdx === 'CC0-1.0' && a.durationMs! > 0 && a.durationMs! <= 700)).toBe(true);
     const again = await ensureSfxLibrary(t.pool, tmp(), FFMPEG); // another data dir: same bytes → same blobs → no new rows
-    expect(again.whoosh.blobSha).toBe(lib.whoosh.blobSha);
-    expect((await listAssets(t.pool, { kind: 'sfx' })).length).toBe(9);
+    expect(again.y_snap.blobSha).toBe(lib.y_snap.blobSha);
+    expect((await listAssets(t.pool, { kind: 'sfx' })).length).toBe(3);
   });
 
   it('parses the CLI add command and refuses missing license fields', () => {
