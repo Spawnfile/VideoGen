@@ -30,7 +30,7 @@ function Dot({ tone }: { tone: string }) {
 }
 
 export function StepMark({ tone }: { tone: ThinkingRowView['tone'] }) {
-  if (tone === 'running') return <span className="size-3 shrink-0 rounded-full border-[1.5px] border-line-strong border-t-ink-2" style={{ animation: 'spin 700ms linear infinite' }} />;
+  if (tone === 'running') return <span className="size-3 shrink-0 rounded-full border-[1.5px] border-line-strong border-t-accent" style={{ animation: 'spin 700ms linear infinite' }} />;
   if (tone === 'denied' || tone === 'error') {
     return (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-red)" strokeWidth="2.2" strokeLinecap="round" className="shrink-0 opacity-80">

@@ -89,6 +89,13 @@ describe('timelineView', () => {
     expect(v.now).toMatchObject({ kind: 'done', clock: '5:00' });
   });
 
+  it('stopped run puts the playhead where the work stopped', () => {
+    const v = timelineView(run([step('research', { status: 'done', startedAt: at(0), endedAt: at(300) }), step('build', { status: 'cancelled', startedAt: at(300) }), step('final_render', { status: 'cancelled' })], { status: 'cancelled', endedAt: at(400) }), T0 + 999_000);
+    const build = blocks(v).find((b) => b.key === 'build')!;
+    expect(v.playheadPct).toBeCloseTo(build.startPct + build.widthPct, 6);
+    expect(v.playheadPct).toBeLessThan(100);
+  });
+
   it('repeated key yields two blocks with distinct ids in order', () => {
     const a = step('build', { status: 'done', startedAt: at(0), endedAt: at(100) });
     const b = step('build', { status: 'running', startedAt: at(100), round: 1 });

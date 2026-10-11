@@ -8,6 +8,7 @@ import { DraftTabs } from './DraftTabs.tsx';
 import { QcCard } from './QcCard.tsx';
 import { ReviewPanel } from './ReviewPanel.tsx';
 import { StepList } from './StepList.tsx';
+import { Timeline } from './Timeline.tsx';
 import { AudioCard } from './AudioCard.tsx';
 import { VideoHeader } from './VideoHeader.tsx';
 import { VoiceCard } from './VoiceCard.tsx';
@@ -54,6 +55,7 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
   return (
     <div className="flex flex-col gap-5">
       <VideoHeader video={video} run={run} />
+      {run && run.steps.length > 0 && <Timeline run={run} />}
       <DraftTabs key={`${latest.final.musicSha ?? ''}${latest.draft.videoSha ?? 'none'}`} pick={latest.draft} final={latest.final} versions={versions.data ?? []} />
       {/* Mounted on the video's status alone: the artifact query refetches under a new key as steps finish, and a final-based condition would remount the panel (and lose its state). */}
       {(video.status === 'ready' || video.status === 'published') && <PublishPanel key={videoId} videoId={videoId} />}

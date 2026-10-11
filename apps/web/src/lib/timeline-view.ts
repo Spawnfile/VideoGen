@@ -6,6 +6,7 @@ import { STEP_EN, STEP_STATUS_EN } from './i18n.ts';
  * real timings where they exist and STEP_DEFAULT_S where they do not; every block but a skipped one gets at least 4 % so it stays
  * tappable. Blocks are keyed by StepView.id because a review loop runs the same step key again.
  *
+ * The playhead: 100 for a run that reached its end (done, needs_human), the end of the last started step for a stopped or failed one.
  * now.kind: running → live, queued → queued, done → done, cancelled → stopped, failed → failed, needs_human → done (the amber cue comes
  * from the header and the needs-you strip; the timeline only shows time).
  */
@@ -81,18 +82,21 @@ export function timelineView(run: RunView, nowMs: number): TimelineView {
   });
 
   const finished = run.status !== 'running' && run.status !== 'queued';
+  const endOfStarted = () => {
+    const last = blocks.map((b, i) => (b.started ? i : -1)).filter((i) => i >= 0).pop();
+    return last === undefined ? 0 : blocks[last].startPct + blocks[last].widthPct;
+  };
   let playheadPct = 0;
-  if (finished) playheadPct = 100;
+  // A run that went to the end sits at 100; a stopped or failed one stays where the work stopped.
+  if (run.status === 'done' || run.status === 'needs_human') playheadPct = 100;
+  else if (finished) playheadPct = endOfStarted();
   else {
     const li = steps.findIndex((s) => s.status === 'running' || s.status.startsWith('waiting'));
     if (li >= 0) {
       const s = steps[li];
       const frac = s.startedAt && stretched[li] > 0 ? Math.min(1, secs(s.startedAt, nowMs) / Math.max(raw[li], 1)) : 0;
       playheadPct = blocks[li].startPct + frac * blocks[li].widthPct;
-    } else {
-      const last = blocks.map((b, i) => (b.started ? i : -1)).filter((i) => i >= 0).pop();
-      playheadPct = last === undefined ? 0 : blocks[last].startPct + blocks[last].widthPct;
-    }
+    } else playheadPct = endOfStarted();
   }
 
   const live = steps.find((s) => s.status === 'running' || s.status.startsWith('waiting'));
