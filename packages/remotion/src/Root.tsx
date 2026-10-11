@@ -9,7 +9,7 @@ import { DRAFT_COMPOSITION, DRAFT_FPS, FINAL_COMPOSITION, type DraftProps, type 
 export const EMPTY_DRAFT: DraftProps = {
   glbUrl: '', yfov: [0.5, 0.5], frames: 1, width: 540, height: 960,
   background: { top: '#16203a', bottom: '#070a14' }, text: { color: '#eef3ff', plate: 'rgba(8,12,24,0.72)', line: '#5cc8ff', accent: '#5cc8ff' },
-  lighting: 'key_rim_cool', hook: '', beats: [], labels: {},
+  lighting: 'key_rim_cool', hook: '', beats: [], labels: {}, look: 'legacy',
 };
 const EMPTY_FINAL: FinalProps = { ...EMPTY_DRAFT, width: 1080, height: 1920, framesUrl: '' };
 

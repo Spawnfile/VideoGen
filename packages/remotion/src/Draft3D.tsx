@@ -7,9 +7,10 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { sceneCamera, SceneClock } from '@videogen/scene3d';
 import { useGltf } from './gltf.ts';
-import { labelsAt } from './layout.ts';
+import { labelsAt, ringAt } from './layout.ts';
 import { Overlay } from './Overlay.tsx';
 import type { DraftProps, LabelBox } from './props.ts';
+import { YaklasimBackdrop, YaklasimLayer, YaklasimShake } from './yaklasim-layer.tsx';
 
 type Vec = [number, number, number];
 /** Draft approximations of the vg_blender studio presets (y-up glTF space). The environment map gives metals something to reflect (M4b §8). */
@@ -55,6 +56,21 @@ export const Draft3D: React.FC<DraftProps> = (p) => {
   const rig = useMemo(() => (gltf ? { clock: new SceneClock(gltf), cam: sceneCamera(gltf) } : null), [gltf]);
   // labelsAt seeks the clips and applies this frame's lens before the canvas renders the frame (probe P6).
   const labels: LabelBox[] = gltf && rig ? labelsAt(gltf, rig.clock, rig.cam, p, frame) : [];
+  if (p.look === 'yaklasim') {
+    return (
+      <AbsoluteFill>
+        <YaklasimBackdrop width={p.width} />
+        <YaklasimShake p={p} frame={frame}>
+          {gltf && rig ? (
+            <ThreeCanvas width={p.width} height={p.height}>
+              <Stage gltf={gltf} cam={rig.cam} lighting={p.lighting} />
+            </ThreeCanvas>
+          ) : null}
+        </YaklasimShake>
+        <YaklasimLayer p={p} frame={frame} ring={gltf && rig ? ringAt(gltf, rig.cam, p, frame) : null} />
+      </AbsoluteFill>
+    );
+  }
   return (
     <AbsoluteFill style={{ background: `linear-gradient(${p.background.top}, ${p.background.bottom})`, fontFamily: 'Inter, "DejaVu Sans", sans-serif' }}>
       {gltf && rig ? (
