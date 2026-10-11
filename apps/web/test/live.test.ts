@@ -174,3 +174,38 @@ describe('flush cap, live events and the half-open watchdog', () => {
     expect(last().url).toBe('/events?after=7');
   });
 });
+
+describe('back from the background (phone app resumed)', () => {
+  const doc = { visibilityState: 'hidden', handlers: [] as (() => void)[], addEventListener(_t: string, fn: () => void) { this.handlers.push(fn); }, removeEventListener() {} };
+  const show = () => { doc.visibilityState = 'visible'; for (const fn of doc.handlers) fn(); };
+  beforeEach(() => { doc.visibilityState = 'hidden'; doc.handlers = []; vi.stubGlobal('document', doc); });
+
+  it('visible reconnects without waiting for backoff when the stream died while hidden', () => {
+    const stop = live.connectLive('/events');
+    last().open();
+    last().fail();
+    const before = FakeEventSource.all.length;
+    show();
+    expect(FakeEventSource.all.length).toBe(before + 1);
+    stop();
+  });
+
+  it('a fresh open stream is left alone when the page becomes visible', () => {
+    const stop = live.connectLive('/events');
+    last().open();
+    const before = FakeEventSource.all.length;
+    show();
+    expect(FakeEventSource.all.length).toBe(before);
+    stop();
+  });
+
+  it('an open but silent stream (frozen while hidden) is replaced when visible', () => {
+    const stop = live.connectLive('/events', { staleMs: 10_000 });
+    last().open();
+    vi.setSystemTime(Date.now() + 60_000);
+    const before = FakeEventSource.all.length;
+    show();
+    expect(FakeEventSource.all.length).toBe(before + 1);
+    stop();
+  });
+});

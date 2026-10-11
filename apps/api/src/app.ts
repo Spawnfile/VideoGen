@@ -88,9 +88,19 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
   registerSse(app, deps);
 
   if (existsSync(join(deps.config.webDist, 'index.html'))) {
-    await app.register(fastifyStatic, { root: deps.config.webDist, wildcard: false, decorateReply: false });
+    // An installed app must notice a new build: the page, the service worker and the manifest are always revalidated; Vite's hashed
+    // files never change under one name, so they are cached for a year.
+    await app.register(fastifyStatic, {
+      root: deps.config.webDist, wildcard: false, decorateReply: false, cacheControl: false,
+      setHeaders: (reply, path) => {
+        const name = path.slice(path.lastIndexOf('/') + 1);
+        reply.header('cache-control', path.includes('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache');
+        if (name === 'sw.js') reply.header('service-worker-allowed', '/');
+        if (name === 'manifest.webmanifest') reply.header('content-type', 'application/manifest+json; charset=utf-8');
+      },
+    });
     app.setNotFoundHandler((req, reply) =>
-      req.url.startsWith('/api') || req.url.startsWith('/events') ? reply.code(404).send({ error: 'not found' }) : reply.sendFile('index.html', deps.config.webDist),
+      req.url.startsWith('/api') || req.url.startsWith('/events') ? reply.code(404).send({ error: 'not found' }) : reply.header('cache-control', 'no-cache').sendFile('index.html', deps.config.webDist, { cacheControl: false }),
     );
   }
   return app;

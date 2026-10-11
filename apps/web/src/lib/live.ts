@@ -141,11 +141,28 @@ export function connectLive(url = '/events', opts: ConnectOptions = {}) {
     reopenLater();
   }, 5_000);
 
+  // A phone app in the background gets its timers frozen and its stream cut; coming back must not wait for the backoff or the watchdog.
+  const resume = () => {
+    if (stopped || typeof document === 'undefined' || document.visibilityState !== 'visible') return;
+    const dead = !es || es.readyState === EventSource.CLOSED;
+    const silent = es?.readyState === EventSource.OPEN && Date.now() - lastMessageAt > (opts.staleMs ?? STALE_MS);
+    if (!dead && !silent) return;
+    es?.close();
+    clearTimeout(retry);
+    backoff = RETRY_MIN_MS;
+    set({ status: 'reconnecting' });
+    open();
+  };
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', resume);
+  if (typeof window !== 'undefined') window.addEventListener('pageshow', resume);
+
   open();
   return () => {
     stopped = true;
     clearTimeout(retry);
     clearInterval(watchdog);
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', resume);
+    if (typeof window !== 'undefined') window.removeEventListener('pageshow', resume);
     es?.close();
   };
 }

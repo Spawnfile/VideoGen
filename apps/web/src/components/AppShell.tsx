@@ -8,6 +8,8 @@ import { StatusSheet } from './shell/StatusSheet.tsx';
 import { TabBar } from './shell/TabBar.tsx';
 import { TopBar } from './shell/TopBar.tsx';
 import { UsageFooter } from './UsageFooter.tsx';
+import { Unreachable } from './shell/Unreachable.tsx';
+import { UpdateToast } from './shell/UpdateToast.tsx';
 
 /**
  * Phone (< 768 px): top bar, content, tab bar. Tablet: icon rail + content + footer. Desktop (≥ 1200 px): labelled sidebar + content +
@@ -37,6 +39,8 @@ export function AppShell({ path, go, chatLive, children }: { path: string; go: (
             <UsageFooter />
           </div>
           <StatusSheet open={status} onClose={() => setStatus(false)} />
+          <UpdateToast />
+          <Unreachable />
         </div>
       )}
     </ShellProvider>

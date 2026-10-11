@@ -1,9 +1,15 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
+
+// Names the build for the service worker cache and Settings → This device (short commit + build time).
+const sha = (() => { try { return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim(); } catch { return 'dev'; } })();
+const BUILD_ID = `${sha}-${Date.now().toString(36)}`;
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   server: {
     host: '127.0.0.1',
     port: 5173,

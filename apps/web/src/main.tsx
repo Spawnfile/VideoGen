@@ -18,6 +18,7 @@ import { LibraryDetail } from './routes/LibraryDetail.tsx';
 import { Settings } from './routes/Settings.tsx';
 import { NEW_VIDEO_EVENT, Studio } from './routes/Studio.tsx';
 import './styles/theme.css';
+import { registerServiceWorker } from './lib/sw-register.ts';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, refetchOnWindowFocus: true } } });
 
@@ -87,6 +88,8 @@ function App() {
     : <Studio />;
   return <AppShell path={path} go={go}>{page}</AppShell>;
 }
+
+registerServiceWorker();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

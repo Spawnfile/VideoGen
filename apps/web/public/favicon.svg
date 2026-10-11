@@ -1,6 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="8" fill="#27251e"/>
-  <rect x="9" y="5" width="14" height="5" rx="2" fill="#faf8f5"/>
-  <rect x="9" y="13.5" width="14" height="5" rx="2" fill="#016a71"/>
-  <rect x="9" y="22" width="14" height="5" rx="2" fill="#faf8f5"/>
+  <!-- Flat small-size version of docs/mobile-pwa/icon/app-icon.svg: two storyboard frames behind a teal 9:16 frame with captions. -->
+  <rect width="32" height="32" rx="7" fill="#1f1d19"/>
+  <rect x="6.6" y="9.4" width="7.4" height="13.2" rx="1.6" fill="#e9e3d7" transform="rotate(-9 16 27)"/>
+  <rect x="18" y="9.4" width="7.4" height="13.2" rx="1.6" fill="#e9e3d7" transform="rotate(9 16 27)"/>
+  <rect x="11.3" y="7.7" width="9.4" height="16.6" rx="2" fill="#0b858d" stroke="#1f1d19" stroke-width="1"/>
+  <rect x="13.2" y="19.6" width="5.6" height="1.2" rx="0.6" fill="#f4efe6"/>
+  <rect x="14.2" y="21.6" width="3.6" height="1.2" rx="0.6" fill="#f4efe6" opacity="0.65"/>
 </svg>
