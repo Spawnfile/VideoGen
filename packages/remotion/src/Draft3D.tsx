@@ -17,6 +17,8 @@ const LIGHTS: Record<DraftProps['lighting'], { ambient: number; key: { pos: Vec;
   key_rim_warm: { ambient: 0.35, key: { pos: [60, 90, 80], color: '#ffe2bf', i: 2.4 }, rim: { pos: [-80, 60, -60], color: '#ffd28a', i: 1.6 } },
   key_rim_cool: { ambient: 0.35, key: { pos: [60, 90, 80], color: '#eaf2ff', i: 2.4 }, rim: { pos: [-80, 60, -60], color: '#5cc8ff', i: 1.8 } },
   soft_box: { ambient: 0.8, key: { pos: [0, 120, 100], color: '#ffffff', i: 1.8 }, rim: { pos: [0, 80, -100], color: '#ffffff', i: 0.8 } },
+  // YAKLASIM (spec Y8): warm key and a blue rim (the draft has one rim; the Blender rig adds the orange one).
+  yaklasim: { ambient: 0.3, key: { pos: [60, 90, 80], color: '#ffdcb8', i: 2.6 }, rim: { pos: [-80, 60, -60], color: '#5a8cff', i: 2.0 } },
 };
 
 function Stage({ gltf, cam, lighting }: { gltf: GLTF; cam: THREE.PerspectiveCamera; lighting: DraftProps['lighting'] }) {

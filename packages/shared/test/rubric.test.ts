@@ -3,11 +3,11 @@ import {
   buildQcReport, DIMENSIONS, evaluateQc, GATES, QC_CHECK_IDS, QC_CHECKS, qcFailures, QcReportSchema, qcScores, RUBRIC_VERSION, type QcMeasure,
 } from '../src/index.ts';
 
-/** What qc_probe measures on a well made 45 s final (music variant). */
+/** What qc_probe measures on a well made 13 s YAKLASIM final (music variant). */
 const good = (): QcMeasure => ({
   video: {
     codec: 'h264', profile: 'High', width: 1080, height: 1920, fps: '30/1', pixFmt: 'yuv420p', colorRange: 'tv', colorSpace: 'bt709', colorPrimaries: 'bt709',
-    colorTransfer: 'bt709', frames: 1351, durationS: 45.03, bitrateKbps: 6200, maxGopFrames: 60, faststart: true,
+    colorTransfer: 'bt709', frames: 391, durationS: 13.03, bitrateKbps: 6200, maxGopFrames: 60, faststart: true,
   },
   audio: { codec: 'aac', sampleRate: 48000 },
   bytes: 36 * 1024 * 1024,
@@ -26,9 +26,9 @@ const pilot = (): QcMeasure => {
 };
 const failed = (r: { id: string; pass: boolean }[]) => r.filter((c) => !c.pass).map((c) => c.id).sort();
 
-describe('rubric final@2 and the QC contract', () => {
-  it('has the spec weights, one owner per dimension, and QC points only on D6 (8 of 12: the audio reviewer has 4, final@2) and D7 (5)', () => {
-    expect(RUBRIC_VERSION).toBe('final@2');
+describe('rubric final@3 and the QC contract', () => {
+  it('has the spec weights, one owner per dimension, and QC points only on D6 (8 of 12: the audio reviewer has 4) and D7 (5)', () => {
+    expect(RUBRIC_VERSION).toBe('final@3');
     expect(Object.values(DIMENSIONS).reduce((a, d) => a + d.weight, 0)).toBe(100);
     expect(DIMENSIONS.D6).toMatchObject({ weight: 12, owner: 'orchestrator' });
     expect(GATES.G6.owner).toBe('orchestrator');
@@ -49,7 +49,7 @@ describe('rubric final@2 and the QC contract', () => {
     expect(failed(r)).toEqual(['d3_freeze', 'd6_first_audio', 'd6_loudness', 'd6_lra', 'd6_silence', 'g1_color', 'g6_edges']);
     expect(r.find((c) => c.id === 'd6_loudness')).toMatchObject({ value: '-23,4 LUFS', limit: '−14 ±1 LUFS' });
     expect(r.find((c) => c.id === 'd6_silence')).toMatchObject({ at: 12.1 });
-    expect(qcScores(r).D6).toBe(1); // only the true peak (−3,1 dBTP) passes (1 point in final@2)
+    expect(qcScores(r).D6).toBe(1); // only the true peak (−3,1 dBTP) passes (1 point)
   });
 
   it('checks only delivery and true peak on the TikTok variant (its sound is added in the app); LRA only on ≥ 10 s', () => {
@@ -61,7 +61,7 @@ describe('rubric final@2 and the QC contract', () => {
     expect(w20.find((c) => c.id === 'g1_duration')).toMatchObject({ pass: true, limit: '20–25 sn' });
     const atTop = (d: number) => evaluateQc({ ...good(), video: { ...good().video, durationS: d } }, { variant: 'music', layoutIssues: [], window: { minS: 20, maxS: 25 } }).find((c) => c.id === 'g1_duration')!.pass;
     expect([atTop(751 / 30), atTop(25.1)]).toEqual([true, false]); // a 25 s storyboard renders 751 frames
-    expect(evaluateQc({ ...good(), video: { ...good().video, durationS: 22 } }, { variant: 'music', layoutIssues: [] }).find((c) => c.id === 'g1_duration')).toMatchObject({ pass: false, limit: '35–55 sn' });
+    expect(evaluateQc({ ...good(), video: { ...good().video, durationS: 22 } }, { variant: 'music', layoutIssues: [] }).find((c) => c.id === 'g1_duration')).toMatchObject({ pass: false, limit: '12–15 sn' });
     const short = evaluateQc({ ...good(), video: { ...good().video, durationS: 8 }, loudness: { i: -14, tp: -2, lra: 25 } }, { variant: 'music', layoutIssues: [] });
     expect(short.map((c) => c.id)).not.toContain('d6_lra');
   });
@@ -78,7 +78,7 @@ describe('rubric final@2 and the QC contract', () => {
     const tiktok = evaluateQc({ ...good(), video: { ...good().video, pixFmt: 'yuvj420p', colorRange: 'pc' } }, { variant: 'tiktok' });
     const rep = buildQcReport(music, tiktok);
     expect(QcReportSchema.safeParse(rep).success).toBe(true);
-    expect(rep).toMatchObject({ rubric_version: 'final@2', gates: { G1: false, G5: true, G6: false }, scores: { D6: 8, D7: 5 }, pass: false });
+    expect(rep).toMatchObject({ rubric_version: 'final@3', gates: { G1: false, G5: true, G6: false }, scores: { D6: 8, D7: 5 }, pass: false });
     expect(qcFailures(rep)).toEqual(['Teslim (müziksiz): Renk etiketleri yuvj420p/pc/bt709/bt709/bt709 (yuv420p/tv/bt709)', 'Güvenli alan: 1 kutu dışarıda (3,0 sn)']);
   });
 });

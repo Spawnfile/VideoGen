@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { LEGACY_VO_WINDOW } from '../src/voice.ts';
 import {
   BRIEF_MAX, DEFAULT_DURATION, DURATION_HARD, durationWindowErrors, effectiveDuration, formatWindow, parseBriefDuration, recommendedWindow, voBounds, windowErrors,
 } from '../src/production.ts';
 
 describe('production brief and duration window (brief design Y1–Y3, Y9)', () => {
-  it('defaults and hard bounds: 35–55 s by default, 10–60 s at most, a window at least 2 s wide', () => {
-    expect(DEFAULT_DURATION).toEqual({ minS: 35, maxS: 55 });
+  it('defaults and hard bounds: 12–15 s by default (YAKLASIM), 10–60 s at most, a window at least 2 s wide', () => {
+    expect(DEFAULT_DURATION).toEqual({ minS: 12, maxS: 15 });
     expect(DURATION_HARD).toEqual({ minS: 10, maxS: 60 });
     expect(BRIEF_MAX).toBe(2000);
     expect(durationWindowErrors({ minS: 20, maxS: 25 })).toEqual([]);
@@ -41,17 +42,17 @@ describe('production brief and duration window (brief design Y1–Y3, Y9)', () =
     expect(parseBriefDuration('40 sn - 50 sn')).toEqual({ minS: 40, maxS: 50 });
   });
 
-  it('precedence: the user beats the agent, the agent beats the default; an agent window is clamped and widened', () => {
-    expect(effectiveDuration({ user: { minS: 20, maxS: 25 }, agent: { minS: 40, maxS: 50 } })).toEqual({ window: { minS: 20, maxS: 25 }, source: 'user' });
-    expect(effectiveDuration({ user: null, agent: { minS: 40, maxS: 50 } })).toEqual({ window: { minS: 40, maxS: 50 }, source: 'agent' });
+  it('YAKLASIM fixes the window: neither the user nor the agent moves it; an agent window is still clamped and widened for the record', () => {
+    expect(effectiveDuration({ user: { minS: 20, maxS: 25 }, agent: { minS: 40, maxS: 50 } })).toEqual({ window: DEFAULT_DURATION, source: 'default' });
+    expect(effectiveDuration({ user: null, agent: { minS: 40, maxS: 50 } })).toEqual({ window: DEFAULT_DURATION, source: 'default' });
     expect(effectiveDuration({ user: null, agent: null })).toEqual({ window: DEFAULT_DURATION, source: 'default' });
     expect(recommendedWindow({ duration_min_s: 5, duration_max_s: 90 })).toEqual({ minS: 10, maxS: 60 });
     expect(recommendedWindow({ duration_min_s: 30, duration_max_s: 30 })).toEqual({ minS: 29, maxS: 31 });
     expect(recommendedWindow({ duration_min_s: 50, duration_max_s: 30 })).toEqual({ minS: 30, maxS: 50 });
   });
 
-  it('VO bounds follow the window and equal the old 36/52 s on the default', () => {
-    expect(voBounds(DEFAULT_DURATION)).toEqual({ minS: 36, maxS: 52 });
+  it('VO bounds follow the window and equal the old 36/52 s on the legacy VO window', () => {
+    expect(voBounds(LEGACY_VO_WINDOW)).toEqual({ minS: 36, maxS: 52 });
     expect(voBounds({ minS: 20, maxS: 25 })).toEqual({ minS: 19, maxS: 22 });
     expect(voBounds({ minS: 15, maxS: 17 })).toEqual({ minS: 11, maxS: 14 });
     expect(voBounds({ minS: 10, maxS: 12 })).toEqual({ minS: 6, maxS: 9 });

@@ -4,7 +4,7 @@ import { GATES, RUBRIC_VERSION, type DimensionId, type GateId } from './rubric.t
 
 /** Plan E4. Folklore-tagged limits (LRA, bitrate) are revised after the first ten posts (spec §8.4). */
 export const QC_LIMITS = {
-  width: 1080, height: 1920, fps: '30/1', minS: 35, maxS: 55, maxBytes: 64 * 1024 * 1024,
+  width: 1080, height: 1920, fps: '30/1', minS: 12, maxS: 15, maxBytes: 64 * 1024 * 1024,
   lufs: -14, lufsTol: 1, truePeak: -1, lra: 11, lraMinS: 10, firstAudioS: 0.15, silenceS: 0.3, silenceDb: -50,
   blackS: 0.1, freezeS: 0.5, flashDelta: 20, flashPerS: 3, loopSsim: 0.9, gopFrames: 60, minKbps: 3000, maxKbps: 11000, edgeDensity: 0.02,
 } as const;

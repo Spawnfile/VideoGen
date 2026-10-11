@@ -36,7 +36,7 @@ export async function createProduceRun(pool: pg.Pool, inp: { productName: string
     const versionId = randomUUID();
     await c.query(
       `INSERT INTO videos (id, product_id, title, audio_mode, status, current_version_id, brief, duration_min_s, duration_max_s, duration_source)
-       VALUES ($1, $2, $3, $4, 'queued', $5, $6, COALESCE($7, 35), COALESCE($8, 55), $9)`,
+       VALUES ($1, $2, $3, $4, 'queued', $5, $6, COALESCE($7, 12), COALESCE($8, 15), $9)`,
       [videoId, productId, `${name} — içinde ne var`, inp.audioMode, versionId, brief, inp.duration?.minS ?? null, inp.duration?.maxS ?? null, inp.duration ? 'user' : 'default'],
     );
     await c.query(`INSERT INTO versions (id, video_id, round, reason) VALUES ($1, $2, 0, 'produce')`, [versionId, videoId]);

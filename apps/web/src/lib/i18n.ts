@@ -56,6 +56,7 @@ export const STYLE_EN: Record<ChannelStyleId, { name: string; description: strin
   atolye: { name: 'Workshop', description: 'Warm, dark studio with brass accents; an engineer’s desk.' },
   beyaz_lab: { name: 'White lab', description: 'Bright and clean with catalog clarity; soft box light.' },
   gece_mavisi: { name: 'Night blue', description: 'Dark blue technical-drawing mood with a cool rim light (the pilot video’s look).' },
+  yaklasim: { name: 'YAKLASIM', description: 'Navy radial gradient with a faint 90 px grid; white Montserrat 900 with one yellow accent; warm key, blue and orange rims.' },
 };
 export const SEVERITY_EN: Record<string, string> = { blocker: 'blocker', major: 'major', minor: 'minor' };
 export const REVIEWER_EN: Record<string, string> = { reviewer_visual: 'Visual', reviewer_facts: 'Accuracy', reviewer_retention: 'Retention', reviewer_audio: 'Audio' };
