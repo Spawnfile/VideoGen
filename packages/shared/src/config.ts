@@ -17,8 +17,7 @@ export interface Config {
   /** M4b: Blender, bubblewrap and ffmpeg ('fake': committed pen outputs and ffmpeg test stills, spec §16.1). */
   render: { driver: 'real' | 'fake'; blender: string; bwrap: string; ffmpeg: string; encodePreset: string };
   /** M5c: the voice CLI (`python -m audio_service.voice_cli`), its Freya venv and the offline weights (spec §9, plan H2/H7). */
-  /** `soundfont`: agent music design A2 (FluidSynth's General MIDI bank). */
-  audio: { python: string; freyaPython: string; modelsDir: string; hfHome: string; timeoutMs: number; maxRssMb: number; soundfont: string };
+  audio: { python: string; freyaPython: string; modelsDir: string; hfHome: string; timeoutMs: number; maxRssMb: number };
   /**
    * M7 (plan Y9): the dump/restore commands (JSON arrays; null = version-checked host or `docker exec <container>`), how many daily
    * dumps are kept and how often the maintenance loop looks.
@@ -75,7 +74,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       freyaPython: env.VG_FREYA_PYTHON ?? join(homedir(), 'videogen-data/venvs/freya/bin/python'),
       modelsDir: env.VG_MODELS_DIR ?? join(homedir(), 'videogen-data/models'),
       hfHome: env.VG_HF_HOME ?? join(homedir(), 'videogen-data/models/hf'),
-      soundfont: env.VG_SOUNDFONT ?? '/usr/share/sounds/sf2/FluidR3_GM.sf2',
       timeoutMs: positiveInt('VG_AUDIO_TIMEOUT_MS', env.VG_AUDIO_TIMEOUT_MS, AUDIO_LIMITS.timeoutMs),
       maxRssMb: positiveInt('VG_AUDIO_MAX_RSS_MB', env.VG_AUDIO_MAX_RSS_MB, AUDIO_LIMITS.maxRssMb),
     },

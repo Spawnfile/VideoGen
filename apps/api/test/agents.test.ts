@@ -126,6 +126,7 @@ describe('chat endpoints', () => {
 describe('roles, dev endpoint and freshness header', () => {
   it('reads defaults, validates and stores overrides with an audit row and a reload command', async () => {
     const roles = (await app.inject({ url: '/api/roles', headers: H })).json();
+    expect(roles.map((r: { role: string }) => r.role)).not.toContain('audio_director'); // spec Z3: the composer is retired
     expect(roles.find((r: { role: string }) => r.role === 'builder')).toEqual({ role: 'builder', label: 'Video üretim', model: 'opus', effort: 'high', defaults: { model: 'opus', effort: 'high' } });
     expect((await app.inject({ method: 'PUT', url: '/api/roles/chat', headers: H, payload: { model: 'gpt-5' } })).statusCode).toBe(400);
     expect((await app.inject({ method: 'PUT', url: '/api/roles/chat', headers: H, payload: {} })).statusCode).toBe(400);

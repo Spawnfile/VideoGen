@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { assertNoPaidKeys, cleanChildEnv, loadConfig, ROLE_NAMES, watchParent, type RoleName } from '@videogen/shared';
+import { ACTIVE_ROLE_NAMES, assertNoPaidKeys, cleanChildEnv, loadConfig, watchParent, type ActiveRoleName } from '@videogen/shared';
 import { appendAudit, createPool, isUuid } from '@videogen/db';
 import { FakeClaudeDriver, PLUGIN_DIR, SdkClaudeDriver, type ClaudeDriver, type FakeScript } from '@videogen/claude';
 import { ChatService } from './agents/chat.ts';
@@ -19,7 +19,7 @@ import { fakePipelineScript } from './pipeline/fake-scripts.ts';
 import { Orchestrator } from './pipeline/orchestrator.ts';
 import { SystemProbe } from './pipeline/resources.ts';
 import { FakeAudioDriver, PythonAudioDriver, type AudioDriver } from './audio/driver.ts';
-import { FakeMusicDriver, FluidMusicDriver, type MusicDriver } from './audio/music.ts';
+import { FakeMusicDriver, YaklasimMusicDriver, type MusicDriver } from './audio/music.ts';
 import { runPreflight } from './pipeline/preflight.ts';
 import { BlenderRenderDriver, FakeRenderDriver, type Capability, type RenderDriver } from './render/driver.ts';
 import { ResourceLocks } from './render/locks.ts';
@@ -54,10 +54,10 @@ const render: RenderDriver = config.render.driver === 'fake'
 const audio: AudioDriver = config.render.driver === 'fake'
   ? new FakeAudioDriver({ ffmpeg: config.render.ffmpeg })
   : new PythonAudioDriver({ ...config.audio, dataDir: config.dataDir, audit: renderAudit });
-// Agent music design A2/A9: the score renderer (FluidSynth on the machine; an ffmpeg pad with the fake render driver).
+// YAKLASIM spec Y14: the fixed music bed (the audio service's generator; an ffmpeg pad with the fake render driver).
 const music: MusicDriver = config.render.driver === 'fake'
   ? new FakeMusicDriver({ ffmpeg: config.render.ffmpeg })
-  : new FluidMusicDriver({ python: config.audio.python, soundfont: config.audio.soundfont, dataDir: config.dataDir, audit: renderAudit });
+  : new YaklasimMusicDriver({ python: config.audio.python, dataDir: config.dataDir, audit: renderAudit });
 const locks = new ResourceLocks();
 const probe = new SystemProbe(config.dataDir);
 let renderCapability: Capability = { ok: false, reason: 'denetlenmedi' };
@@ -91,9 +91,9 @@ const uuidOf = (c: Record<string, unknown>, k: string): string => {
   if (typeof v !== 'string' || !isUuid(v)) throw new TypeError(`invalid ${k}`);
   return v;
 };
-const roleOf = (v: unknown): RoleName => {
-  if (typeof v !== 'string' || !(ROLE_NAMES as readonly string[]).includes(v)) throw new TypeError('invalid role');
-  return v as RoleName;
+const roleOf = (v: unknown): ActiveRoleName => {
+  if (typeof v !== 'string' || !(ACTIVE_ROLE_NAMES as readonly string[]).includes(v)) throw new TypeError('invalid role');
+  return v as ActiveRoleName;
 };
 
 let authTimer: NodeJS.Timeout | undefined;

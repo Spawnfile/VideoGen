@@ -5,7 +5,7 @@ import {
 } from '@videogen/shared/browser';
 import {
   DIMENSION_EN, FINAL_CHECK_EN, STYLE_EN, DRAFT_CHECK_EN, DURATION_SOURCE_EN, GATE_EN, HOOK_PATTERN_EN, percent, QC_CHECK_EN,
-  ROLE_EN, score, STEP_EN, STEP_STATUS_EN, VIDEO_STATUS_EN, windowLabel,
+  ROLE_EN, roleEn, score, STEP_EN, STEP_STATUS_EN, VIDEO_STATUS_EN, windowLabel,
 } from '../src/lib/i18n.ts';
 
 const TURKISH = /[çğıöşüÇĞİÖŞÜ]/;
@@ -15,6 +15,13 @@ const covers = (shared: object, en: Record<string, string>) => {
     expect(en[id], `"${id}" is still Turkish`).not.toMatch(TURKISH);
   }
 };
+
+describe('role labels of old sessions (spec Z3)', () => {
+  it('a retired role keeps its label; an unknown role shows its id instead of undefined', () => {
+    expect(roleEn('audio_director')).toBe('Audio director');
+    expect(roleEn('retired_x')).toBe('retired_x');
+  });
+});
 
 describe('English labels for shared ids (shared labels also feed the agents, so the web maps them)', () => {
   it('every shared id has an English label', () => {

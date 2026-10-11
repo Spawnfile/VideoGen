@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { DURATION_HARD } from './production.ts';
 
 /**
- * Agent music design A1: the composer writes a symbolic score, rendered by python/audio_service music_cli (FluidSynth, FluidR3 GM).
+ * The music score shape (agent music design A1). Spec Z3: only the fixed YAKLASIM score is produced now (yaklasimScore); older composer scores stay readable.
  * Times are seconds on the video's timeline; chords are one per 4/4 bar and repeat across their section.
  */
 export const MUSIC_INSTRUMENTS = ['pad', 'bass', 'arp', 'pluck', 'bell', 'drums'] as const;

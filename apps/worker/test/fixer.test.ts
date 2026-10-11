@@ -126,6 +126,19 @@ describe('fixer (final review loop)', () => {
     expect((await s.latest('music')).content).toEqual(score);
   }, 180_000);
 
+  it('spec Z3: no composer for any video — a pre-YAKLASIM video gets the same refusal of a score edit and no music re-render', async () => {
+    const s = await setup('Tükenmez kalem ahenksiz eski');
+    const score = yaklasimScore(fx('storyboard-kalem') as Storyboard);
+    await s.store.write('music', score);
+    await insertArtifact(t.pool, { runId: s.p.r.runId, kind: 'music', content: score, inputHash: 'music-0', versionId: s.p.r.versionId });
+    const { out } = await s.review({ approach: null });
+    const fixers = s.h.specs.filter((x) => x.role === 'fixer');
+    expect(fixers[0]!.prompt).not.toContain('Mevcut müzik partisyonu (MusicScore)');
+    expect(fixers[0]!.prompt).toContain('müziği sabittir');
+    expect(out).toMatchObject({ status: 'failed' });
+    expect((await s.latest('music')).content).toEqual(score);
+  }, 180_000);
+
   it('build scope: a lens change is built in the fixer session (build_scene), the step rewinds to build; the next build runs without a builder session and draft_review passes through', async () => {
     const s = await setup('Tükenmez kalem geometri');
     const finalBefore = (await finalSource(s.h.deps, s.p.r.runId))!.hash;

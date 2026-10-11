@@ -3,7 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import type pg from 'pg';
-import { classifyLiveness, type Liveness, type ModelAlias, type RateLimitInfoLike, type RoleName, type SessionKind, type SessionStatus } from '@videogen/shared';
+import { ACTIVE_ROLE_NAMES, classifyLiveness, type Liveness, type ModelAlias, type RateLimitInfoLike, type RoleName, type SessionKind, type SessionStatus, type ActiveRoleName } from '@videogen/shared';
 import { appendAudit, getSession, insertSession, publishEvent, publishLive, toSessionView, updateSession } from '@videogen/db';
 import {
   allowedTools, disallowedTools, evaluateToolUse, FILE_WRITE_TOOLS, groupAlive, killGroup, memAvailableMb, permissiveValidator,
@@ -50,7 +50,7 @@ export interface ManagerDeps {
 export interface StartRequest {
   id?: string;
   kind: SessionKind;
-  role: RoleName;
+  role: ActiveRoleName;
   prompt: string;
   runId?: string | null;
   stepId?: string | null;
@@ -198,11 +198,14 @@ export class SessionManager {
   async retry(id: string, reason: 'user' | 'limit' = 'user'): Promise<string | null> {
     const rec = await getSession(this.d.pool, id);
     if (!rec) return null;
+    // Spec Z3: a retired role's old session cannot be started again.
+    const role = rec.role as ActiveRoleName;
+    if (!(ACTIVE_ROLE_NAMES as readonly string[]).includes(role)) return null;
     if (this.live.has(id) || this.queue.some((p) => p.id === id)) await this.cancel(id);
     // The session row's model is overwritten by the driver's init (a full id); the requested alias lives in the queued audit.
     const q = await this.d.pool.query("SELECT data->>'requestedModel' AS m FROM audit_log WHERE session_id = $1 AND action = 'agent.session.queued' ORDER BY id LIMIT 1", [id]);
     const model = (q.rows[0]?.m ?? undefined) as ModelAlias | undefined;
-    const nid = await this.start({ kind: rec.kind, role: rec.role, prompt: RESUME_PROMPT, ...(model ? { model } : {}), runId: rec.runId, threadId: rec.threadId, claudeSessionId: rec.claudeSessionId, resume: true, parentSessionId: id });
+    const nid = await this.start({ kind: rec.kind, role, prompt: RESUME_PROMPT, ...(model ? { model } : {}), runId: rec.runId, threadId: rec.threadId, claudeSessionId: rec.claudeSessionId, resume: true, parentSessionId: id });
     await appendAudit(this.d.pool, { actorType: reason === 'user' ? 'user' : 'orchestrator', action: 'agent.session.retry', sessionId: nid, data: { from: id, reason } });
     return nid;
   }

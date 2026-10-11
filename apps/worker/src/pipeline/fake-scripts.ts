@@ -47,7 +47,6 @@ export function fakePipelineScript(role: PipelineRole, ctx: StepContext, attempt
     };
   }
   if (role === 'fixer') return fakeFixer(ctx, name, extra);
-  if (role === 'audio_director') return { fixture: 'basic', structured: fakeScore(extra?.durationS ?? 45) };
   if (ctx.key === 'review' && role === 'reviewer_audio') return { fixture: 'basic', structured: fakeAudioReview(ctx, name) };
   if (ctx.key === 'review' && (role === 'reviewer_visual' || role === 'reviewer_facts' || role === 'reviewer_retention')) return { fixture: 'basic', structured: fakeFinalReview(role, ctx, name, extra) };
   if (role === 'reviewer_visual') {

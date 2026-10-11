@@ -36,7 +36,7 @@ import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
 export { ARTIFACT_VALIDATOR } from './validator.ts';
 /** Bump when a contract changes: old outputs stop matching and are not reused. */
 const SCHEMA_VERSION = { research: 'ProductResearch@2', storyboard: 'Storyboard@1', scene: 'SceneSpec@1' } as const;
-export type PipelineRole = 'researcher' | 'storyboarder' | 'builder' | 'audio_director' | 'reviewer_audio' | 'reviewer_visual' | 'reviewer_facts' | 'reviewer_retention' | 'fixer';
+export type PipelineRole = 'researcher' | 'storyboarder' | 'builder' | 'reviewer_audio' | 'reviewer_visual' | 'reviewer_facts' | 'reviewer_retention' | 'fixer';
 /** Fake driver only: `styleId` for a fake build, `seq` (the second visual review is 2) and `failed` (the check ids a fixer is sent) for the final review loop. */
 export interface FakeExtra { styleId?: ChannelStyleId; seq?: number; failed?: string[]; durationS?: number }
 

@@ -4,6 +4,10 @@ export const ROLE_NAMES = [
   'reviewer_facts', 'reviewer_retention', 'reviewer_audio', 'fixer', 'chat', 'summarizer',
 ] as const;
 export type RoleName = (typeof ROLE_NAMES)[number];
+/** Spec Z3: a retired role stays readable (its old sessions and labels) but has no definition and is never started. */
+export const RETIRED_ROLES = ['audio_director'] as const;
+export type ActiveRoleName = Exclude<RoleName, (typeof RETIRED_ROLES)[number]>;
+export const ACTIVE_ROLE_NAMES: readonly ActiveRoleName[] = ROLE_NAMES.filter((r): r is ActiveRoleName => !(RETIRED_ROLES as readonly string[]).includes(r));
 
 export const ROLE_LABELS: Record<RoleName, string> = {
   researcher: 'Araştırmacı',

@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { ROLE_NAMES } from '@videogen/shared';
+import { ACTIVE_ROLE_NAMES } from '@videogen/shared';
 import { cleanChildEnv } from '@videogen/shared';
 import { allowedTools, buildQueryOptions, disallowedTools, evaluateToolUse, loadRolePrompt, resolveRole, ROLES, type GuardContext, type SessionSpec } from '../src/index.ts';
 
@@ -184,7 +184,7 @@ describe('tool allow-list and reads', () => {
     expect(allowedTools(ROLES.builder)).not.toContain('mcp__videogen__render_draft'); // plan B7: the draft is a pipeline step
     expect(disallowedTools(ROLES.researcher)).toEqual(expect.arrayContaining(['Agent', 'Task', 'Bash', 'Edit']));
     expect(disallowedTools(ROLES.builder)).not.toContain('Agent');
-    for (const r of ROLE_NAMES) {
+    for (const r of ACTIVE_ROLE_NAMES) {
       const p = loadRolePrompt(r);
       expect(p.startsWith('---'), r).toBe(false);
       expect(p.length, r).toBeGreaterThan(40);

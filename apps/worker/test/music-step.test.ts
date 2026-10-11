@@ -7,9 +7,9 @@ import { createProduceRun, latestArtifact, listRunSteps } from '@videogen/db';
 import { FakeClaudeDriver, type ClaudeDriver, type SessionSpec } from '@videogen/claude';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
 import { SessionManager } from '../src/agents/manager.ts';
-import { FakeMusicDriver, type MusicDriver, type MusicInput, type YaklasimMusicInput } from '../src/audio/music.ts';
+import { FakeMusicDriver, type MusicDriver, type YaklasimMusicInput } from '../src/audio/music.ts';
 import { fakePipelineScript, fakeScore } from '../src/pipeline/fake-scripts.ts';
-import { composerPrompt, musicExecutor, musicRenderS } from '../src/pipeline/music-step.ts';
+import { musicExecutor, musicRenderS } from '../src/pipeline/music-step.ts';
 import { researchExecutor, storyboardExecutor, type StepDeps } from '../src/pipeline/steps.ts';
 import type { StepContext } from '../src/pipeline/types.ts';
 
@@ -48,19 +48,15 @@ async function produced(deps: StepDeps, o: { brief?: string; approach?: 'yaklasi
   return { r, ctx };
 }
 
-const proxy = (seen: MusicInput[], ys: YaklasimMusicInput[] = []): MusicDriver => {
+const proxy = (ys: YaklasimMusicInput[] = []): MusicDriver => {
   const inner = new FakeMusicDriver({ ffmpeg: FFMPEG });
-  return {
-    kind: 'fake', capabilities: () => inner.capabilities(), yaklasimCapabilities: () => inner.yaklasimCapabilities(),
-    render: (i) => { seen.push(i); return inner.render(i); }, renderYaklasim: (i) => { ys.push(i); return inner.renderYaklasim(i); },
-  };
+  return { kind: 'fake', yaklasimCapabilities: () => inner.yaklasimCapabilities(), renderYaklasim: (i) => { ys.push(i); return inner.renderYaklasim(i); } };
 };
 
 describe('music step (agent music design A1–A3; YAKLASIM spec Y14)', () => {
   it('YAKLASIM: no composer session — the fixed 120 BPM A-minor score with a sparse macro section, rendered by the YAKLASIM generator, recorded and reused', async () => {
-    const seen: MusicInput[] = [];
     const ys: YaklasimMusicInput[] = [];
-    const { deps, specs } = setup(proxy(seen, ys));
+    const { deps, specs } = setup(proxy(ys));
     const { r, ctx } = await produced(deps);
     const before = specs.length;
     const ex = musicExecutor(deps);
@@ -68,7 +64,6 @@ describe('music step (agent music design A1–A3; YAKLASIM spec Y14)', () => {
     const hash = await ex.inputHash(c);
     expect(await ex.run(c, hash)).toEqual({ status: 'done', note: 'YAKLASIM · 120 BPM · A minör · seyrek davul: 1 makro' });
     expect(specs.length).toBe(before); // no Claude session for the music
-    expect(seen).toHaveLength(0);
     const score = (await latestArtifact(t.pool, r.runId, 'music'))!.content as MusicScore;
     expect(score).toEqual(yaklasimScore(storyboardFx));
     expect(ys).toEqual([expect.objectContaining({ durationS: musicRenderS(storyboardFx.duration_s), sparse: [[3.5, 5.5]] })]);
@@ -76,40 +71,18 @@ describe('music step (agent music design A1–A3; YAKLASIM spec Y14)', () => {
     expect(await ex.reuse!(c, hash)).toBe(true);
   });
 
-  it('a pre-YAKLASIM video keeps the composer: a valid score fitted to the storyboard; the stem is rendered one frame and a margin longer, recorded and reused', async () => {
-    const seen: MusicInput[] = [];
-    const music = proxy(seen);
-    const { deps, specs } = setup(music);
-    const { r, ctx } = await produced(deps, { brief: 'Müzik sakin ve merak uyandırıcı olsun.', approach: null });
-    const ex = musicExecutor(deps);
-    const c = ctx(2);
-    const hash = await ex.inputHash(c);
-    expect(await ex.reuse!(c, hash)).toBe(false);
-    expect(await ex.run(c, hash)).toEqual({ status: 'done', note: '3 bölüm · 100 BPM · A minör' });
-    const prompt = specs.at(-1)!.prompt;
-    expect(prompt).toContain('Storyboard zamanlaması');
-    expect(prompt).toContain(`duration_s ${storyboardFx.duration_s}`);
-    expect(prompt).toContain('Müzik sakin ve merak uyandırıcı olsun.'); // the brief reaches the composer
-    expect(prompt).toContain('Seslendirmesiz video');
-    const score = (await latestArtifact(t.pool, r.runId, 'music'))!.content as MusicScore;
-    expect(MusicScoreSchema.safeParse(score).success).toBe(true);
-    expect(score.duration_s).toBe(storyboardFx.duration_s);
-    const stem = (await latestArtifact(t.pool, r.runId, 'music_stem'))!;
-    expect(stem.inputHash).toBe(hash);
-    expect(seen[0]!.renderS).toBe(musicRenderS(storyboardFx.duration_s));
+  it('the stem is one frame and a margin longer than the storyboard', () => {
     expect(musicRenderS(45)).toBe(45.084); // (1350 + 1) / 30 + 0,05 rounded up to the ms
-    expect(existsSync(seen[0]!.out)).toBe(true);
-    expect(await ex.reuse!(c, hash)).toBe(true);
   });
 
   it('without a synthesizer the step stops for a human with the reason (YAKLASIM: its own generator\'s capability)', async () => {
-    const off = async () => ({ ok: false as const, reason: 'fluidsynth yok; sudo apt install fluidsynth' });
-    const { deps } = setup({ kind: 'fake', capabilities: off, yaklasimCapabilities: async () => ({ ok: false as const, reason: 'ses servisi Python\'u bulunamadı' }), render: async () => { throw new Error('no'); }, renderYaklasim: async () => { throw new Error('no'); } });
+    const { deps } = setup({ kind: 'fake', yaklasimCapabilities: async () => ({ ok: false as const, reason: 'ses servisi Python\'u bulunamadı' }), renderYaklasim: async () => { throw new Error('no'); } });
     const y = await produced(deps);
     const cy = y.ctx(2);
     expect(await musicExecutor(deps).run(cy, await musicExecutor(deps).inputHash(cy))).toEqual({ status: 'needs_human', reason: 'Müzik kullanılamıyor: ses servisi Python\'u bulunamadı' });
+    // Spec Z3: no composer — a pre-YAKLASIM run gets the same fixed generator (and its capability)
     const { ctx } = await produced(deps, { approach: null });
     const c = ctx(2);
-    expect(await musicExecutor(deps).run(c, await musicExecutor(deps).inputHash(c))).toEqual({ status: 'needs_human', reason: 'Müzik kullanılamıyor: fluidsynth yok; sudo apt install fluidsynth' });
+    expect(await musicExecutor(deps).run(c, await musicExecutor(deps).inputHash(c))).toEqual({ status: 'needs_human', reason: 'Müzik kullanılamıyor: ses servisi Python\'u bulunamadı' });
   });
 });

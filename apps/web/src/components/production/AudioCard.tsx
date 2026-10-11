@@ -23,7 +23,7 @@ export function AudioCard({ video, stems }: { video: Pick<VideoView, 'id' | 'pro
       <h3 className="text-[14px] font-medium">Audio stems</h3>
       {score && (
         <p data-testid="music-score" className="mt-1 text-[12.5px] text-ink-2">
-          Music by the composer agent: {score.key.root} {score.key.mode === 'minor' ? 'minor' : 'major'} · {score.bpm} BPM · {score.sections.length} sections · {score.intent_tr}
+          Music: {score.key.root} {score.key.mode === 'minor' ? 'minor' : 'major'} · {score.bpm} BPM · {score.sections.length} sections · {score.intent_tr}
         </p>
       )}
       <ul className="mt-2 flex flex-col gap-2">
