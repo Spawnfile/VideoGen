@@ -13,7 +13,9 @@ import { UpdateToast } from './shell/UpdateToast.tsx';
 
 /**
  * Phone (< 768 px): top bar, content, tab bar. Tablet: icon rail + content + footer. Desktop (≥ 1200 px): labelled sidebar + content +
- * footer. Every layout scrolls its content inside one element, so the bars stay put and safe areas are padded once.
+ * footer. Every layout scrolls its content inside one element, so the bars stay put and safe areas are padded once. The root is pinned to
+ * the window (fixed, inset 0) rather than sized with dvh: iOS standalone mode can report a short dvh and lets the page scroll after the
+ * keyboard closes, both of which leave the tab bar floating up the screen.
  */
 export function AppShell({ path, go, chatLive, children }: { path: string; go: (p: string) => void; chatLive?: boolean; children: ReactNode }) {
   const [status, setStatus] = useState(false);
@@ -21,7 +23,7 @@ export function AppShell({ path, go, chatLive, children }: { path: string; go: (
   return (
     <ShellProvider>
       {(bar) => (
-        <div className="app-root flex h-dvh flex-col md:grid md:grid-cols-[auto_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)_auto]">
+        <div className="app-root fixed inset-0 flex flex-col md:grid md:grid-cols-[auto_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)_auto]">
           <div className="hidden min-h-0 md:block">
             <SideNav path={path} go={go} />
           </div>

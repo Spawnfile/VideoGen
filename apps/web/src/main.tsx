@@ -93,6 +93,8 @@ function App() {
 }
 
 registerServiceWorker();
+// iOS ignores the viewport's user-scalable=no; cancelling its pinch gestures keeps the installed app at 100 %.
+for (const g of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(g, (e) => e.preventDefault(), { passive: false });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

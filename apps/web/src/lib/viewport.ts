@@ -32,7 +32,11 @@ export function watchKeyboard(): () => void {
     document.documentElement.style.setProperty('--kb-inset', `${inset}px`);
     // A keyboard is taller than 120 px; smaller differences are browser chrome sliding in and out.
     if (inset > 120) document.documentElement.dataset.kb = 'open';
-    else delete document.documentElement.dataset.kb;
+    else if (document.documentElement.dataset.kb) {
+      delete document.documentElement.dataset.kb;
+      // iOS pans the window to show a focused field and can leave it there after the keyboard closes; put the app back.
+      if (scrollY || vv.offsetTop) scrollTo(0, 0);
+    }
   };
   vv.addEventListener('resize', on);
   vv.addEventListener('scroll', on);

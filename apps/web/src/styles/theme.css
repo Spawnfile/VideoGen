@@ -36,8 +36,11 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
 
-html { color-scheme: dark; -webkit-tap-highlight-color: transparent; }
-html, body, #root { height: 100%; }
+/* No zoom on phones: pinch is limited to panning and double-tap zoom is off on controls (plus the gesture events in main.tsx for iOS). */
+html { color-scheme: dark; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: pan-x pan-y; overscroll-behavior: none; }
+button, a, input, select, textarea, label, summary, [role="button"] { touch-action: manipulation; }
+/* The page itself never scrolls (AppShell's root is fixed and scrolls inside), so nothing can drag the bars off their edges. */
+html, body, #root { height: 100%; overflow: hidden; }
 body {
   margin: 0;
   background: var(--color-canvas);

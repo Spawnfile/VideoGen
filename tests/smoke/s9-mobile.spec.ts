@@ -14,6 +14,12 @@ test('S9: the phone layout covers produce, chat, library and settings without si
   await expect(page.getByRole('contentinfo')).toBeHidden(); // the desktop footer moves into the status sheet
   await expect(page.getByText('Worker live')).toBeHidden();
   await noSideScroll(page, 'Studio');
+  // The tab bar sits on the bottom edge even if something tries to scroll the page, and the app cannot be zoomed.
+  await page.evaluate(() => scrollTo(0, 400));
+  const bar = (await tabs.boundingBox())!;
+  expect(await page.evaluate((bottom) => ({ gap: innerHeight - bottom, scrollY }), bar.y + bar.height)).toEqual({ gap: 0, scrollY: 0 });
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /user-scalable=no/);
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).touchAction)).toBe('pan-x pan-y');
 
   // Chat on its own tab (before producing: the worker runs a chat turn after a running production).
   await tabs.getByRole('link', { name: 'Chat' }).click();
