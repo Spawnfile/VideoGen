@@ -28,7 +28,7 @@ Her madde: **önkoşul**, **komut**, **beklenen**, **kayıt yeri**. 🚦 = kulla
 - [ ] **0.5 Ses venv'i:** `python/audio_service/.venv` ve modeller yerinde (`python/audio_service/PINS.md`; **`uv sync` asla**).
 - [ ] **0.6 Disk:** `df -h ~` ≥ 30 GB boş.
 - [ ] **0.7 TikTok kaynakları:** `~/tiktok-poster/.env` ve `~/tiktok-poster/tokens.json` var (C'de taşınacak).
-- [ ] **0.8 Pilot dosyası:** `~/icinde-ne-var/pilot-kalem/remotion/out/icinde-ne-var-kalem.mp4` var (yoksa `VG_PILOT_VIDEO` ile yolu verilir).
+- [ ] **0.8 Pilot dosyası:** `~/videogen-data/episodes/pilot-kalem/final.mp4` var (sha256 `6ec02ffe8cab30b9d44e5689185e98024ec4f2515c6e278b9f06677c02e5c9dc`) (yoksa `VG_PILOT_VIDEO` ile yolu verilir).
 - [ ] **0.9 Claude girişi:** `claude auth status` → giriş yapılmış; `env | grep ANTHROPIC_API_KEY` boş.
 
 ## A. Tam doğrulama (M5c T12 Step 1, güncel sayılarla)
@@ -55,7 +55,7 @@ Neden önce: güvenli alan compose'un `inputHash`'ine girer; B'nin finalleri kal
 ## B. M5 kapanışı (M5c T12 Step 2–9)
 
 - [ ] **B.1 Kalem pilotu kalibrasyonu** (M5c T12 Step 2; `docs/m5/real-check.md` §1):
-  `node --import tsx apps/worker/src/render/qc-cli.ts ~/icinde-ne-var/pilot-kalem/remotion/out/icinde-ne-var-kalem.mp4 > /tmp/pilot-qc.json; echo "çıkış $?"` ve `grep '^✗' /tmp/pilot-qc.json`.
+  `node --import tsx apps/worker/src/render/qc-cli.ts ~/videogen-data/episodes/pilot-kalem/final.mp4 > /tmp/pilot-qc.json; echo "çıkış $?"` ve `grep '^✗' /tmp/pilot-qc.json`.
   Beklenen: çıkış 3; en az `d6_loudness`, `d6_lra`, `d6_first_audio`, `d6_silence`, `d3_freeze`, `g1_color`, `g6_edges` `✗`. Eksik varsa eşik gerekçeyle ayarlanır, `RUBRIC_VERSION` `final@2`, `Ruling:`. Kayıt: `real-check.md` §1 tablosu.
 - [ ] **B.2 Ses servisi gerçek ölçümü** (M5c T12 Step 3): B.4'teki seslendirmeli koşunun `voice` adımında model yükleme süresi, `rtf_gen`, tepe VRAM (`nvidia-smi` 0,25 sn örnekleme), satır CER dağılımı, yeniden deneme sayısı, Whisper kelime zamanlarının altyazıyla uyumu (5 rastgele kelime, ±0,5 sn), CLI'ın tepe RSS'i. Blender ile çakışma olmadığı audit sırasından gösterilir.
   **M7 eki:** ölçülen tepe RSS ve en uzun `voice` süresine pay ekleyerek `VG_AUDIO_MAX_RSS_MB` ve `VG_AUDIO_TIMEOUT_MS` değerlerini belirle (varsayılan 6000 MB, 900 000 ms); farklıysa başlatıcının ortamına yaz ve runbook §6'ya not düş. Kayıt: `real-check.md` "M5c" bölümü.

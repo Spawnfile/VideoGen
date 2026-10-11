@@ -1,0 +1,1857 @@
+{
+ "s01": {
+  "text": "Bu makinenin minicik bir zaafı vardı.",
+  "target": 2.35,
+  "chosen": "s01_2_1.0.wav",
+  "dur": 2.08,
+  "wer": 0.0,
+  "hyp": "Bu makinenin minicik bir zaafı vardı.",
+  "words": [
+   {
+    "word": "Bu",
+    "start": 0.0,
+    "end": 0.1
+   },
+   {
+    "word": "makinenin",
+    "start": 0.1,
+    "end": 0.7
+   },
+   {
+    "word": "minicik",
+    "start": 0.7,
+    "end": 1.08
+   },
+   {
+    "word": "bir",
+    "start": 1.08,
+    "end": 1.22
+   },
+   {
+    "word": "zaafı",
+    "start": 1.22,
+    "end": 1.6
+   },
+   {
+    "word": "vardı.",
+    "start": 1.6,
+    "end": 1.88
+   }
+  ],
+  "cands": [
+   {
+    "seed": 0,
+    "speed": 1.0,
+    "dur": 2.046,
+    "wer": 0.0,
+    "hyp": "Bu makinenin minicik bir zaafı vardı."
+   },
+   {
+    "seed": 1,
+    "speed": 1.0,
+    "dur": 2.07,
+    "wer": 0.0,
+    "hyp": "Bu makinenin minicik bir zaafı vardı."
+   },
+   {
+    "seed": 2,
+    "speed": 1.0,
+    "dur": 2.08,
+    "wer": 0.0,
+    "hyp": "Bu makinenin minicik bir zaafı vardı."
+   },
+   {
+    "seed": 3,
+    "speed": 1.0,
+    "dur": 2.039,
+    "wer": 0.0,
+    "hyp": "Bu makinenin minicik bir zaafı vardı."
+   },
+   {
+    "seed": 4,
+    "speed": 1.0,
+    "dur": 2.046,
+    "wer": 0.0,
+    "hyp": "Bu makinenin minicik bir zaafı vardı."
+   },
+   {
+    "seed": 0,
+    "speed": 1.06,
+    "dur": 1.96,
+    "wer": 0.0,
+    "hyp": "Bu makinenin minicik bir zaafı vardı."
+   },
+   {
+    "seed": 1,
+    "speed": 1.06,
+    "dur": 1.94,
+    "wer": 0.0,
+    "hyp": "Bu makinenin minicik bir zaafı vardı."
+   },
+   {
+    "seed": 2,
+    "speed": 1.06,
+    "dur": 1.96,
+    "wer": 0.0,
+    "hyp": "Bu makinenin minicik bir zaafı vardı."
+   },
+   {
+    "seed": 3,
+    "speed": 1.06,
+    "dur": 1.955,
+    "wer": 0.0,
+    "hyp": "Bu makinenin minicik bir zaafı vardı."
+   },
+   {
+    "seed": 4,
+    "speed": 1.06,
+    "dur": 1.96,
+    "wer": 0.0,
+    "hyp": "Bu makinenin minicik bir zaafı vardı."
+   }
+  ]
+ },
+ "s02": {
+  "text": "Ve o zaaf, onu kırmanın anahtarı oldu.",
+  "target": 2.75,
+  "chosen": "s02_1_1.0.wav",
+  "dur": 2.43,
+  "wer": 0.0,
+  "hyp": "Ve o zaaf onu kırmanın anahtarı oldu.",
+  "words": [
+   {
+    "word": "Ve",
+    "start": 0.0,
+    "end": 0.14
+   },
+   {
+    "word": "o",
+    "start": 0.14,
+    "end": 0.34
+   },
+   {
+    "word": "zaaf",
+    "start": 0.34,
+    "end": 0.66
+   },
+   {
+    "word": "onu",
+    "start": 0.66,
+    "end": 0.94
+   },
+   {
+    "word": "kırmanın",
+    "start": 0.94,
+    "end": 1.5
+   },
+   {
+    "word": "anahtarı",
+    "start": 1.5,
+    "end": 2.0
+   },
+   {
+    "word": "oldu.",
+    "start": 2.0,
+    "end": 2.28
+   }
+  ],
+  "cands": [
+   {
+    "seed": 0,
+    "speed": 1.0,
+    "dur": 2.41,
+    "wer": 0.0,
+    "hyp": "Ve o zaaf onu kırmanın anahtarı oldu."
+   },
+   {
+    "seed": 1,
+    "speed": 1.0,
+    "dur": 2.43,
+    "wer": 0.0,
+    "hyp": "Ve o zaaf onu kırmanın anahtarı oldu."
+   },
+   {
+    "seed": 2,
+    "speed": 1.0,
+    "dur": 2.408,
+    "wer": 0.0,
+    "hyp": "Ve o zaaf onu kırmanın anahtarı oldu."
+   },
+   {
+    "seed": 3,
+    "speed": 1.0,
+    "dur": 2.417,
+    "wer": 0.0,
+    "hyp": "Ve o zaaf onu kırmanın anahtarı oldu."
+   },
+   {
+    "seed": 4,
+    "speed": 1.0,
+    "dur": 2.418,
+    "wer": 0.0,
+    "hyp": "Ve o zaaf onu kırmanın anahtarı oldu."
+   },
+   {
+    "seed": 0,
+    "speed": 1.06,
+    "dur": 2.32,
+    "wer": 0.0,
+    "hyp": "Ve o zaaf onu kırmanın anahtarı oldu."
+   },
+   {
+    "seed": 1,
+    "speed": 1.06,
+    "dur": 2.294,
+    "wer": 0.0,
+    "hyp": "Ve o zaaf onu kırmanın anahtarı oldu."
+   },
+   {
+    "seed": 2,
+    "speed": 1.06,
+    "dur": 2.32,
+    "wer": 0.0,
+    "hyp": "Ve o zaaf onu kırmanın anahtarı oldu."
+   },
+   {
+    "seed": 3,
+    "speed": 1.06,
+    "dur": 2.309,
+    "wer": 0.0,
+    "hyp": "Ve o zaaf onu kırmanın anahtarı oldu."
+   },
+   {
+    "seed": 4,
+    "speed": 1.06,
+    "dur": 2.269,
+    "wer": 0.0,
+    "hyp": "Ve o zaaf onu kırmanın anahtarı oldu."
+   }
+  ]
+ },
+ "s03": {
+  "text": "İkinci Dünya Savaşı'nda Alman ordusu, mesajlarını Enigma ile şifreliyordu.",
+  "target": 3.53,
+  "chosen": "s03_1_1.06.wav",
+  "dur": 3.828,
+  "wer": 0.111,
+  "hyp": "2. Dünya Savaşı'nda Alman ordusu mesajlarını enigma ile şifreliyordu.",
+  "words": [
+   {
+    "word": "2.",
+    "start": 0.0,
+    "end": 0.16
+   },
+   {
+    "word": "Dünya",
+    "start": 0.34,
+    "end": 0.6
+   },
+   {
+    "word": "Savaşı",
+    "start": 0.6,
+    "end": 1.0
+   },
+   {
+    "word": "'nda",
+    "start": 1.0,
+    "end": 1.16
+   },
+   {
+    "word": "Alman",
+    "start": 1.16,
+    "end": 1.48
+   },
+   {
+    "word": "ordusu",
+    "start": 1.48,
+    "end": 1.9
+   },
+   {
+    "word": "mesajlarını",
+    "start": 1.9,
+    "end": 2.58
+   },
+   {
+    "word": "enigma",
+    "start": 2.58,
+    "end": 2.9
+   },
+   {
+    "word": "ile",
+    "start": 2.9,
+    "end": 3.04
+   },
+   {
+    "word": "şifreliyordu.",
+    "start": 3.04,
+    "end": 3.68
+   }
+  ],
+  "cands": [
+   {
+    "seed": 0,
+    "speed": 1.0,
+    "dur": 4.04,
+    "wer": 0.111,
+    "hyp": "2. Dünya Savaşı'nda Alman ordusu mesajlarını enigma ile şifreliyordu."
+   },
+   {
+    "seed": 1,
+    "speed": 1.0,
+    "dur": 4.04,
+    "wer": 0.111,
+    "hyp": "2. Dünya Savaşı'nda Alman ordusu mesajlarını enigma ile şifreliyordu."
+   },
+   {
+    "seed": 2,
+    "speed": 1.0,
+    "dur": 4.031,
+    "wer": 0.111,
+    "hyp": "2. Dünya Savaşı'nda Alman ordusu mesajlarını enigma ile şifreliyordu."
+   },
+   {
+    "seed": 3,
+    "speed": 1.0,
+    "dur": 4.04,
+    "wer": 0.111,
+    "hyp": "2. Dünya Savaşı'nda Alman ordusu mesajlarını enigma ile şifreliyordu."
+   },
+   {
+    "seed": 4,
+    "speed": 1.0,
+    "dur": 4.01,
+    "wer": 0.111,
+    "hyp": "2. Dünya Savaşı'nda Alman ordusu mesajlarını enigma ile şifreliyordu."
+   },
+   {
+    "seed": 0,
+    "speed": 1.06,
+    "dur": 3.83,
+    "wer": 0.111,
+    "hyp": "2. Dünya Savaşı'nda Alman ordusu mesajlarını enigma ile şifreliyordu."
+   },
+   {
+    "seed": 1,
+    "speed": 1.06,
+    "dur": 3.828,
+    "wer": 0.111,
+    "hyp": "2. Dünya Savaşı'nda Alman ordusu mesajlarını enigma ile şifreliyordu."
+   },
+   {
+    "seed": 2,
+    "speed": 1.06,
+    "dur": 3.84,
+    "wer": 0.111,
+    "hyp": "2. Dünya Savaşı'nda Alman ordusu mesajlarını enigma ile şifreliyordu."
+   },
+   {
+    "seed": 3,
+    "speed": 1.06,
+    "dur": 3.84,
+    "wer": 0.111,
+    "hyp": "2. Dünya Savaşı'nda Alman ordusu mesajlarını enigma ile şifreliyordu."
+   },
+   {
+    "seed": 4,
+    "speed": 1.06,
+    "dur": 3.84,
+    "wer": 0.111,
+    "hyp": "2. Dünya Savaşı'nda Alman ordusu mesajlarını enigma ile şifreliyordu."
+   }
+  ]
+ },
+ "s04": {
+  "text": "Ayarlar her gün değişiyordu ve yüz elli dokuz kentilyon ihtimal vardı.",
+  "target": 4.31,
+  "chosen": "s04_3_1.0.wav",
+  "dur": 3.957,
+  "wer": 0.273,
+  "hyp": "Ayarlar her gün değişiyordu ve 159 kentilyon ihtimal vardı.",
+  "words": [
+   {
+    "word": "Ayarlar",
+    "start": 0.0,
+    "end": 0.42
+   },
+   {
+    "word": "her",
+    "start": 0.42,
+    "end": 0.68
+   },
+   {
+    "word": "gün",
+    "start": 0.68,
+    "end": 0.8
+   },
+   {
+    "word": "değişiyordu",
+    "start": 0.8,
+    "end": 1.46
+   },
+   {
+    "word": "ve",
+    "start": 1.46,
+    "end": 1.72
+   },
+   {
+    "word": "159",
+    "start": 1.72,
+    "end": 2.5
+   },
+   {
+    "word": "kentilyon",
+    "start": 2.5,
+    "end": 3.04
+   },
+   {
+    "word": "ihtimal",
+    "start": 3.04,
+    "end": 3.44
+   },
+   {
+    "word": "vardı.",
+    "start": 3.44,
+    "end": 3.78
+   }
+  ],
+  "cands": [
+   {
+    "seed": 0,
+    "speed": 1.0,
+    "dur": 3.925,
+    "wer": 0.273,
+    "hyp": "Ayarlar her gün değişiyordu ve 159 kentilyon ihtimal vardı."
+   },
+   {
+    "seed": 1,
+    "speed": 1.0,
+    "dur": 3.926,
+    "wer": 0.273,
+    "hyp": "Ayarlar her gün değişiyordu ve 159 kentilyon ihtimal vardı."
+   },
+   {
+    "seed": 2,
+    "speed": 1.0,
+    "dur": 3.93,
+    "wer": 0.273,
+    "hyp": "Ayarlar her gün değişiyordu ve 159 kentilyon ihtimal vardı."
+   },
+   {
+    "seed": 3,
+    "speed": 1.0,
+    "dur": 3.957,
+    "wer": 0.273,
+    "hyp": "Ayarlar her gün değişiyordu ve 159 kentilyon ihtimal vardı."
+   },
+   {
+    "seed": 4,
+    "speed": 1.0,
+    "dur": 3.946,
+    "wer": 0.273,
+    "hyp": "Ayarlar her gün değişiyordu ve 159 kentilyon ihtimal vardı."
+   },
+   {
+    "seed": 0,
+    "speed": 1.06,
+    "dur": 3.68,
+    "wer": 0.273,
+    "hyp": "Ayarlar her gün değişiyordu ve 159 kentilyon ihtimal vardı."
+   },
+   {
+    "seed": 1,
+    "speed": 1.06,
+    "dur": 3.636,
+    "wer": 0.273,
+    "hyp": "Ayarlar her gün değişiyordu ve 159 kentilyon ihtimal vardı."
+   },
+   {
+    "seed": 2,
+    "speed": 1.06,
+    "dur": 3.68,
+    "wer": 0.273,
+    "hyp": "Ayarlar her gün değişiyordu ve 159 kentilyon ihtimal vardı."
+   },
+   {
+    "seed": 3,
+    "speed": 1.06,
+    "dur": 3.657,
+    "wer": 0.273,
+    "hyp": "Ayarlar her gün değişiyordu ve 159 kentilyon ihtimal vardı."
+   },
+   {
+    "seed": 4,
+    "speed": 1.06,
+    "dur": 3.68,
+    "wer": 0.273,
+    "hyp": "Ayarlar her gün değişiyordu ve 159 kentilyon ihtimal vardı."
+   }
+  ]
+ },
+ "s05": {
+  "text": "Peki bu kutunun içinde ne var?",
+  "target": 2.35,
+  "chosen": "s05_1_1.0.wav",
+  "dur": 1.88,
+  "wer": 0.0,
+  "hyp": "Peki bu kutunun içinde ne var?",
+  "words": [
+   {
+    "word": "Peki",
+    "start": 0.0,
+    "end": 0.24
+   },
+   {
+    "word": "bu",
+    "start": 0.24,
+    "end": 0.44
+   },
+   {
+    "word": "kutunun",
+    "start": 0.44,
+    "end": 0.82
+   },
+   {
+    "word": "içinde",
+    "start": 0.82,
+    "end": 1.16
+   },
+   {
+    "word": "ne",
+    "start": 1.16,
+    "end": 1.4
+   },
+   {
+    "word": "var?",
+    "start": 1.4,
+    "end": 1.62
+   }
+  ],
+  "cands": [
+   {
+    "seed": 0,
+    "speed": 1.0,
+    "dur": 1.829,
+    "wer": 0.0,
+    "hyp": "Peki bu kutunun içinde ne var?"
+   },
+   {
+    "seed": 1,
+    "speed": 1.0,
+    "dur": 1.88,
+    "wer": 0.0,
+    "hyp": "Peki bu kutunun içinde ne var?"
+   },
+   {
+    "seed": 2,
+    "speed": 1.0,
+    "dur": 1.82,
+    "wer": 0.0,
+    "hyp": "Peki bu kutunun içinde ne var?"
+   },
+   {
+    "seed": 3,
+    "speed": 1.0,
+    "dur": 1.825,
+    "wer": 0.0,
+    "hyp": "Peki bu kutunun içinde ne var?"
+   },
+   {
+    "seed": 4,
+    "speed": 1.0,
+    "dur": 1.849,
+    "wer": 0.0,
+    "hyp": "Peki bu kutunun içinde ne var?"
+   },
+   {
+    "seed": 0,
+    "speed": 1.06,
+    "dur": 1.751,
+    "wer": 0.0,
+    "hyp": "Peki bu kutunun içinde ne var?"
+   },
+   {
+    "seed": 1,
+    "speed": 1.06,
+    "dur": 1.75,
+    "wer": 0.0,
+    "hyp": "Peki bu kutunun içinde ne var?"
+   },
+   {
+    "seed": 2,
+    "speed": 1.06,
+    "dur": 1.76,
+    "wer": 0.0,
+    "hyp": "Peki bu kutunun içinde ne var?"
+   },
+   {
+    "seed": 3,
+    "speed": 1.06,
+    "dur": 1.76,
+    "wer": 0.0,
+    "hyp": "Peki bu kutunun içinde ne var?"
+   },
+   {
+    "seed": 4,
+    "speed": 1.06,
+    "dur": 1.748,
+    "wer": 0.0,
+    "hyp": "Peki bu kutunun içinde ne var?"
+   }
+  ]
+ },
+ "s06": {
+  "text": "Bir tuşa basınca akım, priz panelinden ve üç rotordan geçer.",
+  "target": 3.92,
+  "chosen": "s06_1_1.0.wav",
+  "dur": 3.6,
+  "wer": 0.1,
+  "hyp": "Bir tuşa basınca akım priz panelinden ve 3 rotordan geçer.",
+  "words": [
+   {
+    "word": "Bir",
+    "start": 0.0,
+    "end": 0.12
+   },
+   {
+    "word": "tuşa",
+    "start": 0.12,
+    "end": 0.38
+   },
+   {
+    "word": "basınca",
+    "start": 0.38,
+    "end": 0.84
+   },
+   {
+    "word": "akım",
+    "start": 0.84,
+    "end": 1.18
+   },
+   {
+    "word": "priz",
+    "start": 1.18,
+    "end": 1.62
+   },
+   {
+    "word": "panelinden",
+    "start": 1.62,
+    "end": 2.1
+   },
+   {
+    "word": "ve",
+    "start": 2.1,
+    "end": 2.36
+   },
+   {
+    "word": "3",
+    "start": 2.36,
+    "end": 2.54
+   },
+   {
+    "word": "rotordan",
+    "start": 2.54,
+    "end": 2.98
+   },
+   {
+    "word": "geçer.",
+    "start": 2.98,
+    "end": 3.48
+   }
+  ],
+  "cands": [
+   {
+    "seed": 0,
+    "speed": 1.0,
+    "dur": 3.599,
+    "wer": 0.1,
+    "hyp": "Bir tuşa basınca akım priz panelinden ve 3 rotordan geçer."
+   },
+   {
+    "seed": 1,
+    "speed": 1.0,
+    "dur": 3.6,
+    "wer": 0.1,
+    "hyp": "Bir tuşa basınca akım priz panelinden ve 3 rotordan geçer."
+   },
+   {
+    "seed": 2,
+    "speed": 1.0,
+    "dur": 3.571,
+    "wer": 0.2,
+    "hyp": "Bir tuşa basınca akım, pris panelinden ve 3 rotordan geçer."
+   },
+   {
+    "seed": 3,
+    "speed": 1.0,
+    "dur": 3.585,
+    "wer": 0.2,
+    "hyp": "Bir tuşa basınca akım pris panelinden ve 3 rotordan geçer."
+   },
+   {
+    "seed": 4,
+    "speed": 1.0,
+    "dur": 3.569,
+    "wer": 0.2,
+    "hyp": "Bir tuşa basınca akım, pris panelinden ve 3 rotordan geçer."
+   },
+   {
+    "seed": 0,
+    "speed": 1.06,
+    "dur": 3.44,
+    "wer": 0.2,
+    "hyp": "Bir tuşa basınca akım pris panelinden ve 3 rotordan geçer."
+   },
+   {
+    "seed": 1,
+    "speed": 1.06,
+    "dur": 3.44,
+    "wer": 0.2,
+    "hyp": "Bir tuşa basınca akım pris panelinden ve 3 rotordan geçer."
+   },
+   {
+    "seed": 2,
+    "speed": 1.06,
+    "dur": 3.44,
+    "wer": 0.2,
+    "hyp": "Bir tuşa basınca akım pris panelinden ve 3 rotordan geçer."
+   },
+   {
+    "seed": 3,
+    "speed": 1.06,
+    "dur": 3.44,
+    "wer": 0.2,
+    "hyp": "Bir tuşa basınca akım, pris panelinden ve 3 rotordan geçer."
+   },
+   {
+    "seed": 4,
+    "speed": 1.06,
+    "dur": 3.44,
+    "wer": 0.1,
+    "hyp": "Bir tuşa basınca akım priz panelinden ve 3 rotordan geçer."
+   }
+  ]
+ },
+ "s07": {
+  "text": "Reflektörden geri döner ve bir lambayı yakar.",
+  "target": 2.75,
+  "chosen": "s07_0_1.0.wav",
+  "dur": 2.52,
+  "wer": 0.0,
+  "hyp": "Reflektörden geri döner ve bir lambayı yakar.",
+  "words": [
+   {
+    "word": "Reflektörden",
+    "start": 0.0,
+    "end": 0.7
+   },
+   {
+    "word": "geri",
+    "start": 0.7,
+    "end": 0.88
+   },
+   {
+    "word": "döner",
+    "start": 0.88,
+    "end": 1.26
+   },
+   {
+    "word": "ve",
+    "start": 1.26,
+    "end": 1.42
+   },
+   {
+    "word": "bir",
+    "start": 1.42,
+    "end": 1.6
+   },
+   {
+    "word": "lambayı",
+    "start": 1.6,
+    "end": 2.0
+   },
+   {
+    "word": "yakar.",
+    "start": 2.0,
+    "end": 2.4
+   }
+  ],
+  "cands": [
+   {
+    "seed": 0,
+    "speed": 1.0,
+    "dur": 2.52,
+    "wer": 0.0,
+    "hyp": "Reflektörden geri döner ve bir lambayı yakar."
+   },
+   {
+    "seed": 1,
+    "speed": 1.0,
+    "dur": 2.488,
+    "wer": 0.0,
+    "hyp": "Reflektörden geri döner ve bir lambayı yakar."
+   },
+   {
+    "seed": 2,
+    "speed": 1.0,
+    "dur": 2.448,
+    "wer": 0.0,
+    "hyp": "Reflektörden geri döner ve bir lambayı yakar."
+   },
+   {
+    "seed": 3,
+    "speed": 1.0,
+    "dur": 2.469,
+    "wer": 0.0,
+    "hyp": "Reflektörden geri döner ve bir lambayı yakar."
+   },
+   {
+    "seed": 4,
+    "speed": 1.0,
+    "dur": 2.48,
+    "wer": 0.0,
+    "hyp": "Reflektörden geri döner ve bir lambayı yakar."
+   },
+   {
+    "seed": 0,
+    "speed": 1.06,
+    "dur": 2.39,
+    "wer": 0.0,
+    "hyp": "Reflektörden geri döner ve bir lambayı yakar."
+   },
+   {
+    "seed": 1,
+    "speed": 1.06,
+    "dur": 2.44,
+    "wer": 0.0,
+    "hyp": "Reflektörden geri döner ve bir lambayı yakar."
+   },
+   {
+    "seed": 2,
+    "speed": 1.06,
+    "dur": 2.44,
+    "wer": 0.0,
+    "hyp": "Reflektörden geri döner ve bir lambayı yakar."
+   },
+   {
+    "seed": 3,
+    "speed": 1.06,
+    "dur": 2.425,
+    "wer": 0.0,
+    "hyp": "Reflektörden geri döner ve bir lambayı yakar."
+   },
+   {
+    "seed": 4,
+    "speed": 1.06,
+    "dur": 2.425,
+    "wer": 0.0,
+    "hyp": "Reflektörden geri döner ve bir lambayı yakar."
+   }
+  ]
+ },
+ "s08": {
+  "text": "Her basışta rotor bir adım döner; aynı harf hep başka çıkar.",
+  "target": 4.31,
+  "chosen": "s08_0_1.0.wav",
+  "dur": 3.58,
+  "wer": 0.0,
+  "hyp": "Her basışta rotor bir adım döner, aynı harf hep başka çıkar.",
+  "words": [
+   {
+    "word": "Her",
+    "start": 0.0,
+    "end": 0.16
+   },
+   {
+    "word": "basışta",
+    "start": 0.16,
+    "end": 0.6
+   },
+   {
+    "word": "rotor",
+    "start": 0.6,
+    "end": 0.84
+   },
+   {
+    "word": "bir",
+    "start": 0.84,
+    "end": 1.08
+   },
+   {
+    "word": "adım",
+    "start": 1.08,
+    "end": 1.36
+   },
+   {
+    "word": "döner,",
+    "start": 1.36,
+    "end": 1.72
+   },
+   {
+    "word": "aynı",
+    "start": 1.96,
+    "end": 2.22
+   },
+   {
+    "word": "harf",
+    "start": 2.22,
+    "end": 2.56
+   },
+   {
+    "word": "hep",
+    "start": 2.56,
+    "end": 2.68
+   },
+   {
+    "word": "başka",
+    "start": 2.68,
+    "end": 3.04
+   },
+   {
+    "word": "çıkar.",
+    "start": 3.04,
+    "end": 3.34
+   }
+  ],
+  "cands": [
+   {
+    "seed": 0,
+    "speed": 1.0,
+    "dur": 3.58,
+    "wer": 0.0,
+    "hyp": "Her basışta rotor bir adım döner, aynı harf hep başka çıkar."
+   },
+   {
+    "seed": 1,
+    "speed": 1.0,
+    "dur": 3.53,
+    "wer": 0.0,
+    "hyp": "Her basışta rotor bir adım döner, aynı harf hep başka çıkar."
+   },
+   {
+    "seed": 2,
+    "speed": 1.0,
+    "dur": 3.546,
+    "wer": 0.0,
+    "hyp": "Her basışta rotor bir adım döner. Aynı harf hep başka çıkar."
+   },
+   {
+    "seed": 3,
+    "speed": 1.0,
+    "dur": 3.55,
+    "wer": 0.0,
+    "hyp": "Her basışta rotor bir adım döner, aynı harf hep başka çıkar."
+   },
+   {
+    "seed": 4,
+    "speed": 1.0,
+    "dur": 3.551,
+    "wer": 0.0,
+    "hyp": "Her basışta rotor bir adım döner, aynı harf hep başka çıkar."
+   },
+   {
+    "seed": 0,
+    "speed": 1.06,
+    "dur": 3.392,
+    "wer": 0.0,
+    "hyp": "Her basışta rotor bir adım döner. Aynı harf hep başka çıkar."
+   },
+   {
+    "seed": 1,
+    "speed": 1.06,
+    "dur": 3.389,
+    "wer": 0.0,
+    "hyp": "Her basışta rotor bir adım döner. Aynı harf hep başka çıkar."
+   },
+   {
+    "seed": 2,
+    "speed": 1.06,
+    "dur": 3.369,
+    "wer": 0.0,
+    "hyp": "Her basışta rotor bir adım döner, aynı harf hep başka çıkar."
+   },
+   {
+    "seed": 3,
+    "speed": 1.06,
+    "dur": 3.4,
+    "wer": 0.0,
+    "hyp": "Her basışta rotor bir adım döner. Aynı harf hep başka çıkar."
+   },
+   {
+    "seed": 4,
+    "speed": 1.06,
+    "dur": 3.4,
+    "wer": 0.0,
+    "hyp": "Her basışta rotor bir adım döner, aynı harf hep başka çıkar."
+   }
+  ]
+ },
+ "s09": {
+  "text": "Ama reflektör yüzünden, hiçbir harf kendisine dönüşemez.",
+  "target": 2.75,
+  "chosen": "s09_4_1.06.wav",
+  "dur": 2.887,
+  "wer": 0.0,
+  "hyp": "Ama reflektör yüzünden hiçbir harf kendisine dönüşemez.",
+  "words": [
+   {
+    "word": "Ama",
+    "start": 0.0,
+    "end": 0.18
+   },
+   {
+    "word": "reflektör",
+    "start": 0.18,
+    "end": 0.68
+   },
+   {
+    "word": "yüzünden",
+    "start": 0.68,
+    "end": 1.1
+   },
+   {
+    "word": "hiçbir",
+    "start": 1.1,
+    "end": 1.46
+   },
+   {
+    "word": "harf",
+    "start": 1.46,
+    "end": 1.74
+   },
+   {
+    "word": "kendisine",
+    "start": 1.74,
+    "end": 2.18
+   },
+   {
+    "word": "dönüşemez.",
+    "start": 2.18,
+    "end": 2.78
+   }
+  ],
+  "cands": [
+   {
+    "seed": 0,
+    "speed": 1.0,
+    "dur": 3.139,
+    "wer": 0.0,
+    "hyp": "Ama reflektör yüzünden hiçbir harf kendisine dönüşemez."
+   },
+   {
+    "seed": 1,
+    "speed": 1.0,
+    "dur": 3.16,
+    "wer": 0.0,
+    "hyp": "Ama reflektör yüzünden hiçbir harf kendisine dönüşemez."
+   },
+   {
+    "seed": 2,
+    "speed": 1.0,
+    "dur": 3.16,
+    "wer": 0.0,
+    "hyp": "Ama reflektör yüzünden hiçbir harf kendisine dönüşemez."
+   },
+   {
+    "seed": 3,
+    "speed": 1.0,
+    "dur": 3.15,
+    "wer": 0.0,
+    "hyp": "Ama reflektör yüzünden hiçbir harf kendisine dönüşemez."
+   },
+   {
+    "seed": 4,
+    "speed": 1.0,
+    "dur": 3.13,
+    "wer": 0.0,
+    "hyp": "Ama reflektör yüzünden hiçbir harf kendisine dönüşemez."
+   },
+   {
+    "seed": 0,
+    "speed": 1.06,
+    "dur": 2.92,
+    "wer": 0.0,
+    "hyp": "Ama reflektör yüzünden hiçbir harf kendisine dönüşemez."
+   },
+   {
+    "seed": 1,
+    "speed": 1.06,
+    "dur": 2.92,
+    "wer": 0.0,
+    "hyp": "ama reflektör yüzünden hiçbir harf kendisine dönüşemez."
+   },
+   {
+    "seed": 2,
+    "speed": 1.06,
+    "dur": 2.92,
+    "wer": 0.0,
+    "hyp": "Ama reflektör yüzünden hiçbir harf kendisine dönüşemez."
+   },
+   {
+    "seed": 3,
+    "speed": 1.06,
+    "dur": 2.92,
+    "wer": 0.0,
+    "hyp": "Ama reflektör yüzünden hiçbir harf kendisine dönüşemez."
+   },
+   {
+    "seed": 4,
+    "speed": 1.06,
+    "dur": 2.887,
+    "wer": 0.0,
+    "hyp": "Ama reflektör yüzünden hiçbir harf kendisine dönüşemez."
+   }
+  ]
+ },
+ "s10": {
+  "text": "İşte zaaf buydu.",
+  "target": 1.18,
+  "chosen": "s10_2_1.0.wav",
+  "dur": 1.127,
+  "wer": 0.0,
+  "hyp": "İşte zaaf buydu.",
+  "words": [
+   {
+    "word": "İşte",
+    "start": 0.0,
+    "end": 0.26
+   },
+   {
+    "word": "zaaf",
+    "start": 0.26,
+    "end": 0.6
+   },
+   {
+    "word": "buydu.",
+    "start": 0.6,
+    "end": 0.98
+   }
+  ],
+  "cands": [
+   {
+    "seed": 0,
+    "speed": 1.0,
+    "dur": 1.09,
+    "wer": 0.0,
+    "hyp": "İşte zaaf buydu."
+   },
+   {
+    "seed": 1,
+    "speed": 1.0,
+    "dur": 1.11,
+    "wer": 0.0,
+    "hyp": "İşte zaaf buydu."
+   },
+   {
+    "seed": 2,
+    "speed": 1.0,
+    "dur": 1.127,
+    "wer": 0.0,
+    "hyp": "İşte zaaf buydu."
+   },
+   {
+    "seed": 3,
+    "speed": 1.0,
+    "dur": 1.09,
+    "wer": 0.0,
+    "hyp": "İşte zaaf buydu."
+   },
+   {
+    "seed": 4,
+    "speed": 1.0,
+    "dur": 1.087,
+    "wer": 0.0,
+    "hyp": "İşte zaaf buydu."
+   },
+   {
+    "seed": 0,
+    "speed": 1.06,
+    "dur": 1.084,
+    "wer": 0.0,
+    "hyp": "İşte zaaf buydu."
+   },
+   {
+    "seed": 1,
+    "speed": 1.06,
+    "dur": 1.11,
+    "wer": 0.0,
+    "hyp": "İşte zaaf buydu."
+   },
+   {
+    "seed": 2,
+    "speed": 1.06,
+    "dur": 1.092,
+    "wer": 0.0,
+    "hyp": "İşte zaaf buydu."
+   },
+   {
+    "seed": 3,
+    "speed": 1.06,
+    "dur": 1.089,
+    "wer": 0.0,
+    "hyp": "İşte zaaf buydu."
+   },
+   {
+    "seed": 4,
+    "speed": 1.06,
+    "dur": 1.09,
+    "wer": 0.0,
+    "hyp": "İşte zaaf buydu."
+   }
+  ]
+ },
+ "s11": {
+  "text": "Polonyalı matematikçilerin açtığı yolda, Alan Turing ve ekibi bunu kullandı.",
+  "target": 3.92,
+  "chosen": "s11_1_1.06.wav",
+  "dur": 3.991,
+  "wer": 0.0,
+  "hyp": "Polonyalı matematikçilerin açtığı yolda Alan Turing ve ekibi bunu kullandı.",
+  "words": [
+   {
+    "word": "Polonyalı",
+    "start": 0.0,
+    "end": 0.46
+   },
+   {
+    "word": "matematikçilerin",
+    "start": 0.46,
+    "end": 1.26
+   },
+   {
+    "word": "açtığı",
+    "start": 1.26,
+    "end": 1.64
+   },
+   {
+    "word": "yolda",
+    "start": 1.64,
+    "end": 2.12
+   },
+   {
+    "word": "Alan",
+    "start": 2.12,
+    "end": 2.42
+   },
+   {
+    "word": "Turing",
+    "start": 2.42,
+    "end": 2.72
+   },
+   {
+    "word": "ve",
+    "start": 2.72,
+    "end": 2.86
+   },
+   {
+    "word": "ekibi",
+    "start": 2.86,
+    "end": 3.16
+   },
+   {
+    "word": "bunu",
+    "start": 3.16,
+    "end": 3.38
+   },
+   {
+    "word": "kullandı.",
+    "start": 3.38,
+    "end": 3.94
+   }
+  ],
+  "cands": [
+   {
+    "seed": 0,
+    "speed": 1.0,
+    "dur": 4.24,
+    "wer": 0.0,
+    "hyp": "Polonyalı matematikçilerin açtığı yolda Alan Turing ve ekibi bunu kullandı."
+   },
+   {
+    "seed": 1,
+    "speed": 1.0,
+    "dur": 4.238,
+    "wer": 0.0,
+    "hyp": "Polonyalı matematikçilerin açtığı yolda Alan Turing ve ekibi bunu kullandı."
+   },
+   {
+    "seed": 2,
+    "speed": 1.0,
+    "dur": 4.191,
+    "wer": 0.0,
+    "hyp": "Polonyalı matematikçilerin açtığı yolda Alan Turing ve ekibi bunu kullandı."
+   },
+   {
+    "seed": 3,
+    "speed": 1.0,
+    "dur": 4.188,
+    "wer": 0.0,
+    "hyp": "Polonyalı matematikçilerin açtığı yolda Alan Turing ve ekibi bunu kullandı."
+   },
+   {
+    "seed": 4,
+    "speed": 1.0,
+    "dur": 4.194,
+    "wer": 0.0,
+    "hyp": "Polonyalı matematikçilerin açtığı yolda Alan Turing ve ekibi bunu kullandı."
+   },
+   {
+    "seed": 0,
+    "speed": 1.06,
+    "dur": 4.0,
+    "wer": 0.0,
+    "hyp": "Polonyalı matematikçilerin açtığı yolda Alan Turing ve ekibi bunu kullandı."
+   },
+   {
+    "seed": 1,
+    "speed": 1.06,
+    "dur": 3.991,
+    "wer": 0.0,
+    "hyp": "Polonyalı matematikçilerin açtığı yolda Alan Turing ve ekibi bunu kullandı."
+   },
+   {
+    "seed": 2,
+    "speed": 1.06,
+    "dur": 3.992,
+    "wer": 0.0,
+    "hyp": "Polonyalı matematikçilerin açtığı yolda Alan Turing ve ekibi bunu kullandı."
+   },
+   {
+    "seed": 3,
+    "speed": 1.06,
+    "dur": 4.0,
+    "wer": 0.0,
+    "hyp": "Polonyalı matematikçilerin açtığı yolda Alan Turing ve ekibi bunu kullandı."
+   },
+   {
+    "seed": 4,
+    "speed": 1.06,
+    "dur": 4.0,
+    "wer": 0.0,
+    "hyp": "Polonyalı matematikçilerin açtığı yolda Alan Turing ve ekibi bunu kullandı."
+   }
+  ]
+ },
+ "s12": {
+  "text": "Mesajdaki bir kelimeyi tahmin ettiler, örneğin hava raporu.",
+  "target": 3.14,
+  "chosen": "s12_0_1.0.wav",
+  "dur": 3.151,
+  "wer": 0.0,
+  "hyp": "Mesajdaki bir kelimeyi tahmin ettiler, örneğin hava raporu.",
+  "words": [
+   {
+    "word": "Mesajdaki",
+    "start": 0.0,
+    "end": 0.52
+   },
+   {
+    "word": "bir",
+    "start": 0.52,
+    "end": 0.68
+   },
+   {
+    "word": "kelimeyi",
+    "start": 0.68,
+    "end": 1.06
+   },
+   {
+    "word": "tahmin",
+    "start": 1.06,
+    "end": 1.46
+   },
+   {
+    "word": "ettiler,",
+    "start": 1.46,
+    "end": 1.88
+   },
+   {
+    "word": "örneğin",
+    "start": 2.08,
+    "end": 2.44
+   },
+   {
+    "word": "hava",
+    "start": 2.44,
+    "end": 2.7
+   },
+   {
+    "word": "raporu.",
+    "start": 2.7,
+    "end": 3.04
+   }
+  ],
+  "cands": [
+   {
+    "seed": 0,
+    "speed": 1.0,
+    "dur": 3.151,
+    "wer": 0.0,
+    "hyp": "Mesajdaki bir kelimeyi tahmin ettiler, örneğin hava raporu."
+   },
+   {
+    "seed": 1,
+    "speed": 1.0,
+    "dur": 3.188,
+    "wer": 0.0,
+    "hyp": "Mesajdaki bir kelimeyi tahmin ettiler, örneğin hava raporu."
+   },
+   {
+    "seed": 2,
+    "speed": 1.0,
+    "dur": 3.17,
+    "wer": 0.0,
+    "hyp": "Mesajdaki bir kelimeyi tahmin ettiler, örneğin hava raporu."
+   },
+   {
+    "seed": 3,
+    "speed": 1.0,
+    "dur": 3.17,
+    "wer": 0.0,
+    "hyp": "Mesajdaki bir kelimeyi tahmin ettiler, örneğin hava raporu."
+   },
+   {
+    "seed": 4,
+    "speed": 1.0,
+    "dur": 3.165,
+    "wer": 0.0,
+    "hyp": "Mesajdaki bir kelimeyi tahmin ettiler, örneğin hava raporu."
+   },
+   {
+    "seed": 0,
+    "speed": 1.06,
+    "dur": 3.08,
+    "wer": 0.0,
+    "hyp": "Mesajdaki bir kelimeyi tahmin ettiler, örneğin hava raporu."
+   },
+   {
+    "seed": 1,
+    "speed": 1.06,
+    "dur": 3.08,
+    "wer": 0.0,
+    "hyp": "Mesajdaki bir kelimeyi tahmin ettiler, örneğin hava raporu."
+   },
+   {
+    "seed": 2,
+    "speed": 1.06,
+    "dur": 3.08,
+    "wer": 0.0,
+    "hyp": "Mesajdaki bir kelimeyi tahmin ettiler. Örneğin hava raporu."
+   },
+   {
+    "seed": 3,
+    "speed": 1.06,
+    "dur": 3.073,
+    "wer": 0.0,
+    "hyp": "Mesajdaki bir kelimeyi tahmin ettiler, örneğin hava raporu."
+   },
+   {
+    "seed": 4,
+    "speed": 1.06,
+    "dur": 3.08,
+    "wer": 0.0,
+    "hyp": "Mesajdaki bir kelimeyi tahmin ettiler, örneğin hava raporu."
+   }
+  ]
+ },
+ "s13": {
+  "text": "Bir harfin kendisiyle çakıştığı konumlar elendi; gerisini Bombe makineleri taradı.",
+  "target": 3.92,
+  "chosen": "s13_4_1.06.wav",
+  "dur": 4.168,
+  "wer": 0.0,
+  "hyp": "Bir harfin kendisiyle çakıştığı konumlar elendi. Gerisini bombe makineleri taradı.",
+  "words": [
+   {
+    "word": "Bir",
+    "start": 0.0,
+    "end": 0.1
+   },
+   {
+    "word": "harfin",
+    "start": 0.1,
+    "end": 0.4
+   },
+   {
+    "word": "kendisiyle",
+    "start": 0.4,
+    "end": 0.94
+   },
+   {
+    "word": "çakıştığı",
+    "start": 0.94,
+    "end": 1.42
+   },
+   {
+    "word": "konumlar",
+    "start": 1.42,
+    "end": 1.88
+   },
+   {
+    "word": "elendi.",
+    "start": 1.88,
+    "end": 2.24
+   },
+   {
+    "word": "Gerisini",
+    "start": 2.46,
+    "end": 2.86
+   },
+   {
+    "word": "bombe",
+    "start": 2.86,
+    "end": 3.2
+   },
+   {
+    "word": "makineleri",
+    "start": 3.2,
+    "end": 3.7
+   },
+   {
+    "word": "taradı.",
+    "start": 3.7,
+    "end": 4.06
+   }
+  ],
+  "cands": [
+   {
+    "seed": 0,
+    "speed": 1.0,
+    "dur": 4.39,
+    "wer": 0.0,
+    "hyp": "Bir harfin kendisiyle çakıştığı konumlar elendi, gerisini bombe makineleri taradı."
+   },
+   {
+    "seed": 1,
+    "speed": 1.0,
+    "dur": 4.39,
+    "wer": 0.0,
+    "hyp": "Bir harfin kendisiyle çakıştığı konumlar elendi. Gerisini bombe makineleri taradı."
+   },
+   {
+    "seed": 2,
+    "speed": 1.0,
+    "dur": 4.4,
+    "wer": 0.0,
+    "hyp": "Bir harfin kendisiyle çakıştığı konumlar elendi, gerisini bombe makineleri taradı."
+   },
+   {
+    "seed": 3,
+    "speed": 1.0,
+    "dur": 4.382,
+    "wer": 0.0,
+    "hyp": "Bir harfin kendisiyle çakıştığı konumlar elendi, gerisini bombe makineleri taradı."
+   },
+   {
+    "seed": 4,
+    "speed": 1.0,
+    "dur": 4.388,
+    "wer": 0.0,
+    "hyp": "Bir harfin kendisiyle çakıştığı konumlar elendi. Gerisini bombe makineleri taradı."
+   },
+   {
+    "seed": 0,
+    "speed": 1.06,
+    "dur": 4.2,
+    "wer": 0.0,
+    "hyp": "Bir harfin kendisiyle çakıştığı konumlar elendi, gerisini bombe makineleri taradı."
+   },
+   {
+    "seed": 1,
+    "speed": 1.06,
+    "dur": 4.2,
+    "wer": 0.0,
+    "hyp": "Bir harfin kendisiyle çakıştığı konumlar elendi, gerisini bombe makineleri taradı."
+   },
+   {
+    "seed": 2,
+    "speed": 1.06,
+    "dur": 4.164,
+    "wer": 0.1,
+    "hyp": "Bir harfin kendisiyle çakıştığı konumlar elendi, gerisini bomba makineleri taradı."
+   },
+   {
+    "seed": 3,
+    "speed": 1.06,
+    "dur": 4.2,
+    "wer": 0.0,
+    "hyp": "Bir harfin kendisiyle çakıştığı konumlar elendi, gerisini bombe makineleri taradı."
+   },
+   {
+    "seed": 4,
+    "speed": 1.06,
+    "dur": 4.168,
+    "wer": 0.0,
+    "hyp": "Bir harfin kendisiyle çakıştığı konumlar elendi. Gerisini bombe makineleri taradı."
+   }
+  ]
+ },
+ "s14": {
+  "text": "Polonya, yöntemini ve kopya makineleri savaştan beş hafta önce İngiltere ve Fransa'ya verdi.",
+  "target": 5.1,
+  "chosen": "s14_1_1.0.wav",
+  "dur": 4.912,
+  "wer": 0.077,
+  "hyp": "Polonya yöntemini ve kopya makineleri savaştan 5 hafta önce İngiltere ve Fransa'ya verdi.",
+  "words": [
+   {
+    "word": "Polonya",
+    "start": 0.0,
+    "end": 0.44
+   },
+   {
+    "word": "yöntemini",
+    "start": 0.44,
+    "end": 1.04
+   },
+   {
+    "word": "ve",
+    "start": 1.04,
+    "end": 1.18
+   },
+   {
+    "word": "kopya",
+    "start": 1.18,
+    "end": 1.5
+   },
+   {
+    "word": "makineleri",
+    "start": 1.5,
+    "end": 2.0
+   },
+   {
+    "word": "savaştan",
+    "start": 2.0,
+    "end": 2.54
+   },
+   {
+    "word": "5",
+    "start": 2.54,
+    "end": 2.74
+   },
+   {
+    "word": "hafta",
+    "start": 2.74,
+    "end": 3.06
+   },
+   {
+    "word": "önce",
+    "start": 3.06,
+    "end": 3.24
+   },
+   {
+    "word": "İngiltere",
+    "start": 3.24,
+    "end": 3.76
+   },
+   {
+    "word": "ve",
+    "start": 3.76,
+    "end": 3.9
+   },
+   {
+    "word": "Fransa",
+    "start": 3.9,
+    "end": 4.3
+   },
+   {
+    "word": "'ya",
+    "start": 4.3,
+    "end": 4.44
+   },
+   {
+    "word": "verdi.",
+    "start": 4.44,
+    "end": 4.72
+   }
+  ],
+  "cands": [
+   {
+    "seed": 0,
+    "speed": 1.0,
+    "dur": 4.879,
+    "wer": 0.077,
+    "hyp": "Polonya yöntemini ve kopya makineleri savaştan 5 hafta önce İngiltere ve Fransa'ya verdi."
+   },
+   {
+    "seed": 1,
+    "speed": 1.0,
+    "dur": 4.912,
+    "wer": 0.077,
+    "hyp": "Polonya yöntemini ve kopya makineleri savaştan 5 hafta önce İngiltere ve Fransa'ya verdi."
+   },
+   {
+    "seed": 2,
+    "speed": 1.0,
+    "dur": 4.902,
+    "wer": 0.077,
+    "hyp": "Polonya yöntemini ve kopya makineleri savaştan 5 hafta önce İngiltere ve Fransa'ya verdi."
+   },
+   {
+    "seed": 3,
+    "speed": 1.0,
+    "dur": 4.89,
+    "wer": 0.077,
+    "hyp": "Polonya yöntemini ve kopya makineleri savaştan 5 hafta önce İngiltere ve Fransa'ya verdi."
+   },
+   {
+    "seed": 4,
+    "speed": 1.0,
+    "dur": 4.904,
+    "wer": 0.077,
+    "hyp": "Polonya yöntemini ve kopya makineleri savaştan 5 hafta önce İngiltere ve Fransa'ya verdi."
+   },
+   {
+    "seed": 0,
+    "speed": 1.06,
+    "dur": 4.76,
+    "wer": 0.077,
+    "hyp": "Polonya, yöntemini ve kopya makineleri savaştan 5 hafta önce İngiltere ve Fransa'ya verdi."
+   },
+   {
+    "seed": 1,
+    "speed": 1.06,
+    "dur": 4.75,
+    "wer": 0.077,
+    "hyp": "Polonya yöntemini ve kopya makineleri savaştan 5 hafta önce İngiltere ve Fransa'ya verdi."
+   },
+   {
+    "seed": 2,
+    "speed": 1.06,
+    "dur": 4.76,
+    "wer": 0.077,
+    "hyp": "Polonya yöntemini ve kopya makineleri savaştan 5 hafta önce İngiltere ve Fransa'ya verdi."
+   },
+   {
+    "seed": 3,
+    "speed": 1.06,
+    "dur": 4.76,
+    "wer": 0.077,
+    "hyp": "Polonya yöntemini ve kopya makineleri savaştan 5 hafta önce İngiltere ve Fransa'ya verdi."
+   },
+   {
+    "seed": 4,
+    "speed": 1.06,
+    "dur": 4.76,
+    "wer": 0.077,
+    "hyp": "Polonya yöntemini ve kopya makineleri savaştan 5 hafta önce İngiltere ve Fransa'ya verdi."
+   }
+  ]
+ },
+ "s15": {
+  "text": "Sıradaki hikâye hangi nesne olsun? Yorumlara yaz.",
+  "target": 2.75,
+  "chosen": "s15_0_1.06.wav",
+  "dur": 2.72,
+  "wer": 0.0,
+  "hyp": "Sıradaki hikaye hangi nesne olsun? Yorumlara yaz.",
+  "words": [
+   {
+    "word": "Sıradaki",
+    "start": 0.0,
+    "end": 0.38
+   },
+   {
+    "word": "hikaye",
+    "start": 0.38,
+    "end": 0.82
+   },
+   {
+    "word": "hangi",
+    "start": 0.82,
+    "end": 1.12
+   },
+   {
+    "word": "nesne",
+    "start": 1.12,
+    "end": 1.4
+   },
+   {
+    "word": "olsun?",
+    "start": 1.4,
+    "end": 1.64
+   },
+   {
+    "word": "Yorumlara",
+    "start": 1.86,
+    "end": 2.3
+   },
+   {
+    "word": "yaz.",
+    "start": 2.3,
+    "end": 2.58
+   }
+  ],
+  "cands": [
+   {
+    "seed": 0,
+    "speed": 1.0,
+    "dur": 2.84,
+    "wer": 0.0,
+    "hyp": "Sıradaki hikaye hangi nesne olsun? Yorumlara yaz."
+   },
+   {
+    "seed": 1,
+    "speed": 1.0,
+    "dur": 2.84,
+    "wer": 0.0,
+    "hyp": "Sıradaki hikaye hangi nesne olsun? Yorumlara yaz."
+   },
+   {
+    "seed": 2,
+    "speed": 1.0,
+    "dur": 2.824,
+    "wer": 0.0,
+    "hyp": "Sıradaki hikaye hangi nesne olsun? Yorumlara yaz."
+   },
+   {
+    "seed": 3,
+    "speed": 1.0,
+    "dur": 2.838,
+    "wer": 0.0,
+    "hyp": "Sıradaki hikaye hangi nesne olsun? Yorumlara yaz."
+   },
+   {
+    "seed": 4,
+    "speed": 1.0,
+    "dur": 2.826,
+    "wer": 0.0,
+    "hyp": "Sıradaki hikaye hangi nesne olsun? Yorumlara yaz."
+   },
+   {
+    "seed": 0,
+    "speed": 1.06,
+    "dur": 2.72,
+    "wer": 0.0,
+    "hyp": "Sıradaki hikaye hangi nesne olsun? Yorumlara yaz."
+   },
+   {
+    "seed": 1,
+    "speed": 1.06,
+    "dur": 2.72,
+    "wer": 0.0,
+    "hyp": "Sıradaki hikaye hangi nesne olsun? Yorumlara yaz."
+   },
+   {
+    "seed": 2,
+    "speed": 1.06,
+    "dur": 2.72,
+    "wer": 0.0,
+    "hyp": "Sıradaki hikaye hangi nesne olsun? Yorumlara yaz."
+   },
+   {
+    "seed": 3,
+    "speed": 1.06,
+    "dur": 2.704,
+    "wer": 0.0,
+    "hyp": "Sıradaki hikaye hangi nesne olsun? Yorumlara yaz."
+   },
+   {
+    "seed": 4,
+    "speed": 1.06,
+    "dur": 2.71,
+    "wer": 0.0,
+    "hyp": "Sıradaki hikaye hangi nesne olsun? Yorumlara yaz."
+   }
+  ]
+ }
+}

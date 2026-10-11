@@ -83,7 +83,8 @@ async function pngSize(path: string): Promise<{ width: number; height: number } 
   }
 }
 
-export const DEFAULT_PILOT_VIDEO = join(homedir(), 'icinde-ne-var/pilot-kalem/remotion/out/icinde-ne-var-kalem.mp4');
+/** The QC calibration "known bad" sample (video library L6): the pilot episode's final, copied into the data dir. */
+export const DEFAULT_PILOT_VIDEO = join(process.env.VG_DATA_DIR ?? join(homedir(), 'videogen-data'), 'episodes/pilot-kalem/final.mp4');
 const FIXTURES = resolve(import.meta.dirname, '../../../../tests/fixtures/artifacts');
 const CLAUDE_TIMEOUT_MS = 120_000;
 const TTS_LINE = 'Bu kalemin içinde küçük bir yay saklı.';

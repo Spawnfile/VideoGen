@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Şeffaf ön izleme karelerini koyu arka plan üstüne koyup tek şerit görsel yapar.
+# Kullanım: contact-sheet <kare-klasörü> <çıktı.png>
+set -euo pipefail
+dir=$1; out=$2
+n=$(ls "$dir"/*.png | wc -l)
+ffmpeg -y -loglevel error -f lavfi -i "color=c=0x0d1222:s=540x960" -pattern_type glob -i "$dir/*.png" \
+  -filter_complex "[0][1]overlay=shortest=1,scale=270:480,tile=${n}x1:padding=6:color=white" -frames:v 1 "$out"

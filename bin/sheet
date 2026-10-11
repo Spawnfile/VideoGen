@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# sheet <dir> <out> : tiles all PNGs over dark bg at 270x480
+dir=$1; out=$2; n=$(ls "$dir"/*.png | wc -l)
+args=(); fl=""; i=0
+for f in "$dir"/*.png; do args+=(-i "$f"); fl+="color=c=0x0d1222:s=270x480[b$i];[$i:v]scale=270:480[s$i];[b$i][s$i]overlay=shortest=1[o$i];"; i=$((i+1)); done
+st=""; for ((j=0;j<n;j++)); do st+="[o$j]"; done
+ffmpeg -y -loglevel error "${args[@]}" -filter_complex "${fl}${st}hstack=inputs=$n" -frames:v 1 "$out"

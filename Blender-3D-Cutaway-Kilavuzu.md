@@ -3,7 +3,7 @@ Hedef: nesnenin parçalarına ayrıldığı (patlatılmış görünüm) dikey k�
 
 ## Ortam (bu makine: RTX 3060 6 GB, hibrit dizüstü, 14 GB RAM)
 - Blender 5.2.2 LTS: `~/apps/blender-5.2.2-linux-x64/`. Ek skill ya da MCP gerekmez, `blender -b --factory-startup -P sahne.py` yeterli.
-- Blender'ı **mutlaka `blender-gpu` ile çalıştır** (`~/icinde-ne-var/bin/`, `~/.local/bin`'e bağlı; aynı klasörde `contact-sheet` da var). Bu sarmalayıcı şu değişkenleri ayarlar: `__NV_PRIME_RENDER_OFFLOAD=1`, `__GLX_VENDOR_LIBRARY_NAME=nvidia`, `__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/10_nvidia.json`. Düz `blender` Intel iGPU'ya düşer ve yaklaşık 3 kat yavaştır. Kontrol için `gpu.platform.renderer_get()` çıktısında "NVIDIA" yazmalı.
+- Blender'ı **mutlaka `blender-gpu` ile çalıştır** (VideoGen'de `bin/blender-gpu`, `~/.local/bin`'e bağlı; aynı klasörde `contact-sheet` ve `sheet` da var). Bu sarmalayıcı şu değişkenleri ayarlar: `__NV_PRIME_RENDER_OFFLOAD=1`, `__GLX_VENDOR_LIBRARY_NAME=nvidia`, `__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/10_nvidia.json`. Düz `blender` Intel iGPU'ya düşer ve yaklaşık 3 kat yavaştır. Kontrol için `gpu.platform.renderer_get()` çıktısında "NVIDIA" yazmalı.
 - EEVEE 1080×1920, 64 örnek, raytracing açıkken kare başına ~1 sn sürer (720 kare ≈ 12 dk). Kare dizisi yaklaşık 850 MB tutar ve disk dar, iş bitince sil.
 
 ## Akış: Blender (3D) → Remotion (yazı ve ses) → MP4

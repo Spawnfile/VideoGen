@@ -1,0 +1,94 @@
+{
+  "episodes": [
+    {
+      "slug": "pilot-kalem",
+      "product": "Tükenmez kalem",
+      "title": "Tükenmez kalem — içinde ne var",
+      "language": "tr",
+      "audioMode": "silent",
+      "approach": null,
+      "sha256": "6ec02ffe8cab30b9d44e5689185e98024ec4f2515c6e278b9f06677c02e5c9dc",
+      "recordedAt": "2026-10-05T22:34:40.000Z"
+    },
+    {
+      "slug": "klavye",
+      "product": "Klavye",
+      "title": "Klavye — içinde ne var",
+      "language": "tr",
+      "audioMode": "silent",
+      "approach": null,
+      "sha256": "b73d7dfa1f7020ac5e1652f65c3260bc779670a2596401706b02b6bee8caaf10",
+      "recordedAt": "2026-10-07T12:38:00.000Z"
+    },
+    {
+      "slug": "cpu",
+      "product": "İşlemci (CPU)",
+      "title": "İşlemci (CPU) — içinde ne var",
+      "language": "tr",
+      "audioMode": "silent",
+      "approach": null,
+      "sha256": "7d263ed7673377f4d2c828f7e9ca7807c62f96e4a76fe4850ca2bfc30fad71eb",
+      "recordedAt": "2026-10-07T17:02:42.000Z"
+    },
+    {
+      "slug": "ps5-kol",
+      "product": "PS5 kolu",
+      "title": "PS5 kolu — içinde ne var",
+      "language": "tr",
+      "audioMode": "silent",
+      "approach": null,
+      "sha256": "aeb5fcf80fa9e78f5a5f39dbb0779d845cf1047e7860c52ff9d4f0cd535644c7",
+      "recordedAt": "2026-10-07T18:50:10.000Z"
+    },
+    {
+      "slug": "saat",
+      "product": "Kol saati",
+      "title": "Kol saati — içinde ne var",
+      "language": "tr",
+      "audioMode": "silent",
+      "approach": null,
+      "sha256": "9dcb98f30b33f12b73c2d8293d814057450947ca4c75892f003ce6765aced5c3",
+      "recordedAt": "2026-10-07T22:27:00.000Z"
+    },
+    {
+      "slug": "asma-kilit",
+      "product": "Asma kilit",
+      "title": "Asma kilit — içinde ne var",
+      "language": "tr",
+      "audioMode": "silent",
+      "approach": null,
+      "sha256": "93ab7ec20ad8a616434442cd6e2abc1a34c9f3ae46735184714fb7fc42971dd6",
+      "recordedAt": "2026-10-08T08:51:55.000Z"
+    },
+    {
+      "slug": "kulaklik",
+      "product": "Kablosuz kulaklık",
+      "title": "Kablosuz kulaklık — içinde ne var",
+      "language": "tr",
+      "audioMode": "silent",
+      "approach": null,
+      "sha256": "b282ffd4e935a6a5d25520e53404a2ec5ec27e73dc9b9a5e4a023d0aeacef434",
+      "recordedAt": "2026-10-08T09:59:32.000Z"
+    },
+    {
+      "slug": "enigma",
+      "product": "Enigma makinesi",
+      "title": "Enigma makinesi — içinde ne var",
+      "language": "tr",
+      "audioMode": "vo",
+      "approach": null,
+      "sha256": "41f6ec92f1045fa68d2eaad48a268bad02eabf173396d090ce876fe4dd23b77e",
+      "recordedAt": "2026-10-08T12:40:09.000Z"
+    },
+    {
+      "slug": "rubik",
+      "product": "Rubik küpü",
+      "title": "Rubik küpü — içinde ne var",
+      "language": "en",
+      "audioMode": "silent",
+      "approach": "yaklasim",
+      "sha256": "27d86e4ed3c8cd50023a1460fdc3a17af3618eaa3fa7876e90672866a2005639",
+      "recordedAt": "2026-10-11T01:58:43.000Z"
+    }
+  ]
+}
