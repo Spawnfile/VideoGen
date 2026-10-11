@@ -1,35 +1,72 @@
 @import "tailwindcss";
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
 
-/* "Gece kâğıdı": the Perplexity parchment-and-teal system at night. Warm graphite from the Ink family, parchment text, one teal. */
+/*
+ * Ember (spec 2026-10-11-ember-ui): a cutting room in graphite. Ember — the short rose-to-coral gradient — is spent only on the primary
+ * action, live work (the running frame, the running timeline block, the playhead, LIVE, overall progress), the active tab line and the
+ * logo. Needs-you is amber, failure is red, stopped/skipped is dim; selection is neutral.
+ */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --color-canvas: #191815;
-  --color-paper: #211f1b;
-  --color-inset: #2a2823;
-  --color-ink: #ece7de;
-  --color-ink-2: #a8a49a;
-  --color-ink-3: #8c887e;
-  --color-line: #38362f;
-  --color-line-strong: #4d4a42;
-  --color-hover: rgb(236 231 222 / 0.05);
-  --color-hover-2: rgb(236 231 222 / 0.08);
-  --color-scrim: rgb(14 13 11 / 0.6);
-  --color-accent: #016a71;
-  --color-accent-glow: #2fa3aa;
-  --color-green: #6fae8a;
-  --color-red: #e08a76;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --color-canvas: #0A0A0C;
+  --color-paper: #111114;
+  --color-inset: #17171B;
+  --color-ink: #EEEEF2;
+  --color-ink-2: #A6A6B0;
+  --color-ink-3: #7C7C88;
+  --color-line: #222228;
+  --color-line-strong: #2E2E36;
+  --color-hover: rgb(238 238 242 / 0.05);
+  --color-hover-2: rgb(238 238 242 / 0.08);
+  --color-scrim: rgb(4 4 6 / 0.62);
+  --color-ember-a: #FF4D6A;
+  --color-ember-b: #FF8A3D;
+  --color-accent: #FF6B3D;
+  --color-accent-glow: #FF9466;
+  --color-amber: #FFC94D;
+  --color-red: #F0445C;
+  --color-green: #4CC38A;
+  --color-dim: #5A5A64;
   --radius-control: 6px;
-  --radius-input: 12px;
-  --radius-card: 16px;
-  --radius-sheet: 20px;
+  --radius-input: 10px;
+  --radius-card: 12px;
+  --radius-sheet: 16px;
+  --radius-frame: 6px;
   --breakpoint-desk: 75rem;
-  /* Dark surfaces carry no shadow: layering is canvas → paper → inset. The token stays so existing classes keep resolving. */
+  /* Dark surfaces carry no shadow (canvas → paper → inset); the one glow belongs to the primary action. */
   --shadow-subtle: 0 0 #0000;
-  --shadow-glow: 0 0 24px rgb(47 163 170 / 0.16);
+  --shadow-glow: 0 0 0 3px rgb(255 77 106 / 0.16);
+  --shadow-ember: 0 8px 24px rgb(255 77 106 / 0.28);
+  --animate-breathe: breathe 2.4s ease-in-out infinite;
 }
 
+:root {
+  --grad-ember: linear-gradient(100deg, var(--color-ember-a), var(--color-ember-b));
+  /* Derived posters (lib/poster.ts posterTint): dark two-stop tones, none of them ember, red or amber. */
+  --poster-0: linear-gradient(160deg, #1B2A44, #0C1322);
+  --poster-1: linear-gradient(160deg, #123A3B, #081A1B);
+  --poster-2: linear-gradient(160deg, #24361F, #10180D);
+  --poster-3: linear-gradient(160deg, #36361C, #18180B);
+  --poster-4: linear-gradient(160deg, #3A2A1E, #1A120C);
+  --poster-5: linear-gradient(160deg, #36203A, #170D19);
+  --poster-6: linear-gradient(160deg, #2A3038, #12151A);
+  --poster-7: linear-gradient(160deg, #1F2230, #0D0E15);
+}
+
+@utility bg-ember { background-image: var(--grad-ember); }
+@utility text-ember { background-image: var(--grad-ember); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* A 2 px gradient frame: the fill shows through the padding box (set --ring-fill to the surface behind it). */
+@utility ring-ember {
+  border: 2px solid transparent;
+  background: linear-gradient(var(--ring-fill, var(--color-canvas)), var(--ring-fill, var(--color-canvas))) padding-box, var(--grad-ember) border-box;
+}
+@utility label-mono { font-family: var(--font-mono); font-size: 10.5px; line-height: 1.3; text-transform: uppercase; letter-spacing: 0.12em; font-variant-numeric: tabular-nums; }
+
+@keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 @keyframes shimmer-text { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fade-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
@@ -51,7 +88,11 @@ body {
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
 }
-::selection { background: rgb(47 163 170 / 0.35); }
+::selection { background: rgb(255 77 106 / 0.3); }
+/* The ember field bleeding from the top right, and film grain: both fixed under the app, no external request. */
+body::before { content: ""; position: fixed; top: -180px; right: -160px; width: 440px; height: 400px; z-index: 0; pointer-events: none; opacity: 0.16; filter: blur(28px); background: radial-gradient(closest-side at 45% 50%, var(--color-ember-a), transparent 70%), radial-gradient(closest-side at 62% 62%, var(--color-ember-b), transparent 70%); }
+body::after { content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.04; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E"); }
+#root { position: relative; z-index: 1; }
 audio { color-scheme: dark; }
 /* iOS zooms into a focused field under 16 px: phones get 16 px fields. */
 @media (max-width: 767px) {
