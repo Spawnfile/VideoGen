@@ -22,7 +22,7 @@ test('S2b: storyboard → build: the builder card, the build card with its previ
   const ranged = await request.get(src, { headers: { range: 'bytes=0-7' } });
   expect(ranged.status()).toBe(206);
   expect([...(await ranged.body())]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]); // PNG signature
-  expect((await sessionsOf(request, runId)).map((s) => s.role).sort()).toEqual(['builder', 'researcher', 'reviewer_visual', 'storyboarder']);
+  expect((await sessionsOf(request, runId)).map((s) => s.role).sort()).toEqual(['audio_director', 'builder', 'researcher', 'reviewer_visual', 'storyboarder']);
   await expect(page.getByTestId('agent-card').filter({ hasText: 'Video üretim' }).first()).toBeVisible();
 });
 
@@ -37,7 +37,7 @@ test('S2b: a broken first build goes back to the same builder session and the st
   await expect(page.getByTestId('build-card')).toBeVisible();
 });
 
-test('S2b: "Üretimi durdur" during the build stops the builder; research and storyboard stay done', async ({ page, request }) => {
+test('S2b: "Üretimi durdur" during the build stops the builder; research, storyboard and music stay done', async ({ page, request }) => {
   test.setTimeout(90_000);
   const { videoId, runId } = await produceVia(request, 'Yavaş sahne kalemi', 'silent', 'draft_review');
   await page.goto(`/?video=${videoId}`);
@@ -46,7 +46,7 @@ test('S2b: "Üretimi durdur" during the build stops the builder; research and st
   await header.getByRole('button', { name: 'Üretimi durdur' }).click();
   await expect(header).toHaveAttribute('data-status', 'cancelled', { timeout: 15_000 });
   await expect(page.locator('[data-testid="step"][data-key="build"]')).toHaveAttribute('data-status', 'cancelled');
-  await expect(page.locator('[data-testid="step"][data-status="done"]')).toHaveCount(2);
+  await expect(page.locator('[data-testid="step"][data-status="done"]')).toHaveCount(3);
   await expect.poll(async () => (await sessionsOf(request, runId)).find((s) => s.role === 'builder')?.status, { timeout: 15_000 }).toBe('cancelled');
   await expect(page.getByTestId('build-card')).toHaveCount(0);
 });

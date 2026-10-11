@@ -91,7 +91,7 @@ test('S8: 4× CPU: step list and a 1000-row trace scroll at p95 ≤ 16.8 ms with
   // (a) A finished 10-step run and three open agent cards with their recorded traces.
   await page.goto(`/?video=${videoId}`);
   await expect(page.getByTestId('video-header')).toHaveAttribute('data-status', 'ready', { timeout: 20_000 });
-  await expect(page.getByTestId('step')).toHaveCount(10);
+  await expect(page.getByTestId('step')).toHaveCount(11);
   for (const id of small) {
     const card = page.locator(`[data-testid="agent-card"][data-session="${id}"]`);
     await card.getByRole('button', { name: 'İzi göster' }).click();

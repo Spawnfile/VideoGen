@@ -19,7 +19,7 @@ test('S2 (M5b): product → … → final → review panel → "yayına hazır";
   await expect(page.locator('[data-testid="step"][data-key="review"]')).toContainText(/Yayına hazır: .* puan/);
   await expect(page.locator('[data-testid="step"][data-key="finalize"]')).toHaveAttribute('data-status', 'done');
   const panel = page.getByTestId('review-panel');
-  await expect(panel.getByTestId('reviewer-card')).toHaveCount(3);
+  await expect(panel.getByTestId('reviewer-card')).toHaveCount(4);
   await expect(panel.getByTestId('panel-score')).toContainText('puan');
 
   await page.getByRole('link', { name: 'Kütüphane' }).click();
@@ -89,7 +89,7 @@ test('S2 (M5b): "rötuş" — the Studio shows the compose-scope fix round live,
 
   await expect(page.locator('[data-testid="step"][data-key="finalize"]')).toHaveAttribute('data-status', 'done');
   const panel = page.getByTestId('review-panel');
-  await expect(panel.getByTestId('reviewer-card')).toHaveCount(3);
+  await expect(panel.getByTestId('reviewer-card')).toHaveCount(4);
   const score = parseFloat(((await panel.getByTestId('panel-score').textContent()) ?? '').replace(',', '.'));
   expect(score).toBeGreaterThanOrEqual(80);
   await page.getByRole('link', { name: 'Kütüphane' }).click();

@@ -265,3 +265,20 @@ export function narratorOptions(s: NarratorVoiceState): { items: NarratorItem[];
   }));
   return { items, hasClone: items.some((i) => i.value.voice.kind === 'clone'), note: s.chosen ? '' : 'Henüz seçilmedi: geçici varsayılan' };
 }
+
+/** Agent music design A5: the run's newest stems (a compose or remix records all of them together) and the composer's score. */
+export interface StemPick { music: string | null; voice: string | null; sfx: string | null; scoreId: string | null }
+export function pickStems(list: ArtifactMeta[], runId: string | null, o: { fallback?: boolean } = {}): StemPick {
+  // `fallback` (an audio edit still running): the video's newest stems until the edit records its own.
+  const inRun = (kind: string) => list.find((a) => a.kind === kind && (!runId || a.runId === runId)) ?? null;
+  const own = !runId || list.some((a) => a.runId === runId && (a.kind === 'stem_music' || a.kind === 'stem_sfx'));
+  const newest = (kind: string) => (o.fallback && !own ? list.find((a) => a.kind === kind) ?? null : inRun(kind));
+  return { music: newest('stem_music')?.blobSha ?? null, voice: newest('stem_voice')?.blobSha ?? null, sfx: newest('stem_sfx')?.blobSha ?? null, scoreId: newest('music')?.id ?? null };
+}
+
+/** "tükenmez-kalem-muzik.flac": a plain ASCII name the media endpoint accepts for ?download=. */
+export function stemFileName(productName: string, part: 'muzik' | 'seslendirme' | 'efektler'): string {
+  const slug = productName.toLocaleLowerCase('tr').replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'video';
+  return `${slug}-${part}.flac`;
+}

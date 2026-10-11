@@ -88,7 +88,7 @@ export function LibraryDetail({ videoId, go }: { videoId: string; go: (url: stri
   const run = latestRunOf(state, videoId);
   const doneSteps = run?.steps.filter((s) => s.status === 'done').length ?? 0;
   const detail = useQuery({
-    queryKey: ['video', videoId, doneSteps],
+    queryKey: ['video', videoId, run?.id ?? null, doneSteps], // per run: two runs of one video must not share a cache entry
     queryFn: async () => { const r = await api.video(videoId); seedVideos([r.data.video], r.eventId); seedRuns(r.data.runs, r.eventId); return r.data.artifacts; },
   });
   const versions = useQuery({ queryKey: ['versions', videoId, doneSteps, video?.status], queryFn: () => api.versions(videoId) });

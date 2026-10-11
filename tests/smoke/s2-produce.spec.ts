@@ -28,8 +28,10 @@ test('S2a: Seslendirmeli — product name → research → … → voice → …
     await expect(voice).toHaveAttribute('data-status', 'done', { timeout: 120_000 });
     await expect(voice).toContainText(/\d+ satır · \d+:\d\d · en kötü CER %[\d,.]+ · Chatterbox · hazır ses · GEÇİCİ ses \(K17\)/);
     // The whole plan, in order (retrying: the list may still be rendering).
-    await expect(page.locator('[data-testid="step"]')).toHaveCount(STEP_KEYS.length);
-    expect(await page.locator('[data-testid="step"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-key')))).toEqual([...STEP_KEYS]);
+    // `remix` belongs to audio edits only (agent music design A6)
+    const produced = STEP_KEYS.filter((k) => k !== 'remix');
+    await expect(page.locator('[data-testid="step"]')).toHaveCount(produced.length);
+    expect(await page.locator('[data-testid="step"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-key')))).toEqual(produced);
     await expect(header).toHaveAttribute('data-status', 'ready', { timeout: 200_000 });
   } finally {
     clearInterval(sampler);
@@ -78,7 +80,7 @@ test('S2a: Durdur cancels a running production and progress does not go back', a
   const at = Number(await header.getByRole('progressbar', { name: 'Genel ilerleme' }).getAttribute('aria-valuenow'));
   await header.getByRole('button', { name: 'Üretimi durdur' }).click();
   await expect(header).toHaveAttribute('data-status', 'cancelled', { timeout: 15_000 });
-  await expect(page.locator('[data-testid="step"][data-status="cancelled"]')).toHaveCount(10);
+  await expect(page.locator('[data-testid="step"][data-status="cancelled"]')).toHaveCount(11);
   expect(Number(await header.getByRole('progressbar', { name: 'Genel ilerleme' }).getAttribute('aria-valuenow'))).toBeGreaterThanOrEqual(at);
   // The research agent itself is stopped (not left to finish and settle the step afterwards).
   const sessionId = ((await (await request.get(`/api/runs/${runId}`)).json()) as { steps: { sessionId: string | null }[] }).steps[0]!.sessionId;
@@ -87,5 +89,5 @@ test('S2a: Durdur cancels a running production and progress does not go back', a
     .toMatch(/^(cancelled|done|failed)$/);
   expect(((await (await request.get(`/api/sessions/${sessionId}`)).json()) as { status: string }).status).toBe('cancelled');
   await page.waitForTimeout(500);
-  await expect(page.locator('[data-testid="step"][data-status="cancelled"]')).toHaveCount(10);
+  await expect(page.locator('[data-testid="step"][data-status="cancelled"]')).toHaveCount(11);
 });
