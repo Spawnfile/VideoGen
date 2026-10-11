@@ -16,3 +16,11 @@ Branch `mobile-pwa` (worktree `../VideoGen-mobile`). Plans: `docs/superpowers/pl
 - Server-written prose stays Turkish: worker step notes and status notes, agent summaries and findings, and a few messages that come from `packages/shared`/`packages/db` (duration window, publish checklist reasons, attribution lines). Moving the agents to English for user-facing text is decision K5 in the design plan.
 - Web Push is not built (decision K3). The app icon badge counts videos that need you or failed (`apps/web/src/lib/badge.ts`); it updates while the app is open.
 - Remotion's live draft player on iPhone has not been measured on a real device yet (risk R2).
+
+## Screens
+
+Taken through `https://alper-pc.tailef7c0d.ts.net:8443` (390×844 @3x and 1440×900): `phone-studio.png`, `phone-new-video.png`, `phone-chat.png`, `phone-library.png`, `phone-settings.png`, `phone-audit.png`, `desktop-studio.png`.
+
+## Running it today
+
+The branch API runs on 5181 against the same database and worker as `main`, and Tailscale Serve sends 8443 there. After merging, point Serve at the main API (`node bin/tailnet.mjs disable --port 8443`, then `enable --port 8443 --target 5180`) and start VideoGen with `VG_TAILNET_HOST` and `VG_TAILNET_USERS` (README, Phone access). Productions need the worker, which `npm start` runs.
