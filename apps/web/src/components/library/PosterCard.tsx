@@ -7,7 +7,7 @@ import { Poster } from './Poster.tsx';
 
 /**
  * Spec E13: one video on the library's contact sheet — the poster with its state and length, the product, the day and the score. The
- * top-right slot is empty for now; the video-library work puts platform badges there.
+ * bottom-left `badges` slot carries the video-library platform badges (YT/IG/TT, Imported).
  */
 export function PosterCard({ video, run, onOpen, badges }: { video: VideoView; run: RunView | null; onOpen: () => void; badges?: ReactNode }) {
   const label = videoLabel(video, run);
@@ -25,7 +25,7 @@ export function PosterCard({ video, run, onOpen, badges }: { video: VideoView; r
       <span className={`block rounded-[8px] transition-transform duration-150 group-hover:-translate-y-0.5 ${live ? 'ring-ember [--ring-fill:var(--color-canvas)]' : 'border border-line'}`}>
         <Poster video={video} coverTestId="library-cover" className="text-[15px]">
           <span className={`label-mono absolute top-1.5 left-1.5 rounded-[3px] bg-canvas/70 px-1.5 py-0.5 text-[9px] backdrop-blur-sm ${LABEL_CLASS[label.tone]}`}>{label.text}</span>
-          {badges && <span className="absolute top-1.5 right-1.5 flex gap-1">{badges}</span>}
+          {badges && <span className="absolute bottom-1.5 left-1.5 flex max-w-[calc(100%-3.5rem)] flex-wrap gap-1">{badges}</span>}
           {len !== null && <span aria-hidden className="absolute right-1.5 bottom-1.5 rounded-[3px] bg-canvas/70 px-1 py-0.5 font-mono text-[10px] tabular-nums text-ink backdrop-blur-sm">{formatClock(len)}</span>}
         </Poster>
       </span>

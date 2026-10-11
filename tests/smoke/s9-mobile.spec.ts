@@ -66,7 +66,10 @@ test('S9: the phone layout covers produce, chat, library and settings without si
   await expect(cards.filter({ hasText: 'Mobil kalem' }).first().locator('[data-poster]')).toHaveAttribute('data-poster', /tint|cover/);
   await page.getByTestId('library-item').filter({ hasText: 'Mobil kalem' }).first().click();
   await expect(page.getByTestId('library-detail')).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Versions' })).toHaveAttribute('aria-selected', 'true');
+  // Video library L22: the phone opens a video on Platforms (watch → save → mark).
+  await expect(page.getByRole('tab', { name: 'Platforms' })).toHaveAttribute('aria-selected', 'true');
+  await noSideScroll(page, 'Library detail (Platforms)');
+  await page.getByRole('tab', { name: 'Versions' }).click();
   await noSideScroll(page, 'Library detail');
   // The embedded audit log must not take over the page's top bar.
   await page.getByRole('tab', { name: 'Audit log' }).click();

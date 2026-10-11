@@ -89,7 +89,7 @@ describe('produce', () => {
     expect((await post(r.videoId, { instruction: '' })).json().error).toBe('the instruction cannot be empty');
     expect((await post(r.videoId, { instruction: 'x'.repeat(1001) })).json().error).toMatch(/1000/);
     const busy = await post(r.videoId, { instruction: 'Müziği sakinleştir.' });
-    expect([busy.statusCode, busy.json().error]).toEqual([409, 'Only a video that is ready to publish or published can have its audio edited.']);
+    expect([busy.statusCode, busy.json().error]).toEqual([409, 'Only a video that is ready to publish can have its audio edited.']);
     expect((await post('00000000-0000-4000-8000-000000000000', { instruction: 'x' })).statusCode).toBe(404);
     expect((await post('nope', { instruction: 'x' })).statusCode).toBe(404);
   });

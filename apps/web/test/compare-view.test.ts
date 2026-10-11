@@ -6,7 +6,7 @@ import { panelView } from '../src/lib/production-view.ts';
 
 const ver = (round: number, o: Partial<VersionView> = {}): VersionView => ({
   id: `v${round}`, round, reason: round ? 'fix:compose' : 'produce', parentId: round ? `v${round - 1}` : null, createdAt: `2026-10-0${round + 1}T10:00:00.000Z`, runId: 'r1',
-  total: null, verdict: null, dims: null, finals: null, best: false, current: false, published: false, ...o,
+  total: null, verdict: null, dims: null, finals: null, best: false, current: false, ...o,
 });
 const fin = (c: string, tiktok = true) => ({ musicSha: c.repeat(64), tiktokSha: tiktok ? `${c}1`.repeat(32) : null, coverSha: `${c}2`.repeat(32), durationS: 45 });
 

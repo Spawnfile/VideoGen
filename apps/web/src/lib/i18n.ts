@@ -1,10 +1,10 @@
 import {
-  isTikTokVideoUrl, type ChannelStyleId, type ChecklistItem, type FinalCheckId, type DimensionId, type DraftCheckId, type DurationSource, type DurationWindow, type GateId, type HookPattern,
-  type PublicationStatus, type QcCheckId, type RoleName, type StepKey, type StepStatus, type VideoStatus,
+  type ChannelStyleId, type FinalCheckId, type DimensionId, type DraftCheckId, type DurationSource, type DurationWindow, type GateId, type HookPattern,
+  type QcCheckId, type RoleName, type StepKey, type StepStatus, type VideoStatus,
 } from '@videogen/shared/browser';
 
 /*
- * The interface is English; the shared labels stay Turkish because the agents and the TikTok caption use them too.
+ * The interface is English; the shared labels stay Turkish because the agents use them too.
  * These maps translate by id. test/i18n.test.ts fails when a shared map gains an id that has no English label here.
  */
 
@@ -17,7 +17,7 @@ export const STEP_STATUS_EN: Record<StepStatus, string> = {
   done: 'done', failed: 'failed', skipped: 'skipped', cancelled: 'stopped',
 };
 export const VIDEO_STATUS_EN: Record<VideoStatus, string> = {
-  queued: 'Queued', running: 'In production', ready: 'Ready to publish', needs_human: 'Needs you', failed: 'Failed', cancelled: 'Stopped', published: 'Published',
+  queued: 'Queued', running: 'In production', ready: 'Ready to publish', needs_human: 'Needs you', failed: 'Failed', cancelled: 'Stopped',
 };
 export const ROLE_EN: Record<RoleName, string> = {
   researcher: 'Researcher', storyboarder: 'Storyboarder', builder: 'Video builder', audio_director: 'Audio director', reviewer_visual: 'Visual reviewer',
@@ -57,29 +57,9 @@ export const STYLE_EN: Record<ChannelStyleId, { name: string; description: strin
   beyaz_lab: { name: 'White lab', description: 'Bright and clean with catalog clarity; soft box light.' },
   gece_mavisi: { name: 'Night blue', description: 'Dark blue technical-drawing mood with a cool rim light (the pilot video’s look).' },
 };
-export const PUBLICATION_STATUS_EN: Record<PublicationStatus, string> = {
-  queued: 'queued', uploading: 'uploading', processing: 'processing', waiting: 'waiting for TikTok', sent: 'in your inbox', failed: 'not sent', published: 'published',
-};
 export const SEVERITY_EN: Record<string, string> = { blocker: 'blocker', major: 'major', minor: 'minor' };
 export const REVIEWER_EN: Record<string, string> = { reviewer_visual: 'Visual', reviewer_facts: 'Accuracy', reviewer_retention: 'Retention', reviewer_audio: 'Audio' };
 
-/** The finish card's checklist line; the wording depends on the item's variant (`required`), the id alone does not say it. */
-export function CHECKLIST_EN(i: Pick<ChecklistItem, 'id' | 'required'>): string {
-  switch (i.id) {
-    case 'sound': return i.required ? 'Add a sound in the TikTok app' : 'Add a sound in the TikTok app (optional: this variant has music)';
-    case 'visibility': return 'Visibility: Everyone';
-    case 'aigc': return i.required ? 'I turned on the AI label in TikTok (cloned voice)' : 'No AI label needed: stock TTS voice and Blender CG';
-    case 'commercial': return 'Commercial content disclosure: leave it off (no brand deal)';
-  }
-}
-
-/** Same rule as shared `canMarkPublished`, in English. */
-export function markBlocker(items: ChecklistItem[], ticked: Record<string, boolean>, url: string): string | null {
-  const missing = items.find((i) => i.required && !ticked[i.id]);
-  if (missing) return `Tick the required item: ${CHECKLIST_EN(missing)}`;
-  if (!isTikTokVideoUrl(url)) return 'Enter a valid TikTok video link';
-  return null;
-}
 
 export const score = (n: number): string => (Math.round(Math.round(n * 100) / 10) / 10).toFixed(1);
 export const windowLabel = (w: DurationWindow): string => `${w.minS}–${w.maxS} s`;

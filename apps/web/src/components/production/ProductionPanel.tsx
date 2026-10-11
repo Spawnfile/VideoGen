@@ -12,7 +12,6 @@ import { Timeline } from './Timeline.tsx';
 import { AudioCard } from './AudioCard.tsx';
 import { VideoHeader } from './VideoHeader.tsx';
 import { VoiceCard } from './VoiceCard.tsx';
-import { PublishPanel } from '../publish/PublishPanel.tsx';
 
 export function ProductionPanel({ videoId }: { videoId: string | null }) {
   const state = useStore(pipeline);
@@ -58,11 +57,10 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
       {run && run.steps.length > 0 && <Timeline run={run} />}
       <DraftTabs key={`${latest.final.musicSha ?? ''}${latest.draft.videoSha ?? 'none'}`} pick={latest.draft} final={latest.final} versions={versions.data ?? []} />
       {/* Mounted on the video's status alone: the artifact query refetches under a new key as steps finish, and a final-based condition would remount the panel (and lose its state). */}
-      {(video.status === 'ready' || video.status === 'published') && <PublishPanel key={videoId} videoId={videoId} />}
       {run && <StepList run={run} />}
       <ResearchCard artifactId={latest.research} video={video} />
       <StoryboardCard artifactId={latest.storyboard} />
-      <AudioCard video={video} stems={latest.stems} canEdit={(video.status === 'ready' || video.status === 'published') && !isRunActive(run)} />
+      <AudioCard video={video} stems={latest.stems} canEdit={video.status === 'ready' && video.origin !== 'import' && !isRunActive(run)} />
       <VoiceCard trackId={latest.voiceTrack} stemSha={latest.voiceStem} />
       <BuildCard reportId={latest.report} sceneId={latest.scene} sheetSha={latest.sheet} />
       <ReviewCard artifactId={latest.draft.reviewId} />

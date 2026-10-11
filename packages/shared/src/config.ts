@@ -19,8 +19,6 @@ export interface Config {
   /** M5c: the voice CLI (`python -m audio_service.voice_cli`), its Freya venv and the offline weights (spec §9, plan H2/H7). */
   /** `soundfont`: agent music design A2 (FluidSynth's General MIDI bank). */
   audio: { python: string; freyaPython: string; modelsDir: string; hfHome: string; timeoutMs: number; maxRssMb: number; soundfont: string };
-  /** M6: TikTok Content Posting (plan Y7, Y16, Y19); secrets live in `<dataDir>/secrets`. */
-  tiktok: { base: string; pollMs: number; ratePerMinute: number; callbackPort: number };
   /**
    * M7 (plan Y9): the dump/restore commands (JSON arrays; null = version-checked host or `docker exec <container>`), how many daily
    * dumps are kept and how often the maintenance loop looks.
@@ -80,12 +78,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       soundfont: env.VG_SOUNDFONT ?? '/usr/share/sounds/sf2/FluidR3_GM.sf2',
       timeoutMs: positiveInt('VG_AUDIO_TIMEOUT_MS', env.VG_AUDIO_TIMEOUT_MS, AUDIO_LIMITS.timeoutMs),
       maxRssMb: positiveInt('VG_AUDIO_MAX_RSS_MB', env.VG_AUDIO_MAX_RSS_MB, AUDIO_LIMITS.maxRssMb),
-    },
-    tiktok: {
-      base: env.VG_TIKTOK_BASE ?? 'https://open.tiktokapis.com',
-      pollMs: Number(env.VG_TIKTOK_POLL_MS ?? 10_000),
-      ratePerMinute: Number(env.VG_TIKTOK_RATE_PER_MIN ?? 6),
-      callbackPort: Number(env.VG_TIKTOK_CALLBACK_PORT ?? 3455),
     },
     backup: {
       pgDump: commandArray('VG_PG_DUMP', env.VG_PG_DUMP),

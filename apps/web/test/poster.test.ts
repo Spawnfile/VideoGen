@@ -50,7 +50,7 @@ describe('cover and length', () => {
 describe('videoLabel', () => {
   it('covers every VideoStatus', () => {
     const table: [VideoStatus, string, string][] = [
-      ['queued', 'QUEUED', 'muted'], ['needs_human', 'NEEDS YOU', 'needs'], ['ready', 'READY', 'ok'], ['published', 'POSTED', 'ok'],
+      ['queued', 'QUEUED', 'muted'], ['needs_human', 'NEEDS YOU', 'needs'], ['ready', 'READY', 'ok'],
       ['failed', 'FAILED', 'error'], ['cancelled', 'STOPPED', 'dim'],
     ];
     for (const [status, text, tone] of table) expect(videoLabel({ status }, null), status).toEqual({ text, tone });

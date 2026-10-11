@@ -15,8 +15,7 @@ const SQL = `
     ) AS run_id,
     sc.total, sc.verdict, sc.dimension_scores,
     fm.blob_sha AS music_sha, fm.duration_ms, ft.blob_sha AS tiktok_sha, fc.blob_sha AS cover_sha,
-    (v.best_version_id = ver.id) AS best, (v.current_version_id = ver.id) AS current,
-    EXISTS (SELECT 1 FROM publications p WHERE p.version_id = ver.id AND p.status = 'published') AS published
+    (v.best_version_id = ver.id) AS best, (v.current_version_id = ver.id) AS current
   FROM versions ver JOIN videos v ON v.id = ver.video_id
   LEFT JOIN LATERAL (SELECT rv.total, rv.verdict, rv.dimension_scores FROM reviews rv WHERE rv.version_id = ver.id AND rv.reviewer_role = 'orchestrator'
     ORDER BY rv.seq DESC, rv.created_at DESC LIMIT 1) sc ON true
@@ -37,7 +36,7 @@ export async function listVersions(db: Queryable, videoId: string): Promise<Vers
     id: r.id, round: r.round, reason: r.reason, parentId: r.parent_version_id, createdAt: new Date(r.created_at).toISOString(), runId: r.run_id,
     total: round4(r.total), verdict: r.verdict ?? null, dims: r.dimension_scores ?? null,
     finals: r.music_sha ? { musicSha: r.music_sha, tiktokSha: r.tiktok_sha ?? null, coverSha: r.cover_sha ?? null, durationS: Math.round(Number(r.duration_ms ?? 0) / 100) / 10 } : null,
-    best: r.best === true, current: r.current === true, published: r.published === true,
+    best: r.best === true, current: r.current === true,
   }));
 }
 

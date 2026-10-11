@@ -155,7 +155,7 @@ describe('asset ledger endpoints (plan M7 T5)', () => {
     expect((await audit('asset.revoked')).map((r) => [r.subject_id, r.data.reason])).toEqual([[sakin!.id, 'Kaynak sitesi lisansı değiştirdi'], [tik.id, 'Pixabay sayfası kaldırıldı']]);
   });
 
-  it('a revoked asset is refused by compose (sound plan), the fixer\'s audio check, the preflight music count and publish; a revoked voice reference is refused by the voice preflight and the voice step, and revoking the narrator\'s reference resets the narrator to the stock voice in the same transaction (audited); an existing final stays playable', { timeout: 60_000 }, async () => {
+  it('a revoked asset is refused by compose (sound plan), the fixer\'s audio check, the preflight music count and marking as uploaded; a revoked voice reference is refused by the voice preflight and the voice step, and revoking the narrator\'s reference resets the narrator to the stock voice in the same transaction (audited); an existing final stays playable', { timeout: 60_000 }, async () => {
     const v = await seedReadyVideo(t.pool, dataDir, FFMPEG);
     const revoke = (id: string, reason: string) => app.inject({ method: 'POST', url: `/api/assets/${id}/revoke`, headers: H, payload: { reason } });
     const allowedMusic = async () => listAssets(t.pool, { kind: 'music', allowedOnly: true });
@@ -165,7 +165,7 @@ describe('asset ledger endpoints (plan M7 T5)', () => {
     const before = (await allowedMusic()).length;
     expect(before).toBeGreaterThan(0);
     expect(await preflight(silent)).toBeNull();
-    expect((await app.inject({ method: 'POST', url: `/api/videos/${v.videoId}/exports/shorts`, headers: H, payload: {} })).statusCode).toBe(200);
+    expect((await app.inject({ url: `/api/videos/${v.videoId}/platforms`, headers: H })).json().attributions.length).toBeGreaterThan(0);
 
     expect((await revoke(v.musicAssetId, 'atıf sahibi izni geri çekti')).statusCode).toBe(200);
     expect((await revoke(v.sfxAssetId, 'efekt kaynağı kaldırıldı')).statusCode).toBe(200);
@@ -191,9 +191,10 @@ describe('asset ledger endpoints (plan M7 T5)', () => {
     for (const a of await allowedMusic()) expect((await revoke(a.id, 'hepsi')).statusCode).toBe(200);
     expect(await preflight(silent)).toMatch(/^Seslendirmesiz video için izinli bir müzik parçası gerekli/);
 
-    // Publish and the Shorts export refuse; the existing final is still served.
-    const shorts = await app.inject({ method: 'POST', url: `/api/videos/${v.videoId}/exports/shorts`, headers: H, payload: {} });
-    expect([shorts.statusCode, shorts.json().error]).toEqual([409, 'Klik is no longer allowed; Yatak is no longer allowed']);
+    // Marking it as uploaded is refused (the licence gate kept from the publish path); the existing final is still served.
+    const mark = await app.inject({ method: 'POST', url: `/api/videos/${v.videoId}/platforms`, headers: H, payload: { platform: 'youtube', action: 'uploaded' } });
+    expect([mark.statusCode, mark.json().error]).toEqual([409, 'Klik is no longer allowed; Yatak is no longer allowed']);
+    expect((await app.inject({ url: `/api/videos/${v.videoId}/platforms`, headers: H })).json().refused).toEqual(['Klik', 'Yatak']);
     expect((await app.inject({ url: `/api/blobs/${v.musicSha}`, headers: H })).statusCode).toBe(200);
 
     // Voice: an own-voice reference becomes the narrator; revoking it resets the narrator to the stock voice with an audit row.

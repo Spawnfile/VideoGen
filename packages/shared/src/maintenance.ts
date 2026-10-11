@@ -1,4 +1,4 @@
-import { DAY_MS } from './publish.ts';
+export const DAY_MS = 86_400_000;
 
 /** Plan M7 Y10/Y11: storage maintenance rules shared by the worker, the API and the settings page. */
 /** A blob touched (written or re-used by putBlob) in the last 7 days is never a GC candidate. */

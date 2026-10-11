@@ -27,9 +27,7 @@ import { ReviewTargets, reviewToolHost, toolHosts } from './pipeline/review-tool
 import { sceneToolHost } from './pipeline/scene-tools.ts';
 import { ARTIFACT_VALIDATOR, pipelineExecutors } from './pipeline/steps.ts';
 import { FixtureUsageSource, SdkUsageSource, startUsagePoller } from './usage.ts';
-import { pgRateGate, TikTokClient, TokenStore } from '@videogen/tiktok';
 import { seedReadyVideo } from './dev/seed-ready.ts';
-import { PublishService } from './publish/service.ts';
 import { isRunnableMaintenance, MaintenanceService } from './maintenance/service.ts';
 
 function die(stage: string, e: unknown): never {
@@ -99,13 +97,6 @@ const roleOf = (v: unknown): RoleName => {
 };
 
 let authTimer: NodeJS.Timeout | undefined;
-// M6 (plan T4): TikTok drafts. The gate is shared with the API (connection test) through settings; secrets stay in <dataDir>/secrets.
-const tiktokGate = pgRateGate(pool, { perMinute: config.tiktok.ratePerMinute });
-const tiktokTokens = new TokenStore({ dir: join(config.dataDir, 'secrets'), pool, base: config.tiktok.base, gate: tiktokGate });
-const publisher = new PublishService({
-  pool, dataDir: config.dataDir, ffmpeg: config.render.ffmpeg, pollMs: config.tiktok.pollMs, slowPollMs: Math.max(config.tiktok.pollMs, 60_000),
-  client: new TikTokClient({ base: config.tiktok.base, tokens: tiktokTokens, gate: tiktokGate }),
-});
 // M7 (plan Y9): daily owner-role pg_dump into <dataDir>/backups, 7 kept; one maintenance job at a time.
 const maintenance = new MaintenanceService({ pool, dataDir: config.dataDir, config, audit: async (action, data) => { await audit(action, data); } });
 let stopUsage = () => {};
@@ -134,7 +125,6 @@ try {
       'run.start': (c) => orchestrator.startRun(uuidOf(c, 'runId')),
       'run.cancel': (c) => orchestrator.cancel(uuidOf(c, 'runId')),
       'roles.changed': async () => { manager.setRoleOverrides(await loadRoleOverrides(pool)); },
-      'publish.send': (c) => publisher.send(uuidOf(c, 'publicationId')),
       'maintenance.run': (c) => {
         if (!isRunnableMaintenance(c.kind)) throw new TypeError('invalid kind');
         return maintenance.runNow(c.kind);
@@ -153,7 +143,6 @@ try {
   await guard.restore(); // before recover(): queued runs must see the stored §6.4 block, not the fresh default (final review I1)
   await orchestrator.recover();
   orchestrator.start();
-  await publisher.recover();
   await maintenance.recover();
 } catch (e) {
   die('init', e);
@@ -168,7 +157,6 @@ const shutdown = async () => {
   stopHeartbeat();
   guard.stop();
   orchestrator.stop();
-  publisher.stop();
   maintenance.stop();
   await stopCommands().catch(() => {});
   await manager.stop().catch(() => {});

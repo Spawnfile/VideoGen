@@ -14,11 +14,12 @@ Branch `ember-ui` (worktree `../VideoGen-ember`). Spec: `docs/superpowers/specs/
   need you show in an amber strip with Open; the header is one mono line; a **timeline** draws the run from real step timings in three
   lanes (V / A / QC) with a playhead and a "Now · 4:12" line, and tapping a block scrolls to its step. The New video dock and sheet use
   segmented controls, mono labels, an ember focus ring and the ember Create video key.
-- **Library.** A contact sheet of 9:16 posters (2 columns on a phone up to 5 on a desktop) with state, length, day and score, and a
-  `badges` slot for the video-library work's platform badges.
+- **Library.** A contact sheet of 9:16 posters (2 columns on a phone up to 5 on a desktop) with state, length, day and score; the
+  video-library filter chips above it (neutral selection) and its YT/IG/TT badges and Imported tag in the poster's bottom-left slot (an old
+  version uploaded is amber, not red). Save to phone on Platforms is that screen's ember key.
 - **Shell.** LIVE n in the top bar while productions run, a mono usage pill, mono tab labels with an ember line over the active tab, a
   neutral active item with an ember edge in the rail/sidebar, sharper sheets.
-- **Everything else** (chat, settings, audit, assets, library detail, review, publish, agents): selection is neutral, secondary keys are
+- **Everything else** (chat, settings, audit, assets, library detail, platforms, review, agents): selection is neutral, secondary keys are
   ink, score bars are neutral, running agent progress is ember, desktop titles use the new scale.
 - **Icon.** `apps/web/design/app-icon.svg` (ember 9:16 frame, play cut, timeline and playhead) → `node bin/icons.mjs`; flat favicon.
 - **PWA.** Manifest and theme colour `#0A0A0C`. Service worker unchanged.
@@ -40,8 +41,6 @@ S2c, S2d, S2e, S2f, S7) could not run on this machine today: swap was 4.0/4.0 Gi
 
 ## Known limits
 
-- Library filter chips, search and platform badges belong to the video-library work (its spec is written, not built); the card leaves
-  room for the badges.
 - Agent output, worker notes and status notes are still Turkish (decision K5 of the mobile-pwa work).
 - A video's timeline appears only for runs that have steps; imported videos show the header and player only.
 

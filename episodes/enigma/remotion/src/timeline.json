@@ -1,0 +1,168 @@
+{
+ "fps": 30,
+ "frames": 1569,
+ "clips": [
+  {
+   "id": "s01",
+   "beat": "kanca",
+   "text": "Bu makinenin minicik bir zaafı vardı.",
+   "start": 3,
+   "end": 65,
+   "dur_s": 2.08
+  },
+  {
+   "id": "s02",
+   "beat": "kanca",
+   "text": "Ve o zaaf, onu kırmanın anahtarı oldu.",
+   "start": 71,
+   "end": 144,
+   "dur_s": 2.43
+  },
+  {
+   "id": "s03",
+   "beat": "baglam",
+   "text": "İkinci Dünya Savaşı'nda Alman ordusu, mesajlarını Enigma ile şifreliyordu.",
+   "start": 154,
+   "end": 269,
+   "dur_s": 3.828
+  },
+  {
+   "id": "s04",
+   "beat": "kriz",
+   "text": "Ayarlar her gün değişiyordu ve yüz elli dokuz kentilyon ihtimal vardı.",
+   "start": 278,
+   "end": 397,
+   "dur_s": 3.957
+  },
+  {
+   "id": "s05",
+   "beat": "nesne",
+   "text": "Peki bu kutunun içinde ne var?",
+   "start": 406,
+   "end": 462,
+   "dur_s": 1.88
+  },
+  {
+   "id": "s06",
+   "beat": "icine",
+   "text": "Bir tuşa basınca akım, priz panelinden ve üç rotordan geçer.",
+   "start": 472,
+   "end": 580,
+   "dur_s": 3.6
+  },
+  {
+   "id": "s07",
+   "beat": "icine",
+   "text": "Reflektörden geri döner ve bir lambayı yakar.",
+   "start": 585,
+   "end": 661,
+   "dur_s": 2.52
+  },
+  {
+   "id": "s08",
+   "beat": "rotor",
+   "text": "Her basışta rotor bir adım döner; aynı harf hep başka çıkar.",
+   "start": 670,
+   "end": 777,
+   "dur_s": 3.58
+  },
+  {
+   "id": "s09",
+   "beat": "aha",
+   "text": "Ama reflektör yüzünden, hiçbir harf kendisine dönüşemez.",
+   "start": 787,
+   "end": 874,
+   "dur_s": 2.887
+  },
+  {
+   "id": "s10",
+   "beat": "aha",
+   "text": "İşte zaaf buydu.",
+   "start": 879,
+   "end": 913,
+   "dur_s": 1.127
+  },
+  {
+   "id": "s11",
+   "beat": "cozum",
+   "text": "Polonyalı matematikçilerin açtığı yolda, Alan Turing ve ekibi bunu kullandı.",
+   "start": 922,
+   "end": 1042,
+   "dur_s": 3.991
+  },
+  {
+   "id": "s12",
+   "beat": "cozum",
+   "text": "Mesajdaki bir kelimeyi tahmin ettiler, örneğin hava raporu.",
+   "start": 1047,
+   "end": 1142,
+   "dur_s": 3.151
+  },
+  {
+   "id": "s13",
+   "beat": "cozum",
+   "text": "Bir harfin kendisiyle çakıştığı konumlar elendi; gerisini Bombe makineleri taradı.",
+   "start": 1147,
+   "end": 1272,
+   "dur_s": 4.168
+  },
+  {
+   "id": "s14",
+   "beat": "vay",
+   "text": "Polonya, yöntemini ve kopya makineleri savaştan beş hafta önce İngiltere ve Fransa'ya verdi.",
+   "start": 1282,
+   "end": 1429,
+   "dur_s": 4.912
+  },
+  {
+   "id": "s15",
+   "beat": "cta",
+   "text": "Sıradaki hikâye hangi nesne olsun? Yorumlara yaz.",
+   "start": 1439,
+   "end": 1521,
+   "dur_s": 2.72
+  }
+ ],
+ "beats": {
+  "kanca": [
+   3,
+   144
+  ],
+  "baglam": [
+   154,
+   269
+  ],
+  "kriz": [
+   278,
+   397
+  ],
+  "nesne": [
+   406,
+   462
+  ],
+  "icine": [
+   472,
+   661
+  ],
+  "rotor": [
+   670,
+   777
+  ],
+  "aha": [
+   787,
+   913
+  ],
+  "cozum": [
+   922,
+   1272
+  ],
+  "vay": [
+   1282,
+   1429
+  ],
+  "cta": [
+   1439,
+   1521
+  ]
+ }
+}

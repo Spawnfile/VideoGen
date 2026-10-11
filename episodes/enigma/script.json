@@ -1,0 +1,23 @@
+{
+  "title": "Enigma'nın minicik zaafı",
+  "fps": 30,
+  "lead_in_s": 0.1,
+  "gap_s": { "same_beat": 0.18, "new_beat": 0.32 },
+  "sentences": [
+    { "id": "s01", "beat": "kanca", "text": "Bu makinenin minicik bir zaafı vardı." },
+    { "id": "s02", "beat": "kanca", "text": "Ve o zaaf, onu kırmanın anahtarı oldu." },
+    { "id": "s03", "beat": "baglam", "text": "İkinci Dünya Savaşı'nda Alman ordusu, mesajlarını Enigma ile şifreliyordu." },
+    { "id": "s04", "beat": "kriz", "text": "Ayarlar her gün değişiyordu ve yüz elli dokuz kentilyon ihtimal vardı." },
+    { "id": "s05", "beat": "nesne", "text": "Peki bu kutunun içinde ne var?" },
+    { "id": "s06", "beat": "icine", "text": "Bir tuşa basınca akım, priz panelinden ve üç rotordan geçer." },
+    { "id": "s07", "beat": "icine", "text": "Reflektörden geri döner ve bir lambayı yakar." },
+    { "id": "s08", "beat": "rotor", "text": "Her basışta rotor bir adım döner; aynı harf hep başka çıkar." },
+    { "id": "s09", "beat": "aha", "text": "Ama reflektör yüzünden, hiçbir harf kendisine dönüşemez." },
+    { "id": "s10", "beat": "aha", "text": "İşte zaaf buydu." },
+    { "id": "s11", "beat": "cozum", "text": "Polonyalı matematikçilerin açtığı yolda, Alan Turing ve ekibi bunu kullandı." },
+    { "id": "s12", "beat": "cozum", "text": "Mesajdaki bir kelimeyi tahmin ettiler, örneğin hava raporu." },
+    { "id": "s13", "beat": "cozum", "text": "Bir harfin kendisiyle çakıştığı konumlar elendi; gerisini Bombe makineleri taradı." },
+    { "id": "s14", "beat": "vay", "text": "Polonya, yöntemini ve kopya makineleri savaştan beş hafta önce İngiltere ve Fransa'ya verdi." },
+    { "id": "s15", "beat": "cta", "text": "Sıradaki hikâye hangi nesne olsun? Yorumlara yaz." }
+  ]
+}

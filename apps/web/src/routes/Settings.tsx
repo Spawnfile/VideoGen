@@ -5,7 +5,6 @@ import { DeviceSection } from '../components/settings/DeviceSection.tsx';
 import { NarratorVoiceSection } from '../components/settings/NarratorVoiceSection.tsx';
 import { RolesSection } from '../components/settings/RolesSection.tsx';
 import { SafeAreaSection } from '../components/settings/SafeAreaSection.tsx';
-import { TikTokSection } from '../components/settings/TikTokSection.tsx';
 import { useShellBar } from '../components/shell/ShellContext.tsx';
 import { StatusBody } from '../components/shell/StatusSheet.tsx';
 import { useStatus } from '../components/shell/useStatus.ts';
@@ -68,7 +67,7 @@ function UsageSection() {
   return <section className="rounded-card bg-paper p-4"><StatusBody s={s} /></section>;
 }
 
-type SectionId = 'claude' | 'usage' | 'channel' | 'narrator' | 'safe-area' | 'tiktok' | 'roles' | 'data' | 'device';
+type SectionId = 'claude' | 'usage' | 'channel' | 'narrator' | 'safe-area' | 'roles' | 'data' | 'device';
 interface Row { id: SectionId | 'audit' | 'assets'; label: string; render?: () => ReactNode }
 const GROUPS: { title: string; rows: Row[] }[] = [
   { title: 'Account and usage', rows: [{ id: 'claude', label: 'Claude connection', render: () => <ClaudeSection /> }, { id: 'usage', label: 'Usage and status', render: () => <UsageSection /> }] },
@@ -76,7 +75,6 @@ const GROUPS: { title: string; rows: Row[] }[] = [
     { id: 'channel', label: 'Channel identity', render: () => <ChannelStyleSection /> },
     { id: 'narrator', label: 'Narrator voice', render: () => <NarratorVoiceSection /> },
     { id: 'safe-area', label: 'Safe area', render: () => <SafeAreaSection /> },
-    { id: 'tiktok', label: 'TikTok connection', render: () => <TikTokSection /> },
   ] },
   { title: 'Agents', rows: [{ id: 'roles', label: 'Agent roles', render: () => <RolesSection /> }] },
   { title: 'Logs and assets', rows: [{ id: 'audit', label: 'Audit log' }, { id: 'assets', label: 'Assets' }] },
@@ -101,7 +99,6 @@ export function Settings({ go }: { go: (url: string, opts?: GoOptions) => void }
         <ChannelStyleSection />
         <NarratorVoiceSection />
         <SafeAreaSection />
-        <TikTokSection />
         <RolesSection />
         <DataSection />
         <DeviceSection />

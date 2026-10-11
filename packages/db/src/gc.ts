@@ -28,7 +28,7 @@ export const gcWrongCountTr = (n: number) => `Onay sayısı tutmuyor: rapor ${n}
 
 /** The text columns that hold a blob sha (two of them have no FK). blobs.sha256 is the key itself. */
 export const REFERENCE_COLUMNS: readonly (readonly [table: string, column: string])[] = [
-  ['artifacts', 'blob_sha'], ['assets', 'blob_sha'], ['assets', 'license_snapshot_sha'], ['agent_sessions', 'transcript_blob_sha'], ['publications', 'blob_sha'],
+  ['artifacts', 'blob_sha'], ['assets', 'blob_sha'], ['assets', 'license_snapshot_sha'], ['agent_sessions', 'transcript_blob_sha'],
 ];
 const NOT_A_REFERENCE = new Set(['blobs.sha256']);
 /**

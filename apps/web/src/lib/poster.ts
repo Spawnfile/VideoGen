@@ -23,7 +23,6 @@ const LABELS: Record<Exclude<VideoStatus, 'running'>, { text: string; tone: Labe
   queued: { text: 'QUEUED', tone: 'muted' },
   needs_human: { text: 'NEEDS YOU', tone: 'needs' },
   ready: { text: 'READY', tone: 'ok' },
-  published: { text: 'POSTED', tone: 'ok' },
   failed: { text: 'FAILED', tone: 'error' },
   cancelled: { text: 'STOPPED', tone: 'dim' },
 };

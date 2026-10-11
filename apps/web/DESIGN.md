@@ -24,11 +24,12 @@ Tokens live in `src/styles/theme.css` (`@theme`); components never spell a colou
 | `accent` / `accent-glow` | `#FF6B3D` / `#FF9466` | flat ember for tiny marks; focus rings and links |
 | `amber` | `#FFC94D` | needs you — a decision, not a failure |
 | `red` | `#F0445C` | failed only |
-| `green` | `#4CC38A` | ready, posted |
+| `green` | `#4CC38A` | ready, uploaded |
 | `dim` | `#5A5A64` | stopped, skipped — not failures |
 | `--poster-0…7` | dark two-stop gradients | derived posters; none is ember, red or amber |
 
-**Ember is spent only on:** the primary action (`Create video`, the dock's `New video`, `Try again` on the unreachable screen), live work
+**Ember is spent only on:** the primary action (`Create video`, the dock's `New video`, `Save to phone` on Platforms, `Try again` on
+the unreachable screen), live work
 (the running video's ring, the running timeline block, the playhead while the run is live, `LIVE n`, overall progress while running, a running agent's
 progress), the active tab line, and the logo. A second filled ember block on a screen means one of them is wrong. Selection is neutral:
 `bg-ink text-canvas` for chips and tabs, `bg-paper` + `ring-line-strong` inside a segmented control. `bg-accent` is not used.
@@ -65,8 +66,8 @@ the tab bar steps aside for the keyboard and the sheet sits above it.
 
 ## Components
 
-- `studio/VideoBin.tsx` — the phone Studio's videos as 60px 9:16 frames with a mono state label (`62%`, `NEEDS YOU`, `READY`, `POSTED`,
-  `FAILED`, `STOPPED`, `QUEUED`); a live frame wears `ring-ember`, the selected frame that is not live a 2px ink border; `+ New` at the
+- `studio/VideoBin.tsx` — the phone Studio's videos as 60px 9:16 frames with a mono state label (`62%`, `NEEDS YOU`, `READY`, `FAILED`,
+  `STOPPED`, `QUEUED`); a live frame wears `ring-ember`, the selected frame that is not live a 2px ink border; `+ New` at the
   end. `role="tab"` per frame.
 - `studio/NeedsYou.tsx` — up to two other videos waiting for the user, amber, with `Open`.
 - `production/Timeline.tsx` + `lib/timeline-view.ts` — the run on one time axis in lanes `V` / `A` / `QC`; widths from real step timings
@@ -75,8 +76,9 @@ the tab bar steps aside for the keyboard and the sheet sits above it.
 - `production/VideoHeader.tsx` — title, one mono meta line (state in its tone, voiceover, length window and source), a 3px progress bar.
 - `library/Poster.tsx` — a 9:16 frame: the cover (`final` then `draft`), else the derived poster (`lib/poster.ts posterTint`: stable tone,
   Turkish-uppercase initial, length window); a broken cover falls back to it.
-- `library/PosterCard.tsx` — one library card: poster with state label and length, product, mono day · length · points; an empty
-  top-right `badges` slot for platform badges.
+- `library/PosterCard.tsx` — one library card: poster with state label and length, product, mono day · length · points; a bottom-left
+  `badges` slot that `routes/Library.tsx` fills with the platform badges (YT/IG/TT: uploaded green, old version amber, none dim) and
+  Imported. The video-library filter chips sit above the grid, selected chip `bg-ink`.
 - `production/ProduceBar.tsx` — the New video form (`bar` / `sheet` / `hero`) with mono section labels, segmented controls, the ember
   focus ring on the product field and the ember `Create video`; `ProduceDock` above the tab bar.
 - `shell/LiveIndicator.tsx`, `shell/TabBar.tsx`, `shell/TopBar.tsx`, `shell/SideNav.tsx`, `shell/Sheet.tsx`.

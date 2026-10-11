@@ -1,8 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import type { PublishInfo, TikTokStatus } from './publish-view.ts';
-import type { Publication, PublishVariant } from '@videogen/shared/browser';
 import type { ProduceBody } from './brief-view.ts';
-import type { AgentSessionView, ArtifactMeta, AssetListItem, LedgerKind, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, MaintenanceInfo, ModelAlias, NarratorVoice, SafeArea, SafeAreaState, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VersionView, VideoView, VoiceEngine } from '@videogen/shared/browser';
+import type { AgentSessionView, ArtifactMeta, AssetListItem, LedgerKind, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, MaintenanceInfo, ModelAlias, NarratorVoice, Platform, PlatformAction, PlatformEvent, PlatformSummary, SafeArea, SafeAreaState, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VersionView, VideoView, VoiceEngine } from '@videogen/shared/browser';
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
@@ -58,6 +56,11 @@ export const api = {
   reviews: (id: string) => get<ReviewRecord[]>(`/api/videos/${id}/reviews`),
   // Plan M7 Y7: the library detail's versions and one version's review rounds.
   versions: (id: string) => get<VersionView[]>(`/api/videos/${id}/versions`),
+  // Video library L18: the manual upload log and the texts the user copies into the platform apps.
+  platforms: (id: string) => get<{ state: PlatformSummary; events: PlatformEvent[]; attributions: string[]; refused: string[] }>(`/api/videos/${id}/platforms`),
+  markPlatform: (id: string, body: { platform: Platform; action: PlatformAction; uploadedAt?: string; url?: string; note?: string }) =>
+    write<{ event: PlatformEvent; video: VideoView }>(`/api/videos/${id}/platforms`, body),
+  setText: (id: string, body: { caption?: string | null; youtubeTitle?: string | null }) => write<VideoView>(`/api/videos/${id}/text`, body, 'PATCH'),
   versionReviews: (id: string, versionId: string) => get<ReviewRecord[]>(`/api/videos/${id}/reviews?version=${encodeURIComponent(versionId)}`),
   run: (id: string) => getFresh<RunView>(`/api/runs/${id}`),
   cancelRun: (id: string) => send<{ accepted: boolean }>('POST', `/api/runs/${id}/cancel`),
@@ -66,20 +69,11 @@ export const api = {
   setChannelStyle: (id: ChannelStyleId) => send<ChannelStyleState>('PUT', '/api/channel-style', { id }),
   narratorVoice: () => get<NarratorVoiceState>('/api/narrator-voice'),
   setNarratorVoice: (voice: NarratorVoice) => send<NarratorVoiceState>('PUT', '/api/narrator-voice', voice),
-  publishInfo: (videoId: string) => get<PublishInfo>(`/api/videos/${videoId}/publish`),
-  publish: (videoId: string, body: { variant: PublishVariant; caption?: string; confirmResend?: boolean }) =>
-    write<{ publication: Publication }>(`/api/videos/${videoId}/publish`, body),
-  markPublished: (id: string, url: string, checklist: Record<string, boolean>) => write<{ publication: Publication }>(`/api/publications/${id}/mark`, { url, checklist }),
-  cancelPublication: (id: string) => write<{ publication: Publication }>(`/api/publications/${id}/cancel`, {}),
-  exportShorts: (videoId: string) => write<{ url: string; fileName: string; caption: string }>(`/api/videos/${videoId}/exports/shorts`, {}),
-  tiktok: () => get<TikTokStatus>('/api/tiktok'),
-  tiktokConnect: () => write<{ authorizeUrl: string; expiresAt: string }>('/api/tiktok/connect', {}),
   // Plan M7 Y5: read-only audit explorer; the list path comes from audit-view's auditListPath.
   auditPage: (path: string) => get<AuditPage>(path),
   auditActions: () => get<AuditActionCount[]>('/api/audit/actions'),
   auditRow: (seq: number) => get<AuditDetail>(`/api/audit/${seq}`),
   auditVerify: (fresh = false) => get<AuditVerifyResult & { cached: boolean }>(`/api/audit/verify${fresh ? '?fresh=1' : ''}`),
-  tiktokTest: () => write<{ username: string; maxDurationS: number; privacyOptions: string[] }>('/api/tiktok/test', {}),
   // Plan M7 Y8: the asset ledger.
   assets: () => get<AssetListItem[]>('/api/assets'),
   upload: async (file: File, ext: string): Promise<WriteResult<{ uploadId: string; sha: string; bytes: number; durationMs: number }>> => {
@@ -101,7 +95,7 @@ export const api = {
 
 /** A POST (or PUT) whose error body (`{error, …}`) matters to the caller: the Turkish reason is shown as is. */
 export type WriteResult<T> = { ok: true; data: T } | { ok: false; status: number; error: string; body: Record<string, unknown> };
-async function write<T>(path: string, body: unknown, method: 'POST' | 'PUT' = 'POST'): Promise<WriteResult<T>> {
+async function write<T>(path: string, body: unknown, method: 'POST' | 'PUT' | 'PATCH' = 'POST'): Promise<WriteResult<T>> {
   const r = await fetch(path, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const j = (await r.json().catch(() => ({}))) as Record<string, unknown>;
   return r.ok ? { ok: true, data: j as T } : { ok: false, status: r.status, error: typeof j.error === 'string' ? j.error : `Request failed (${r.status})`, body: j };

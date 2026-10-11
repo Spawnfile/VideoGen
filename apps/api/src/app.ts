@@ -16,16 +16,16 @@ import { registerChatRoutes } from './routes/chat.ts';
 import { registerMaintenanceRoutes } from './routes/maintenance.ts';
 import { registerMediaRoutes } from './routes/media.ts';
 import { registerRoleRoutes } from './routes/roles.ts';
+import { registerPlatformRoutes } from './routes/platforms.ts';
 import { registerVideoRoutes } from './routes/videos.ts';
 import { registerVoiceRoutes } from './routes/voice.ts';
 import { registerSafeAreaRoutes } from './routes/safe-area.ts';
-import { registerTikTokRoutes } from './routes/tiktok.ts';
-import { registerPublishRoutes } from './routes/publish.ts';
+import { registerDevReadyVideo } from './routes/dev.ts';
 import { registerSse } from './sse.ts';
 
 const round4 = (n: number | null): number | null => (n === null ? null : Math.round(n * 10_000) / 10_000);
 
-export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Config; heartbeatMs?: number; tiktokConnectTtlMs?: number; uploadMaxBytes?: number; tailnet?: TailnetConfig }): Promise<FastifyInstance> {
+export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Config; heartbeatMs?: number; uploadMaxBytes?: number; tailnet?: TailnetConfig }): Promise<FastifyInstance> {
   const app = Fastify({ forceCloseConnections: true, logger: { level: process.env.VG_LOG_LEVEL ?? 'info' } });
   registerGuard(app, deps.tailnet ?? tailnetConfig());
   // Freshness watermark (M2 §7): read before the handler runs, so a client can drop REST data older than SSE it already applied.
@@ -74,6 +74,7 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
   registerAgentRoutes(app, deps);
   registerChatRoutes(app, deps);
   registerVideoRoutes(app, { pool: deps.pool, devEndpoints: deps.config.devEndpoints });
+  registerPlatformRoutes(app, { pool: deps.pool });
   // One @fastify/static instance owns reply.sendFile (Range, ETag); it serves no route of its own. The SPA instance below adds none.
   await app.register(fastifyStatic, { root: deps.config.dataDir, serve: false });
   registerMediaRoutes(app, { pool: deps.pool, dataDir: deps.config.dataDir });
@@ -82,8 +83,7 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
   registerVoiceRoutes(app, { pool: deps.pool });
   registerSafeAreaRoutes(app, { pool: deps.pool });
   registerAssetRoutes(app, { pool: deps.pool, config: deps.config, ...(deps.uploadMaxBytes ? { uploadMaxBytes: deps.uploadMaxBytes } : {}) });
-  registerTikTokRoutes(app, { pool: deps.pool, config: deps.config, ...(deps.tiktokConnectTtlMs ? { connectTtlMs: deps.tiktokConnectTtlMs } : {}) });
-  registerPublishRoutes(app, { pool: deps.pool, config: deps.config });
+  if (deps.config.devEndpoints) registerDevReadyVideo(app, deps.pool);
   registerMaintenanceRoutes(app, { pool: deps.pool, dataDir: deps.config.dataDir });
   registerSse(app, deps);
 

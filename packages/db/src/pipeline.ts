@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import {
-  normalizeProductName, type ArtifactMeta, type DurationSource, type DurationWindow, type AudioMode, type PlanStep, type ProgressSource, type RunKind, type RunStatus, type RunView,
+  normalizeProductName, summarizePlatforms, type ArtifactMeta, type DurationSource, type DurationWindow, type AudioMode, type PlanStep, type ProgressSource, type RunKind, type RunStatus, type RunView,
   type StepKey, type StepStatus, type StepView, type UsageMark, type VideoStatus, type VideoView,
 } from '@videogen/shared';
 import { appendAudit } from './audit.ts';
@@ -74,9 +74,10 @@ export async function createAudioEditRun(pool: pg.Pool, inp: { videoId: string; 
   const c = await pool.connect();
   try {
     await c.query('BEGIN');
-    const v = (await c.query('SELECT id, product_id, status, best_version_id, current_version_id FROM videos WHERE id = $1 FOR UPDATE', [inp.videoId])).rows[0];
+    const v = (await c.query('SELECT id, product_id, status, origin, best_version_id, current_version_id FROM videos WHERE id = $1 FOR UPDATE', [inp.videoId])).rows[0];
     if (!v) { await c.query('ROLLBACK'); return { error: 'video bulunamadı' }; }
-    if (v.status !== 'ready' && v.status !== 'published') { await c.query('ROLLBACK'); return { error: 'yalnızca yayına hazır ya da yayınlanmış bir videonun sesi düzenlenebilir' }; }
+    if (v.origin === 'import') { await c.query('ROLLBACK'); return { error: 'içe aktarılmış bir video düzenlenemez' }; }
+    if (v.status !== 'ready') { await c.query('ROLLBACK'); return { error: 'yalnızca yayına hazır bir videonun sesi düzenlenebilir' }; }
     const active = await c.query("SELECT 1 FROM runs WHERE video_id = $1 AND status IN ('queued', 'running')", [inp.videoId]);
     if (active.rowCount) { await c.query('ROLLBACK'); return { error: 'bu videoda devam eden bir üretim var' }; }
     const src = (await c.query(
@@ -138,10 +139,9 @@ async function patchRow(db: Queryable, table: 'runs' | 'steps', id: string, p: o
 export const updateRun = (db: Queryable, id: string, p: RunPatch) => patchRow(db, 'runs', id, p, RUN_COLS);
 export const updateStep = (db: Queryable, id: string, p: StepPatch) => patchRow(db, 'steps', id, p, STEP_COLS);
 
-/** Plan M6 Y13: a published video stays published (it is public on TikTok); a later run only updates the note. */
 export async function updateVideo(db: Queryable, id: string, p: { status?: VideoStatus; statusNote?: string | null }): Promise<void> {
   await db.query(
-    `UPDATE videos SET status = CASE WHEN status = 'published' THEN status ELSE coalesce($2, status) END, status_note = CASE WHEN $3::boolean THEN $4 ELSE status_note END, updated_at = now() WHERE id = $1`,
+    `UPDATE videos SET status = coalesce($2, status), status_note = CASE WHEN $3::boolean THEN $4 ELSE status_note END, updated_at = now() WHERE id = $1`,
     [id, p.status ?? null, p.statusNote !== undefined, p.statusNote ?? null],
   );
 }
@@ -224,7 +224,11 @@ export async function listRunViews(db: Queryable, videoId: string): Promise<RunV
 }
 
 const VIDEO_SQL = `
-  WITH u AS (
+  WITH pu AS (
+    -- Video library L14: the newest mark or undo per (video, platform).
+    SELECT DISTINCT ON (video_id, platform) video_id, platform, action, version_id, uploaded_at, url
+    FROM platform_uploads ORDER BY video_id, platform, id DESC),
+  u AS (
     SELECT r.video_id, count(s.id)::int AS sessions, coalesce(sum(s.tokens), 0)::bigint AS tokens, sum(s.cost_usd) AS cost
     FROM runs r JOIN agent_sessions s ON s.run_id = r.id::text GROUP BY r.video_id),
   w AS (
@@ -237,7 +241,7 @@ const VIDEO_SQL = `
     GROUP BY video_id)
   SELECT v.*, p.name AS product_name, p.difficulty, lr.id AS latest_run_id, u.sessions, u.tokens, u.cost, w.d AS five_hour_delta,
     dv.blob_sha AS draft_sha, dv.duration_ms AS draft_ms, dc.blob_sha AS cover_sha,
-    fm.blob_sha AS final_sha, fm.duration_ms AS final_ms, ft.blob_sha AS tiktok_sha, fc.blob_sha AS final_cover_sha, sc.total AS score
+    fm.blob_sha AS final_sha, fm.duration_ms AS final_ms, ft.blob_sha AS tiktok_sha, fc.blob_sha AS final_cover_sha, sc.total AS score, pl.platforms
   FROM videos v JOIN products p ON p.id = v.product_id
   LEFT JOIN LATERAL (SELECT id FROM runs r WHERE r.video_id = v.id ORDER BY r.created_at DESC LIMIT 1) lr ON true
   LEFT JOIN LATERAL (SELECT a.blob_sha, a.duration_ms FROM artifacts a JOIN runs r ON r.id = a.run_id
@@ -255,6 +259,9 @@ const VIDEO_SQL = `
   -- Plan F13/F22: the library score is the panel total (orchestrator row) of the best version, else of the newest scored round.
   LEFT JOIN LATERAL (SELECT rv.total FROM reviews rv WHERE rv.video_id = v.id AND rv.reviewer_role = 'orchestrator' AND rv.total IS NOT NULL
     ORDER BY (rv.version_id = v.best_version_id) DESC NULLS LAST, rv.created_at DESC LIMIT 1) sc ON true
+  LEFT JOIN LATERAL (SELECT jsonb_object_agg(pu.platform, jsonb_build_object('action', pu.action, 'versionId', pu.version_id,
+    'uploadedAt', to_char(pu.uploaded_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'), 'url', pu.url)) AS platforms
+    FROM pu WHERE pu.video_id = v.id) pl ON true
   LEFT JOIN u ON u.video_id = v.id
   LEFT JOIN w ON w.video_id = v.id`;
 
@@ -267,6 +274,8 @@ function toVideo(r: Record<string, any>): VideoView {
     final: r.final_sha ? { musicSha: r.final_sha, tiktokSha: r.tiktok_sha ?? null, coverSha: r.final_cover_sha ?? null, durationS: Math.round(Number(r.final_ms ?? 0) / 100) / 10 } : null,
     score: round4(r.score),
     brief: r.brief ?? null, duration: { minS: Number(r.duration_min_s ?? 35), maxS: Number(r.duration_max_s ?? 55) }, durationSource: r.duration_source ?? 'default',
+    origin: r.origin ?? 'pipeline', approach: r.approach ?? null, caption: r.caption ?? null, youtubeTitle: r.youtube_title ?? null,
+    platforms: summarizePlatforms(r.platforms ?? {}, r.best_version_id ?? null),
   };
 }
 export async function getVideoView(db: Queryable, id: string): Promise<VideoView | null> {

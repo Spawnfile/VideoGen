@@ -1,5 +1,6 @@
 import type { AudioMode } from './artifacts.ts';
 import type { DurationSource, DurationWindow } from './production.ts';
+import type { PlatformSummary, VideoApproach, VideoOrigin } from './platforms.ts';
 
 /** Spec §7.1, in order. */
 /** `music` (agent music design A3) follows the voice; `remix` only runs in an audio edit (A6), never in the produce plan. */
@@ -26,10 +27,10 @@ export function formatClock(seconds: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-export type VideoStatus = 'queued' | 'running' | 'ready' | 'needs_human' | 'failed' | 'cancelled' | 'published';
+export type VideoStatus = 'queued' | 'running' | 'ready' | 'needs_human' | 'failed' | 'cancelled';
 export type RunStatus = 'queued' | 'running' | 'done' | 'needs_human' | 'failed' | 'cancelled';
 /** `audio_edit` (agent music design A6): the user's audio instruction on a finished video. */
-export type RunKind = 'produce' | 'fix' | 'chat_edit' | 'rerender' | 'audio_edit';
+export type RunKind = 'produce' | 'fix' | 'chat_edit' | 'rerender' | 'audio_edit' | 'import';
 export type StepStatus = 'pending' | 'queued' | 'running' | 'waiting_gpu' | 'waiting_limit' | 'waiting_disk' | 'done' | 'failed' | 'skipped' | 'cancelled';
 export type ProgressSource = 'render' | 'agent' | 'time' | 'deterministic';
 export type Resource = 'gpu' | 'heavy_cpu' | 'claude';
@@ -99,6 +100,12 @@ export interface VideoView {
   brief: string | null;
   duration: DurationWindow;
   durationSource: DurationSource;
+  /** Video library L12/L14: where the video came from, its approach, the texts the user copies, and each platform's upload state. */
+  origin: VideoOrigin;
+  approach: VideoApproach | null;
+  caption: string | null;
+  youtubeTitle: string | null;
+  platforms: PlatformSummary;
 }
 /**
  * Plan M7 Y7 (GET /api/videos/:id/versions): one row per version, by round. `total`/`verdict`/`dims` come from that version's orchestrator
@@ -107,7 +114,7 @@ export interface VideoView {
 export interface VersionView {
   id: string; round: number; reason: string; parentId: string | null; createdAt: string; runId: string | null;
   total: number | null; verdict: string | null; dims: Record<string, number | null> | null;
-  finals: VideoFinal | null; best: boolean; current: boolean; published: boolean;
+  finals: VideoFinal | null; best: boolean; current: boolean;
 }
 /** `meta` is only listed for `final_review_sheet` (the Studio tells the main contact sheet from the hook sheet by it). */
 export interface ArtifactMeta { id: string; runId: string; stepId: string | null; versionId: string | null; kind: string; blobSha: string | null; createdAt: string; meta?: Record<string, unknown> | null }
@@ -124,7 +131,7 @@ export interface ReviewRecord {
 }
 
 export const VIDEO_STATUS_LABEL: Record<VideoStatus, string> = {
-  queued: 'sırada', running: 'üretiliyor', ready: 'yayına hazır', needs_human: 'insan gerekli', failed: 'başarısız', cancelled: 'durduruldu', published: 'yayında',
+  queued: 'sırada', running: 'üretiliyor', ready: 'yayına hazır', needs_human: 'insan gerekli', failed: 'başarısız', cancelled: 'durduruldu',
 };
 export const STEP_STATUS_LABEL: Record<StepStatus, string> = {
   pending: 'bekliyor', queued: 'sırada', running: 'çalışıyor', waiting_gpu: 'GPU bekliyor', waiting_limit: 'limit bekleniyor', waiting_disk: 'disk bekleniyor',

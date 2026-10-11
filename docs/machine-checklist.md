@@ -12,7 +12,6 @@ Her madde: **önkoşul**, **komut**, **beklenen**, **kayıt yeri**. 🚦 = kulla
 **Genel durdurma koşulları (her bölümde geçerli):**
 - Claude kullanımı: başlamadan `GET /api/usage/guard`; gerçek koşu ancak 5 sa < %25 ve 7 gün < %70 iken başlar; koşu içinde 5 sa > %80 → iptal. `npm run test:smoke:real` adım 1 de gerçek kullanım harcar (haiku, tek tur).
 - `failed` ya da `needs_human` biten bir gerçek koşu **tekrarlanmaz**; gerekçe ve son artefaktlar kayda.
-- VideoGen'den gerçek TikTok'a en çok **iki** taslak (ikincisi yalnızca ilki gerçek bir hatayla düştüyse ve neden düzeltildiyse). Güvenli alan kartı bu sayıya girmez (VideoGen'den gönderilmez).
 - Gizli bilgiler (token, client secret) hiçbir kayda, ekran görüntüsüne ya da sohbete yazılmaz.
 
 **Karar (M7, bu dosya): B ve C gerçek kurulumda koşar.** Eski tarifler gerçek koşuları geçici bir veritabanında (`videogen_m5c_check`) yapıyordu. Ama C'deki gerçek taslak B'nin "yayına hazır" videosunu gönderir ve TikTok token'ı `~/tiktok-poster`'dan veri dizinine **taşınır** (kopyalanmaz); geçici dizin silinince token da giderdi. Bu yüzden B ve C varsayılan kurulumda (`~/videogen-data`, `videogen` veritabanı) yapılır; öncesinde A.6'da bir yedek alınır. Audit satırları kalıcıdır; bunlar gerçek ürün kayıtlarıdır.
@@ -27,8 +26,8 @@ Her madde: **önkoşul**, **komut**, **beklenen**, **kayıt yeri**. 🚦 = kulla
 - [ ] **0.4 Araçlar:** `nvidia-smi` gerçek kartı gösterir (6 GB, RTX 3060 Laptop); Blender `~/apps/blender-5.2.2-linux-x64/blender` (ya da `VG_BLENDER`); `/usr/bin/bwrap`; `/usr/bin/google-chrome`; ffmpeg 7.
 - [ ] **0.5 Ses venv'i:** `python/audio_service/.venv` ve modeller yerinde (`python/audio_service/PINS.md`; **`uv sync` asla**).
 - [ ] **0.6 Disk:** `df -h ~` ≥ 30 GB boş.
-- [ ] **0.7 TikTok kaynakları:** `~/tiktok-poster/.env` ve `~/tiktok-poster/tokens.json` var (C'de taşınacak).
-- [ ] **0.8 Pilot dosyası:** `~/icinde-ne-var/pilot-kalem/remotion/out/icinde-ne-var-kalem.mp4` var (yoksa `VG_PILOT_VIDEO` ile yolu verilir).
+- [ ] **0.7 Bölümler:** `ls ~/videogen-data/episodes/*/final.mp4 | wc -l` → 9; `node bin/import-episodes.mjs --dry-run` her bölüm için "would import" ya da içe aktarıldıysa hiçbir satırda "missing"/"sha mismatch" yok.
+- [ ] **0.8 Pilot dosyası:** `~/videogen-data/episodes/pilot-kalem/final.mp4` var (sha256 `6ec02ffe8cab30b9d44e5689185e98024ec4f2515c6e278b9f06677c02e5c9dc`) (yoksa `VG_PILOT_VIDEO` ile yolu verilir).
 - [ ] **0.9 Claude girişi:** `claude auth status` → giriş yapılmış; `env | grep ANTHROPIC_API_KEY` boş.
 
 ## A. Tam doğrulama (M5c T12 Step 1, güncel sayılarla)
@@ -55,7 +54,7 @@ Neden önce: güvenli alan compose'un `inputHash`'ine girer; B'nin finalleri kal
 ## B. M5 kapanışı (M5c T12 Step 2–9)
 
 - [ ] **B.1 Kalem pilotu kalibrasyonu** (M5c T12 Step 2; `docs/m5/real-check.md` §1):
-  `node --import tsx apps/worker/src/render/qc-cli.ts ~/icinde-ne-var/pilot-kalem/remotion/out/icinde-ne-var-kalem.mp4 > /tmp/pilot-qc.json; echo "çıkış $?"` ve `grep '^✗' /tmp/pilot-qc.json`.
+  `node --import tsx apps/worker/src/render/qc-cli.ts ~/videogen-data/episodes/pilot-kalem/final.mp4 > /tmp/pilot-qc.json; echo "çıkış $?"` ve `grep '^✗' /tmp/pilot-qc.json`.
   Beklenen: çıkış 3; en az `d6_loudness`, `d6_lra`, `d6_first_audio`, `d6_silence`, `d3_freeze`, `g1_color`, `g6_edges` `✗`. Eksik varsa eşik gerekçeyle ayarlanır, `RUBRIC_VERSION` `final@2`, `Ruling:`. Kayıt: `real-check.md` §1 tablosu.
 - [ ] **B.2 Ses servisi gerçek ölçümü** (M5c T12 Step 3): B.4'teki seslendirmeli koşunun `voice` adımında model yükleme süresi, `rtf_gen`, tepe VRAM (`nvidia-smi` 0,25 sn örnekleme), satır CER dağılımı, yeniden deneme sayısı, Whisper kelime zamanlarının altyazıyla uyumu (5 rastgele kelime, ±0,5 sn), CLI'ın tepe RSS'i. Blender ile çakışma olmadığı audit sırasından gösterilir.
   **M7 eki:** ölçülen tepe RSS ve en uzun `voice` süresine pay ekleyerek `VG_AUDIO_MAX_RSS_MB` ve `VG_AUDIO_TIMEOUT_MS` değerlerini belirle (varsayılan 6000 MB, 900 000 ms); farklıysa başlatıcının ortamına yaz ve runbook §6'ya not düş. Kayıt: `real-check.md` "M5c" bölümü.
@@ -75,7 +74,9 @@ Neden önce: güvenli alan compose'un `inputHash`'ine girer; B'nin finalleri kal
 - [ ] **B.6 Son review (gerçek koşu bulguları için):** M5b + M5c kod review'u bulutta yapıldı (`docs/m5/m5c-summary.md` §8). Burada yalnızca A ve B'nin gerçek koşu bulguları değerlendirilir; Critical/Important → RED → GREEN, ayrı commit.
 - [ ] **B.7 Dokümanlar** (M5c T12 Step 7): `m5c-summary.md` §4 kalibrasyon, §5 gerçek koşular ve kullanım, §6 ekranlar; checklist M5 satırları; runbook §6 ses servisi; spec notları yalnızca kanıtla (M5c planı T12 Step 7 listesi).
 
-## C. M6 kapanışı (M6 T9)
+## C. M6 kapanışı (M6 T9) — İPTAL (2026-10-11)
+
+TikTok API gönderimi kaldırıldı (video kütüphanesi spec'i L17/L23); yüklemeler telefondan elle yapılır ve Platforms sekmesinde işaretlenir. Bu bölümün yerine: telefonda bir bölümü kaydet, bir platforma yükle, işaretle, geri al; Audit'te iki satır ve zincir geçerli. Aşağıdaki maddeler tarihî kayıttır, koşulmaz.
 
 - [ ] **C.0 Ön koşullar** (Step 0): B bitti, en az bir `ready` video var (tercihen B). K17 kararı ve B'nin final boyutları M6 Y5 (≤ 64 MB tek parça) ve Y9 (AI etiketi) ile yeniden okunur; sapma `Ruling:`.
 - [ ] **C.1 Doğrulama** (Step 1): A.1 ve A.5 bugün yapıldıysa tekrarlanmaz.

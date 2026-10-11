@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import pg from 'pg';
 import { loadConfig } from '@videogen/shared';
 import { MIGRATIONS_DIR, runMigrations } from '../src/migrate.ts';
-import { VG_LOCK_NS } from '../src/publish.ts';
+import { VG_LOCK_NS } from '../src/locks.ts';
 
 /** Plan M7 Y2: template builds and every `CREATE DATABASE … TEMPLATE` share one session lock on the admin database. */
 const LOCK_TEST_TEMPLATE = 100;
