@@ -44,6 +44,18 @@ S2c, S2d, S2e, S2f, S7) could not run on this machine today: swap was 4.0/4.0 Gi
 - Agent output, worker notes and status notes are still Turkish (decision K5 of the mobile-pwa work).
 - A video's timeline appears only for runs that have steps; imported videos show the header and player only.
 
+## Deferred review minors
+
+- The timeline measures its width only on mount and on resize; labels can stay hidden after a first render that returned nothing (use a ResizeObserver).
+- Timeline blocks are 22 px tall; the step list stays the accessible path on a phone.
+- Ruler labels follow the real total while block positions follow the stretched scale.
+- Ember still appears outside the closed list in a few places: the draft/final round label, "Queued" and its playhead, and the selected Settings cards (`border-accent-glow`).
+- The LIVE indicator's accessible name says "running" but also counts queued work.
+- The library card no longer shows the status note; it is only in the tooltip and on the detail page.
+- Tapping a timeline block scrolls smoothly even with reduced motion turned on.
+- The product field shifts 1 px on focus (1 px border → 2 px ember ring).
+- A failed step in a run that is still going keeps growing with the clock (the fallback the spec prescribes).
+
 ## Preview and merge
 
 - Preview now: in the worktree, `npm run dev -w @videogen/web -- --port 5183` (proxies to the running service on 5180).
