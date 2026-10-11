@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import { SFX_NAMES } from './assets.ts';
 import type { AudioMode, Beat, Storyboard } from './artifacts.ts';
-import { DEFAULT_DURATION, voBounds, type DurationWindow } from './production.ts';
+import { voBounds, type DurationWindow } from './production.ts';
+
+/** Voiceover belongs to the pre-YAKLASIM videos (spec Y2): their window stays the old 35–55 s default until the VO path is removed. */
+export const LEGACY_VO_WINDOW: DurationWindow = { minS: 35, maxS: 55 };
 
 /** Plan M5c T1: the voice contracts. A leaf module: only types from artifacts.ts (the fix-loop.ts pattern), values from assets.ts. */
 
@@ -136,7 +139,7 @@ export function storyboardVoErrors(s: Storyboard, o: { minS?: boolean; window?: 
   // Top band of a VO final holds two 52 px lines (G6: a third would run into the label area).
   s.beats.forEach((b) => { if (b.onscreen_text.tr.length > VO_ONSCREEN_MAX) out.push(`vuruş ${b.id}: ekran yazısı seslendirmeli videoda en çok ${VO_ONSCREEN_MAX} karakter (üst bant iki satır)`); });
   const est = estimateVoS(s);
-  const vo = voBounds(o.window ?? DEFAULT_DURATION);
+  const vo = voBounds(o.window ?? LEGACY_VO_WINDOW);
   if (est > vo.maxS) out.push(`seslendirme tahmini ${trNum(est)} sn: en çok ${vo.maxS} sn olmalı; VO metnini kısaltın`);
   else if (o.minS !== false && est < vo.minS) out.push(`seslendirme tahmini ${trNum(est)} sn: en az ${vo.minS} sn olmalı; VO metnini uzatın`);
   return out;
@@ -233,7 +236,7 @@ const shiftOf = (from: Slot[], to: { t_start: number; t_end: number }[]) =>
  * The storyboard laid out on the real line durations (K26) inside the video's window (default 35–55 s, brief design Y9): padded to its
  * minimum, refused over its maximum; rehook/payoff follow their beat and are clamped into the schema ranges.
  */
-export function retimeStoryboard(s: Storyboard, durationsMs: number[], window: DurationWindow = DEFAULT_DURATION): { storyboard: Storyboard; maxShiftS: number; starts_ms: number[] } | { error: string } {
+export function retimeStoryboard(s: Storyboard, durationsMs: number[], window: DurationWindow = LEGACY_VO_WINDOW): { storyboard: Storyboard; maxShiftS: number; starts_ms: number[] } | { error: string } {
   if (s.beats.length !== durationsMs.length) throw new Error('beats and durations differ in length');
   const raw = durationsMs.map(neededMs).reduce((a, b) => a + b, 0);
   if (raw > window.maxS * 1000) return { error: `seslendirme ${window.maxS} sn'yi aşıyor (${trNum(raw / 1000)} sn): storyboard'daki VO metni kısaltılmalı` };
@@ -252,7 +255,7 @@ export function retimeStoryboard(s: Storyboard, durationsMs: number[], window: D
  * H13: keep the beat times when every beat's needed length is within ±0.3 s of its current one, no line drifts more than 0.3 s from
  * (beat start + lead) once lines are pushed apart, and the last line ends inside the video; otherwise retime (maxShiftS: how far the beats would move).
  */
-export function keepOrRetime(source: Storyboard, durationsMs: number[], window: DurationWindow = DEFAULT_DURATION): { keep: true; starts_ms: number[] } | { keep: false; maxShiftS: number } {
+export function keepOrRetime(source: Storyboard, durationsMs: number[], window: DurationWindow = LEGACY_VO_WINDOW): { keep: true; starts_ms: number[] } | { keep: false; maxShiftS: number } {
   if (source.beats.length !== durationsMs.length) throw new Error('beats and durations differ in length');
   const fits = source.beats.every((b, i) => Math.abs(neededMs(durationsMs[i]!) - (toMs(b.t_end) - toMs(b.t_start))) <= TOL);
   if (fits) {

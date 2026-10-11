@@ -27,7 +27,8 @@ export function runPreflight(o: { pool: pg.Pool; audio: AudioDriver; music?: Mus
       audioMode: ctx.audioMode, plan,
       musicCount: ctx.audioMode === 'silent' ? (await listAssets(o.pool, { kind: 'music', allowedOnly: true })).length : 0,
       voice: vo ? await voiceCapability(o) : { ok: true },
-      ...(plan.includes('music') && o.music ? { music: await o.music.capabilities() } : {}),
+      // YAKLASIM spec Y14: a yaklasim video's music comes from the fixed generator (the audio service's Python), not FluidSynth.
+      ...(plan.includes('music') && o.music ? { music: ctx.approach === 'yaklasim' ? await o.music.yaklasimCapabilities() : await o.music.capabilities() } : {}),
     });
   };
 }

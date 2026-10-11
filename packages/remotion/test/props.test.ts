@@ -8,14 +8,14 @@ import { layoutFrames, layoutIssues, layoutManifest } from '../src/layout.ts';
 import { activeBeat, activeCaption, draftLayout, draftProps, finalProps, MAX_LABELS, overlayBoxes, placeLabels, safeRect, type LabelBox, type Rect } from '../src/props.ts';
 
 const fx = <T>(n: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${n}.json`), 'utf8')) as T;
-const track = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/scene/kalem/camera_track.json'), 'utf8')) as { yfov: number[] };
+const track = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/scene/kalem-legacy/camera_track.json'), 'utf8')) as { yfov: number[] };
 
 const inside = (b: LabelBox, r: Rect) => b.x >= r.left && b.x + b.w <= r.right && b.y >= r.top && b.y + b.h <= r.bottom;
 const overlap = (a: LabelBox, b: LabelBox) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
 describe('Draft3D props and layout', () => {
   it('maps the pen scene, storyboard and channel style to serialisable composition props', () => {
-    const p = draftProps({ glbUrl: '/api/blobs/x', yfov: track.yfov, width: 540, height: 960, scene: fx<SceneSpec>('scene-kalem'), storyboard: fx<Storyboard>('storyboard-kalem'), style: CHANNEL_STYLES.gece_mavisi });
+    const p = draftProps({ glbUrl: '/api/blobs/x', yfov: track.yfov, width: 540, height: 960, scene: fx<SceneSpec>('scene-kalem-legacy'), storyboard: fx<Storyboard>('storyboard-kalem-legacy'), style: CHANNEL_STYLES.gece_mavisi });
     expect(p).toMatchObject({ frames: 1350, width: 540, height: 960, lighting: 'key_rim_cool', hook: "0,7 mm'lik bir bilye her şeyi yazıyor", background: CHANNEL_STYLES.gece_mavisi.background });
     expect(p.yfov).toHaveLength(1351);
     expect(p.beats).toHaveLength(7);
@@ -62,14 +62,14 @@ describe('Draft3D props and layout', () => {
   const page = (a: number, b: number, ...ws: string[]): CaptionPage => ({ start_ms: a, end_ms: b, words: ws.map((text, i) => ({ text, start_ms: a + i * 300, end_ms: a + i * 300 + 280 })) });
   const captions = [page(0, 2500, 'Bu', 'bir', 'kalem'), page(4000, 6000, 'Bilye', 'dönerken', 'mürekkebi')];
   const finalOf = (c?: CaptionPage[]) => finalProps({
-    glbUrl: '/g', framesUrl: 'http://x/f', yfov: track.yfov, scene: fx<SceneSpec>('scene-kalem'), storyboard: fx<Storyboard>('storyboard-kalem'), style: CHANNEL_STYLES.gece_mavisi, ...(c ? { captions: c } : {}),
+    glbUrl: '/g', framesUrl: 'http://x/f', yfov: track.yfov, scene: fx<SceneSpec>('scene-kalem-legacy'), storyboard: fx<Storyboard>('storyboard-kalem-legacy'), style: CHANNEL_STYLES.gece_mavisi, ...(c ? { captions: c } : {}),
   });
 
   it('VO captions: finalProps carries the caption pages; the overlay boxes put the caption band at the bottom and the beat text at the top from beat 1; draft props never have captions', () => {
     const p = finalOf(captions);
     expect(p.captions).toEqual(captions);
     expect('captions' in finalOf()).toBe(false); // silent finals stay byte-identical
-    expect('captions' in draftProps({ glbUrl: '', yfov: track.yfov, width: 540, height: 960, scene: fx<SceneSpec>('scene-kalem'), storyboard: fx<Storyboard>('storyboard-kalem'), style: CHANNEL_STYLES.gece_mavisi })).toBe(false);
+    expect('captions' in draftProps({ glbUrl: '', yfov: track.yfov, width: 540, height: 960, scene: fx<SceneSpec>('scene-kalem-legacy'), storyboard: fx<Storyboard>('storyboard-kalem-legacy'), style: CHANNEL_STYLES.gece_mavisi })).toBe(false);
     const L = draftLayout(1080, 1920);
     const mid = L.safe.top + (L.safe.bottom - L.safe.top) / 2;
     // Beat 0: hook at the top, the caption page at the bottom.
@@ -98,7 +98,7 @@ describe('Draft3D props and layout', () => {
     expect(layoutFrames(off)).toContain(123);
     expect(layoutFrames(finalOf([page(4010, 6000, 'a')]))).toContain(121); // ceil: the first frame the page is visible
     expect(layoutFrames(finalOf())).toEqual(layoutFrames({ frames: p.frames, beats: p.beats }));
-    const gltf = await parseGlb(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/scene/kalem/scene.glb')));
+    const gltf = await parseGlb(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/scene/kalem-legacy/scene.glb')));
     const m = layoutManifest(p, gltf);
     const at = (f: number) => m.frames.find((x) => x.frame === f)!.boxes.filter((b) => b.kind === 'caption');
     expect(at(0)).toHaveLength(1);

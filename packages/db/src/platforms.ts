@@ -124,3 +124,31 @@ export async function setVideoText(pool: pg.Pool, videoId: string, p: { caption?
     c.release();
   }
 }
+
+/**
+ * YAKLASIM spec Y17: finalize writes the storyboard's caption and YouTube title. A field the user ever edited (a `video.text_edited` row)
+ * is theirs and is left alone; otherwise the newest generated text wins (a fix round's storyboard). Returns which fields were written.
+ */
+export async function setGeneratedText(pool: pg.Pool, videoId: string, p: { caption: string; youtubeTitle: string }): Promise<{ caption: boolean; youtubeTitle: boolean } | null> {
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    if (!(await c.query('SELECT id FROM videos WHERE id = $1 FOR UPDATE', [videoId])).rowCount) { await c.query('ROLLBACK'); return null; }
+    const edited = new Set((await c.query("SELECT DISTINCT data->>'field' AS f FROM audit_log WHERE action = 'video.text_edited' AND subject_type = 'video' AND subject_id = $1", [videoId])).rows.map((r) => r.f));
+    const out = { caption: !edited.has('caption'), youtubeTitle: !edited.has('youtubeTitle') };
+    if (out.caption) await c.query('UPDATE videos SET caption = $2, updated_at = now() WHERE id = $1', [videoId, blank(p.caption)]);
+    if (out.youtubeTitle) await c.query('UPDATE videos SET youtube_title = $2, updated_at = now() WHERE id = $1', [videoId, blank(p.youtubeTitle)]);
+    const fields = (['caption', 'youtubeTitle'] as const).filter((f) => out[f]);
+    if (fields.length) {
+      await appendAudit(c, { actorType: 'orchestrator', action: 'video.text_generated', subjectType: 'video', subjectId: videoId, data: { fields, captionChars: p.caption.length } });
+      await publishEvent(c, { topic: 'videos', type: 'video.updated', payload: (await getVideoView(c, videoId))! });
+    }
+    await c.query('COMMIT');
+    return out;
+  } catch (e) {
+    await c.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    c.release();
+  }
+}

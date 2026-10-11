@@ -31,7 +31,7 @@ export function ResearchCard({ artifactId, video }: { artifactId: string | null;
       <p className="mt-1 text-[12px] text-ink-3">{r.claims.length} sourced claims</p>
       {r.recommendation && (
         <div data-testid="agent-recommendation" className="mt-3 border-t border-line/60 pt-2 text-[12.5px] leading-relaxed text-ink-2">
-          <p className="font-medium text-ink">{recommendationLine(r.recommendation, video)}</p>
+          <p className="font-medium text-ink">{recommendationLine(r.recommendation)}</p>
           {r.recommendation.brief_tr.length > 0 && (
             <ul className="mt-1 list-disc pl-5">{r.recommendation.brief_tr.map((b) => <li key={b}>{b}</li>)}</ul>
           )}

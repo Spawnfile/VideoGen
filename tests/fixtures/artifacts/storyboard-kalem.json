@@ -1,19 +1,165 @@
 {
   "version": 1,
   "audio_mode": "silent",
-  "duration_s": 45,
-  "hook": { "pattern": "number", "text_tr": "0,7 mm'lik bir bilye her şeyi yazıyor" },
+  "duration_s": 13,
+  "hook": {
+    "pattern": "question",
+    "text_tr": "Why doesn't a pen *LEAK*?"
+  },
   "beats": [
-    { "id": "b1-kanca", "t_start": 0, "t_end": 3, "camera": { "shot": "hero", "move": "push_in", "lens_mm": 85 }, "parts": ["govde"], "action": "Kalem ilk karede tam görünür, kamera ucuna yaklaşır", "onscreen_text": { "tr": "0,7 mm'lik bir bilye her şeyi yazıyor" }, "sfx_cues": ["whoosh"], "claim_ids": ["bilye-capi"] },
-    { "id": "b2-patlatma", "t_start": 3, "t_end": 9, "camera": { "shot": "wide", "move": "orbit", "lens_mm": 50 }, "parts": ["govde", "murekkep-haznesi", "yay", "uc-yuvasi"], "action": "Kalem parçalarına ayrılır", "onscreen_text": { "tr": "Tam 5 parça" }, "sfx_cues": ["whoosh", "click"], "claim_ids": [] },
-    { "id": "b3-hazne", "t_start": 9, "t_end": 16, "camera": { "shot": "medium", "move": "pan", "lens_mm": 70 }, "parts": ["murekkep-haznesi"], "action": "Mürekkep haznesi öne çıkar", "onscreen_text": { "tr": "Yağ bazlı, yoğun mürekkep" }, "sfx_cues": [], "claim_ids": ["yag-bazli"] },
-    { "id": "b4-ikinci-kanca", "t_start": 16, "t_end": 24, "camera": { "shot": "close", "move": "push_in", "lens_mm": 100 }, "parts": ["uc-yuvasi", "bilye"], "action": "Uç yuvası kesitle açılır, bilye görünür", "onscreen_text": { "tr": "Asıl iş bu küçük yuvada" }, "sfx_cues": ["pop"], "claim_ids": ["bilye-capi"] },
-    { "id": "b5-mekanizma", "t_start": 24, "t_end": 32, "camera": { "shot": "macro", "move": "static", "lens_mm": 135 }, "parts": ["bilye"], "action": "Bilye döner, mürekkep yüzeyine yayılır", "onscreen_text": { "tr": "Bilye dönerken mürekkebi taşır" }, "sfx_cues": [], "claim_ids": ["kilcallik", "tungsten-karbur"] },
-    { "id": "b6-odul", "t_start": 32, "t_end": 40, "camera": { "shot": "close", "move": "pull_out", "lens_mm": 85 }, "parts": ["bilye", "uc-yuvasi"], "action": "Kâğıda yazan uç; boşluğun ölçeği gösterilir", "onscreen_text": { "tr": "Boşluk mikron kadar dar" }, "sfx_cues": ["rise"], "claim_ids": ["tungsten-karbur"] },
-    { "id": "b7-dongu", "t_start": 40, "t_end": 45, "camera": { "shot": "hero", "move": "push_in", "lens_mm": 85 }, "parts": ["govde"], "action": "Parçalar birleşir, ilk kareye döner", "onscreen_text": { "tr": "Bir dahaki yazışında hatırla" }, "sfx_cues": ["snap"], "claim_ids": [] }
+    {
+      "id": "b0",
+      "t_start": 0,
+      "t_end": 1.5,
+      "role": "hook",
+      "transition": "cut",
+      "camera": {
+        "shot": "hero",
+        "move": "push_in",
+        "lens_mm": 85
+      },
+      "parts": [
+        "govde",
+        "bilye"
+      ],
+      "action": "The pen is already bursting open; the ink tube and the tip slide out.",
+      "onscreen_text": {
+        "tr": "Why doesn't a pen *LEAK*?"
+      },
+      "sfx_cues": [],
+      "claim_ids": [
+        "bilye-capi"
+      ]
+    },
+    {
+      "id": "b1",
+      "t_start": 1.5,
+      "t_end": 3.5,
+      "role": "xray",
+      "transition": "cut",
+      "camera": {
+        "shot": "hero",
+        "move": "orbit",
+        "lens_mm": 85
+      },
+      "parts": [
+        "yay",
+        "murekkep-haznesi"
+      ],
+      "action": "The shell turns see-through: the spring and the ink tube inside.",
+      "onscreen_text": {
+        "tr": "A hidden *spring*."
+      },
+      "sfx_cues": [],
+      "claim_ids": [
+        "yag-bazli"
+      ]
+    },
+    {
+      "id": "b2",
+      "t_start": 3.5,
+      "t_end": 5.5,
+      "role": "macro",
+      "transition": "cut",
+      "camera": {
+        "shot": "macro",
+        "move": "push_in",
+        "lens_mm": 135
+      },
+      "parts": [
+        "bilye",
+        "uc-yuvasi"
+      ],
+      "action": "Hard cut to the steel ball sitting in the brass tip.",
+      "onscreen_text": {
+        "tr": "A *steel ball* tip."
+      },
+      "sfx_cues": [],
+      "claim_ids": [
+        "tungsten-karbur"
+      ]
+    },
+    {
+      "id": "b3",
+      "t_start": 5.5,
+      "t_end": 8,
+      "role": "assembly",
+      "transition": "flash",
+      "camera": {
+        "shot": "close",
+        "move": "pull_out",
+        "lens_mm": 100
+      },
+      "parts": [
+        "bilye",
+        "murekkep-haznesi"
+      ],
+      "action": "The parts snap back in one by one; the ball rolls ink.",
+      "onscreen_text": {
+        "tr": "It *rolls* the ink."
+      },
+      "sfx_cues": [],
+      "claim_ids": [
+        "kilcallik"
+      ]
+    },
+    {
+      "id": "b4",
+      "t_start": 8,
+      "t_end": 10.5,
+      "role": "counter",
+      "transition": "cut",
+      "camera": {
+        "shot": "close",
+        "move": "orbit",
+        "lens_mm": 100
+      },
+      "parts": [
+        "bilye"
+      ],
+      "action": "The ball spins while the number climbs.",
+      "onscreen_text": {
+        "tr": "*700* microns wide."
+      },
+      "sfx_cues": [],
+      "claim_ids": [
+        "bilye-capi"
+      ],
+      "counter": {
+        "value": "700",
+        "label": "microns"
+      }
+    },
+    {
+      "id": "b5",
+      "t_start": 10.5,
+      "t_end": 13,
+      "role": "twist",
+      "transition": "flash",
+      "camera": {
+        "shot": "hero",
+        "move": "pull_out",
+        "lens_mm": 85
+      },
+      "parts": [
+        "govde",
+        "yay"
+      ],
+      "action": "The last part locks with a land; the burst begins again.",
+      "onscreen_text": {
+        "tr": "Why doesn't a pen *LEAK*?"
+      },
+      "sfx_cues": [],
+      "claim_ids": [
+        "kilcallik"
+      ]
+    }
   ],
-  "rehook_at": 22,
-  "payoff_at": 34,
-  "loop_strategy": "Son karede kalem ilk karedeki pozisyona birleşir",
-  "cta": { "tr": "Sıradaki ürünü yorumlara yaz" }
+  "rehook_at": 6.5,
+  "payoff_at": 10.5,
+  "loop_strategy": "The pen reassembles with a final snap and bursts open again on frame 0.",
+  "publish": {
+    "caption": "What's inside a ballpoint pen? A tiny steel ball rolls the ink out, and a hidden spring keeps it all together.\nDid you know the ball is only 0.7 mm wide?\nSend this to someone who clicks pens all day.\n#ballpointpen #whatsinside #howitworks #satisfying #3danimation",
+    "youtube_title": "What's inside a ballpoint pen"
+  }
 }

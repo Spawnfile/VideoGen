@@ -1,4 +1,4 @@
-import { DEFAULT_SAFE_AREA, scaleSafeArea, type CaptionPage, type ChannelStyle, type SafeArea, type SceneSpec, type Storyboard } from '@videogen/shared/browser';
+import { DEFAULT_SAFE_AREA, scaleSafeArea, yaklasimSafeArea, YAKLASIM_STYLE_ID, type BeatRole, type BeatTransition, type CaptionPage, type ChannelStyle, type SafeArea, type SceneSpec, type Storyboard } from '@videogen/shared/browser';
 
 /** Remotion composition id of the draft (spec §7.1 step 5). */
 export const DRAFT_COMPOSITION = 'Draft3D';
@@ -6,7 +6,11 @@ export const DRAFT_FPS = 30;
 /** Spec §8.1 D5: at most six labels on screen at once (placed by construction, never asked to the reviewer). */
 export const MAX_LABELS = 6;
 
-export interface DraftBeat { t_start: number; t_end: number; text: string; parts: string[] }
+export interface DraftBeat {
+  t_start: number; t_end: number; text: string; parts: string[];
+  /** YAKLASIM (spec Y5/Y11): the beat's role, its opening cut and the counter's verified number. */
+  role?: BeatRole; transition?: BeatTransition; counter?: { value: string; label: string };
+}
 /**
  * Everything the composition needs, serialisable (Remotion inputProps and Player props). A type alias, not an interface:
  * Remotion props must be assignable to Record<string, unknown>.
@@ -29,18 +33,26 @@ export type DraftProps = {
   labels: Record<string, string>;
   /** Plan M7 Y15: the text safe area at 1080×1920 (the calibrated setting in a final; absent = DEFAULT_SAFE_AREA). */
   safeArea?: SafeArea;
+  /** YAKLASIM spec Y9: the text and effect layer — 'yaklasim' for a yaklasim scene, 'legacy' (labels and plates) for older styles. */
+  look: 'yaklasim' | 'legacy';
 };
 
 export function draftProps(o: {
   glbUrl: string; yfov: number[]; width: number; height: number;
-  scene: Pick<SceneSpec, 'frames' | 'parts'>; storyboard: Pick<Storyboard, 'hook' | 'beats'>; style: Pick<ChannelStyle, 'background' | 'text' | 'lighting'>;
+  scene: Pick<SceneSpec, 'frames' | 'parts' | 'style_id'>; storyboard: Pick<Storyboard, 'hook' | 'beats'>; style: Pick<ChannelStyle, 'background' | 'text' | 'lighting'>;
 }): DraftProps {
+  const look = o.scene.style_id === YAKLASIM_STYLE_ID ? 'yaklasim' : 'legacy';
   return {
     glbUrl: o.glbUrl, yfov: o.yfov, frames: o.scene.frames, width: o.width, height: o.height,
     background: o.style.background, text: o.style.text, lighting: o.style.lighting,
     hook: o.storyboard.hook.text_tr,
-    beats: o.storyboard.beats.map((b) => ({ t_start: b.t_start, t_end: b.t_end, text: b.onscreen_text.tr, parts: b.parts.slice(0, MAX_LABELS) })),
+    beats: o.storyboard.beats.map((b) => ({
+      t_start: b.t_start, t_end: b.t_end, text: b.onscreen_text.tr, parts: b.parts.slice(0, MAX_LABELS),
+      ...(b.role ? { role: b.role } : {}), ...(b.transition ? { transition: b.transition } : {}), ...(b.counter ? { counter: { ...b.counter } } : {}),
+    })),
     labels: Object.fromEntries(o.scene.parts.map((p) => [p.id, p.name_tr])),
+    look,
+    ...(look === 'yaklasim' ? { safeArea: yaklasimSafeArea(DEFAULT_SAFE_AREA) } : {}),
   };
 }
 
@@ -115,12 +127,15 @@ export type FinalProps = DraftProps & {
 
 export function finalProps(o: Omit<Parameters<typeof draftProps>[0], 'width' | 'height'> & { framesUrl: string; captions?: CaptionPage[]; safeArea?: SafeArea }): FinalProps {
   const { captions, safeArea, ...rest } = o;
-  return { ...draftProps({ ...rest, width: 1080, height: 1920 }), framesUrl: o.framesUrl, ...(captions ? { captions } : {}), ...(safeArea ? { safeArea } : {}) };
+  const d = draftProps({ ...rest, width: 1080, height: 1920 });
+  // YAKLASIM spec Y10: the stricter of the approach's margins and the calibrated area.
+  const area = d.look === 'yaklasim' ? yaklasimSafeArea(safeArea ?? DEFAULT_SAFE_AREA) : safeArea;
+  return { ...d, framesUrl: o.framesUrl, ...(captions ? { captions } : {}), ...(area ? { safeArea: area } : {}) };
 }
 export const frameUrl = (base: string, frame: number) => `${base}/f${String(frame).padStart(5, '0')}.png`;
 
 /** A text box on screen (px), as Overlay draws it; layout.json lists them (spec §7.4, plan E9). */
-export interface TextBox { kind: 'hook' | 'beat' | 'label' | 'caption'; id?: string; box: [number, number, number, number] }
+export interface TextBox { kind: 'hook' | 'beat' | 'label' | 'caption' | 'counter'; id?: string; box: [number, number, number, number] }
 
 /** The caption page on screen at `ms` (H15), if any; the active word is the last one started. */
 export function activeCaption(pages: CaptionPage[] | undefined, ms: number): { page: CaptionPage; word: number } | null {

@@ -7,8 +7,8 @@ import {
 } from '../src/index.ts';
 
 const fx = (n: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${n}.json`), 'utf8'));
-const scene = (): SceneSpec => fx('scene-kalem');
-const board = (): Storyboard => fx('storyboard-kalem');
+const scene = (): SceneSpec => fx('scene-kalem-legacy');
+const board = (): Storyboard => fx('storyboard-kalem-legacy');
 
 describe('SceneSpec', () => {
   it('accepts the pen fixture and agrees with its storyboard and style', () => {
@@ -56,6 +56,6 @@ describe('SceneSpec', () => {
   it('derives the portrait vertical FOV from the lens (sensor fits the long side) and the five equivalence frames', () => {
     expect(yfovFromLens(36)).toBeCloseTo(2 * Math.atan(18 / 36), 10);
     expect(EQUIVALENCE_FRAMES(1350)).toEqual([0, 337, 675, 1012, 1350]);
-    expect(Object.keys(CHANNEL_STYLES)).toEqual(['atolye', 'beyaz_lab', 'gece_mavisi']);
+    expect(Object.keys(CHANNEL_STYLES)).toEqual(['atolye', 'beyaz_lab', 'gece_mavisi', 'yaklasim']);
   });
 });

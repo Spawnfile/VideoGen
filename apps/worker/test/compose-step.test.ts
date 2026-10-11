@@ -24,7 +24,7 @@ describe('compose step', () => {
     const deps = h.deps;
     const ex = composeExecutor(deps);
     const out = await ex.run(ctx('compose'), await ex.inputHash(ctx('compose')));
-    expect(out).toMatchObject({ status: 'done', note: expect.stringMatching(/^1080×1920 · 0:45 · \d+ efekt · müzik: yok$/) });
+    expect(out).toMatchObject({ status: 'done', note: expect.stringMatching(/^1080×1920 · 0:13 · \d+ efekt · müzik: yok$/) });
     expect((await latestArtifact(t.pool, r.runId, 'audio_plan'))!.content).toMatchObject({ music: null });
   }, 180_000);
 
@@ -47,7 +47,7 @@ describe('compose step', () => {
     expect(await latestArtifact(t.pool, r.runId, 'stem_voice')).toBeNull(); // silent video
   }, 180_000);
 
-  it('renaming a part label (name_tr) keeps the final frames current; a lens change makes them stale', async () => {
+  it('renaming a part label (name_tr) keeps the final frames current; a storyboard edit recomposes; a lens change makes the frames stale; YAKLASIM sounds only', async () => {
     const h = setup();
     const { r } = await h.framed('Kalem etiket');
     const scene = fx('scene-kalem');
@@ -61,8 +61,11 @@ describe('compose step', () => {
     expect([half(0.15), half(0.05), half(0.25), half(0.1)]).toEqual([4, 2, 8, 3]);
     const before = await src();
     expect(before.framesHash).toBe(before.currentFramesHash);
-    expect(tickAt(before)).toContainEqual(['event:label_in:b5-mekanizma:bilye', 24_000]);
-    expect(tickAt(before)).toContainEqual(['event:label_in:b3-hazne:murekkep-haznesi', 9000]);
+    // YAKLASIM spec Y15: no label ticks; quiet for 5 s, then the snaps of the parts locking home, a tap on each flash cut and the final land.
+    expect(tickAt(before)).toEqual([]);
+    expect(before.sound.cues.every((c) => c.atMs >= 5000 && ['y_snap', 'y_tap', 'y_land'].includes(c.name))).toBe(true);
+    expect(before.sound.cues.find((c) => c.name === 'y_land')).toMatchObject({ source: 'event:part_lock:yay', atMs: 12500 });
+    expect(before.sound.cues.find((c) => c.source === 'beat:b3')).toMatchObject({ name: 'y_tap', atMs: 5500 });
 
     await insertArtifact(t.pool, { runId: r.runId, kind: 'scene', content: { ...scene, parts: scene.parts.map((p: { id: string; name_tr: string }) => (p.id === 'bilye' ? { ...p, name_tr: 'Yuvarlak bilye' } : p)) } });
     const renamed = await src();
@@ -71,16 +74,12 @@ describe('compose step', () => {
 
     // Review T2 Critical: a compose-scope fix of a beat's time or parts must move the label_in tick cues (build.py wrote them at build time).
     const moved = { ...board, beats: board.beats.map((b: { id: string; t_start: number; t_end: number; parts: string[] }) =>
-      (b.id === 'b4-ikinci-kanca' ? { ...b, t_end: 24.5 } : b.id === 'b5-mekanizma' ? { ...b, t_start: 24.5 } : b.id === 'b3-hazne' ? { ...b, parts: ['yay'] } : b)) };
+      (b.id === 'b1' ? { ...b, t_end: 4, parts: ['yay'] } : b.id === 'b2' ? { ...b, t_start: 4 } : b)) };
     await insertArtifact(t.pool, { runId: r.runId, kind: 'storyboard', content: moved });
     const after = await src();
     expect(after.framesHash).toBe(after.currentFramesHash);
     expect(after.hash).not.toBe(renamed.hash);
-    const ticks = tickAt(after);
-    expect(ticks).toContainEqual(['event:label_in:b5-mekanizma:bilye', 24_500]);
-    expect(ticks).toContainEqual(['event:label_in:b3-hazne:yay', 9000]);
-    expect(ticks.map((x) => x[0])).not.toContain('event:label_in:b3-hazne:murekkep-haznesi');
-    expect(ticks).not.toContainEqual(['event:label_in:b5-mekanizma:bilye', 24_000]);
+    expect(tickAt(after)).toEqual([]);
 
     await insertArtifact(t.pool, { runId: r.runId, kind: 'scene', content: { ...scene, camera_keys: scene.camera_keys.map((k: { lens_mm: number }, i: number) => (i === 0 ? { ...k, lens_mm: k.lens_mm + 5 } : k)) } });
     const stale = await src();
@@ -97,7 +96,7 @@ describe('compose step', () => {
     expect(await ex.run(a.ctx('compose'), await ex.inputHash(a.ctx('compose')))).toEqual({ status: 'failed', error: 'final kareler güncel sahneyle uyuşmuyor (bayat artefakt, §8.3)', retry: false });
     const b = await h.framed('Kalem eksik');
     const meta = (await latestArtifact(t.pool, b.r.runId, 'final_frames'))!.meta as FinalFramesMeta;
-    truncateSync(framePath(join(b.runDir, meta.dir), 700), 10);
-    expect(await ex.run(b.ctx('compose'), await ex.inputHash(b.ctx('compose')))).toEqual({ status: 'failed', error: 'eksik final kare: 1 (ilk: f00700)', retry: false });
+    truncateSync(framePath(join(b.runDir, meta.dir), 200), 10);
+    expect(await ex.run(b.ctx('compose'), await ex.inputHash(b.ctx('compose')))).toEqual({ status: 'failed', error: 'eksik final kare: 1 (ilk: f00200)', retry: false });
   }, 180_000);
 });

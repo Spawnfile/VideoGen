@@ -26,7 +26,7 @@ describe('agent card meta', () => {
   it('labels the GPU queue position or the pre-check reason, and the limit reset time (spec §12.2)', () => {
     expect(cardStatusLabel(s('waiting_gpu'))).toBe('waiting for GPU');
     expect(cardStatusLabel(s('waiting_gpu'), { sessionId: 's', position: 2, reason: null })).toBe('waiting for GPU · #2 in line');
-    expect(cardStatusLabel(s('waiting_gpu'), { sessionId: 's', position: null, reason: 'swap %95 ≥ %90' })).toBe('waiting for GPU · swap %95 ≥ %90');
+    expect(cardStatusLabel(s('waiting_gpu'), { sessionId: 's', position: null, reason: 'boş RAM 1,9 GB < 2,5 GB' })).toBe('waiting for GPU · boş RAM 1,9 GB < 2,5 GB');
     expect(cardStatusLabel({ ...s('waiting_limit'), waitingUntil: '2026-10-06T11:00:00.000Z' })).toMatch(/^waiting for usage limit \(until \d{2}:\d{2}\)$/);
     expect(cardStatusLabel(s('tool'))).toBe('running a tool');
   });

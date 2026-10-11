@@ -177,6 +177,23 @@ def mesh(name, verts, faces):
     return _object(name, bm)
 
 
+def text(name, body, size, depth):
+    """A flat text mesh (centred, `depth` thick along Z): YAKLASIM's hidden "WHAT'S INSIDE" signature (spec Y12)."""
+    if not body or not body.strip() or len(body) > 40:
+        raise ValueError("text: 1–40 karakter")
+    if size <= 0 or depth <= 0:
+        raise ValueError("text: boyut ve derinlik pozitif olmalı")
+    cu = bpy.data.curves.new(f"{name}_curve", "FONT")
+    cu.body, cu.size, cu.extrude = body, size, depth / 2
+    cu.align_x, cu.align_y = "CENTER", "CENTER"
+    tmp = _link(bpy.data.objects.new(f"{name}_tmp", cu))
+    me = bpy.data.meshes.new_from_object(tmp.evaluated_get(bpy.context.evaluated_depsgraph_get()))
+    bpy.data.objects.remove(tmp)
+    bpy.data.curves.remove(cu)
+    me.name = name
+    return _link(bpy.data.objects.new(name, me))
+
+
 def join(name, objs):
     """Bakes modifiers and transforms of several meshes into one object named `name`."""
     bpy.context.view_layer.update()

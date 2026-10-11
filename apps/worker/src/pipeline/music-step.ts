@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import {
-  MUSIC_INSTRUMENTS, MUSIC_PATTERNS, musicScoreErrors, validateArtifact, type MusicScore, type Storyboard,
+  MUSIC_INSTRUMENTS, MUSIC_PATTERNS, musicScoreErrors, sparseWindows, validateArtifact, yaklasimScore, type MusicScore, type Storyboard,
 } from '@videogen/shared';
 import { findArtifact, latestArtifact, originRunId } from '@videogen/db';
 import { runStructured } from './agent-step.ts';
@@ -8,7 +8,7 @@ import { briefBlock, fenced } from './fence.ts';
 import { briefKeys, failure, persist, record, sha, type StepDeps } from './steps.ts';
 import { SpecStore } from '@videogen/claude';
 import { ARTIFACT_VALIDATOR } from './validator.ts';
-import type { StepContext, StepExecutor } from './types.ts';
+import type { StepContext, StepExecutor, StepOutcome } from './types.ts';
 import { RenderError } from '../render/driver.ts';
 
 const SCHEMA = 'MusicScore@1';
@@ -50,6 +50,28 @@ function userInstruction(text: string): string[] {
   ];
 }
 
+/** YAKLASIM spec Y14: no composer — the fixed score from the storyboard, rendered by the YAKLASIM generator. */
+async function yaklasimMusic(deps: StepDeps, ctx: StepContext, hash: string): Promise<StepOutcome> {
+  const music = deps.music!;
+  const cap = await music.yaklasimCapabilities();
+  if (!cap.ok) return { status: 'needs_human', reason: `Müzik kullanılamıyor: ${cap.reason}` };
+  const sb = await latestArtifact(deps.pool, ctx.runId, 'storyboard');
+  const storyboard = sb ? validateArtifact('Storyboard', sb.content) : null;
+  if (!storyboard?.ok) return { status: 'failed', error: 'storyboard yok', retry: false };
+  const score = yaklasimScore(storyboard.value);
+  await persist(deps, ctx, 'music', score, hash);
+  const out = join(ctx.runDir, 'music', `music-${hash.slice(0, 12)}.wav`);
+  const sparse = sparseWindows(score);
+  try {
+    const m = await music.renderYaklasim({ durationS: musicRenderS(score.duration_s), sparse, out, owner: ctx.stepId, signal: ctx.signal });
+    await record(deps, ctx, { kind: 'music_stem', file: m.file, inputHash: hash, meta: { renderer: m.renderer === 'fake' ? 'fake' : 'yaklasim', notes: 0, peakDb: m.peakDb, renderS: m.durationS, bpm: score.bpm, key: score.key } });
+  } catch (e) {
+    if (e instanceof RenderError && e.kind === 'aborted') return { status: 'cancelled' };
+    return { status: 'failed', error: `müzik üretimi: ${(e as Error).message}`, retry: true };
+  }
+  return { status: 'done', note: `YAKLASIM · ${score.bpm} BPM · A minör · seyrek davul: ${sparse.length} makro` };
+}
+
 export function musicExecutor(deps: StepDeps): StepExecutor {
   const inputs = async (ctx: StepContext) => {
     // An audio edit (A6) has no storyboard of its own: the produce run the edit chain started from has it.
@@ -63,7 +85,7 @@ export function musicExecutor(deps: StepDeps): StepExecutor {
     resource: 'claude',
     async inputHash(ctx) {
       const { sb, vt } = await inputs(ctx);
-      return sha({ step: 'music', storyboard: sb?.id ?? null, voice: vt?.id ?? null, schema: SCHEMA, ...briefKeys(ctx, { duration: 'any' }), ...(ctx.edit ? { edit: ctx.edit.instruction, from: ctx.edit.parentRunId } : {}) });
+      return sha({ step: 'music', storyboard: sb?.id ?? null, voice: vt?.id ?? null, schema: SCHEMA, ...briefKeys(ctx, { duration: 'any' }), ...(ctx.approach === 'yaklasim' && !ctx.edit ? { generator: 'yaklasim@1' } : {}), ...(ctx.edit ? { edit: ctx.edit.instruction, from: ctx.edit.parentRunId } : {}) });
     },
     async reuse(ctx, hash) {
       const stem = await findArtifact(deps.pool, { runId: ctx.runId, kind: 'music_stem', inputHash: hash });
@@ -71,6 +93,7 @@ export function musicExecutor(deps: StepDeps): StepExecutor {
     },
     async run(ctx, hash) {
       if (!deps.music) return { status: 'needs_human', reason: 'Müzik kullanılamıyor: sentezleyici yapılandırılmadı' };
+      if (ctx.approach === 'yaklasim' && !ctx.edit) return yaklasimMusic(deps, ctx, hash);
       const cap = await deps.music.capabilities();
       if (!cap.ok) return { status: 'needs_human', reason: `Müzik kullanılamıyor: ${cap.reason}` };
       const { sb } = await inputs(ctx);

@@ -27,7 +27,7 @@ describe('fix loop', () => {
   });
 
   it('fixScope: the step computes the scope from what changed, not from the fixer\'s claim', () => {
-    const base = { storyboard: fx<Storyboard>('storyboard-kalem'), scene: fx<SceneSpec>('scene-kalem'), research: fx<ProductResearch>('research-kalem'), productSha: 'a'.repeat(64), audio: null as AudioPlan | null, audioMode: 'silent' as AudioMode };
+    const base = { storyboard: fx<Storyboard>('storyboard-kalem-legacy'), scene: fx<SceneSpec>('scene-kalem-legacy'), research: fx<ProductResearch>('research-kalem'), productSha: 'a'.repeat(64), audio: null as AudioPlan | null, audioMode: 'silent' as AudioMode };
     const next = (f: (x: typeof base) => void) => { const n = clone(base); f(n); return fixScope({ prev: base, next: n }); };
     // same state, keys in another order
     const shuffled = { ...base, scene: Object.fromEntries(Object.entries(base.scene).reverse()) as unknown as SceneSpec };
@@ -52,11 +52,11 @@ describe('fix loop', () => {
   });
 
   it('fixScope with audio and VO: a vo_text → voice; a beat time in VO mode → voice, in silent mode → compose; an AudioPlan gain → compose; a lens plus a vo_text → voice with both changes; the AudioPlan version alone → none', () => {
-    const sb = fx<Storyboard>('storyboard-kalem');
+    const sb = fx<Storyboard>('storyboard-kalem-legacy');
     const plan = fx<AudioPlan>('audio-plan-vo');
     const vo: Storyboard = { ...clone(sb), audio_mode: 'vo', beats: sb.beats.map((b, i) => ({ ...b, vo_text: { tr: `Cümle ${i}` } })) };
     const mk = (audioMode: AudioMode, storyboard: Storyboard, audio: AudioPlan | null) =>
-      ({ storyboard, scene: fx<SceneSpec>('scene-kalem'), research: fx<ProductResearch>('research-kalem'), productSha: 'a'.repeat(64), audio, audioMode });
+      ({ storyboard, scene: fx<SceneSpec>('scene-kalem-legacy'), research: fx<ProductResearch>('research-kalem'), productSha: 'a'.repeat(64), audio, audioMode });
     const run = (audioMode: AudioMode, storyboard: Storyboard, audio: AudioPlan | null, f: (x: ReturnType<typeof mk>) => void) => {
       const n = clone(mk(audioMode, storyboard, audio)); f(n); return fixScope({ prev: mk(audioMode, storyboard, audio), next: n });
     };

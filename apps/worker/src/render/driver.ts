@@ -11,6 +11,8 @@ import { sandboxArgv, sandboxWorks } from './sandbox.ts';
 
 export const PYTHON_DIR = resolve(import.meta.dirname, '../../../../python/vg_blender');
 export const SCENE_FIXTURES = resolve(import.meta.dirname, '../../../../tests/fixtures/scene/kalem');
+/** The 45 s pre-YAKLASIM pen (VO runs): the fake build picks it for a spec of its length. */
+export const SCENE_FIXTURES_LEGACY = resolve(import.meta.dirname, '../../../../tests/fixtures/scene/kalem-legacy');
 const REPO_ROOT = resolve(import.meta.dirname, '../../../..');
 /** Plan C13: the Remotion render runs in this child process (Chrome dies with its process group). */
 export const REMOTION_CLI = resolve(REPO_ROOT, 'packages/remotion/src/render-cli.ts');
@@ -295,7 +297,8 @@ export class FakeRenderDriver implements RenderDriver {
     const t0 = Date.now();
     await this.wait(i.signal);
     const src = await readFile(i.productPath, 'utf8').catch(() => '');
-    const fx = this.o.fixtures ?? SCENE_FIXTURES;
+    const frames = (JSON.parse(await readFile(i.specPath, 'utf8').catch(() => '{}')) as { frames?: number }).frames;
+    const fx = this.o.fixtures ?? (frames === 1350 ? SCENE_FIXTURES_LEGACY : SCENE_FIXTURES);
     const report = BuildReportSchema.parse(JSON.parse(await readFile(join(fx, 'build.json'), 'utf8')));
     const forced = /^# vg-fake-error: (.+)$/m.exec(src)?.[1];
     if (forced) return { report: { ...report, ok: false, errors: [forced], warnings: [] }, files: null, ms: Date.now() - t0 };

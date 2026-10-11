@@ -69,7 +69,7 @@
 ## M4 — Dikey dilim *(üç plan: M4a `plans/2026-10-06-m4a-pipeline-core.md` — tablolar, orchestrator, ilerleme, research, storyboard, Stüdyo, Kütüphane; M4b `plans/2026-10-06-m4b-scene-core.md` — vg_blender, sandbox'lı build, eşdeğerlik, önizleme, build adımı, K19 seçenekleri; M4c — taslak render, taslak inceleme, player, ilk gerçek ürün)*
 
 - [x] Tablolar: `products`, `videos`, `runs`, `steps`, `jobs`, `versions`, `blobs`, `artifacts` · commit b44c042 · 2026-10-06 · M4a T2 (migration 0005; `blobs` M3'ten); `reviews/findings/claims/assets/publications` M5/M6
-- [x] Orchestrator + kaynak zamanlayıcı (GPU kilidi, RAM, swap, disk, VRAM, `ollama ps` ön kontrolü), kiralama ve kurtarma · commit d77a817, 23d77ac · 2026-10-06 · M4a T4/T6; son review I2 (iptal yarışı) düzeltildi; 🚦 swap %100 iken GPU ön kontrolü eşiği kullanıcı kararı (M4b öncesi)
+- [x] Orchestrator + kaynak zamanlayıcı (GPU kilidi, RAM, disk, VRAM, `ollama ps` ön kontrolü), kiralama ve kurtarma · commit d77a817, 23d77ac · 2026-10-06 · M4a T4/T6; son review I2 (iptal yarışı) düzeltildi; 🚦 swap %100 iken GPU ön kontrolü eşiği kullanıcı kararı (M4b öncesi)
 - [x] İlerleme modeli: ağırlıklı ve monoton toplam yüzde, yüzde kaynakları, ETA · commit be821f6, 23d77ac · 2026-10-06 · M4a T3/T6; son review I1 (zorluk kapısında %99) düzeltildi
 - [x] research adımı (`ProductResearch`, zorluk kapısı, belirsiz ad yorumu) · commit bc71c3a, 7cb5f0b · 2026-10-06 · M4a T1/T7; gerçek haiku koşusu ilk denemede geçti (`docs/m4/real-check.md`)
 - [x] storyboard adımı (`Storyboard`, kanca kalıpları, sürümlü kayıt) · commit bc71c3a, 7cb5f0b · 2026-10-06 · M4a T1/T7; Stüdyo kartları T9 (4f76cf2)
@@ -145,6 +145,7 @@
 | 2026-10-06 | M4a son review (tek bağımsız reviewer, Claude Fable 5.1) | With fixes → 2 Important düzeltildi (zorluk kapısında %99, iptal/başlatma yarışı), 10 Minor + 1 ertelendi; ledger kararlarının hepsi doğru bulundu | `docs/m4/m4a-summary.md` §7 |
 | 2026-10-06 | M4a S5 kırılganlığı ve chat yarışı | S5 kökü kanıtlandı (taze SSE replay etmez; test akışı bekliyor); "Yeni sohbet" + hemen gönderim yarışı düzeltildi | `docs/m4/m4a-summary.md` §6 |
 | 2026-10-06 | 🚦 Swap / GPU ön kontrol eşiği (spec §6.4 `swap < %90`) | Kural değişmedi (plan B2): M4b sırasında swap %0; dolarsa GPU önizlemesi/taslağı gerekçeyle bekler ve kartta yazar. Kullanıcı isterse eşik değiştirilebilir | `docs/m4/m4b-summary.md` §7 |
+| 2026-10-11 | 🚦 Swap kontrolü kaldırıldı | GPU ön kontrolü artık swap'a bakmıyor, yalnızca boş RAM'e (≥ 2,5 GB). Bu makinede swap RAM boşken de %100 dolu kalıyor ve Ice americano önizlemesini 12 dk bekletti. Kullanıcı kararı | `apps/worker/src/pipeline/resources.ts` |
 | 2026-10-06 | M4 plan bölme | M4 → M4a + M4b + M4c (bağımsız grilling incelemesi: tek planda 12 görev sınırı aşılıyordu) | `plans/2026-10-06-m4b-scene-core.md` "Kapsam ve bölme" |
 | 2026-10-06 | M4b uygulama ve birleştirme (kullanıcı kararı) | T1–T10 uygulandı; gerçek Claude doğrulaması ve bağımsız son review atlandı (kullanım limiti); M4a + M4b `main`'e birleştirildi | `docs/m4/m4b-summary.md` §6 |
 | 2026-10-07 | M5 plan bölme | M5 → M5a (final, ses, otomatik kapılar) + M5b (reviewer'lar, fixer, "yayına hazır") + M5c (seslendirme) | `plans/2026-10-06-m5a-final-render-qc.md` E1 |

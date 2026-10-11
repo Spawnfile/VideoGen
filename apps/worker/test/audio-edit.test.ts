@@ -18,6 +18,9 @@ describe('audio edit (agent music design A6/A7)', () => {
       after: async ({ o, h, run }) => {
         const before = (await getVideoView(t.pool, run.videoId))!;
         expect(before.status).toBe('ready');
+        // YAKLASIM spec Y16: the produced video's music is fixed; the composer path below is a pre-YAKLASIM video's.
+        expect(await createAudioEditRun(t.pool, { videoId: run.videoId, instruction: 'sakin', plan: audioEditPlan() })).toEqual({ error: 'YAKLASIM videosunun müziği sabittir; düzenlenecek bir şey yok' });
+        await t.pool.query('UPDATE videos SET approach = NULL WHERE id = $1', [run.videoId]);
         const finalBefore = (await latestArtifact(t.pool, run.runId, 'final_video_music'))!;
         expect(await createAudioEditRun(t.pool, { videoId: run.videoId, instruction: '   ', plan: audioEditPlan() })).toEqual({ error: 'talimat boş olamaz' });
         const edit = await createAudioEditRun(t.pool, { videoId: run.videoId, instruction: 'Müziği daha sakin yap, davulu kaldır.', plan: audioEditPlan() });
@@ -28,7 +31,7 @@ describe('audio edit (agent music design A6/A7)', () => {
         await vi.waitFor(async () => expect((await getRunView(t.pool, edit.runId))!.status).toBe('done'), { timeout: 120_000, interval: 300 });
         const view = (await getRunView(t.pool, edit.runId))!;
         expect(view.steps.map((s) => [s.key, s.status])).toEqual([['music', 'done'], ['remix', 'done']]);
-        expect(view.steps[1]!.note).toMatch(/^ses yeniden karıştırıldı · 0:45 · \d+ efekt · ölçülen ses \d+\/8$/);
+        expect(view.steps[1]!.note).toMatch(/^ses yeniden karıştırıldı · 0:13 · \d+ efekt · ölçülen ses \d+\/8$/);
         // the instruction is the composer's (a user decision with its markers), next to the previous score
         const composer = h.specs.filter((s) => s.role === 'audio_director').at(-1)!;
         expect(composer.prompt).toContain('Müziği daha sakin yap, davulu kaldır.');
@@ -42,7 +45,7 @@ describe('audio edit (agent music design A6/A7)', () => {
         for (const kind of ['stem_music', 'stem_sfx', 'qc_report', 'audio_plan', 'final_video_tiktok', 'final_cover', 'music', 'music_stem']) {
           expect(await latestArtifact(t.pool, edit.runId, kind), kind).not.toBeNull();
         }
-        expect(((await latestArtifact(t.pool, edit.runId, 'music'))!.content as MusicScore).duration_s).toBe(45);
+        expect(((await latestArtifact(t.pool, edit.runId, 'music'))!.content as MusicScore).duration_s).toBe(13);
         const v = (await getVideoView(t.pool, run.videoId))!;
         expect(v.status).toBe('ready');
         expect((await t.pool.query('SELECT best_version_id, current_version_id FROM videos WHERE id = $1', [run.videoId])).rows[0]).toEqual({ best_version_id: edit.versionId, current_version_id: edit.versionId });

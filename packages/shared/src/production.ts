@@ -8,7 +8,8 @@ export const DURATION_SOURCES = ['default', 'agent', 'user'] as const;
 export type DurationSource = (typeof DURATION_SOURCES)[number];
 
 /** Spec K8: the channel default. */
-export const DEFAULT_DURATION: DurationWindow = { minS: 35, maxS: 55 };
+/** YAKLASIM spec Y1: every video is 12–15 s (was 35–55 s before the approach). */
+export const DEFAULT_DURATION: DurationWindow = { minS: 12, maxS: 15 };
 /**
  * Y2 (lowered 2026-10-11 at the user's request, "max 10-15 saniye"): at 10 s hook (0–3 s), rehook (4–6 s) and payoff (≥ 7 s) still stand apart and
  * four beats last 2,5 s each; over 60 s the single-chunk upload and render time are at risk.
@@ -76,7 +77,7 @@ export function parseBriefDuration(text: string): DurationWindow | null {
   each(String.raw`${NUM}\s*${UNIT}\s*(?:\p{L}*\s*)?(?:geçmesin|aşmasın|altında|altı)`, 2, most);
   each(String.raw`(?:en az|minimum|min\.?|asgari)\s*${NUM}\s*${UNIT}`, 2, (m) => {
     const s = seconds(m[1]!, m[2]!);
-    return [s, s, clampWindow(s, Math.max(s + MIN_WIDTH_S, DEFAULT_DURATION.maxS))];
+    return [s, s, clampWindow(s, Math.max(s + MIN_WIDTH_S, 55))];
   });
   each(String.raw`${NUM}\s*${UNIT}`, 1, (m) => { const s = seconds(m[1]!, m[2]!); return [s, s, clampWindow(s - 2, s + 2)]; });
   const best = found
@@ -88,10 +89,8 @@ export function parseBriefDuration(text: string): DurationWindow | null {
 /** The agent's recommendation (ProductResearch.recommendation) as a valid window. */
 export const recommendedWindow = (r: { duration_min_s: number; duration_max_s: number }) => clampWindow(r.duration_min_s, r.duration_max_s);
 
-/** Y1 for the duration: user > agent > default. */
-export function effectiveDuration(i: { user: DurationWindow | null; agent: DurationWindow | null }): { window: DurationWindow; source: DurationSource } {
-  if (i.user) return { window: i.user, source: 'user' };
-  if (i.agent) return { window: i.agent, source: 'agent' };
+/** YAKLASIM spec Y1: the window is fixed; neither the user nor the agent moves it (their values are kept on record only). */
+export function effectiveDuration(_i: { user: DurationWindow | null; agent: DurationWindow | null }): { window: DurationWindow; source: DurationSource } {
   return { window: DEFAULT_DURATION, source: 'default' };
 }
 

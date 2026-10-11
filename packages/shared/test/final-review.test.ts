@@ -25,7 +25,7 @@ const withChecks = (r: FinalReview, set: Record<string, { score: number; pass?: 
   }),
 });
 
-describe('final@2 review contract', () => {
+describe('final@3 review contract', () => {
   it('every LLM dimension has one owner and its check points add up to the §8.1 weight; LLM + D6 + D7 = 100', () => {
     const llm = Object.entries(DIMENSIONS).filter(([, d]) => d.owner.startsWith('reviewer_'));
     for (const [id, d] of llm) {

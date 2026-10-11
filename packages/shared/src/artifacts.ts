@@ -109,6 +109,11 @@ const BeatSchema = z.object({
   vo_text: z.object({ tr: tr(300) }).optional(),
   sfx_cues: z.array(tr(40)).max(4),
   claim_ids: z.array(slug).max(6),
+  /** YAKLASIM (spec Y5): the beat's place in the curiosity chain and the cut that opens it. Optional for older storyboards. */
+  role: z.enum(['hook', 'xray', 'macro', 'assembly', 'counter', 'twist']).optional(),
+  transition: z.enum(['cut', 'zoom', 'flash']).optional(),
+  /** The counter beat's verified number (digits only) and its short label. */
+  counter: z.object({ value: z.string().regex(/^[0-9]{1,24}$/, 'yalnızca rakam (en çok 24)'), label: tr(30) }).optional(),
 });
 export type Beat = z.infer<typeof BeatSchema>;
 
@@ -123,6 +128,8 @@ const StoryboardBase = z.object({
   payoff_at: z.number().positive(),
   loop_strategy: tr(200),
   cta: z.object({ tr: tr(80) }).optional(),
+  /** YAKLASIM (spec Y17): the caption (with its hashtags) and the YouTube title; finalize copies them to the video. */
+  publish: z.object({ caption: z.string().trim().min(1).max(2200), youtube_title: z.string().trim().min(1).max(100) }).optional(),
 });
 export type Storyboard = z.infer<typeof StoryboardBase>;
 

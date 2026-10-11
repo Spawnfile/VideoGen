@@ -19,7 +19,7 @@ describe('final player and QC card helpers', () => {
 
   it('words a QC report for the card: gates, scores and every failed check with its value and limit', () => {
     const m: QcMeasure = {
-      video: { codec: 'h264', profile: 'High', width: 1080, height: 1920, fps: '30/1', pixFmt: 'yuv420p', colorRange: 'tv', colorSpace: 'bt709', colorPrimaries: 'bt709', colorTransfer: 'bt709', frames: 1351, durationS: 45.03, bitrateKbps: 1200, maxGopFrames: 60, faststart: true },
+      video: { codec: 'h264', profile: 'High', width: 1080, height: 1920, fps: '30/1', pixFmt: 'yuv420p', colorRange: 'tv', colorSpace: 'bt709', colorPrimaries: 'bt709', colorTransfer: 'bt709', frames: 391, durationS: 13.03, bitrateKbps: 1200, maxGopFrames: 60, faststart: true },
       audio: { codec: 'aac', sampleRate: 48000 }, bytes: 8e6, loudness: { i: -14.1, tp: -1.5, lra: 5 }, firstAudioS: 0, silences: [{ start: 12, end: 13.3 }], blacks: [], freezes: [], flashMaxPerS: 0, flashAt: null, loopSsim: 0.95, edgeBands: { maxDensity: 0, at: null },
     };
     const rep = buildQcReport(evaluateQc(m, { variant: 'music', layoutIssues: [], coverOk: true }), evaluateQc(m, { variant: 'tiktok' }));

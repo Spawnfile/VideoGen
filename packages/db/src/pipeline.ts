@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import {
   normalizeProductName, summarizePlatforms, type ArtifactMeta, type DurationSource, type DurationWindow, type AudioMode, type PlanStep, type ProgressSource, type RunKind, type RunStatus, type RunView,
-  type StepKey, type StepStatus, type StepView, type UsageMark, type VideoStatus, type VideoView,
+  type StepKey, type StepStatus, type StepView, type UsageMark, type VideoApproach, type VideoStatus, type VideoView,
 } from '@videogen/shared';
 import { appendAudit } from './audit.ts';
 import { publishEvent } from './events.ts';
@@ -35,9 +35,10 @@ export async function createProduceRun(pool: pg.Pool, inp: { productName: string
     const runId = randomUUID();
     const versionId = randomUUID();
     await c.query(
-      `INSERT INTO videos (id, product_id, title, audio_mode, status, current_version_id, brief, duration_min_s, duration_max_s, duration_source)
-       VALUES ($1, $2, $3, $4, 'queued', $5, $6, COALESCE($7, 35), COALESCE($8, 55), $9)`,
-      [videoId, productId, `${name} — içinde ne var`, inp.audioMode, versionId, brief, inp.duration?.minS ?? null, inp.duration?.maxS ?? null, inp.duration ? 'user' : 'default'],
+      `INSERT INTO videos (id, product_id, title, audio_mode, status, current_version_id, brief, duration_min_s, duration_max_s, duration_source, approach)
+       VALUES ($1, $2, $3, $4, 'queued', $5, $6, COALESCE($7, 12), COALESCE($8, 15), $9, $10)`,
+      // YAKLASIM spec Y4: every new silent production follows the approach (a voiceover video cannot: Y2).
+      [videoId, productId, `${name} — içinde ne var`, inp.audioMode, versionId, brief, inp.duration?.minS ?? null, inp.duration?.maxS ?? null, inp.duration ? 'user' : 'default', inp.audioMode === 'silent' ? 'yaklasim' : null],
     );
     await c.query(`INSERT INTO versions (id, video_id, round, reason) VALUES ($1, $2, 0, 'produce')`, [versionId, videoId]);
     await c.query(`INSERT INTO runs (id, video_id, kind, trigger, plan, status) VALUES ($1, $2, 'produce', 'user', $3, 'queued')`, [runId, videoId, JSON.stringify(inp.plan)]);
@@ -74,9 +75,11 @@ export async function createAudioEditRun(pool: pg.Pool, inp: { videoId: string; 
   const c = await pool.connect();
   try {
     await c.query('BEGIN');
-    const v = (await c.query('SELECT id, product_id, status, origin, best_version_id, current_version_id FROM videos WHERE id = $1 FOR UPDATE', [inp.videoId])).rows[0];
+    const v = (await c.query('SELECT id, product_id, status, origin, approach, best_version_id, current_version_id FROM videos WHERE id = $1 FOR UPDATE', [inp.videoId])).rows[0];
     if (!v) { await c.query('ROLLBACK'); return { error: 'video bulunamadı' }; }
     if (v.origin === 'import') { await c.query('ROLLBACK'); return { error: 'içe aktarılmış bir video düzenlenemez' }; }
+    // YAKLASIM spec Y16: the music is fixed (deterministic): an instruction has nothing to change.
+    if (v.approach === 'yaklasim') { await c.query('ROLLBACK'); return { error: 'YAKLASIM videosunun müziği sabittir; düzenlenecek bir şey yok' }; }
     if (v.status !== 'ready') { await c.query('ROLLBACK'); return { error: 'yalnızca yayına hazır bir videonun sesi düzenlenebilir' }; }
     const active = await c.query("SELECT 1 FROM runs WHERE video_id = $1 AND status IN ('queued', 'running')", [inp.videoId]);
     if (active.rowCount) { await c.query('ROLLBACK'); return { error: 'bu videoda devam eden bir üretim var' }; }
@@ -180,10 +183,12 @@ export interface RunContext {
   instruction: string | null; parentRunId: string | null;
   /** Brief design Y1/Y4: read at every step launch, so the agent's window set after research reaches the later steps. */
   brief: string | null; duration: DurationWindow; durationSource: DurationSource;
+  /** YAKLASIM spec Y4: 'yaklasim' for the approach's videos; null for videos made before it (their own rules and styles apply). */
+  approach: VideoApproach | null;
 }
 export async function getRunContext(db: Queryable, runId: string): Promise<RunContext | null> {
   const { rows } = await db.query(
-    `SELECT r.*, r.version_id AS run_version_id, v.audio_mode, v.current_version_id, v.brief, v.duration_min_s, v.duration_max_s, v.duration_source, p.id AS product_id, p.name AS product_name
+    `SELECT r.*, r.version_id AS run_version_id, v.audio_mode, v.approach, v.current_version_id, v.brief, v.duration_min_s, v.duration_max_s, v.duration_source, p.id AS product_id, p.name AS product_name
      FROM runs r JOIN videos v ON v.id = r.video_id JOIN products p ON p.id = v.product_id WHERE r.id = $1`,
     [runId],
   );
@@ -193,6 +198,7 @@ export async function getRunContext(db: Queryable, runId: string): Promise<RunCo
     run: toRun(r), videoId: r.video_id, productId: r.product_id, productName: r.product_name, audioMode: r.audio_mode, versionId: r.run_version_id ?? r.current_version_id,
     instruction: r.instruction ?? null, parentRunId: r.parent_run_id ?? null,
     brief: r.brief ?? null, duration: { minS: Number(r.duration_min_s), maxS: Number(r.duration_max_s) }, durationSource: r.duration_source,
+    approach: r.approach ?? null,
   } : null;
 }
 

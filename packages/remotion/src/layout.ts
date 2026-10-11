@@ -3,8 +3,9 @@ import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { applyFrameFov, projectAnchor, sceneCamera, SceneClock } from '@videogen/scene3d';
 import { DEFAULT_SAFE_AREA, type CaptionPage, type LayoutIssue, type SafeArea } from '@videogen/shared/browser';
 import { activeBeat, DRAFT_FPS, draftLayout, overlayBoxes, placeLabels, safeRect, type DraftProps, type LabelBox, type TextBox } from './props.ts';
+import { yaklasimBoxes } from './yaklasim.ts';
 
-type LabelProps = Pick<DraftProps, 'width' | 'height' | 'yfov' | 'beats' | 'labels' | 'safeArea'>;
+type LabelProps = Pick<DraftProps, 'width' | 'height' | 'yfov' | 'beats' | 'labels' | 'safeArea' | 'look'>;
 
 /** One source for Draft3D, Final3D and layout.json: seek the clips, apply the frame's lens, project and place the beat's labels. */
 export function labelsAt(gltf: GLTF, clock: SceneClock, cam: THREE.PerspectiveCamera, p: LabelProps, frame: number): LabelBox[] {
@@ -12,8 +13,16 @@ export function labelsAt(gltf: GLTF, clock: SceneClock, cam: THREE.PerspectiveCa
   clock.seek(t);
   applyFrameFov(cam, { fps: DRAFT_FPS, yfov: p.yfov }, frame, p.width, p.height);
   const beat = activeBeat(p.beats, t);
+  if (p.look === 'yaklasim') return []; // YAKLASIM spec Y9: no part labels (the seek above still drives the frame)
   const anchors = (beat?.beat.parts ?? []).map((id) => ({ id, text: p.labels[id] ?? id, at: projectAnchor(gltf, cam, id, p.width, p.height) }));
   return placeLabels(anchors, p.width, p.height, draftLayout(p.width, p.height, p.safeArea).labelArea);
+}
+
+/** YAKLASIM spec Y11: where the hero ring sits on a macro beat — the projected anchor of the beat's first part (after labelsAt's seek). */
+export function ringAt(gltf: GLTF, cam: THREE.PerspectiveCamera, p: Pick<DraftProps, 'width' | 'height' | 'beats'>, frame: number): [number, number] | null {
+  const beat = activeBeat(p.beats, frame / DRAFT_FPS);
+  const id = beat?.beat.role === 'macro' ? beat.beat.parts[0] : undefined;
+  return id ? projectAnchor(gltf, cam, id, p.width, p.height) : null;
 }
 
 /**
@@ -36,7 +45,7 @@ export function layoutManifest(p: LabelProps & Pick<DraftProps, 'frames' | 'hook
   const cam = sceneCamera(gltf);
   return {
     width: p.width, height: p.height, fps: DRAFT_FPS, ...(p.captions?.length ? { captions: true as const } : {}), safeArea: { ...(p.safeArea ?? DEFAULT_SAFE_AREA) },
-    frames: layoutFrames(p).map((frame) => ({ frame, boxes: overlayBoxes(p, frame, labelsAt(gltf, clock, cam, p, frame)) })),
+    frames: layoutFrames(p).map((frame) => ({ frame, boxes: p.look === 'yaklasim' ? yaklasimBoxes(p, frame) : overlayBoxes(p, frame, labelsAt(gltf, clock, cam, p, frame)) })),
   };
 }
 

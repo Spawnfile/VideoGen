@@ -272,7 +272,7 @@ export class Orchestrator {
     let statuses = Promise.resolve();
     return {
       runId: step.runId, stepId: step.id, key: step.key, attempt, round: step.round, fixRound: step.fixRound, plan: ctx.run.plan.map((p) => p.key), videoId: ctx.videoId, productId: ctx.productId, productName: ctx.productName,
-      audioMode: ctx.audioMode, versionId: ctx.versionId, brief: ctx.brief, duration: ctx.duration, durationSource: ctx.durationSource,
+      audioMode: ctx.audioMode, versionId: ctx.versionId, brief: ctx.brief, duration: ctx.duration, durationSource: ctx.durationSource, approach: ctx.approach,
       ...(ctx.run.kind === 'audio_edit' && ctx.instruction && ctx.parentRunId ? { edit: { instruction: ctx.instruction, parentRunId: ctx.parentRunId } } : {}), runDir: join(this.d.dataDir, 'runs', step.runId), signal,
       progress: (pct, source) => { void this.stepProgress(step.id, pct, source); },
       status: (s, note) => { statuses = statuses.then(() => this.stepStatus(step.id, s, note)).catch(() => {}); },

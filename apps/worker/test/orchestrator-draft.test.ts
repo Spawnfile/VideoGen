@@ -18,7 +18,7 @@ const orchs: Orchestrator[] = [];
 afterEach(async () => { for (const o of orchs.splice(0)) o.stop(); await t.pool.query("UPDATE jobs SET status = 'done' WHERE status IN ('queued', 'leased')"); });
 
 const LOOP: PlanStep[] = [{ key: 'build', weight: 66.67 }, { key: 'draft_render', weight: 14.81 }, { key: 'draft_review', weight: 18.52 }];
-const OK_PROBE: Probe = { snapshot: async () => ({ memAvailableMb: 8000, swapUsedPct: 0, diskFreeMb: 50_000, vramFreeMb: 6000, ollamaModels: [] }) };
+const OK_PROBE: Probe = { snapshot: async () => ({ memAvailableMb: 8000, diskFreeMb: 50_000, vramFreeMb: 6000, ollamaModels: [] }) };
 
 function exec(key: StepKey, o: { resource?: Resource; run?: (ctx: StepContext) => Promise<StepOutcome> } = {}): StepExecutor & { rounds: number[]; fixRounds: number[] } {
   const e = {

@@ -4,7 +4,7 @@ import { GATES, RUBRIC_VERSION, type DimensionId, type GateId } from './rubric.t
 
 /** Plan E4. Folklore-tagged limits (LRA, bitrate) are revised after the first ten posts (spec §8.4). */
 export const QC_LIMITS = {
-  width: 1080, height: 1920, fps: '30/1', minS: 35, maxS: 55, maxBytes: 64 * 1024 * 1024,
+  width: 1080, height: 1920, fps: '30/1', minS: 12, maxS: 15, maxBytes: 64 * 1024 * 1024,
   lufs: -14, lufsTol: 1, truePeak: -1, lra: 11, lraMinS: 10, firstAudioS: 0.15, silenceS: 0.3, silenceDb: -50,
   blackS: 0.1, freezeS: 0.5, flashDelta: 20, flashPerS: 3, loopSsim: 0.9, gopFrames: 60, minKbps: 3000, maxKbps: 11000, edgeDensity: 0.02,
 } as const;
@@ -74,7 +74,7 @@ export interface QcMeasure {
   edgeBands: { maxDensity: number; at: number | null };
 }
 /** A text box of layout.json outside the safe area (G6 manifest check). Box: [x0, y0, x1, y1] px at 1080×1920. */
-export interface LayoutIssue { frame: number; kind: 'hook' | 'beat' | 'label' | 'caption'; id?: string; box: [number, number, number, number] }
+export interface LayoutIssue { frame: number; kind: 'hook' | 'beat' | 'label' | 'caption' | 'counter'; id?: string; box: [number, number, number, number] }
 
 export const QcCheckResultSchema = z.object({ id: z.enum(QC_CHECK_IDS), pass: z.boolean(), value: z.string(), limit: z.string(), at: z.number().min(0).optional() });
 export type QcCheckResult = z.infer<typeof QcCheckResultSchema>;

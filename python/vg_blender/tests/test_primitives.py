@@ -43,6 +43,14 @@ class PrimitivesTest(unittest.TestCase):
         self.assertEqual(size(shapes["cylinder"])[2], 5.0)
         self.assertAlmostEqual(size(shapes["spring"])[2], 3.1, places=1)
 
+    def test_text_shape_is_a_mesh_wider_than_tall(self):
+        t = self.vg.text("WHAT'S INSIDE", 0.6, 0.05)
+        self.assertEqual(t._obj.type, "MESH")
+        self.assertGreater(len(t._obj.data.polygons), 10)
+        w, h, d = size(t)
+        self.assertGreater(w, 3 * h)
+        self.assertAlmostEqual(d, 0.05, places=2)
+
     def test_parts_group_shapes_under_a_named_empty_and_reject_duplicates(self):
         a = self.vg.box((1, 1, 1)).move(z=2).material("brass")
         b = self.vg.sphere(0.2).copy()
@@ -73,5 +81,11 @@ class StageTest(unittest.TestCase):
         for preset in stage.LIGHTING:
             stage.reset(30)
             self.assertEqual(len(stage.lighting(preset)), 3)
+        # YAKLASIM spec Y8: warm key, blue rim on one side, orange rim on the other.
+        stage.reset(30)
+        colors = {o.name: tuple(round(c, 2) for c in o.data.color) for o in stage.lighting("yaklasim")}
+        self.assertEqual(sorted(colors), ["vg_light_key", "vg_light_rim_blue", "vg_light_rim_orange"])
+        self.assertGreater(colors["vg_light_rim_blue"][2], colors["vg_light_rim_blue"][0])
+        self.assertGreater(colors["vg_light_rim_orange"][0], colors["vg_light_rim_orange"][2])
         with self.assertRaises(ValueError):
             stage.lighting("disco")

@@ -1,5 +1,5 @@
 /** K19: the channel's fixed visual identity. Three options; the user picks one (Ayarlar → Kanal kimliği). */
-export const CHANNEL_STYLE_IDS = ['atolye', 'beyaz_lab', 'gece_mavisi'] as const;
+export const CHANNEL_STYLE_IDS = ['atolye', 'beyaz_lab', 'gece_mavisi', 'yaklasim'] as const;
 export type ChannelStyleId = (typeof CHANNEL_STYLE_IDS)[number];
 
 export interface ChannelStyle {
@@ -8,7 +8,7 @@ export interface ChannelStyle {
   description_tr: string;
   /** Vertical background gradient (top → bottom), sRGB hex. Blender world and the Remotion backdrop use the same pair. */
   background: { top: string; bottom: string };
-  lighting: 'key_rim_warm' | 'key_rim_cool' | 'soft_box';
+  lighting: 'key_rim_warm' | 'key_rim_cool' | 'soft_box' | 'yaklasim';
   /** Labels and on-screen text (Remotion layer). */
   text: { color: string; plate: string; line: string; accent: string };
 }
@@ -28,6 +28,12 @@ export const CHANNEL_STYLES: Record<ChannelStyleId, ChannelStyle> = {
     id: 'gece_mavisi', name_tr: 'Gece mavisi', description_tr: 'Koyu mavi teknik çizim havası; soğuk kenar ışığı (pilot videonun tonu).',
     background: { top: '#16203a', bottom: '#070a14' }, lighting: 'key_rim_cool',
     text: { color: '#eef3ff', plate: 'rgba(8,12,24,0.72)', line: '#5cc8ff', accent: '#5cc8ff' },
+  },
+  // YAKLASIM spec Y8: the one identity of every new video (the three above stay readable for older scenes).
+  yaklasim: {
+    id: 'yaklasim', name_tr: 'YAKLASIM', description_tr: 'Lacivert radyal gradyan ve soluk 90 px ızgara; beyaz Montserrat 900, tek sarı vurgu; sıcak ana, mavi ve turuncu kenar ışığı.',
+    background: { top: '#1a2546', bottom: '#070a14' }, lighting: 'yaklasim',
+    text: { color: '#ffffff', plate: 'rgba(0,0,0,0)', line: '#ffd23f', accent: '#ffd23f' },
   },
 };
 

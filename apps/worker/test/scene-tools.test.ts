@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Storyboard } from '@videogen/shared';
-import { setChannelStyle } from '@videogen/db';
+import { createProduceRun, setChannelStyle } from '@videogen/db';
 import { SpecStore } from '@videogen/claude';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
 import { FakeRenderDriver, type Capability } from '../src/render/driver.ts';
@@ -21,11 +21,14 @@ const fx = (n: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '
 let cap: Capability = { ok: true };
 const deps = (o: Partial<SceneDeps> = {}): SceneDeps => ({ pool: t.pool, render: new FakeRenderDriver({ ffmpeg: FFMPEG, delayMs: 1 }), locks: new ResourceLocks(), ffmpeg: FFMPEG, capability: () => cap, waitMs: 10, ...o });
 
-async function runDir(o: { scene?: boolean; product?: string } = {}) {
-  const run = mkdtempSync(join(tmpdir(), 'vg-scene-'));
+/** A run directory named after a real YAKLASIM run (the scene tools read the video's approach from the run id). */
+async function runDir(o: { scene?: boolean; product?: string; style?: string } = {}) {
+  const r = await createProduceRun(t.pool, { productName: 'Sahne kalemi', audioMode: 'silent', plan: [{ key: 'build', weight: 100 }] });
+  const run = join(mkdtempSync(join(tmpdir(), 'vg-scene-')), r.runId);
+  mkdirSync(run);
   const specs = new SpecStore(join(run, 'spec'), ARTIFACT_VALIDATOR);
   await specs.write('storyboard', fx('storyboard-kalem'));
-  if (o.scene !== false) await specs.write('scene', fx('scene-kalem'));
+  if (o.scene !== false) await specs.write('scene', { ...fx('scene-kalem'), ...(o.style ? { style_id: o.style } : {}) });
   mkdirSync(join(run, 'scene'), { recursive: true });
   if (o.product !== '') writeFileSync(join(run, 'scene', 'product.py'), o.product ?? 'def build(vg):\n    pass\n');
   return run;
@@ -36,7 +39,7 @@ describe('scene tools', () => {
     cap = { ok: true };
     const run = await runDir();
     const b = await buildScene(deps(), { runDir: run, owner: 's1' });
-    expect(b).toMatchObject({ ok: true, errors: [], specVersion: 1, styleId: 'gece_mavisi', equivalence: { pass: true } });
+    expect(b).toMatchObject({ ok: true, errors: [], specVersion: 1, styleId: 'yaklasim', equivalence: { pass: true } });
     expect(b.equivalence!.worst_px).toBeLessThan(0.1);
     expect(existsSync(b.files!.glb)).toBe(true);
     expect(JSON.parse(readFileSync(join(run, 'scene', 'builds', 'latest.json'), 'utf8')).specVersion).toBe(1);
@@ -44,12 +47,15 @@ describe('scene tools', () => {
     expect(tool.files!.glb).toMatch(/^scene\/builds\/b\d+\/scene\.glb$/);
   });
 
-  it('explains what is missing: no scene spec, no product.py, a style that is not the channel style', async () => {
+  it('explains what is missing: no scene spec, no product.py, a style that is not the YAKLASIM identity (a stored K19 choice is ignored)', async () => {
     cap = { ok: true };
     expect((await buildScene(deps(), { runDir: await runDir({ scene: false }), owner: 's' })).errors[0]).toMatch(/write_spec/);
     expect((await buildScene(deps(), { runDir: await runDir({ product: '' }), owner: 's' })).errors[0]).toMatch(/product\.py yok/);
     await setChannelStyle(t.pool, 'atolye');
-    expect((await buildScene(deps(), { runDir: await runDir(), owner: 's' })).errors.join(' ')).toMatch(/style_id kanal kimliği "atolye"/);
+    expect((await buildScene(deps(), { runDir: await runDir(), owner: 's' })).ok).toBe(true);
+    const wrong = (await buildScene(deps(), { runDir: await runDir({ style: 'gece_mavisi' }), owner: 's' })).errors.join(' ');
+    expect(wrong).toMatch(/style_id kanal kimliği "yaklasim"/);
+    expect(wrong).toMatch(/yaklasim style/);
   });
 
   it('passes product.py errors back and marks a missing render capability as not the agent\'s fault', async () => {
@@ -63,8 +69,8 @@ describe('scene tools', () => {
 
   it('previews frame 0 and the beat midpoints, at most eight', () => {
     const board: Storyboard = fx('storyboard-kalem');
-    expect(previewFrames(board, 1350)).toEqual([0, 45, 180, 375, 600, 840, 1080, 1275]);
-    expect(previewFrames(board, 1350, 4)).toEqual([0, 180, 840, 1275]);
+    expect(previewFrames(board, 390)).toEqual([0, 23, 75, 135, 203, 278, 353]); // frame 0 and the six YAKLASIM beat midpoints
+    expect(previewFrames(board, 390, 4)).toHaveLength(4);
   });
 
   it('renders previews under the GPU lock: waits its turn, reports the queue, then makes the contact sheet', async () => {
@@ -81,7 +87,7 @@ describe('scene tools', () => {
     expect(ran).toBe(false);
     release();
     const r = await p;
-    expect(r.stills).toHaveLength(8);
+    expect(r.stills).toHaveLength(7);
     expect(existsSync(r.sheet)).toBe(true);
     const ac = new AbortController();
     const hold = await d.locks.acquire('gpu', 'x');

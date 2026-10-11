@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadConfig } from '@videogen/shared';
-import { insertArtifact, insertBlob, maxEventId, readEventsAfter, recordReviewRound, updateRun } from '@videogen/db';
+import { producePlan } from '@videogen/shared';
+import { createProduceRun, insertArtifact, insertBlob, maxEventId, readEventsAfter, recordReviewRound, updateRun } from '@videogen/db';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
 import { buildApp } from '../src/app.ts';
 import { EventHub } from '../src/event-hub.ts';
@@ -61,21 +62,17 @@ describe('produce', () => {
     }
   });
 
-  it('brief design: a brief and a user duration window reach the video; bad ones are refused in Turkish', async () => {
+  it('YAKLASIM spec Y1/Y2/Y4: a brief reaches the video; the length is fixed at 12–15 s, voiceover is refused, the video is a YAKLASIM video', async () => {
     expect((await produce({ productName: 'Kalem E', audioMode: 'silent', brief: 'Satır bir.\r\nSatır iki.' })).statusCode).toBe(202); // CRLF from a non-browser client
-    const r = await produce({ productName: 'Kalem B', audioMode: 'silent', brief: 'Kısa olsun.\nYaya odaklan.', duration: { minS: 20, maxS: 25 } });
+    const r = await produce({ productName: 'Kalem B', brief: 'Kısa olsun.\nYaya odaklan.' }); // audioMode may be left out: silent
     expect(r.statusCode).toBe(202);
     const v = (await app.inject({ url: `/api/videos/${r.json().videoId}`, headers: H })).json();
-    expect(v.video).toMatchObject({ brief: 'Kısa olsun.\nYaya odaklan.', duration: { minS: 20, maxS: 25 }, durationSource: 'user' });
-    const d = (await app.inject({ url: `/api/videos/${(await produce({ productName: 'Kalem C', audioMode: 'silent' })).json().videoId}`, headers: H })).json();
-    expect(d.video).toMatchObject({ brief: null, duration: { minS: 35, maxS: 55 }, durationSource: 'default' });
+    expect(v.video).toMatchObject({ brief: 'Kısa olsun.\nYaya odaklan.', duration: { minS: 12, maxS: 15 }, durationSource: 'default', approach: 'yaklasim', audioMode: 'silent' });
     for (const [body, msg] of [
       [{ brief: 'x'.repeat(2001) }, /brief can be at most 2000/],
       [{ brief: 'a\u0007' }, /control characters/],
-      [{ duration: { minS: 8, maxS: 20 } }, /en az 10/],
-      [{ duration: { minS: 20, maxS: 70 } }, /en çok 60/],
-      [{ duration: { minS: 30, maxS: 20 } }, /üst sınırı/],
-      [{ duration: { minS: 20.5, maxS: 25 } }, /whole seconds/],
+      [{ duration: { minS: 20, maxS: 25 } }, /The length is fixed at 12–15 s/],
+      [{ audioMode: 'vo' }, /Voiceover is not part of the YAKLASIM approach/],
     ] as const) {
       const bad = await produce({ productName: 'Kalem D', audioMode: 'silent', ...body });
       expect(bad.statusCode).toBe(400);
@@ -88,6 +85,9 @@ describe('produce', () => {
     const post = (vid: string, body: unknown) => app.inject({ method: 'POST', url: `/api/videos/${vid}/audio-edits`, headers: H, payload: body as object });
     expect((await post(r.videoId, { instruction: '' })).json().error).toBe('the instruction cannot be empty');
     expect((await post(r.videoId, { instruction: 'x'.repeat(1001) })).json().error).toMatch(/1000/);
+    const fixed = await post(r.videoId, { instruction: 'Müziği sakinleştir.' });
+    expect([fixed.statusCode, fixed.json().error]).toEqual([409, 'YAKLASIM music is fixed; there is nothing to edit.']); // YAKLASIM spec Y16
+    await t.pool.query('UPDATE videos SET approach = NULL WHERE id = $1', [r.videoId]); // a pre-YAKLASIM video keeps audio edits
     const busy = await post(r.videoId, { instruction: 'Müziği sakinleştir.' });
     expect([busy.statusCode, busy.json().error]).toEqual([409, 'Only a video that is ready to publish can have its audio edited.']);
     expect((await post('00000000-0000-4000-8000-000000000000', { instruction: 'x' })).statusCode).toBe(404);
@@ -114,7 +114,7 @@ describe('produce', () => {
 
 describe('runs and artifacts', () => {
   it('cancels only an active run and serves artifact content', async () => {
-    const { runId } = (await produce({ productName: 'Zımba', audioMode: 'vo' })).json();
+    const { runId } = (await produce({ productName: 'Zımba' })).json();
     expect((await app.inject({ url: `/api/runs/${runId}`, headers: H })).json()).toMatchObject({ id: runId, status: 'queued' });
     const c = await app.inject({ method: 'POST', url: `/api/runs/${runId}/cancel`, headers: H });
     expect(c.statusCode).toBe(202);
@@ -154,7 +154,8 @@ describe('runs and artifacts', () => {
   });
 
   it('a VO video lists voice_track and voice_stem; the track content is served and the stem streams as audio/flac with Range', async () => {
-    const { videoId, runId } = (await produce({ productName: 'Kalem', audioMode: 'vo' })).json();
+    // A pre-YAKLASIM voiceover video (the API no longer starts one: spec Y2).
+    const { videoId, runId } = await createProduceRun(t.pool, { productName: 'Kalem', audioMode: 'vo', plan: producePlan('vo') });
     const sha = 'ca'.repeat(32);
     const rel = join('media', 'sha256', 'ca', 'ca', `${sha}.flac`);
     mkdirSync(join(dataDir, 'media', 'sha256', 'ca', 'ca'), { recursive: true });

@@ -18,7 +18,7 @@ import { FakeMusicDriver } from '../src/audio/music.ts';
 
 export const fx = (n: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../tests/fixtures/artifacts', `${n}.json`), 'utf8'));
 
-const PROBE: Probe = { snapshot: async () => ({ memAvailableMb: 8000, swapUsedPct: 0, diskFreeMb: 100_000, vramFreeMb: 24_000, ollamaModels: null }) };
+const PROBE: Probe = { snapshot: async () => ({ memAvailableMb: 8000, diskFreeMb: 100_000, vramFreeMb: 24_000, ollamaModels: null }) };
 
 /** One call of the audio driver as the voice step made it, and who held the GPU lock at that moment. */
 export interface VoiceCall { input: VoiceInput; holder: string | null }
@@ -74,7 +74,7 @@ export function voiceHarness(t: { pool: pg.Pool }) {
     const sourceId = await addSource(source);
     const ctx = (key: StepKey, over: Partial<StepContext> = {}): StepContext => ({
       runId: r.runId, stepId: steps.find((s) => s.key === key)!.id, key, attempt: 1, round: 0, fixRound: 0, plan: [], videoId: r.videoId, productId: r.productId, productName: name, audioMode: 'vo',
-      versionId: r.versionId, brief: null, duration: { minS: 35, maxS: 55 }, durationSource: 'default' as const, runDir, signal: new AbortController().signal, progress: () => {}, status: () => {}, session: () => {}, ...over,
+      versionId: r.versionId, brief: null, duration: { minS: 35, maxS: 55 }, approach: null, durationSource: 'default' as const, runDir, signal: new AbortController().signal, progress: () => {}, status: () => {}, session: () => {}, ...over,
     });
     return { r, runDir, ctx, addSource, sourceId };
   }

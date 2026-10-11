@@ -1,6 +1,6 @@
 /** Spec §8.1, versioned (plan E2: a typed module instead of rubric.yaml). A calibration change bumps the version. */
 /** final@2 (agent music design A12): D6 is shared between qc (8) and reviewer_audio (4). */
-export const RUBRIC_VERSION = 'final@2';
+export const RUBRIC_VERSION = 'final@3';
 
 export type RubricOwner = 'orchestrator' | 'reviewer_visual' | 'reviewer_facts' | 'reviewer_retention' | 'reviewer_audio' | 'rule';
 

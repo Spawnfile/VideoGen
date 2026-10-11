@@ -11,7 +11,7 @@ import { draftProbeErrors, extractFrame, probeVideo } from '../src/render/ffmpeg
 const FFMPEG = process.env.VG_FFMPEG ?? 'ffmpeg';
 const tmp = (p: string) => mkdtempSync(join(tmpdir(), p));
 const size = (f: string) => execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', f]).toString().trim();
-const props = { yfov: [0.5, 0.5], frames: 59, width: 540, height: 960, background: { top: '#16203a', bottom: '#070a14' }, text: { color: '#fff', plate: '#000', line: '#5cc8ff', accent: '#5cc8ff' }, lighting: 'key_rim_cool' as const, hook: 'x', beats: [], labels: {} };
+const props = { yfov: [0.5, 0.5], frames: 59, width: 540, height: 960, background: { top: '#16203a', bottom: '#070a14' }, text: { color: '#fff', plate: '#000', line: '#5cc8ff', accent: '#5cc8ff' }, lighting: 'key_rim_cool' as const, hook: 'x', beats: [], labels: {}, look: 'legacy' as const };
 const CLI = resolve(import.meta.dirname, 'fixtures/fake-remotion-cli.mjs');
 
 describe('draft render: fake driver, probe, frames, real-driver protocol', () => {

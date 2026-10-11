@@ -21,15 +21,29 @@ def ease(kind: str, x: float) -> float:
     raise ValueError(f"bilinmeyen ease: {kind}")
 
 
+def _progress(seg: dict, t: float) -> float:
+    if t <= seg["t_start"]:
+        return 0.0
+    if t >= seg["t_end"]:
+        return 1.0
+    return ease(seg["ease"], (t - seg["t_start"]) / (seg["t_end"] - seg["t_start"]))
+
+
 def explode_offset(explode: dict, t: float) -> tuple:
-    """Offset (cm) of a part at time t (s): 0 before t_start, the full vector after t_end."""
-    span = explode["t_end"] - explode["t_start"]
-    k = ease(explode["ease"], (t - explode["t_start"]) / span) if span > 0 else (1.0 if t >= explode["t_end"] else 0.0)
-    if t <= explode["t_start"]:
-        k = 0.0
-    elif t >= explode["t_end"]:
-        k = 1.0
+    """Offset (cm) of a part at time t (s): 0 before t_start, the full vector after t_end; with `back` it returns to 0 across
+    back.t_start..t_end (YAKLASIM spec Y12: the snap). A negative t_start means the burst is already under way at frame 0."""
+    k = _progress(explode, t)
+    back = explode.get("back")
+    if back:
+        k *= 1.0 - _progress(back, t)
     return tuple(v * k for v in explode["vector"])
+
+
+def spin_angle(spin, t: float) -> float:
+    """Degrees a part has turned about its local axis at time t (YAKLASIM spec Y12: the mechanism's real motion)."""
+    if not spin:
+        return 0.0
+    return spin["degrees"] * _progress(spin, t)
 
 
 def _lerp(a, b, k):

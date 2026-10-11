@@ -5,13 +5,24 @@ import { usedClaims } from './review-inputs.ts';
 import { briefBlock, fenced } from './fence.ts';
 
 /** What every final reviewer is told about the reviewed final (the music variant, plan F9). */
-interface Common { name: string; durationS: number; frames: number; times: number[]; sheet: string; brief?: string | null }
+interface Common { name: string; durationS: number; frames: number; times: number[]; sheet: string; brief?: string | null; yaklasim?: boolean }
 
 const TASK: Record<FinalReviewerRole, string> = {
   reviewer_visual: 'görsel kaliteyi (kahraman ve mekanizma kareleri, parçalar, hareket, ekran yazısı, ucuz/yapay görünüm; kapılar G3 ve G5) incele',
   reviewer_facts: 'ekrandaki iddiaların doğruluğunu ve anlatımın araştırmayla uyumunu incele (kapı G2)',
   reviewer_retention: 'izlenme tutmayı (ilk kare ve kanca kalıbı, ikinci kanca, ödül, döngü dikişi) incele',
   reviewer_audio: 'müziğin ve ses karışımının videoya uyumunu (ruh hâli, tempo, vurgu senkronu, seslendirme ve efektlerle denge) incele',
+};
+
+/** A YAKLASIM storyboard: every beat has its role in the curiosity chain (spec Y5). */
+export const isYaklasim = (s: Storyboard) => s.beats.length > 0 && s.beats.every((b) => !!b.role);
+
+/** YAKLASIM spec Y18: what each reviewer judges against in a YAKLASIM video (docs/approach/YAKLASIM.md). The check ids and points stay. */
+const YAKLASIM_CRITERIA: Record<FinalReviewerRole, string> = {
+  reviewer_visual: 'YAKLASIM ölçütleri: sabit kimlik (lacivert radyal zemin, soluk 90 px ızgara, beyaz Montserrat 900 ve tek sarı vurgu, sıcak ana + mavi/turuncu kenar ışığı, doygun renkli nesne); statik sahne yok, kamera hep akar; kenetlenmelerde 3–4 karelik hafif beyaz parlama ve kısa sarsıntı; makro vuruşunda kahraman parçada sarı halka; nesnenin bir yüzeyinde küçük gizli "WHAT\'S INSIDE" imzası; yazılar İngilizce, en çok 5 kelime, anında belirir; parça etiketi yoktur — labels_correct burada "sarı halka doğru parçada mı, yazı gösterilen parçayla uyumlu mu" demektir; x-ray yarı saydam kabukla.',
+  reviewer_facts: 'YAKLASIM ölçütleri: sayaçtaki sayı (counter.value) tek başına bir iddiadır ve birebir doğrulanmalı; gösterilen her parça, mekanizma ve hareket gerçeğe uygun olmalı; uydurma parça ya da işlev bulgudur.',
+  reviewer_retention: 'YAKLASIM ölçütleri: 0. kare kapaktır — nesne zaten parçalanıyor, içi hafifçe görünüyor ve merak sorusu üst üçte birde tam boyutta (fade-in yok); sahneler en çok 2,5 sn ve müziğin 0,5 sn vuruşuna oturur; merak zinciri hook → xray → macro → assembly → counter → twist; döngü: son karelerde nesne birleşir ve kanca yazısı geri gelir, başa "kenetlen → patla" ile sarar; final twist hızlı ve tartışma doğurur; hook_text_short burada en çok 5 kelime demektir.',
+  reviewer_audio: 'YAKLASIM ölçütleri: müzik 120 BPM Am–F–C–G sentez, 0. karede tam enerji, yalnızca makro vuruşunda davul seyrelir, giriş/çıkış yok (döngü); ilk 5 sn efekt yok, sonra yalnızca alçak, sabit perdeli, yumuşak ataklı sinüs "şak/tık" (snap, tap, land); riser, whoosh, tiz darbe ve perdesi kayan efekt yok; -14 LUFS. Müzik deterministiktir: fix_hint partisyon değil zamanlama (kenetlenme anları, vuruş sınırları) ya da seviye önersin.',
 };
 
 const checkLines = (role: FinalReviewerRole) => checksOf(role).map((id) => {
@@ -29,6 +40,7 @@ function common(role: FinalReviewerRole, o: Common, extra: string[]): string[] {
     `Final: 1080×1920, 30 fps, ${o.frames} kare, ${formatClock(o.durationS)}.`,
     `Kontakt sayfası: ${o.sheet} (12 kare; soldan sağa, yukarıdan aşağı; zamanlar sn: ${o.times.join(', ')}). Read ile aç. ${tools}`,
     ...extra,
+    ...(o.yaklasim ? ['', YAKLASIM_CRITERIA[role]] : []),
     ...(o.brief?.trim() ? ['', ...briefBlock(o.brief, 'reviewer')] : []),
     '',
     'Kontroller (her biri tam bir kez, bu kimliklerle; önemi ve puanı kimlik belirler, sen belirlemezsin):',

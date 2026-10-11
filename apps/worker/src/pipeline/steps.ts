@@ -5,11 +5,11 @@ import { join } from 'node:path';
 import type pg from 'pg';
 import {
   canonical, CHANNEL_STYLES, DRAFT_CHECK_IDS, DRAFT_CHECKS, DRAFT_GATES, DRAFT_MAX_RETURNS, DRAFT_RUBRIC_VERSION, draftDecision, formatClock, HOOK_PATTERN_LABELS,
-  normalizeProductName, rendersChanged, reviewRefErrors, sceneRefErrors, storyboardRefErrors, storyboardVoErrors, validateArtifact,
-  DEFAULT_DURATION, DURATION_HARD, DURATION_SOURCE_LABELS, formatWindow, recommendedWindow, VO_CHARS_PER_S, voBounds, windowErrors,
+  normalizeProductName, rendersChanged, reviewRefErrors, sceneRefErrors, storyboardRefErrors, storyboardVoErrors, validateArtifact, yaklasimSceneErrors, yaklasimStoryboardErrors,
+  DEFAULT_DURATION, formatWindow, windowErrors,
   type DurationSource, type DurationWindow, type AudioMode, type BuildReport, type ChannelStyleId, type DraftCheckId, type ProductResearch, type Review, type SceneSpec, type StepKey, type Storyboard,
 } from '@videogen/shared';
-import { appendAudit, applyAgentDuration, findArtifact, getBlob, getChannelStyle, insertArtifact, latestArtifact, latestStepSession, setProductDifficulty } from '@videogen/db';
+import { appendAudit, findArtifact, getBlob, styleFor, insertArtifact, latestArtifact, latestStepSession, setProductDifficulty } from '@videogen/db';
 import { SpecStore, type FakeScript, type SpecKind } from '@videogen/claude';
 import { bundleHash, DRAFT_RENDER } from '@videogen/remotion/hash';
 import { draftProps, type DraftProps } from '@videogen/remotion/props';
@@ -79,13 +79,14 @@ export function researchPrompt(name: string, b: BriefInputs = {}): string {
   return [
     `Ürün: "${name}"`,
     '',
-    `Bu ürünün içini anlatan ${userSet ? `${formatWindow(w)} (kullanıcının kararı)` : 'kısa'} bir "içinde ne var" TikTok videosu için araştırma yap.`,
+    `Bu ürünün içini anlatan ${formatWindow(w)}lik bir YAKLASIM videosu için araştırma yap: herkesin evinde olan bir nesnenin içi, teknik bilgi gerektirmeden "aa, bunu bilmiyordum" dedirten tek bir gizli detay, bir mekanizma ve doğrulanmış tek bir "vay" sayısı.`,
     ...(b.brief?.trim() ? ['', ...briefBlock(b.brief, 'researcher'), ''] : []),
     '- Ad belirsizse en yaygın yorumu seç ve `interpretation` alanına yaz.',
     '- Parçaları (kimlik: küçük harf, rakam, - veya _), işlevlerini, malzemelerini, yaklaşık ölçülerini (mm, [uzunluk, genişlik, yükseklik]), adetlerini ve montaj sırasını çıkar.',
     '- Her iddiayı kaynak URL\'si, kısa alıntı, erişim tarihi (YYYY-MM-DD) ve türüyle kaydet: primary (üretici, standart) ya da independent. Sayısal iddialar için 2 bağımsız ya da 1 birincil kaynak bul.',
     '- Ürün prosedürel olarak modellenemiyorsa ve lisanslı CC0 bir model de yoksa `difficulty: "too_hard"` ver ve `difficulty_reason_tr` ile gerekçesini yaz.',
-    `- recommendation alanını doldur: bu ürün${b.brief?.trim() ? ' ve yönerge' : ''} için önerdiğin süre aralığı (duration_min_s–duration_max_s, ${DURATION_HARD.minS}–${DURATION_HARD.maxS} sn içinde, en az 2 sn geniş; kanal varsayılanı ${formatWindow(DEFAULT_DURATION)}; basit ürün daha kısa, çok parçalı ya da zor mekanizma daha uzun), videonun nasıl anlatılacağına dair en çok 5 kısa öneri (brief_tr: neye odaklanılmalı, hangi parça/an öne çıkmalı, tempo) ve reason_tr kısa gerekçe.${userSet ? ' Süreyi kullanıcı belirledi; süre önerin yalnızca bilgi içindir, uygulanmaz.' : ' Kullanıcı süre belirlemedi: önerdiğin aralık bu videonun süresi olur.'}`,
+    `- recommendation alanını doldur: süre YAKLASIM'da sabittir (duration_min_s ${DEFAULT_DURATION.minS}, duration_max_s ${DEFAULT_DURATION.maxS} yaz); brief_tr'ye en çok 5 kısa öneri (kahraman parça hangisi, gizli detay ne, mekanizma nasıl çalışıyor, sayaç için hangi doğrulanmış sayı, finalde hangi esprili twist) ve reason_tr kısa gerekçe.`,
+    '- Sayaç için en az bir büyük, şaşırtıcı ve 2 bağımsız ya da 1 birincil kaynakla doğrulanmış sayısal iddia bul (ör. kombinasyon, devir, adet, mesafe).',
     '- Kilometre taşlarında report_progress çağır.',
     'Sonucu yapılandırılmış çıktı (ProductResearch şeması) olarak döndür.',
   ].join('\n');
@@ -95,17 +96,21 @@ export function storyboardPrompt(name: string, mode: AudioMode, research: Produc
   const w = b.duration ?? DEFAULT_DURATION;
   const { recommendation: rec, ...facts } = research;
   return [
-    `Ürün: "${name}". Ses modu: ${mode === 'vo' ? 'seslendirmeli (her vuruşta vo_text zorunlu)' : 'seslendirmesiz (vo_text yok; anlatımı ekran yazısı ve SFX taşır)'}.`,
+    `Ürün: "${name}". YAKLASIM videosu (docs/approach/YAKLASIM.md): ${formatWindow(w)}, seslendirme yok (audio_mode "${mode}", vo_text yok), ekranda yalnızca İngilizce yazı.`,
     '',
     fenced('Araştırma (ProductResearch)', facts),
     '',
     ...(rec?.brief_tr.length ? [fenced('Araştırmacının anlatım önerileri (ajan önerisi; kullanıcı yönergesiyle çelişirse kullanıcınınki geçerli)', rec.brief_tr), ''] : []),
     ...(b.brief?.trim() ? [...briefBlock(b.brief, 'storyboarder'), ''] : []),
-    `Süre penceresi: ${formatWindow(w)} (${DURATION_SOURCE_LABELS[b.durationSource ?? 'default']}); duration_s bu aralıkta olmalı. read_spec ile göreceğin araştırmadaki recommendation yalnızca öneridir; geçerli süre bu penceredir.`,
-    'Kurallar: vuruşlar 0 sn\'den duration_s\'ye boşluksuz ve bitişik; ilk vuruşta kahraman nesne ve kanca yazısı (en çok 60 karakter);',
-    'kanca kalıbı şunlardan biri: question, number, misconception, reveal, contrast; ikinci kanca (rehook_at) sürenin %40–60\'ında, ödül (payoff_at) %70\'ten sonra;',
-    `parça ve iddia kimlikleri yalnızca araştırmadakiler; kamera lensi 50–135 mm; audio_mode: "${mode}"; version: 1.`,
-    ...(mode === 'vo' ? [`vo_text Türkçe, sembolsüz, rakamlar ve birimler serbest (0,7 mm, %50); kısa cümleler; toplam anlatım ${voBounds(w).minS}–${voBounds(w).maxS} sn (yaklaşık ${VO_CHARS_PER_S} karakter/sn); ilk cümle kancadır, ilk kelime hemen başlar.`] : []),
+    'YAKLASIM kuralları (yönerge bunları ezemez):',
+    `- duration_s ${w.minS}–${w.maxS} sn; vuruş sınırları 0,5 sn ızgarasında (120 BPM vuruşu); her vuruş en çok 2,5 sn; en az 6 vuruş; vuruşlar 0'dan duration_s'ye bitişik.`,
+    '- Merak zinciri, her vuruşa role: hook (0. karede nesne zaten parçalanmaya başlamış, içi hafifçe görünüyor; izleyicinin basit merak sorusu tam boyutta) → xray (iç iskelet, yarı saydam kabuk, yay gibi elemanlar) → macro (sert kesmeyle tek kahraman parçanın makro yakın planı; bilinmeyen detay sarı halkayla işaretlenir; beat.parts[0] o parça) → assembly (parçalar tek tek tatmin edici şekilde kenetlenir, mekanizma gerçek çalışma biçimiyle hareket eder; tekrar edebilir) → counter (doğrulanmış tek büyük sayı: counter.value yalnızca rakam, counter.label kısa, claim_ids o iddia) → twist (esprili, tartışma doğuran final; nesne yeniden birleşir ve kanca yazısı geri gelir → döngü).',
+    '- transition: cut (sert kesme), zoom (hızlı zoom), flash (kenetlenme anındaki 3–4 karelik hafif beyaz parlama + kısa sarsıntı); kenetlenme vuruşlarında flash kullan; kamera hiçbir vuruşta static değil.',
+    '- Ekran yazısı (hook.text_tr ve her onscreen_text.tr; alan adları eski, içerik İngilizce): İngilizce, en çok 5 kelime, Türkçe harf yok, marka adı/logo yok; tek vurgu kelimesi ya da kısa ifadesi *yıldızla* işaretlenir (sarı yazılır), bir yazıda en çok bir vurgu. Son vuruşun yazısı kanca yazısıyla birebir aynı.',
+    '- Kanca kalıbı: question tercih edilir (ör. "Why doesn\'t it *FALL APART*?"); rehook_at sürenin %40–60\'ında, payoff_at %70\'ten sonra.',
+    '- publish: caption = arama kalıplarına yakın, sade, insan sesiyle iki İngilizce cümle + kolay, itiraf ettiren tek soru + "Send this to someone who…" paylaşım tetikleyicisi + sonda en çok 5 hashtag (konu, merak, animasyon, tatmin, öğrenme); youtube_title = en çok 100 karakter, hashtag yok.',
+    '- Doğruluk: her parça, mekanizma ve sayı araştırmadaki iddialara dayanır (claim_ids); uydurma parça ya da işlev yok.',
+    `- parça ve iddia kimlikleri yalnızca araştırmadakiler; kamera lensi 50–135 mm; version: 1.`,
     'Sonucu yapılandırılmış çıktı (Storyboard şeması) olarak döndür.',
   ].join('\n');
 }
@@ -138,13 +143,8 @@ export function researchExecutor(deps: StepDeps): StepExecutor {
     resource: 'claude',
     // Brief design Y10: the brief and a user window change what is researched and recommended.
     inputHash: async (ctx) => sha({ step: 'research', product: normalizeProductName(ctx.productName), schema: SCHEMA_VERSION.research, ...briefKeys(ctx, { duration: 'user' }) }),
-    async reuse(ctx, hash) {
-      if (!(await reusable(deps, ctx, 'research', hash))) return false;
-      // Y5: a crash between persisting the research and applying its window must not lose the window on the retry (idempotent: only from 'default').
-      const rec = ctx.durationSource === 'default' ? ((await latestArtifact(deps.pool, ctx.runId, 'research'))?.content as ProductResearch | undefined)?.recommendation : undefined;
-      if (rec) await applyAgentDuration(deps.pool, { videoId: ctx.videoId, runId: ctx.runId, window: recommendedWindow(rec) });
-      return true;
-    },
+    // YAKLASIM spec Y1: the window is fixed; the research's recommendation is kept in the artifact but never applied to the video.
+    reuse: (ctx, hash) => reusable(deps, ctx, 'research', hash),
     async run(ctx, hash) {
       const r = await runStructured<ProductResearch>({
         manager: deps.manager, ctx, role: 'researcher', prompt: researchPrompt(ctx.productName, briefOf(ctx)), schema: 'ProductResearch',
@@ -153,15 +153,10 @@ export function researchExecutor(deps: StepDeps): StepExecutor {
       if (!r.ok) return failure(r);
       await persist(deps, ctx, 'research', r.value, hash);
       await setProductDifficulty(deps.pool, ctx.productId, r.value.difficulty);
-      // Brief design Y5: the agent's window applies where the user decided nothing (applyAgentDuration keeps a user window).
-      const rec = r.value.recommendation;
-      const applied = rec ? await applyAgentDuration(deps.pool, { videoId: ctx.videoId, runId: ctx.runId, window: recommendedWindow(rec) }) : false;
       if (r.value.difficulty === 'too_hard') return { status: 'needs_human', reason: r.value.difficulty_reason_tr ?? 'Ürün prosedürel olarak modellenemiyor.' };
       // Plan B5: a CC0 asset would be needed; the asset ledger and its license gate arrive in M5 (spec §7.1: stop rather than look simple).
       if (r.value.difficulty === 'needs_asset') return { status: 'needs_human', reason: `Hazır 3D varlık gerekiyor; varlık defteri ve lisans kapısı M5'te.${r.value.difficulty_reason_tr ? ` ${r.value.difficulty_reason_tr}` : ''}` };
-      const window = rec ? recommendedWindow(rec) : null;
-      const durationNote = window ? ` · süre önerisi ${formatWindow(window)}${applied ? '' : ` (uygulanmadı: ${DURATION_SOURCE_LABELS.user} ${formatWindow(ctx.duration)})`}` : '';
-      return { status: 'done', note: `${r.value.interpretation}${durationNote}` };
+      return { status: 'done', note: r.value.interpretation };
     },
   };
 }
@@ -195,6 +190,8 @@ export function storyboardExecutor(deps: StepDeps): StepExecutor {
         check: (s) => [
           ...storyboardRefErrors(s, research.value), ...(s.audio_mode === ctx.audioMode ? [] : [`audio_mode ${ctx.audioMode} olmalı`]),
           ...windowErrors(s.duration_s, ctx.duration), ...(ctx.audioMode === 'vo' ? storyboardVoErrors(s, { window: ctx.duration }) : []),
+          // YAKLASIM spec Y6: the approach's rules come back to the same session before any reviewer sees the video.
+          ...(ctx.approach === 'yaklasim' ? yaklasimStoryboardErrors(s) : []),
         ],
         fakeScript: deps.fakeScript ? (n) => deps.fakeScript!('storyboarder', ctx, n) : undefined,
       });
@@ -235,6 +232,14 @@ export function buildPrompt(name: string, styleId: ChannelStyleId, storyboard: S
     'Görev: scene/product.py (vg API, yalnızca `import math`, `def build(vg)`) ve SceneSpec yaz. Döngü: write_spec(kind "scene") → build_scene → hataları ve uyarıları düzelt → render_preview_stills → kontakt sayfasını Read ile incele → gerekirse tekrarla.',
     `Kurallar: duration_s ${storyboard.duration_s}, frames ${Math.round(storyboard.duration_s * 30)}, style_id "${styleId}", lighting_preset "${style.lighting}"; storyboard'daki her parça SceneSpec'te ve product.py'de aynı kimlikle; hero_part ilk vuruşun parçalarından biri ve 0. karede kadraj yüksekliğinin en az %35'i;`,
     "mekanizma vuruşunda mekanizmanın çalıştığı yeri gösteren yakın çekim; vuruşun konusu olmayan parça kadrajın en çok %25'i; lens 50–135 mm; 1 birim = 1 cm; asset_ref kullanma.",
+    'YAKLASIM sahne kuralları (docs/approach/YAKLASIM.md, referans episodes/rubik):',
+    '- Nesne doygun renkli ve ekranın ortasını ve alt-ortasını doldurur (üst üçte bir yazıya ayrılır); zemin, ızgara ve ışık sabittir (lacivert, style_id "yaklasim", ışık "yaklasim").',
+    '- 0. kare kapaktır: nesne zaten parçalanmaya başlamış, içi hafifçe görünüyor: en az iki parçanın explode.t_start\'ı 0\'ın altında (−1 sn\'ye kadar) ve 0. andaki ofsetleri küçük (birkaç cm; döngü dikişi için).',
+    '- Patlayan her parça explode.back ile yerine döner (kenetlenme = "şak"); dönüşler assembly vuruşlarında 0,5 sn vuruşlarına denk gelecek şekilde tek tek ve kademeli; son dönüş sürenin son 1 sn\'sinde biter (nesne birleşik biter → başa sarınca "kenetlen → patla").',
+    '- Döngü: son kamera anahtarı ilk anahtarla aynıdır (konum, hedef, lens); son kare birleşik nesneyle ilk kareye "kenetlen → patla" olarak bağlanır.',
+    '- Mekanizma gerçek çalışma biçimiyle hareket eder: dönen/kayan parça için spin (eksen, derece, zaman); statik sahne yok, kamera anahtarları sürekli akar (yumuşak ease), macro vuruşuna sert kesme gibi hızlı yaklaşma.',
+    '- X-ray görünümü için dış kabukta pc_clear malzemesi; nesnenin bir yüzeyine küçük gizli imza: vg.text("WHAT\'S INSIDE", size, depth) bir parçanın içinde (ör. vg.part(id, gövde, imza)), göze hemen çarpmayacak boyutta.',
+    '- Gerçeğe uygunluk: parçalar araştırmadaki ölçü ve adetlerle; uydurma parça yok.',
     'Son başarılı build_scene\'deki SceneSpec\'i değiştirmeden yapılandırılmış çıktı (SceneSpec şeması) olarak döndür.',
   ].join('\n');
 }
@@ -249,7 +254,7 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
     resource: 'claude',
     async inputHash(ctx) {
       const storyboard = await latestArtifact(deps.pool, ctx.runId, 'storyboard');
-      const style = await getChannelStyle(deps.pool);
+      const style = await styleFor(deps.pool, ctx.approach);
       // Plan C8: a fix round is a new input (the review it answers), so it never reuses the previous round's build.
       const review = ctx.round > 0 ? await latestArtifact(deps.pool, ctx.runId, 'draft_review') : null;
       // Plan F12: the same for a final round: its cause (a compose-only round never gets here, a build round has the same storyboard as the last build).
@@ -271,7 +276,7 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
       const storyboard = sb ? validateArtifact('Storyboard', sb.content) : null;
       const research = rs ? validateArtifact('ProductResearch', rs.content) : null;
       if (!storyboard?.ok || !research?.ok) return { status: 'failed', error: 'storyboard ya da araştırma çıktısı yok', retry: false };
-      const style = await getChannelStyle(deps.pool);
+      const style = await styleFor(deps.pool, ctx.approach);
       const specs = new SpecStore(join(ctx.runDir, 'spec'), ARTIFACT_VALIDATOR);
       let last: SceneBuild | null = null;
       const reviewArt = ctx.round > 0 ? await latestArtifact(deps.pool, ctx.runId, 'draft_review') : null;
@@ -298,7 +303,7 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
       const r = await runStructured<SceneSpec>({
         manager: deps.manager, ctx, role: 'builder', prompt: fresh, schema: 'SceneSpec',
         initialResume: prior ? { claudeSessionId: prior.claudeSessionId, parent: prior.id, prompt: resumePrompt } : undefined,
-        check: (s) => sceneRefErrors(s, storyboard.value, style.id),
+        check: (s) => [...sceneRefErrors(s, storyboard.value, style.id), ...(ctx.approach === 'yaklasim' ? yaklasimSceneErrors(s, storyboard.value) : [])],
         // Plan B6: the structured SceneSpec is canonical; the step builds it itself with the final scene/product.py.
         checkAsync: async (s) => {
           const latest = await specs.read('scene');
@@ -466,6 +471,8 @@ export function reviewPrompt(o: { name: string; storyboard: Storyboard; scene: S
     '',
     fenced('Sahne', { hero_part: o.scene.hero_part, parts: o.scene.parts.map((p) => ({ id: p.id, name_tr: p.name_tr })), build_warnings: o.warnings }),
     '',
+    // YAKLASIM spec Y18: a YAKLASIM draft has no part labels; the yellow ring on the macro beat marks the hero part.
+    ...(o.storyboard.beats.every((b) => !!b.role) ? ['YAKLASIM taslağı: parça etiketi yoktur — labels_correct burada "makro vuruşundaki sarı halka doğru parçada mı, yazı gösterilen parçayla uyumlu mu" demektir; 0. kare kapaktır ve nesne zaten parçalanıyor olmalı (hero_frame0); statik sahne yok; zemin, ızgara ve yazılar Remotion katmanıdır.', ''] : []),
     ...(o.brief?.trim() ? [...briefBlock(o.brief, 'reviewer'), ''] : []),
     `Kontakt sayfası: ${o.sheet} (12 kare; soldan sağa, yukarıdan aşağı; zamanlar sn: ${o.times.join(', ')}). Read ile aç. Kırmızı bölgeler TikTok arayüzünün kapattığı alan.`,
     `Vuruş sınırları (sn): ${bounds.join(', ')}. Gerekirse extract_frames ile en çok 12 tek kare al (kırpma 2× büyütür).`,

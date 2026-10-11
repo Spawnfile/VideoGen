@@ -4,14 +4,14 @@ import { DURATION_HARD } from './production.ts';
 import { CHANNEL_STYLE_IDS, type ChannelStyleId } from './styles.ts';
 
 /** vg_blender building blocks (python/vg_blender/vg_blender/primitives.py). Descriptive: product.py is the geometry source. */
-export const PRIMITIVES = ['lathe', 'box', 'cylinder', 'sphere', 'tube', 'spring', 'gear', 'screw', 'extrude', 'pcb', 'wire', 'mesh'] as const;
+export const PRIMITIVES = ['lathe', 'box', 'cylinder', 'sphere', 'tube', 'spring', 'gear', 'screw', 'extrude', 'pcb', 'wire', 'mesh', 'text'] as const;
 export type Primitive = (typeof PRIMITIVES)[number];
 /** vg_blender/materials.py presets (spec §7.3: wear, roughness, bump, brushed metal; brass, chrome, ABS, clear PC). */
 export const MATERIAL_PRESETS = ['brass', 'chrome', 'steel', 'aluminum', 'copper', 'abs_matte', 'abs_gloss', 'pc_clear', 'rubber', 'pcb_green', 'ink', 'paper', 'ceramic'] as const;
 export type MaterialPreset = (typeof MATERIAL_PRESETS)[number];
 export const EASES = ['linear', 'ease_in', 'ease_out', 'ease_in_out', 'back_out'] as const;
 export type Ease = (typeof EASES)[number];
-export const LIGHTING_PRESETS = ['key_rim_warm', 'key_rim_cool', 'soft_box'] as const;
+export const LIGHTING_PRESETS = ['key_rim_warm', 'key_rim_cool', 'soft_box', 'yaklasim'] as const;
 export type LightingPreset = (typeof LIGHTING_PRESETS)[number];
 /** Spec §7.4 events.json. */
 export const SCENE_EVENT_TYPES = ['explode_start', 'part_lock', 'label_in', 'zoom'] as const;
@@ -29,8 +29,16 @@ const ScenePartSchema = z.object({
   /** Reserved for CC0 assets (spec §7.3 order 2–5). M4b rejects it: the asset ledger and license gate arrive in M5. */
   asset_ref: z.string().max(120).optional(),
   material_preset: z.enum(MATERIAL_PRESETS),
-  /** The part moves by `vector` (cm, Blender Z-up) between t_start and t_end (s), then stays. */
-  explode: z.object({ vector: vec3, t_start: z.number().min(0), t_end: z.number().positive(), ease: z.enum(EASES) }),
+  /**
+   * The part moves by `vector` (cm, Blender Z-up) between t_start and t_end (s), then stays; with `back` it returns home between
+   * back.t_start and back.t_end (YAKLASIM spec Y12: the snap). t_start may be up to 1 s before 0: the burst is under way at frame 0.
+   */
+  explode: z.object({
+    vector: vec3, t_start: z.number().min(-1), t_end: z.number().positive(), ease: z.enum(EASES),
+    back: z.object({ t_start: z.number().min(0), t_end: z.number().positive(), ease: z.enum(EASES) }).optional(),
+  }),
+  /** YAKLASIM spec Y12: the mechanism's real motion — a turn about the part's local axis (degrees) between t_start and t_end. */
+  spin: z.object({ axis: z.enum(['x', 'y', 'z']), degrees: z.number().min(-3600).max(3600), t_start: z.number().min(0), t_end: z.number().positive(), ease: z.enum(EASES) }).optional(),
   /** Label anchor in the part's local frame (cm). */
   anchor_local: vec3,
 });
@@ -69,6 +77,10 @@ export const SceneSpecSchema = SceneBase.superRefine((s, ctx) => {
   s.parts.forEach((p, i) => {
     if (p.explode.t_end <= p.explode.t_start) issue(['parts', i, 'explode', 't_end'], "t_end, t_start'tan büyük olmalı");
     if (p.explode.t_end > s.duration_s + EPS) issue(['parts', i, 'explode', 't_end'], `t_end sürenin (${s.duration_s} sn) içinde olmalı`);
+    const b = p.explode.back;
+    if (b && (b.t_start < p.explode.t_end - EPS || b.t_end <= b.t_start || b.t_end > s.duration_s + EPS)) issue(['parts', i, 'explode', 'back'], `back, patlamadan sonra başlamalı ve sürenin içinde bitmeli`);
+    const sp = p.spin;
+    if (sp && (sp.t_end <= sp.t_start || sp.t_end > s.duration_s + EPS)) issue(['parts', i, 'spin'], 'spin t_end, t_start\'tan büyük ve sürenin içinde olmalı');
     if (p.asset_ref !== undefined) issue(['parts', i, 'asset_ref'], 'hazır varlık (asset_ref) varlık defteri ve lisans kapısı gelene kadar (M5) kullanılamaz; parçayı vg_blender ile kur');
   });
   const keys = s.camera_keys;

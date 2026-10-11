@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { aigcRequired, FINAL_MAX_ROUNDS, formatScore, pickBest, STOP_NOTE, VoiceTrackSchema, type LoopStop } from '@videogen/shared';
-import { appendAudit, findArtifact, latestArtifact, listRunReviews, setBestVersion } from '@videogen/db';
+import { aigcRequired, FINAL_MAX_ROUNDS, formatScore, pickBest, STOP_NOTE, validateArtifact, VoiceTrackSchema, type LoopStop } from '@videogen/shared';
+import { appendAudit, findArtifact, latestArtifact, listRunReviews, setBestVersion, setGeneratedText } from '@videogen/db';
 import type pg from 'pg';
 import { removeRunFrames } from '../render/frames.ts';
 import { openLabels, roundChecks, voiceTrackFor } from './review-step.ts';
@@ -93,6 +93,10 @@ export function finalizeExecutor(deps: StepDeps): StepExecutor {
         await writeFile(file, JSON.stringify(finish, null, 2));
         await record(deps, ctx, { kind: 'finish', file, content: finish, inputHash: hash, meta: { round: finish.round, verdict: finish.verdict } });
       }
+      // YAKLASIM spec Y17: the storyboard's caption and YouTube title go to the video (never over the user's own edit).
+      const board = validateArtifact('Storyboard', (await latestArtifact(deps.pool, ctx.runId, 'storyboard'))?.content);
+      const pub = board.ok ? board.value.publish : undefined;
+      if (pub) await setGeneratedText(deps.pool, ctx.videoId, { caption: pub.caption, youtubeTitle: pub.youtube_title });
       const dirs = removeRunFrames(deps.dataDir, ctx.runId);
       if (dirs.length) await appendAudit(deps.pool, { actorType: 'orchestrator', action: 'frames.deleted', runId: ctx.runId, stepId: ctx.stepId, data: { dirs } });
       return outcome(finish);
