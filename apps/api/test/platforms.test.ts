@@ -27,8 +27,8 @@ async function finished(name: string) {
   await setBestVersion(t.pool, r.videoId, r.versionId);
   return r;
 }
-const post = (id: string, payload: unknown, headers: Record<string, string> = H) => app.inject({ method: 'POST', url: `/api/videos/${id}/platforms`, headers, payload });
-const patch = (id: string, payload: unknown, headers: Record<string, string> = H) => app.inject({ method: 'PATCH', url: `/api/videos/${id}/text`, headers, payload });
+const post = (id: string, payload: Record<string, unknown>, headers: Record<string, string> = H) => app.inject({ method: 'POST', url: `/api/videos/${id}/platforms`, headers, payload });
+const patch = (id: string, payload: Record<string, unknown>, headers: Record<string, string> = H) => app.inject({ method: 'PATCH', url: `/api/videos/${id}/text`, headers, payload });
 
 describe('platform routes (video library L12, L15, L16, L18)', () => {
   it('mark, read, undo; the list summary carries the state; the read carries the licence lines', async () => {
