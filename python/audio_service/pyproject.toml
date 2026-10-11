@@ -7,7 +7,6 @@ name = "videogen-audio-service"
 version = "0.1.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-  "faster-whisper==1.2.1",
   "soundfile>=0.12",
   "numpy>=1.26",
 ]
