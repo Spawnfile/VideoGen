@@ -11,7 +11,6 @@ import { tailnetConfig, type TailnetConfig } from './tailnet.ts';
 import { registerAgentRoutes } from './routes/agents.ts';
 import { registerAssetRoutes } from './routes/assets.ts';
 import { registerAuditRoutes } from './routes/audit.ts';
-import { registerChannelRoutes } from './routes/channel.ts';
 import { registerChatRoutes } from './routes/chat.ts';
 import { registerMaintenanceRoutes } from './routes/maintenance.ts';
 import { registerMediaRoutes } from './routes/media.ts';
@@ -79,7 +78,6 @@ export async function buildApp(deps: { pool: pg.Pool; hub: EventHub; config: Con
   await app.register(fastifyStatic, { root: deps.config.dataDir, serve: false });
   registerMediaRoutes(app, { pool: deps.pool, dataDir: deps.config.dataDir });
   registerRoleRoutes(app, { pool: deps.pool, devEndpoints: deps.config.devEndpoints });
-  registerChannelRoutes(app, { pool: deps.pool });
   registerVoiceRoutes(app, { pool: deps.pool });
   registerSafeAreaRoutes(app, { pool: deps.pool });
   registerAssetRoutes(app, { pool: deps.pool, config: deps.config, ...(deps.uploadMaxBytes ? { uploadMaxBytes: deps.uploadMaxBytes } : {}) });

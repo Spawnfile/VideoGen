@@ -65,7 +65,6 @@ function UsageSection() {
   return <section className="rounded-card bg-paper p-4"><StatusBody s={s} /></section>;
 }
 
-// YAKLASIM spec Y2/Y8: no channel identity or narrator voice to choose (the approach fixes both).
 type SectionId = 'claude' | 'usage' | 'safe-area' | 'roles' | 'data' | 'device';
 interface Row { id: SectionId | 'audit' | 'assets'; label: string; render?: () => ReactNode }
 const GROUPS: { title: string; rows: Row[] }[] = [

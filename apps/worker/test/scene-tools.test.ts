@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Storyboard } from '@videogen/shared';
-import { createProduceRun, setChannelStyle } from '@videogen/db';
+import { createProduceRun } from '@videogen/db';
 import { SpecStore } from '@videogen/claude';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
 import { FakeRenderDriver, type Capability } from '../src/render/driver.ts';
@@ -51,11 +51,19 @@ describe('scene tools', () => {
     cap = { ok: true };
     expect((await buildScene(deps(), { runDir: await runDir({ scene: false }), owner: 's' })).errors[0]).toMatch(/write_spec/);
     expect((await buildScene(deps(), { runDir: await runDir({ product: '' }), owner: 's' })).errors[0]).toMatch(/product\.py yok/);
-    await setChannelStyle(t.pool, 'atolye');
+    await t.pool.query(`INSERT INTO settings (key, value) VALUES ('channel.style', '{"id":"atolye"}') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`);
     expect((await buildScene(deps(), { runDir: await runDir(), owner: 's' })).ok).toBe(true);
     const wrong = (await buildScene(deps(), { runDir: await runDir({ style: 'gece_mavisi' }), owner: 's' })).errors.join(' ');
     expect(wrong).toMatch(/style_id kanal kimliği "yaklasim"/);
     expect(wrong).toMatch(/yaklasim style/);
+  });
+
+  it('spec Z2: a pre-YAKLASIM run (approach null) also builds with the yaklasim identity; a stored channel.style row is ignored', async () => {
+    cap = { ok: true };
+    const run = await runDir();
+    await t.pool.query('UPDATE videos v SET approach = NULL FROM runs r WHERE r.video_id = v.id AND r.id::text = $1', [basename(run)]);
+    await t.pool.query(`INSERT INTO settings (key, value) VALUES ('channel.style', '{"id":"atolye"}') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`);
+    expect((await buildScene(deps(), { runDir: run, owner: 's' })).styleId).toBe('yaklasim');
   });
 
   it('passes product.py errors back and marks a missing render capability as not the agent\'s fault', async () => {

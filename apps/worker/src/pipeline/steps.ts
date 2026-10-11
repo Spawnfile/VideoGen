@@ -9,7 +9,7 @@ import {
   DEFAULT_DURATION, formatWindow, windowErrors,
   type DurationSource, type DurationWindow, type AudioMode, type BuildReport, type ChannelStyleId, type DraftCheckId, type ProductResearch, type Review, type SceneSpec, type StepKey, type Storyboard,
 } from '@videogen/shared';
-import { appendAudit, findArtifact, getBlob, styleFor, insertArtifact, latestArtifact, latestStepSession, setProductDifficulty } from '@videogen/db';
+import { appendAudit, findArtifact, getBlob, insertArtifact, latestArtifact, latestStepSession, setProductDifficulty } from '@videogen/db';
 import { SpecStore, type FakeScript, type SpecKind } from '@videogen/claude';
 import { bundleHash, DRAFT_RENDER } from '@videogen/remotion/hash';
 import { draftProps, type DraftProps } from '@videogen/remotion/props';
@@ -247,6 +247,9 @@ export function buildPrompt(name: string, styleId: ChannelStyleId, storyboard: S
 const BUILD_FILE_KINDS = [['blend', 'scene_blend'], ['glb', 'scene_glb']] as const;
 const BUILD_JSON_KINDS = [['anchors', 'scene_anchors'], ['events', 'scene_events'], ['cameraTrack', 'camera_track'], ['report', 'build_report']] as const;
 
+/** Spec Z2: every build uses the YAKLASIM identity (no channel style choice). */
+const STYLE_ID = 'yaklasim' as const;
+
 /** Spec §7.1 step 4: builder agent → SceneSpec + product.py; the step's own trusted build and previews become the artifacts. */
 export function buildExecutor(deps: StepDeps): StepExecutor {
   return {
@@ -254,12 +257,11 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
     resource: 'claude',
     async inputHash(ctx) {
       const storyboard = await latestArtifact(deps.pool, ctx.runId, 'storyboard');
-      const style = await styleFor(deps.pool, ctx.approach);
       // Plan C8: a fix round is a new input (the review it answers), so it never reuses the previous round's build.
       const review = ctx.round > 0 ? await latestArtifact(deps.pool, ctx.runId, 'draft_review') : null;
       // Plan F12: the same for a final round: its cause (a compose-only round never gets here, a build round has the same storyboard as the last build).
       const cause = ctx.fixRound > 0 ? await roundCause(deps.pool, ctx.runId, ctx.fixRound) : null;
-      return sha({ step: 'build', storyboard: storyboard?.id ?? null, style: style.id, schema: SCHEMA_VERSION.scene, round: ctx.round, review: review?.id ?? null, ...(ctx.fixRound > 0 ? { fixRound: ctx.fixRound, cause: causeKey(cause) } : {}) });
+      return sha({ step: 'build', storyboard: storyboard?.id ?? null, style: STYLE_ID, schema: SCHEMA_VERSION.scene, round: ctx.round, review: review?.id ?? null, ...(ctx.fixRound > 0 ? { fixRound: ctx.fixRound, cause: causeKey(cause) } : {}) });
     },
     async reuse(ctx, hash) {
       const scene = await findArtifact(deps.pool, { runId: ctx.runId, kind: 'scene', inputHash: hash });
@@ -276,7 +278,6 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
       const storyboard = sb ? validateArtifact('Storyboard', sb.content) : null;
       const research = rs ? validateArtifact('ProductResearch', rs.content) : null;
       if (!storyboard?.ok || !research?.ok) return { status: 'failed', error: 'storyboard ya da araştırma çıktısı yok', retry: false };
-      const style = await styleFor(deps.pool, ctx.approach);
       const specs = new SpecStore(join(ctx.runDir, 'spec'), ARTIFACT_VALIDATOR);
       let last: SceneBuild | null = null;
       const reviewArt = ctx.round > 0 ? await latestArtifact(deps.pool, ctx.runId, 'draft_review') : null;
@@ -285,11 +286,11 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
       const rm = reviewArt?.meta as { round?: number; fixRound?: number } | null;
       const draftFix = review?.ok && rm?.round === ctx.round - 1 && (rm.fixRound ?? 0) === ctx.fixRound;
       const cause = ctx.fixRound > 0 && !draftFix ? await roundCause(deps.pool, ctx.runId, ctx.fixRound) : null;
-      if (cause?.kind === 'build') return buildWithoutAgent(deps, ctx, hash, scene, style);
+      if (cause?.kind === 'build') return buildWithoutAgent(deps, ctx, hash, scene);
       // H13: a voice round. The voice step ran before this step: kept beat times pass the scene through (or build it agent-free when the fixer touched it); retimed ones resume the builder.
       if (cause?.kind === 'voice' && cause.rebuild === null) return { status: 'failed', error: 'seslendirme turu: bu turun seslendirmesi yok', retry: false };
       if (cause?.kind === 'voice' && cause.rebuild === false) {
-        if (rendersChanged(cause.changed)) return buildWithoutAgent(deps, ctx, hash, scene, style);
+        if (rendersChanged(cause.changed)) return buildWithoutAgent(deps, ctx, hash, scene);
         return { status: 'done', note: 'seslendirme turu: vuruş süreleri korundu; sahne yeniden kullanıldı' };
       }
       const retimed = cause?.kind === 'voice' && cause.rebuild === true;
@@ -299,11 +300,11 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
       // Plan B15 + C8: a restarted attempt, a draft fix round or a rework round continues the step's own builder session (it knows product.py).
       const prior = ctx.attempt > 1 || fixes ? await latestStepSession(deps.pool, ctx.stepId, 'builder') : null;
       const resumePrompt = fixes ? (ctx.attempt > 1 ? `${RESUME_PROMPT}\n\n${fixes}` : fixes) : RESUME_PROMPT;
-      const fresh = buildPrompt(ctx.productName, style.id, storyboard.value, research.value, ctx.brief) + (fixes ? `\n\n${fixes}` : '');
+      const fresh = buildPrompt(ctx.productName, STYLE_ID, storyboard.value, research.value, ctx.brief) + (fixes ? `\n\n${fixes}` : '');
       const r = await runStructured<SceneSpec>({
         manager: deps.manager, ctx, role: 'builder', prompt: fresh, schema: 'SceneSpec',
         initialResume: prior ? { claudeSessionId: prior.claudeSessionId, parent: prior.id, prompt: resumePrompt } : undefined,
-        check: (s) => [...sceneRefErrors(s, storyboard.value, style.id), ...(ctx.approach === 'yaklasim' ? yaklasimSceneErrors(s, storyboard.value) : [])],
+        check: (s) => [...sceneRefErrors(s, storyboard.value, STYLE_ID), ...(ctx.approach === 'yaklasim' ? yaklasimSceneErrors(s, storyboard.value) : [])],
         // Plan B6: the structured SceneSpec is canonical; the step builds it itself with the final scene/product.py.
         checkAsync: async (s) => {
           const latest = await specs.read('scene');
@@ -315,7 +316,7 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
           if (last.unavailable) return { errors: [], fatal: last.errors.join('; ') };
           return { errors: last.errors.map((e) => `build_scene: ${e}`) };
         },
-        fakeScript: deps.fakeScript ? (n) => deps.fakeScript!('builder', ctx, n, { styleId: style.id }) : undefined,
+        fakeScript: deps.fakeScript ? (n) => deps.fakeScript!('builder', ctx, n, { styleId: STYLE_ID }) : undefined,
       });
       if (!r.ok) return failure(r);
       const built = last as SceneBuild | null;
@@ -323,24 +324,24 @@ export function buildExecutor(deps: StepDeps): StepExecutor {
       if (retimed && prevScene && prevGlb?.blobSha && canonical(prevScene.content) === canonical(r.value) && (await fileSha256(built.files.glb)) === prevGlb.blobSha) {
         return { status: 'failed', error: 'seslendirme turu: storyboard yeniden zamanlandı ama sahne değişmedi', retry: false };
       }
-      return recordBuild(deps, ctx, hash, scene, { spec: r.value, built, chosen: style.chosen });
+      return recordBuild(deps, ctx, hash, scene, { spec: r.value, built });
     },
   };
 }
 
 /** Plan F12: a final round whose fix touched the scene (build scope): the step builds the SpecStore's latest scene and `scene/product.py` itself, no agent. */
-async function buildWithoutAgent(deps: StepDeps, ctx: StepContext, hash: string, scene: SceneDeps, style: { chosen: boolean }): Promise<StepOutcome> {
+async function buildWithoutAgent(deps: StepDeps, ctx: StepContext, hash: string, scene: SceneDeps): Promise<StepOutcome> {
   const rec = await new SpecStore(join(ctx.runDir, 'spec'), ARTIFACT_VALIDATOR).read('scene');
   const spec = validateArtifact('SceneSpec', rec?.value);
   if (!spec.ok) return { status: 'failed', error: `sahne spec'i geçersiz ya da yok: ${spec.errors.join('; ')}`, retry: false };
   const built = await buildScene(scene, { runDir: ctx.runDir, owner: ctx.stepId, signal: ctx.signal });
   if (ctx.signal.aborted) return { status: 'cancelled' };
   if (!built.ok || !built.files) return { status: 'failed', error: `build_scene: ${built.errors.join('; ') || 'güvenilir build sonucu yok'}`, retry: false };
-  return recordBuild(deps, ctx, hash, scene, { spec: spec.value, built, chosen: style.chosen, latest: true });
+  return recordBuild(deps, ctx, hash, scene, { spec: spec.value, built, latest: true });
 }
 
 /** The build step's own previews and artifact writes after a trusted build (the agentic path and the agent-free fix round share them). */
-async function recordBuild(deps: StepDeps, ctx: StepContext, hash: string, scene: SceneDeps, o: { spec: SceneSpec; built: SceneBuild; chosen: boolean; latest?: boolean }): Promise<StepOutcome> {
+async function recordBuild(deps: StepDeps, ctx: StepContext, hash: string, scene: SceneDeps, o: { spec: SceneSpec; built: SceneBuild; latest?: boolean }): Promise<StepOutcome> {
   const built = o.built as SceneBuild & { files: BuildFiles };
   const preview = await previewScene(scene, {
     runDir: ctx.runDir, owner: ctx.stepId, signal: ctx.signal,
@@ -357,7 +358,7 @@ async function recordBuild(deps: StepDeps, ctx: StepContext, hash: string, scene
   for (const [k, kind] of BUILD_JSON_KINDS) await put(kind, built.files[k], JSON.parse(await readFile(built.files[k], 'utf8')));
   await put('preview_sheet', preview.sheet, undefined, { frames: preview.stills.length, renderer: preview.renderer });
   const rep = built.report!;
-  return { status: 'done', note: `${rep.parts.length} parça · ${rep.triangles.toLocaleString('tr-TR')} üçgen · ${rep.warnings.length ? `${rep.warnings.length} uyarı` : 'uyarı yok'}${o.chosen ? '' : ' · kanal kimliği geçici'}` };
+  return { status: 'done', note: `${rep.parts.length} parça · ${rep.triangles.toLocaleString('tr-TR')} üçgen · ${rep.warnings.length ? `${rep.warnings.length} uyarı` : 'uyarı yok'}` };
 }
 
 /** Artifact file → media store → `artifacts` row → audit (the draft steps; the build keeps its own `put`). */

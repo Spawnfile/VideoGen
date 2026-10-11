@@ -6,7 +6,7 @@ import {
   canonical, FINAL_CHECKS, FINAL_MAX_ROUNDS, fixReportRefErrors, musicScoreErrors, fixScope, formatScore, rendersChanged, sceneRefErrors, yaklasimSceneErrors, yaklasimStoryboardErrors, STOP_NOTE, storyboardRefErrors, storyboardVoErrors, validateArtifact, windowErrors,
   type AudioMode, type AudioPlan, type FinalCheckId, type MusicScore, type FixReport, type ModelAlias, type ProductResearch, type SceneSpec, type ScopeInput, type Storyboard,
 } from '@videogen/shared';
-import { appendAudit, findArtifact, styleFor, insertVersion, listAssets } from '@videogen/db';
+import { appendAudit, findArtifact, insertVersion, listAssets } from '@videogen/db';
 import { SpecStore } from '@videogen/claude';
 import { RESUME_PROMPT } from '../agents/manager.ts';
 import { runStructured } from './agent-step.ts';
@@ -138,7 +138,6 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
   await insertVersion(deps.pool, { id: versionId, videoId: ctx.videoId, parentVersionId: ctx.versionId, round, reason: 'fix:pending' });
   const prev = await loadPrev(deps.pool, ctx.runId, versionId);
   if (!prev) return { status: 'failed', error: 'düzeltilecek storyboard, sahne ya da araştırma çıktısı yok', retry: false };
-  const style = await styleFor(deps.pool, ctx.approach);
   const prevInput: ScopeInput = { storyboard: prev.storyboard, scene: prev.scene, research: prev.research, productSha: prev.productSha ?? '', audio: prev.audio, audioMode: ctx.audioMode, music: prev.music };
 
   let computed: { next: ScopeInput; scope: 'none' | 'compose' | 'voice' | 'build'; changed: string[] } | null = null;
@@ -147,7 +146,7 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
     const n = await readNext(ctx, prev);
     if ('errors' in n) return { errors: n.errors };
     const refs: string[] = [
-      ...storyboardRefErrors(n.next.storyboard, prev.research), ...sceneRefErrors(n.next.scene, n.next.storyboard, style.id),
+      ...storyboardRefErrors(n.next.storyboard, prev.research), ...sceneRefErrors(n.next.scene, n.next.storyboard, 'yaklasim'),
       // YAKLASIM spec Y6/Y13: a fix may not break the approach (window, chain, words, loop, identity, mid-burst frame 0, snaps).
       ...(ctx.approach === 'yaklasim' ? [...yaklasimStoryboardErrors(n.next.storyboard), ...yaklasimSceneErrors(n.next.scene, n.next.storyboard)] : []),
       ...(ctx.approach === 'yaklasim' && canonical(n.next.music ?? null) !== canonical(prev.music ?? null) ? ['YAKLASIM müziği sabittir: partisyonu (write_spec music) değiştirme; ses bulgusunu sahne zamanlamasıyla ya da ses planıyla (write_spec audio) çöz.'] : []), ...(n.next.storyboard.audio_mode === ctx.audioMode ? [] : [`audio_mode ${ctx.audioMode} olmalı`]),

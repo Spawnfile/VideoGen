@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { producePlan, type AudioMode, type StepKey } from '@videogen/shared';
-import { createProduceRun, getBlob, getRunView, getVideoView, insertArtifact, insertSession, listArtifacts, listRunSteps, setChannelStyle } from '@videogen/db';
+import { createProduceRun, getBlob, getRunView, getVideoView, insertArtifact, insertSession, listArtifacts, listRunSteps } from '@videogen/db';
 import { FakeClaudeDriver, SpecStore, type ClaudeDriver, type FakeScript, type SessionSpec } from '@videogen/claude';
 import { createTestDb } from '../../../packages/db/test/helpers.ts';
 import { SessionManager } from '../src/agents/manager.ts';
@@ -87,7 +87,7 @@ describe('build step', () => {
     const ex = buildExecutor(deps);
     const before = await ex.inputHash(ctx);
     expect(await ex.run(ctx, before)).toMatchObject({ status: 'done' });
-    await setChannelStyle(t.pool, 'atolye');
+    await t.pool.query(`INSERT INTO settings (key, value) VALUES ('channel.style', '{"id":"atolye"}') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`);
     expect(await ex.inputHash(ctx)).toBe(before);
     expect(await ex.reuse!(ctx, before)).toBe(true);
     await t.pool.query("DELETE FROM settings WHERE key = 'channel.style'");

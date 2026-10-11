@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { ProduceBody } from './brief-view.ts';
-import type { AgentSessionView, ArtifactMeta, AssetListItem, LedgerKind, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, ChannelStyleId, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, MaintenanceInfo, ModelAlias, NarratorVoice, Platform, PlatformAction, PlatformEvent, PlatformSummary, SafeArea, SafeAreaState, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VersionView, VideoView, VoiceEngine } from '@videogen/shared/browser';
+import type { AgentSessionView, ArtifactMeta, AssetListItem, LedgerKind, AuditActionCount, AuditDetail, AuditPage, AuditVerifyResult, ChatMessage, ChatMode, ChatThread, ClaudeAuth, Effort, GuardState, MaintenanceInfo, ModelAlias, NarratorVoice, Platform, PlatformAction, PlatformEvent, PlatformSummary, SafeArea, SafeAreaState, ReviewRecord, RoleName, RunView, TraceRow, UsageSnapshot, VersionView, VideoView, VoiceEngine } from '@videogen/shared/browser';
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
@@ -65,8 +65,6 @@ export const api = {
   run: (id: string) => getFresh<RunView>(`/api/runs/${id}`),
   cancelRun: (id: string) => send<{ accepted: boolean }>('POST', `/api/runs/${id}/cancel`),
   artifact: (id: string) => get<ArtifactMeta & { content: unknown }>(`/api/artifacts/${id}`),
-  channelStyle: () => get<ChannelStyleState>('/api/channel-style'),
-  setChannelStyle: (id: ChannelStyleId) => send<ChannelStyleState>('PUT', '/api/channel-style', { id }),
   narratorVoice: () => get<NarratorVoiceState>('/api/narrator-voice'),
   setNarratorVoice: (voice: NarratorVoice) => send<NarratorVoiceState>('PUT', '/api/narrator-voice', voice),
   // Plan M7 Y5: read-only audit explorer; the list path comes from audit-view's auditListPath.
@@ -108,11 +106,6 @@ export interface NarratorVoiceState {
   options: { engine: VoiceEngine; voices: { kind: 'preset' | 'clone'; id?: string; asset_id?: string; label_tr: string }[] }[];
 }
 
-export interface ChannelStyleState {
-  id: ChannelStyleId;
-  chosen: boolean;
-  options: { id: ChannelStyleId; name_tr: string; description_tr: string; image: string }[];
-}
 
 /** Content-addressed media (HTTP Range, immutable). */
 export const blobUrl = (sha: string) => `/api/blobs/${sha}`;

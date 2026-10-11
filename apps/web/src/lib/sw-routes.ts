@@ -4,7 +4,7 @@
  * cache first. `shell`: page navigations, network first with the cached app shell as the fallback.
  * public/sw.js repeats SW_RULES and this function (it is not bundled); a test keeps the two tables equal.
  */
-export const SW_RULES = { bypass: ['^/api/', '^/events'], asset: ['^/assets/', '^/icons/', '^/k19/', '^/favicon\\.svg$', '^/manifest\\.webmanifest$'] };
+export const SW_RULES = { bypass: ['^/api/', '^/events'], asset: ['^/assets/', '^/icons/', '^/favicon\\.svg$', '^/manifest\\.webmanifest$'] };
 
 export type SwRoute = 'shell' | 'asset' | 'bypass';
 export interface SwRequest { url: string; method: string; mode: string; range: boolean }

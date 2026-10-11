@@ -17,16 +17,9 @@ beforeAll(async () => {
 });
 afterAll(async () => { await app.close(); await hub.stop(); await t.drop(); });
 
-describe('channel style (K19)', () => {
-  it('offers three options with their renders, starts provisional, stores a choice with an audit row and rejects unknown ids', async () => {
-    const first = (await app.inject({ url: '/api/channel-style', headers: H })).json();
-    expect(first).toMatchObject({ id: 'gece_mavisi', chosen: false });
-    expect(first.options.map((o: { id: string; image: string }) => [o.id, o.image])).toEqual([['atolye', '/k19/atolye.png'], ['beyaz_lab', '/k19/beyaz_lab.png'], ['gece_mavisi', '/k19/gece_mavisi.png']]);
-    expect((await app.inject({ method: 'PUT', url: '/api/channel-style', headers: H, payload: { id: 'neon' } })).statusCode).toBe(400);
-    const put = await app.inject({ method: 'PUT', url: '/api/channel-style', headers: H, payload: { id: 'atolye' } });
-    expect(put.json()).toMatchObject({ id: 'atolye', chosen: true });
-    expect((await app.inject({ method: 'PUT', url: '/api/channel-style', headers: { ...H, origin: 'http://evil.example' }, payload: { id: 'beyaz_lab' } })).statusCode).toBe(403);
-    const { rows } = await t.pool.query("SELECT data FROM audit_log WHERE action = 'settings.channel_style' ORDER BY seq");
-    expect(rows.map((r) => r.data)).toEqual([{ from: null, to: 'atolye' }]);
+describe('channel style (spec Z2)', () => {
+  it('the K19 style choice is gone: no /api/channel-style', async () => {
+    expect((await app.inject({ url: '/api/channel-style', headers: H })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'PUT', url: '/api/channel-style', headers: H, payload: { id: 'atolye' } })).statusCode).toBe(404);
   });
 });

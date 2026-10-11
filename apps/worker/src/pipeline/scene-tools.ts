@@ -6,7 +6,6 @@ import {
   CHANNEL_STYLES, EQUIVALENCE_FRAMES, sceneRefErrors, yaklasimSceneErrors, validateArtifact,
   type BuildReport, type ChannelStyleId, type SceneSpec, type Storyboard,
 } from '@videogen/shared';
-import { approachOfRun, styleFor } from '@videogen/db';
 import { SpecStore, type BuildToolResult, type StillsToolResult } from '@videogen/claude';
 import { checkEquivalence, parseGlb } from '@videogen/scene3d';
 import type { ToolHost } from '../agents/manager.ts';
@@ -48,7 +47,7 @@ const v4 = (n: number) => `v${String(n).padStart(4, '0')}.json`;
 
 /** Spec §7.3: latest scene spec + scene/product.py → sandboxed two-phase build → three.js anchor equivalence (≤ 8 px). */
 export async function buildScene(d: SceneDeps, o: Ctx): Promise<SceneBuild> {
-  const style = await styleFor(d.pool, await approachOfRun(d.pool, basename(o.runDir)));
+  const style = { id: 'yaklasim' as const }; // spec Z2: the identity is fixed, whatever the run
   const out: SceneBuild = { ok: false, errors: [], warnings: [], unavailable: false, report: null, equivalence: null, files: null, dir: null, scene: null, specVersion: null, styleId: style.id };
   const cap = d.capability();
   if (!cap.ok) return { ...out, unavailable: true, errors: [`render kullanılamıyor: ${cap.reason}`] };
@@ -62,7 +61,7 @@ export async function buildScene(d: SceneDeps, o: Ctx): Promise<SceneBuild> {
   if (!board?.ok) return { ...out, unavailable: true, errors: ['storyboard spec\'i okunamadı'] };
   out.scene = scene.value;
   out.specVersion = sceneRec.version;
-  const refs = [...sceneRefErrors(scene.value, board.value, style.id), ...(style.id === 'yaklasim' ? yaklasimSceneErrors(scene.value, board.value) : [])];
+  const refs = [...sceneRefErrors(scene.value, board.value, style.id), ...yaklasimSceneErrors(scene.value, board.value)];
   if (refs.length) return { ...out, errors: refs };
   const productPath = join(o.runDir, 'scene', 'product.py');
   if (!existsSync(productPath)) return { ...out, errors: ['scene/product.py yok: önce geometriyi yaz.'] };
