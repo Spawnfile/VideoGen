@@ -11,7 +11,7 @@ import {
   type FinalReview, type FinalReviewerRole, type ProductResearch, type QcCheckResult, type SceneSpec, type Storyboard,
 } from '@videogen/shared';
 import { fakePipelineScript } from '../src/pipeline/fake-scripts.ts';
-import { factsPrompt, retentionPrompt, audioPrompt, visualPrompt } from '../src/pipeline/review-prompts.ts';
+import { factsPrompt, isYaklasim, retentionPrompt, audioPrompt, visualPrompt } from '../src/pipeline/review-prompts.ts';
 import { manifestFacts, numericGaps, qcFacts, recentHooks, retentionTimes, voInputs, webCheckTargets } from '../src/pipeline/review-inputs.ts';
 import type { StepContext } from '../src/pipeline/types.ts';
 
@@ -279,5 +279,30 @@ describe('review inputs, prompts and fake reviewers', () => {
     expect(report.ok).toBe(true);
     expect(fixReportRefErrors(report.ok ? report.value : (null as never), { round: 1, failed: ['claims_supported', 'claims_verified'], audioMode: 'vo' })).toEqual([]);
     expect(fix.structured).toMatchObject({ rerender_scope: 'voice', addressed: [{ check_id: 'claims_supported' }, { check_id: 'claims_verified' }] });
+  });
+});
+
+describe('YAKLASIM reviewer criteria (spec Y18)', () => {
+  it('a YAKLASIM storyboard brings the approach\'s criteria into each reviewer prompt; an older storyboard does not', () => {
+    const y = fx<Storyboard>('storyboard-kalem');
+    const legacy = fx<Storyboard>('storyboard-kalem-legacy');
+    expect([isYaklasim(y), isYaklasim(legacy)]).toEqual([true, false]);
+    const base = { name: 'Tükenmez kalem', durationS: 13, frames: 391, times: [1, 2, 3], sheet: 'review/f0/sheet.png' };
+    const ret = (sb: Storyboard, yaklasim: boolean) => retentionPrompt({ ...base, yaklasim, storyboard: sb, qc: [], hookSheet: 'h.png', hookTimes: [0, 1] });
+    expect(ret(y, true)).toContain('YAKLASIM ölçütleri: 0. kare kapaktır');
+    expect(ret(legacy, false)).not.toContain('YAKLASIM');
+    const audio = audioPrompt({ ...base, yaklasim: true, storyboard: y, score: null, facts: null, qc: [] });
+    expect(audio).toContain('ilk 5 sn efekt yok');
+    const facts = factsPrompt({ ...base, yaklasim: true, research: fx('research-kalem'), storyboard: y, targets: [] });
+    expect(facts).toContain('sayaçtaki sayı (counter.value)');
+  });
+});
+
+describe('YAKLASIM draft review (spec Y18)', () => {
+  it('the draft reviewer reads labels_correct as the ring on the right part, and the frame-0 burst as the cover; not for older storyboards', async () => {
+    const { reviewPrompt } = await import('../src/pipeline/steps.ts');
+    const o = (sb: Storyboard) => ({ name: 'Kalem', storyboard: sb, scene: fx<SceneSpec>('scene-kalem'), warnings: [], durationS: 13, frames: 391, times: [1], sheet: 's.png' });
+    expect(reviewPrompt(o(fx<Storyboard>('storyboard-kalem')))).toContain('YAKLASIM taslağı');
+    expect(reviewPrompt(o(fx<Storyboard>('storyboard-kalem-legacy')))).not.toContain('YAKLASIM');
   });
 });

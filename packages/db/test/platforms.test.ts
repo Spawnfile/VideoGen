@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  createProduceRun, finalLicence, insertArtifact, insertAsset, insertBlob, insertVersion, listPlatformEvents, recordPlatformEvent, setBestVersion, setVideoText, verifyAudit,
+  createProduceRun, finalLicence, setGeneratedText, insertArtifact, insertAsset, insertBlob, insertVersion, listPlatformEvents, recordPlatformEvent, setBestVersion, setVideoText, verifyAudit,
 } from '../src/index.ts';
 import { createTestDb } from './helpers.ts';
 
@@ -110,5 +110,20 @@ describe('platform events (video library L13–L17)', () => {
     expect(rows.map((x) => x.data.field).sort()).toEqual(['caption', 'youtubeTitle']);
     expect(rows.find((x) => x.data.field === 'caption').data).toMatchObject({ length: 28, preview: 'Two sentences. One question?' });
     expect(await setVideoText(t.pool, randomUUID(), { caption: 'x' })).toBeNull();
+  });
+
+  it('YAKLASIM spec Y17: the generated caption and title fill empty fields, never a field the user edited, and are audited', async () => {
+    const r = await finished('Üretilen metin');
+    const before = await events();
+    expect(await setGeneratedText(t.pool, r.videoId, { caption: 'Two lines. One question?\n#tag', youtubeTitle: 'Inside a pen' })).toEqual({ caption: true, youtubeTitle: true });
+    expect(await events()).toBe(before + 1);
+    const v = await setVideoText(t.pool, r.videoId, { caption: 'My own caption?' });
+    expect(v?.caption).toBe('My own caption?');
+    expect(await setGeneratedText(t.pool, r.videoId, { caption: 'A newer generated caption?', youtubeTitle: 'Newer title' })).toEqual({ caption: false, youtubeTitle: true });
+    const row = (await t.pool.query('SELECT caption, youtube_title FROM videos WHERE id = $1', [r.videoId])).rows[0];
+    expect(row).toEqual({ caption: 'My own caption?', youtube_title: 'Newer title' });
+    const gen = (await t.pool.query("SELECT data FROM audit_log WHERE subject_id = $1 AND action = 'video.text_generated' ORDER BY seq", [r.videoId])).rows.map((x) => x.data.fields);
+    expect(gen).toEqual([['caption', 'youtubeTitle'], ['youtubeTitle']]);
+    expect(await setGeneratedText(t.pool, randomUUID(), { caption: 'x?', youtubeTitle: 'y' })).toBeNull();
   });
 });

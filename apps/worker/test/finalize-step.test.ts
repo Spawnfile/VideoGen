@@ -68,6 +68,11 @@ describe('finalize step (plan T9)', () => {
     expect(fin[0].input_hash).toBe(hash);
     expect(fin[0].content).toEqual({ bestVersionId: p.r.versionId, round: 0, total: 87.5, verdict: 'ready', stop: null, openFindings: ['d7_bitrate'], aigcLabel: false });
     expect(existsSync(frames)).toBe(false);
+    // YAKLASIM spec Y17: the storyboard's caption and YouTube title reach the video (the kalem fixture's publish block).
+    const v = (await t.pool.query('SELECT caption, youtube_title FROM videos WHERE id = $1', [p.r.videoId])).rows[0];
+    expect(v.youtube_title).toBe("What's inside a ballpoint pen");
+    expect(v.caption).toMatch(/^What's inside a ballpoint pen\?/);
+    expect(v.caption).toContain('#ballpointpen');
     expect(await count(p.r.runId, "audit_log WHERE run_id = $1 AND action = 'frames.deleted'")).toBe(1);
 
     // a stored finish of the same hash decides the same, writes nothing twice

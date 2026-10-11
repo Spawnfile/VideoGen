@@ -18,7 +18,7 @@ import { runStructured } from './agent-step.ts';
 import { currentEvents, finalSource, type FinalFramesMeta } from './final-steps.ts';
 import { LIMIT_NOTE } from './notes.ts';
 import { manifestFacts, numericGaps, qcFacts, recentHooks, retentionTimes, voInputs, webCheckTargets, type VoInputs, type WebTarget } from './review-inputs.ts';
-import { audioPrompt, factsPrompt, retentionPrompt, visualPrompt } from './review-prompts.ts';
+import { isYaklasim, audioPrompt, factsPrompt, retentionPrompt, visualPrompt } from './review-prompts.ts';
 import { audioFacts, rmsCurve, type AudioFacts } from './audio-facts.ts';
 import { labelOf } from './fix-round.ts';
 import { failure, record, sha, sheetTimes, type StepDeps } from './steps.ts';
@@ -444,7 +444,8 @@ export function reviewExecutor(deps: StepDeps, opts: { pollMs?: number } = {}): 
       await sheet(i.sheetTimes, 'sheet', 'sheet.png', 3, 'main');
       await sheet(i.hookTimes, 'hooksheet', 'hook.png', 2, 'hook');
       const ev = events ? SceneEventsSchema.safeParse(events.content) : null;
-      const common = { name: ctx.productName, durationS: i.durationS, frames: i.frames, times: i.sheetTimes, sheet: i.sheetRel, brief: ctx.brief };
+      // YAKLASIM spec Y18: a yaklasim storyboard brings the approach's criteria into every reviewer's prompt.
+      const common = { name: ctx.productName, durationS: i.durationS, frames: i.frames, times: i.sheetTimes, sheet: i.sheetRel, brief: ctx.brief, yaklasim: isYaklasim(i.storyboard) };
       return {
         reviewer_visual: visualPrompt({
           ...common, storyboard: i.storyboard, scene: i.scene, qc: qcFacts('reviewer_visual', i.qc), hooks: await recentHooks(deps.pool, ctx.videoId), ...(i.mixed64 ? { mixed64: i.mixed64 } : {}), ...(i.vo ? { vo: i.vo } : {}),

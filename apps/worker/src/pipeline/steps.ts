@@ -470,6 +470,8 @@ export function reviewPrompt(o: { name: string; storyboard: Storyboard; scene: S
     '',
     fenced('Sahne', { hero_part: o.scene.hero_part, parts: o.scene.parts.map((p) => ({ id: p.id, name_tr: p.name_tr })), build_warnings: o.warnings }),
     '',
+    // YAKLASIM spec Y18: a YAKLASIM draft has no part labels; the yellow ring on the macro beat marks the hero part.
+    ...(o.storyboard.beats.every((b) => !!b.role) ? ['YAKLASIM taslağı: parça etiketi yoktur — labels_correct burada "makro vuruşundaki sarı halka doğru parçada mı, yazı gösterilen parçayla uyumlu mu" demektir; 0. kare kapaktır ve nesne zaten parçalanıyor olmalı (hero_frame0); statik sahne yok; zemin, ızgara ve yazılar Remotion katmanıdır.', ''] : []),
     ...(o.brief?.trim() ? [...briefBlock(o.brief, 'reviewer'), ''] : []),
     `Kontakt sayfası: ${o.sheet} (12 kare; soldan sağa, yukarıdan aşağı; zamanlar sn: ${o.times.join(', ')}). Read ile aç. Kırmızı bölgeler TikTok arayüzünün kapattığı alan.`,
     `Vuruş sınırları (sn): ${bounds.join(', ')}. Gerekirse extract_frames ile en çok 12 tek kare al (kırpma 2× büyütür).`,
