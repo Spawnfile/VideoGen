@@ -212,6 +212,9 @@ describe('Orchestrator', () => {
     const composed: StepKey[] = ['research', 'storyboard', 'music', 'build', 'review', 'finalize'];
     expect(preflightFor({ plan: composed, music: ok })).toBeNull();
     expect(preflightFor({ plan: composed, music: { ok: false, reason: 'ses servisi Python\'u bulunamadı' } })).toBe('Müzik kullanılamıyor: ses servisi Python\'u bulunamadı');
+    // A plan that builds a scene needs the render tools (Blender, ffmpeg) before any Claude session is spent.
+    expect(preflightFor({ plan: composed, music: ok, render: { ok: false, reason: 'ffmpeg bulunamadı' } })).toBe('Render kullanılamıyor: ffmpeg bulunamadı');
+    expect(preflightFor({ plan: ['research', 'storyboard'], render: { ok: false, reason: 'ffmpeg bulunamadı' } })).toBeNull();
 
     // runPreflight asks the music driver; an empty music ledger blocks nothing (Review Focus 4).
     const r0 = await createProduceRun(t.pool, { productName: 'Kalem P1', audioMode: 'silent', plan: composed.map((key) => ({ key, weight: 10 })) });

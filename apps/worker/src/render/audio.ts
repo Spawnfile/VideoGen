@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process';
 import { copyFile } from 'node:fs/promises';
-import { capture, muxVariant } from './ffmpeg.ts';
+import { capture, ffmpegError, muxVariant } from './ffmpeg.ts';
 
 const run = (ffmpeg: string, args: string[], signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
-  execFile(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', ...args], { timeout: 300_000, signal, maxBuffer: 16 * 1024 * 1024 }, (err, _o, e) => (err ? reject(new Error(`ffmpeg: ${String(e).trim().split('\n').at(-1)}`)) : resolve()));
+  execFile(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', ...args], { timeout: 300_000, signal, maxBuffer: 16 * 1024 * 1024 }, (err, _o, e) => (err ? reject(ffmpegError(ffmpeg, err, String(e).trim())) : resolve()));
 });
 
 /**

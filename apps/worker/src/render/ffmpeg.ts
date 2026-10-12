@@ -4,10 +4,27 @@ import { DEFAULT_SAFE_AREA, type SafeArea } from '@videogen/shared';
 
 export const run = (ffmpeg: string, args: string[], signal?: AbortSignal, timeoutMs = 60_000) => new Promise<void>((resolve, reject) => {
   execFile(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', ...args], { timeout: timeoutMs, signal, maxBuffer: 16 * 1024 * 1024 }, (err, _o, stderr) => {
-    if (err) reject(new Error(`ffmpeg: ${String(stderr).split('\n').filter(Boolean).at(-1) ?? (err as Error).message}`));
+    if (err) reject(ffmpegError(ffmpeg, err, stderr));
     else resolve();
   });
 });
+
+/** The failure of an ffmpeg call; a missing binary keeps its ENOENT code (step errors and audits show `Error:ENOENT`, not a bare `Error`). */
+export function ffmpegError(ffmpeg: string, err: unknown, stderr: unknown): Error {
+  const code = (err as { code?: unknown }).code;
+  if (code === 'ENOENT') return Object.assign(new Error(`ffmpeg bulunamadı (${ffmpeg}): PATH'te yok; VG_FFMPEG ile tam yolu verin`), { code });
+  return new Error(`ffmpeg: ${String(stderr ?? '').split('\n').filter(Boolean).at(-1) ?? (err as Error).message}`);
+}
+
+/** Startup check next to the render driver's: ffmpeg must run (`-version`), or every preview, draft and final fails. */
+export async function ffmpegCapability(ffmpeg: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+  try {
+    await run(ffmpeg, ['-version'], undefined, 15_000);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: (e as Error).message };
+  }
+}
 
 /** Spec §8.1 G6 / plan M7 Y15: the bands outside the safe area (top, bottom, right; 1080×1920 values) in red. Relative, so any scale. */
 export function safeAreaFilter(a: SafeArea = DEFAULT_SAFE_AREA): string {

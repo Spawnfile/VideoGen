@@ -20,6 +20,7 @@ import { Orchestrator } from './pipeline/orchestrator.ts';
 import { SystemProbe } from './pipeline/resources.ts';
 import { FakeMusicDriver, YaklasimMusicDriver, type MusicDriver } from './audio/music.ts';
 import { runPreflight } from './pipeline/preflight.ts';
+import { ffmpegCapability } from './render/ffmpeg.ts';
 import { BlenderRenderDriver, FakeRenderDriver, type Capability, type RenderDriver } from './render/driver.ts';
 import { ResourceLocks } from './render/locks.ts';
 import { ReviewTargets, reviewToolHost, toolHosts } from './pipeline/review-tools.ts';
@@ -69,7 +70,7 @@ const manager = new SessionManager({
   ),
 });
 const orchestrator = new Orchestrator({
-  pool, dataDir: config.dataDir, probe, locks, gate: guard, preflight: runPreflight({ music }),
+  pool, dataDir: config.dataDir, probe, locks, gate: guard, preflight: runPreflight({ music, render: () => renderCapability }),
   executors: pipelineExecutors({
     pool, dataDir: config.dataDir, manager, fakeScript: driver.kind === 'fake' ? fakePipelineScript : undefined, reviews, gate: guard, music,
     scene: { pool, render, locks, probe, ffmpeg: config.render.ffmpeg, encodePreset: config.render.encodePreset, capability: () => renderCapability },
@@ -101,7 +102,9 @@ try {
   await appendAudit(pool, { actorType: 'system', action: 'worker.started', data: { pid: process.pid, usagePollMs: config.usagePollMs, driver: driver.kind } });
   await recoverOnStartup(pool, config.dataDir);
   // Never fatal: chat and research still work; build steps fail with this reason (plan B3: no unsandboxed fallback).
-  renderCapability = await render.capabilities();
+  // The draft, previews and finals all need ffmpeg too (a systemd PATH without ~/.local/bin once hid it: every preview failed as 'Error').
+  const [driverCap, ffmpegCap] = await Promise.all([render.capabilities(), ffmpegCapability(config.render.ffmpeg)]);
+  renderCapability = driverCap.ok ? ffmpegCap : driverCap;
   await appendAudit(pool, { actorType: 'system', action: 'render.capabilities', data: { driver: render.kind, ...renderCapability } });
   if (!renderCapability.ok) process.stderr.write(`worker: render unavailable (${renderCapability.reason})\n`);
   manager.setRoleOverrides(await loadRoleOverrides(pool));

@@ -17,8 +17,9 @@ const ENV_FILE = join(homedir(), '.config/videogen/env');
 const sc = (...a) => spawnSync('systemctl', ['--user', ...a], { stdio: 'inherit' }).status;
 
 function unit() {
-  // nvm's node is not on systemd's PATH: pin the directory of the node running this script.
-  const path = [dirname(process.execPath), '/usr/local/sbin', '/usr/local/bin', '/usr/sbin', '/usr/bin', '/sbin', '/bin'].join(':');
+  // nvm's node is not on systemd's PATH: pin the directory of the node running this script. ~/.local/bin holds the user's own
+  // tools (ffmpeg, blender-gpu on this machine); without it every preview failed with a bare "Error" (ffmpeg ENOENT).
+  const path = [dirname(process.execPath), join(homedir(), '.local/bin'), '/usr/local/sbin', '/usr/local/bin', '/usr/sbin', '/usr/bin', '/sbin', '/bin'].join(':');
   return `[Unit]
 Description=VideoGen (Postgres container, migrations, API + worker)
 After=network-online.target
