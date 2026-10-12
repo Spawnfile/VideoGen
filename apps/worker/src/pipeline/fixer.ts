@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type pg from 'pg';
 import {
-  canonical, FINAL_CHECKS, FINAL_MAX_ROUNDS, fixReportRefErrors, fixScope, formatScore, rendersChanged, sceneRefErrors, yaklasimSceneErrors, yaklasimStoryboardErrors, STOP_NOTE, storyboardRefErrors, validateArtifact, windowErrors,
+  canonical, SFX_NAMES, FINAL_CHECKS, FINAL_MAX_ROUNDS, fixReportRefErrors, fixScope, formatScore, rendersChanged, sceneRefErrors, yaklasimSceneErrors, yaklasimStoryboardErrors, STOP_NOTE, storyboardRefErrors, validateArtifact, windowErrors,
   type AudioMode, type AudioPlan, type FinalCheckId, type MusicScore, type FixReport, type ModelAlias, type ProductResearch, type SceneSpec, type ScopeInput, type Storyboard,
 } from '@videogen/shared';
 import { appendAudit, findArtifact, insertVersion } from '@videogen/db';
@@ -85,7 +85,10 @@ async function readNext(ctx: StepContext, prev: Prev): Promise<{ next: ScopeInpu
 /** H12/H10, spec Z5: what the fixer may do to the audio plan — levels and sounds, never the music itself (the fixed YAKLASIM stem). */
 export function audioRefErrors(next: AudioPlan | null): string[] {
   if (!next) return [];
-  return next.music.source === 'generated' && next.music.asset_id === null ? [] : ['ses planı: müzik sabit YAKLASIM müziğidir (music.source "generated", asset_id null)'];
+  const out = next.music.source === 'generated' && next.music.asset_id === null ? [] : ['ses planı: müzik sabit YAKLASIM müziğidir (music.source "generated", asset_id null)'];
+  const unknown = next.sfx.exclude.filter((n) => !(SFX_NAMES as readonly string[]).includes(n));
+  if (unknown.length) out.push(`ses planı: sfx.exclude yalnızca ${SFX_NAMES.join(', ')} olabilir (${unknown.join(', ')} yok)`);
+  return out;
 }
 
 /** The outcome of a recorded fix round (also the replay): compose/build rewind, a claimed rewrite without change is a rework, nothing changed stops the loop. */
@@ -118,7 +121,7 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
   if (!prev) return { status: 'failed', error: 'düzeltilecek storyboard, sahne ya da araştırma çıktısı yok', retry: false };
   const prevInput: ScopeInput = { storyboard: prev.storyboard, scene: prev.scene, research: prev.research, productSha: prev.productSha ?? '', audio: prev.audio, audioMode: ctx.audioMode, music: prev.music };
 
-  let computed: { next: ScopeInput; scope: 'none' | 'compose' | 'voice' | 'build'; changed: string[] } | null = null;
+  let computed: { next: ScopeInput; scope: 'none' | 'compose' | 'build'; changed: string[] } | null = null;
   // The fixer may not touch the research; a render change is built by the step itself (trusted), and its errors go back to the same session.
   const checkAsync = async (): Promise<{ errors: string[]; fatal?: string }> => {
     const n = await readNext(ctx, prev);
@@ -157,7 +160,7 @@ export const runFixer: FixerRun = async (deps, ctx, input) => {
     fakeScript: deps.fakeScript ? (n) => deps.fakeScript!('fixer', ctx, n, { failed }) : undefined,
   });
   if (!r.ok) return failure(r);
-  const done = computed as { next: ScopeInput; scope: 'none' | 'compose' | 'voice' | 'build'; changed: string[] } | null;
+  const done = computed as { next: ScopeInput; scope: 'none' | 'compose' | 'build'; changed: string[] } | null;
   if (!done) return { status: 'failed', error: 'düzeltme kapsamı hesaplanamadı', retry: false };
 
   const claimed = r.value.rerender_scope;

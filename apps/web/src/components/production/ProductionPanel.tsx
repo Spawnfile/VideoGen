@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api.ts';
-import { panelView, pickDraft, pickFinal, pickReviewSheet, pickStems, isRunActive } from '../../lib/production-view.ts';
+import { cardRunId, panelView, pickDraft, pickFinal, pickReviewSheet, pickStems } from '../../lib/production-view.ts';
 import { latestRunOf, pipeline, seedRuns, seedVideos, useStore } from '../../lib/stores.ts';
 import { BuildCard, ResearchCard, ReviewCard, StoryboardCard } from './ArtifactCards.tsx';
 import { DraftTabs } from './DraftTabs.tsx';
@@ -36,11 +36,12 @@ export function ProductionPanel({ videoId }: { videoId: string | null }) {
   const sheet = useMemo(() => (panel ? pickReviewSheet(detail.data ?? [], panel.runId, panel.round) : null), [panel, detail.data]);
   const latest = useMemo(() => {
     const list = detail.data ?? [];
-    const find = (kind: string) => list.find((a) => a.kind === kind && (!run || a.runId === run.id)) ?? null;
+    const own = cardRunId(run);
+    const find = (kind: string) => list.find((a) => a.kind === kind && (!own || a.runId === own)) ?? null;
     const pick = (kind: string) => find(kind)?.id ?? null;
     return {
       research: pick('research'), storyboard: pick('storyboard'), report: pick('build_report'), scene: pick('scene'), sheet: find('preview_sheet')?.blobSha ?? null,
-      draft: pickDraft(list, run?.id ?? null), final: pickFinal(list, run?.id ?? null),
+      draft: pickDraft(list, own), final: pickFinal(list, run?.id ?? null),
       stems: pickStems(list, run?.id ?? null),
     };
   }, [detail.data, run]);

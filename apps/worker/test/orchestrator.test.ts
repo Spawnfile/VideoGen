@@ -43,6 +43,14 @@ const progressSeries = async (runId: string) =>
   (await t.pool.query("SELECT payload FROM ui_events WHERE topic = 'runs' AND type = 'run.updated' AND payload->>'id' = $1 ORDER BY id", [runId])).rows.map((r) => r.payload.progress as number);
 
 describe('Orchestrator', () => {
+  it('spec Z3 read-compat: a step key with no executor in this version (an old remix row) fails the run with its own key, not "undefined"', async () => {
+    const r = await createProduceRun(t.pool, { productName: 'Eski düzenleme', audioMode: 'silent', plan: [{ key: 'research', weight: 50 }, { key: 'remix' as StepKey, weight: 50 }] });
+    const o = orch({ research: exec('research') });
+    await o.startRun(r.runId);
+    await vi.waitFor(async () => expect(await runStatus(r.runId)).toBe('failed'));
+    expect((await getRunView(t.pool, r.runId))!.error).toBe('remix: bu sürümde yürütücü yok');
+  });
+
   it('runs the plan in order and stops honestly before the steps this build lacks', async () => {
     await t.pool.query("INSERT INTO usage_snapshots (source, five_hour_util, five_hour_resets_at, seven_day_util) VALUES ('get_usage', 0.3, '2026-10-06T15:00:00Z', 0.2)");
     const research = exec('research', { run: async (ctx) => { ctx.progress(40, 'agent'); await sleep(30); ctx.progress(80, 'agent'); return { status: 'done', note: 'tükenmez kalem' }; } });

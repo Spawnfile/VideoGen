@@ -399,7 +399,7 @@ export class Orchestrator {
     const ex = this.d.executors[next.key];
     if (!ex) {
       await updateStep(pool, next.id, { status: 'failed', error: 'bu sürümde yürütücü yok' });
-      return this.finish(runId, 'failed', `${STEP_LABELS[next.key]}: bu sürümde yürütücü yok`);
+      return this.finish(runId, 'failed', `${STEP_LABELS[next.key] ?? next.key}: bu sürümde yürütücü yok`);
     }
     if (!(await queueStepIfRunActive(pool, next.id))) return; // cancelled meanwhile
     await enqueueJob(pool, { stepId: next.id, resource: ex.resource });

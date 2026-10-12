@@ -36,7 +36,8 @@ export function timeCurvePercent(elapsedS: number, expectedS: number): number {
 /** Median of the last five finished durations; the spec §7.1 midpoint until there is history. */
 export function expectedSeconds(key: StepKey, history: number[]): number {
   const h = history.filter((x) => x > 0).slice(0, 5).sort((a, b) => a - b);
-  return h.length ? h[Math.floor(h.length / 2)]! : STEP_DEFAULT_S[key];
+  // Read-compat (spec Z1/Z3): an old row of a retired step key (remix) has no default; a minute keeps progress and ETA finite.
+  return h.length ? h[Math.floor(h.length / 2)]! : (STEP_DEFAULT_S[key] ?? 60);
 }
 
 /** Remaining seconds for the run, or null when no step is left. */

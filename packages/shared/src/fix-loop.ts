@@ -16,7 +16,8 @@ export function fixReportRefErrors(r: FixReport, o: { round: number; failed: str
   const listed = [...r.addressed.map((a) => a.check_id), ...r.not_addressed.map((n) => n.check_id)];
   for (const id of o.failed) if (!listed.includes(id)) out.push(`${id}: addressed ya da not_addressed içinde olmalı`);
   for (const id of new Set(listed)) if (!o.failed.includes(id)) out.push(`${id}: başarısız kontroller arasında değil`);
-  if (r.rerender_scope === 'voice' && o.audioMode === 'silent') out.push('rerender_scope: seslendirmesiz videoda voice yok');
+  // Spec Z1: the enum keeps 'voice' so old reports parse; no video takes a voice round any more.
+  if (r.rerender_scope === 'voice') out.push('rerender_scope: voice yok (seslendirme kaldırıldı)');
   return out;
 }
 

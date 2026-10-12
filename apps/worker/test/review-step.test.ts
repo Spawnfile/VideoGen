@@ -84,6 +84,18 @@ describe('review step (final panel)', () => {
     expect((await stored(q.r.runId, 'final_verdict')).content).toMatchObject({ verdict: 'fix', failed: expect.arrayContaining(['claims_verified']) });
   }, 120_000);
 
+  it('spec Z1 read-compat: a stored verdict whose G4 failed for lack of a voice track replays as the no_voice_track stop, without sessions', async () => {
+    const h = setup();
+    const p = await h.prepare('Tükenmez kalem eski beyan');
+    const ex = reviewExecutor(h.deps);
+    const c = p.ctx('review');
+    const hash = await ex.inputHash(c);
+    const gates = { G1: true, G2: true, G3: true, G4: false, G5: true, G6: true };
+    await insertArtifact(t.pool, { runId: p.r.runId, kind: 'final_verdict', inputHash: hash, meta: { fixRound: 0, verdict: 'fix' }, content: { verdict: 'fix', total: 85, dimensions: {}, gates, low: [], failed: [], regressed: [], fixed: [], oscillating: [], g4Cause: 'no_track' } });
+    expect(await ex.run(c, hash)).toEqual({ status: 'done', note: `${STOP_NOTE.no_voice_track}: 85,0 puan` });
+    expect(await h.sessionRoles(c.stepId)).toEqual([]);
+  });
+
   it('a usage block holds the whole fan-out (waiting_limit with the reason) and starts all four when it clears', async () => {
     const h = setup();
     let open = false;

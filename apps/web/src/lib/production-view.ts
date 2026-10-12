@@ -94,6 +94,12 @@ export function finalRoundLabel(run: RunView | null | undefined): string {
 /** The header shows the final fix round first, the draft round otherwise. */
 export const roundLabel = (run: RunView | null | undefined): string => finalRoundLabel(run) || draftRoundLabel(run);
 
+/**
+ * Spec Z3 read-compat: an old audio-edit run recorded only finals and stems, so the research, storyboard, scene and draft cards read the
+ * video's newest artifacts (null = the whole video); every other run reads its own.
+ */
+export const cardRunId = (run: { id: string; kind: string } | null | undefined): string | null => (!run || run.kind === 'audio_edit' ? null : run.id);
+
 /** The latest final artifacts of a run (spec §13.1 Final tab, plan E18). */
 export interface FinalPick { musicSha: string | null; coverSha: string | null; qcId: string | null }
 export function pickFinal(list: ArtifactMeta[], runId: string | null): FinalPick {

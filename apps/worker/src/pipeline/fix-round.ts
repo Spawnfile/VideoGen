@@ -10,6 +10,7 @@ import type { FixFinding } from './review-step.ts';
 export interface FixMeta {
   /** The reviewed round (`final_verdict` carries the same number). */
   fixRound: number;
+  /** 'voice' only on old reports (spec Z1 read-compat); new rounds are none, compose or build. */
   scope: 'none' | 'compose' | 'voice' | 'build';
   changed: string[];
   versionId: string;

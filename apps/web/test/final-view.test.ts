@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildQcReport, evaluateQc, type ArtifactMeta, type QcMeasure } from '@videogen/shared/browser';
-import { pickFinal, playerTabs, qcLines } from '../src/lib/production-view.ts';
+import { cardRunId, pickFinal, playerTabs, qcLines } from '../src/lib/production-view.ts';
 
 const a = (kind: string, runId: string, i: number): ArtifactMeta => ({ id: `${kind}-${runId}-${i}`, runId, stepId: null, versionId: null, kind, blobSha: `${kind}-sha-${i}`, createdAt: '' });
 
@@ -9,6 +9,12 @@ describe('final player and QC card helpers', () => {
     const list = [a('final_video_music', 'r1', 2), a('final_cover', 'r1', 2), a('qc_report', 'r1', 1), a('final_video_music', 'r0', 1)];
     expect(pickFinal(list, 'r1')).toEqual({ musicSha: 'final_video_music-sha-2', coverSha: 'final_cover-sha-2', qcId: 'qc_report-r1-1' });
     expect(pickFinal([], 'r1').musicSha).toBeNull();
+  });
+
+  it('spec Z3 read-compat: an old audio-edit run (finals and stems only) shows the video\'s newest research, storyboard, scene and draft', () => {
+    expect(cardRunId({ id: 'r1', kind: 'audio_edit' })).toBeNull();
+    expect(cardRunId({ id: 'r1', kind: 'produce' })).toBe('r1');
+    expect(cardRunId(null)).toBeNull();
   });
 
   it('opens on "Final" when a final exists, otherwise on the draft MP4; no tabs without media', () => {

@@ -74,6 +74,12 @@ const withBeat = (s: Storyboard, i: number, f: (b: Storyboard['beats'][number]) 
 const shiftBoundary = (s: Storyboard): Storyboard => withBeat(withBeat(s, 0, (b) => ({ ...b, t_end: b.t_end + 0.5 })), 1, (b) => ({ ...b, t_start: b.t_start + 0.5 }));
 
 describe('fixer (final review loop)', () => {
+  it('spec Z5: the fixer may exclude only today\'s sounds; a retired library name is refused', () => {
+    const plan = { version: 1, mode: 'silent' as const, music: { source: 'generated' as const, asset_id: null, gain_db: -18 }, vo_gain_db: 0, duck_db: 12, sfx: { gain_offset_db: 0, exclude: ['whoosh'] }, mastering: { target_lufs: -14 as const, tp: -1 as const } };
+    expect(audioRefErrors(plan).join()).toMatch(/whoosh/);
+    expect(audioRefErrors({ ...plan, sfx: { gain_offset_db: 0, exclude: ['y_tap'] } })).toEqual([]);
+  });
+
   it('compose scope: the fixer shortens the beat text, the step records the fix report and the new storyboard under the new version, and rewinds to compose', async () => {
     const s = await setup('Tükenmez kalem rötuş');
     const finalBefore = (await finalSource(s.h.deps, s.p.r.runId))!.hash;
@@ -403,6 +409,10 @@ describe('fixer (final review loop)', () => {
     expect(await roundCause(t.pool, s.p.r.runId, 2)).toEqual({ kind: 'rework', verdictId: v1.id, fixReportId: null, failed: ['hook_frame0', 'payoff'], changed: [] });
     expect(await roundCause(t.pool, s.p.r.runId, 3)).toBeNull();
     expect(await roundCause(t.pool, s.p.r.runId, 0)).toBeNull();
+    // Spec Z1 read-compat: an old report whose computed scope was 'voice' has no round any more.
+    await at('final_verdict', 3, { verdict: 'fix', failed: ['payoff'] });
+    await at('fix_report', 3, fx('fix-report-compose'), { scope: 'voice', changed: ['storyboard.vo'], claimed: 'voice' });
+    expect(await roundCause(t.pool, s.p.r.runId, 4)).toBeNull();
     // A claimed storyboard rewrite without any change is a rework too.
     await at('final_verdict', 2, { verdict: 'fix', failed: ['payoff'] });
     const f2 = await at('fix_report', 2, fx('fix-report-compose'), { scope: 'none', changed: [], claimed: 'storyboard' });

@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { SFX_NAMES } from './assets.ts';
 
 /** H4: the mix of a final — music level, SFX offsets and exclusions, mastering target (compose reads it, the fixer may edit levels). */
 export const AudioPlanSchema = z.object({
@@ -12,7 +11,8 @@ export const AudioPlanSchema = z.object({
   music: z.object({ source: z.enum(['generated', 'asset']).optional(), asset_id: z.uuid().nullable(), gain_db: z.number().min(-30).max(-10) }),
   vo_gain_db: z.number().min(-6).max(6),
   duck_db: z.number().min(6).max(18),
-  sfx: z.object({ gain_offset_db: z.number().min(-12).max(6), exclude: z.array(z.enum(SFX_NAMES)).max(SFX_NAMES.length) }),
+  // Read-compat (spec Z5): an old plan may exclude a retired library sound; only today's names are allowed on write (fixer audioRefErrors).
+  sfx: z.object({ gain_offset_db: z.number().min(-12).max(6), exclude: z.array(z.string().min(1).max(20)).max(12) }),
   mastering: z.object({ target_lufs: z.literal(-14), tp: z.literal(-1) }),
 }).superRefine((a, ctx) => {
   const dup = a.sfx.exclude.find((n, i) => a.sfx.exclude.indexOf(n) !== i);

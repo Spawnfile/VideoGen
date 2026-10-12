@@ -27,6 +27,7 @@ describe('time curve and expected duration', () => {
   it('uses the median of the last five runs, else the spec default', () => {
     expect(expectedSeconds('research', [])).toBe(300);
     expect(expectedSeconds('storyboard', [])).toBe(180);
+    expect(expectedSeconds('remix' as Parameters<typeof expectedSeconds>[0], [])).toBe(60); // read-compat: a retired step key (spec Z3)
     expect(expectedSeconds('research', [400, 100, 250])).toBe(250);
     expect(expectedSeconds('research', [10, 20, 30, 40, 50, 9999])).toBe(30);
   });

@@ -20,7 +20,8 @@ describe('fix loop', () => {
     expect(fixReportRefErrors({ ...r, not_addressed: [] }, { round: 1, failed, audioMode: 'silent' })).toEqual(['payoff: addressed ya da not_addressed içinde olmalı']);
     // An old report that claimed a voice round still reads; a silent video never takes one.
     const voice = FixReportSchema.parse({ ...r, rerender_scope: 'voice' });
-    expect(fixReportRefErrors(voice, { round: 1, failed, audioMode: 'silent' })).toEqual(['rerender_scope: seslendirmesiz videoda voice yok']);
+    expect(fixReportRefErrors(voice, { round: 1, failed, audioMode: 'silent' })).toEqual(['rerender_scope: voice yok (seslendirme kaldırıldı)']);
+    expect(fixReportRefErrors(voice, { round: 1, failed, audioMode: 'vo' })).toEqual(['rerender_scope: voice yok (seslendirme kaldırıldı)']); // spec Z1: for every video
     const dup: FixReport = { ...r, not_addressed: [{ check_id: 'text_readable', reason: 'x' }] };
     expect(FixReportSchema.safeParse(dup).success).toBe(false);
   });
